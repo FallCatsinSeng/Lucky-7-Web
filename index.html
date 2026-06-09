@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v110 -->
+<!-- BUILD: v111 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15772,6 +15772,7 @@ function finishSignIn(){
   renderSidebar();
   routeContent();
   document.querySelectorAll('.rs-btn').forEach(b => b.classList.toggle('on', b.dataset.role === currentUserRole));
+  try{ loadPCState().then(()=>{ try{ if(typeof render==='function') render(); }catch(_){} }); }catch(_){}
 }
 
 // 원클릭 dev 진입
@@ -17559,6 +17560,28 @@ let PCS = [];
 const MAX_SLOTS = 8;
 const MAX_CLIENTS_PER_PC = 3;
 
+// ── [v111] PC persistence — whole PCS array stored as one JSON row in pc_state ──
+let _pcLoaded = false, _pcSaveTimer = null;
+async function loadPCState(){
+  if(!sb){ _pcLoaded = true; return; }
+  try{
+    const { data, error } = await sb.from('pc_state').select('data').eq('id','default').maybeSingle();
+    if(error){ console.warn('pc_state load failed:', error.message); }
+    else if(data && Array.isArray(data.data)){ PCS = data.data; }
+  }catch(e){ console.warn('pc_state load error:', e && e.message); }
+  _pcLoaded = true;
+}
+function savePCState(){
+  if(!_pcLoaded || !sb) return;
+  clearTimeout(_pcSaveTimer);
+  _pcSaveTimer = setTimeout(async () => {
+    try{
+      const { error } = await sb.from('pc_state').upsert({ id:'default', data: PCS, updated_at: new Date().toISOString() });
+      if(error) console.warn('pc_state save failed:', error.message);
+    }catch(e){ console.warn('pc_state save error:', e && e.message); }
+  }, 1000);
+}
+
 let selectedPC = null, filter = 'all', tlView = 'pc', tlFocus = 'all', tlMode = 'all';
 let editingClient = null;
 let scheduleDay = new Date().getDay(); // 0=일 1=월 ... 6=토. 기본 = 오늘
@@ -17618,7 +17641,7 @@ function toast(m, isErr){
 // ═══════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════
-function render(){ renderDayPicker(); renderPosLegend(); renderPCs(); renderPools(); loadStaffPool().then(()=>{ try{ if(document.getElementById('staff-pool')) renderPools(); }catch(_){} }); renderTimeline(); renderMetrics(); }
+function render(){ renderDayPicker(); renderPosLegend(); renderPCs(); renderPools(); loadStaffPool().then(()=>{ try{ if(document.getElementById('staff-pool')) renderPools(); }catch(_){} }); renderTimeline(); renderMetrics(); savePCState(); }
 
 function renderDayPicker(){
   const today = new Date().getDay();
@@ -19018,6 +19041,7 @@ document.addEventListener('keydown', (e) => {
   }
   renderSidebar();
   routeContent();
+  await loadPCState();
   render();
   selectPC(1);
 })();
