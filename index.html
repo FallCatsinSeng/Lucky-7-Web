@@ -7564,14 +7564,7 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
           <div class="fg"><label>비밀번호</label><input type="password" id="si-pass" placeholder="••••••••" value="dev" onkeydown="if(event.key==='Enter')signIn()"></div>
           <button class="btn btn-ac btn-full" onclick="signIn()">로그인</button>
           
-          <div class="auth-quick">
-            <div class="auth-quick-label">⚡ 빠른 진입 (dev)</div>
-            <div class="auth-quick-btns">
-              <button onclick="quickLogin('mt@lucky7.ops')">MT · Admin</button>
-              <button onclick="quickLogin('panda@lucky7.ops')">Panda · OP</button>
-              <button onclick="quickLogin('claws@lucky7.ops')">Claws · Player</button>
-            </div>
-          </div>
+          
         </div>
 
         <!-- SIGN UP -->
@@ -7584,10 +7577,7 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
             <input id="su-code" placeholder="ADMIN-XXXX / OPS-XXXX / PLAY-XXXX" style="font-family:monospace;letter-spacing:.5px">
           </div>
           <button class="btn btn-ac btn-full" onclick="signUp()">계정 만들기</button>
-          <div class="auth-hint" style="margin-top:14px">
-            <b>샘플 초대코드:</b><br>
-            <code>ADMIN-2026</code> · <code>OPS-PANDA</code> · <code>PLAY-ACE01</code>
-          </div>
+          
         </div>
       </div>
     </div>
@@ -7608,15 +7598,6 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
         <button class="sb-ws-edit" id="sb-edit-btn" onclick="toggleSidebarEdit()" title="사이드바 편집">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </button>
-        <button class="sb-ws-toggle" title="워크스페이스">⌄</button>
-      </div>
-    </div>
-    <div class="sb-role-switch-wrap">
-      <div class="sb-role-label">권한 시뮬레이션</div>
-      <div class="sb-role-switch" id="sb-role-switch" title="개발/QA용 — 권한 시뮬레이션">
-        <button class="rs-btn on" data-role="admin" onclick="setUserRole('admin')">Admin</button>
-        <button class="rs-btn" data-role="op" onclick="setUserRole('op')">OP</button>
-        <button class="rs-btn" data-role="player" onclick="setUserRole('player')">Player</button>
       </div>
     </div>
     <nav class="sb-channels" id="sb-channels"></nav>
@@ -15741,6 +15722,8 @@ function finishSignIn(){
   showAppScreen();
   updateSidebarUser();
   startPresence(); // [v65 #5] begin online-status heartbeat
+  try{ loadStaffPool(); }catch(_){}
+  try{ loadAppUsers(); }catch(_){}
   // 권한에 따라 첫 보이는 페이지로 이동
   const visible = visibleTree();
   let firstCh = null;
@@ -15879,10 +15862,8 @@ function updateSidebarUser(){
   if(avEl)   avEl.textContent   = currentUser.avatar || currentUser.name.slice(0,2).toUpperCase();
   if(nameEl) nameEl.textContent = currentUser.name;
   if(roleEl){
-    const appRoleLabel = currentUser.appRole === 'ceo' ? 'CEO' : 
-                         currentUser.appRole === 'manager' ? 'MANAGER' :
-                         currentUser.appRole === 'hr' ? 'HR' :
-                         currentUser.appRole === 'settlement' ? 'SETTLEMENT' : 'STAFF';
+    const _r = currentUser.role || currentUser.appRole || 'staff';
+    const appRoleLabel = ({ceo:'CEO',manager:'MANAGER',hr:'HR',settlement:'SETTLEMENT',staff:'STAFF',admin:'ADMIN',op:'OP',player:'PLAYER'})[_r] || String(_r).toUpperCase();
     roleEl.textContent = `${appRoleLabel} · ${(currentUser.sessionRole||'').toUpperCase()}`;
   }
 }
@@ -16046,8 +16027,10 @@ function userPageCount(u){
 }
 
 function renderPerms(){
+  if(!_usersTried && sb){ loadAppUsers().then(()=>renderPerms()); }
+  const _users = (LIVE_USERS !== null) ? LIVE_USERS : APP_USERS;
   // 사용자 행
-  const usersHTML = APP_USERS.map(u => {
+  const usersHTML = _users.map(u => {
     const role = getRoleById(u.role);
     const lastA = u.lastActive === 'now' 
       ? `<span class="pm-active-now">지금</span>` 
@@ -17570,7 +17553,7 @@ function toast(m, isErr){
 // ═══════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════
-function render(){ renderDayPicker(); renderPosLegend(); renderPCs(); renderPools(); renderTimeline(); renderMetrics(); }
+function render(){ renderDayPicker(); renderPosLegend(); renderPCs(); renderPools(); loadStaffPool().then(()=>{ try{ if(document.getElementById('staff-pool')) renderPools(); }catch(_){} }); renderTimeline(); renderMetrics(); }
 
 function renderDayPicker(){
   const today = new Date().getDay();
@@ -17914,6 +17897,48 @@ function staffChipHTML(s){
     </div>
     <div class="segs">${segs}</div>
   </div>`;
+}
+
+// [live] Load the Staff pool from Supabase user_profiles so real signups appear by role.
+async function loadStaffPool(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('user_profiles').select('id, name, email, role');
+    if(error || !data) return;
+    const roleToPos = { ceo:'admin', manager:'manager', hr:'hr', settlement:'settlement', staff:'unranked' };
+    STAFF.length = 0;
+    data.forEach(p => {
+      const nm = (p.name && p.name.trim()) || (p.email||'').split('@')[0] || '??';
+      STAFF.push({
+        id: p.id,
+        name: nm.split(' ')[0],
+        full_name: nm,
+        short: nm.slice(0,2).toUpperCase(),
+        position: roleToPos[p.role] || 'unranked',
+        work_days: 6,
+        shiftLen: 8,
+        break_hours: 1,
+        day_off: false
+      });
+    });
+  }catch(e){ console.warn('staff pool load failed:', e); }
+}
+
+let LIVE_USERS = null;
+let _usersTried = false;
+async function loadAppUsers(){
+  _usersTried = true;
+  if(!sb){ LIVE_USERS = []; return; }
+  try{
+    const { data, error } = await sb.from('user_profiles').select('id, name, email, role, last_seen');
+    LIVE_USERS = (error || !data) ? [] : data.map(p => {
+      const nm = (p.name && p.name.trim()) || (p.email||'').split('@')[0] || '??';
+      return { id:p.id, name:nm, email:p.email||'', role:p.role||'staff',
+               avatar:nm.slice(0,2).toUpperCase(),
+               isMe: !!(currentUser && p.id===currentUser.id),
+               lastActive:'off' };
+    });
+  }catch(e){ LIVE_USERS = []; console.warn('app users load failed:', e); }
 }
 
 function renderPools(){
