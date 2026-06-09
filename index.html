@@ -13981,6 +13981,7 @@ async function renderStaff(){
       <div class="sf3-mini-info">
         <div class="sf3-mini-name-row">
           <span class="sf3-mini-name">${m.name}</span>${shiftHourBadge(m.current_shift)}
+          <span style="font-size:10px;font-weight:700;letter-spacing:.3px;padding:1px 6px;border-radius:6px;background:rgba(194,160,74,.16);color:var(--ac)">${roleTitle(m.db_role||m.role)}</span>
           ${m.role === 'player' ? `<span class="sf3-mini-score sf3-score-hidden" onclick="event.stopPropagation();this.classList.toggle('sf3-score-hidden')" title="점수 표시/숨김"><b style="color:${tier.color}">${m.score}</b><span class="sf3-score-veil">🔒</span></span>` : ''}
         </div>
         <div class="sf3-mini-meta">
@@ -14607,8 +14608,8 @@ async function tsCardDrop(e, system){
   e.preventDefault();
   e.currentTarget.classList.remove('ts-sec-over');
   if(!tsDragId || tsDragFrom === system) return;
-  const t = TRUST_DATA[tsDragId];
-  if(!t) return;
+  let t = TRUST_DATA[tsDragId];
+  if(!t){ t = TRUST_DATA[tsDragId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked', system:'player' }; }
   const LABELS = { op:'OPTEAM', player_leader:'PLAYER LEADER', player:'PLAYER' };
   if(!confirm(`${tsDragId}을(를) ${LABELS[system]}(으)로 이전할까요?\n\n기존 Warning/Trust 점수는 유지됩니다.`)){
     tsDragId = null; tsDragFrom = null;
@@ -15695,6 +15696,7 @@ function presenceStatus(seenMs){
   return 'offline';
 }
 function _presRoleLabel(r){ return r==='admin' ? 'Manager' : r==='op' ? 'Operator' : r==='player' ? 'Player' : 'Staff'; }
+function roleTitle(r){ return ({ceo:'CEO',manager:'Manager',hr:'HR',settlement:'Settlement',staff:'Staff',admin:'Admin',op:'OP',player:'Player'})[r] || (r ? String(r) : '—'); }
 function _presInitials(n){ return (n||'?').trim().slice(0,2).toUpperCase(); }
 
 function renderOnlinePresence(){
@@ -15891,10 +15893,26 @@ function updateSidebarUser(){
 // ═══════════════════════════════════════════════════
 // INVITE CODES MODULE — 관리자 페이지
 // ═══════════════════════════════════════════════════
-function renderInvites(){
-  const active   = INVITE_CODES.filter(c => !c.used);
-  const used     = INVITE_CODES.filter(c => c.used);
-  const total    = INVITE_CODES.length;
+let _invitesCache = [];
+async function renderInvites(){
+  if(sb){
+    try{
+      const { data, error } = await sb.from('invite_codes').select('*');
+      if(error){ console.warn('invite_codes load failed:', error.message); }
+      else if(data){
+        _invitesCache = data.map(c => ({
+          id: c.id, code: c.code, role: c.role, label: c.label || '—',
+          used: !!c.used,
+          usedBy: c.used_by || '', usedAt: c.used_at ? String(c.used_at).slice(0,10) : '',
+          createdBy: c.created_by || '—', createdAt: c.created_at ? String(c.created_at).slice(0,10) : '—'
+        })).sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+      }
+    }catch(e){ console.warn('invite_codes load error:', e && e.message); }
+  }
+  const LIST = _invitesCache;
+  const active   = LIST.filter(c => !c.used);
+  const used     = LIST.filter(c => c.used);
+  const total    = LIST.length;
   
   const rowHTML = (c) => {
     const role = APP_ROLES.find(r => r.id === (c.role === 'admin' ? 'ceo' : c.role === 'op' ? 'hr' : 'staff')) 
@@ -15934,31 +15952,35 @@ function renderInvites(){
         <thead><tr>
           <th>코드</th><th>역할</th><th>라벨</th><th>발급</th><th>상태</th><th></th>
         </tr></thead>
-        <tbody>${INVITE_CODES.map(rowHTML).join('')}</tbody>
+        <tbody>${LIST.map(rowHTML).join('')}</tbody>
       </table>
     </div>
   </div>`;
   document.getElementById('ch-other').innerHTML = html;
 }
 
-function createInviteCode(){
-  const role = prompt('역할 (admin / op / player):', 'player');
-  if(!role || !['admin','op','player'].includes(role.trim().toLowerCase())) return;
-  const label = prompt('라벨 (예: "신입 채용", "Replacement"):', 'Open Slot') || 'Open Slot';
+async function createInviteCode(){
+  const role = prompt('Role (ceo / manager / hr / settlement / staff):', 'staff');
+  if(!role) return;
   const r = role.trim().toLowerCase();
-  // 코드 자동 생성 (PREFIX-XXXX)
-  const prefix = r === 'admin' ? 'ADMIN' : r === 'op' ? 'OPS' : 'PLAY';
+  if(!['ceo','manager','hr','settlement','staff'].includes(r)){ toast('Invalid role', true); return; }
+  const label = prompt('Label (e.g. "New hire", "Replacement"):', 'Open Slot') || 'Open Slot';
+  // auto code (PREFIX-XXXX)
+  const prefix = ({ceo:'CEO',manager:'MGR',hr:'HR',settlement:'SETL',staff:'STAFF'})[r] || 'CODE';
   const suffix = Math.random().toString(36).slice(2,7).toUpperCase();
   const code = `${prefix}-${suffix}`;
-  INVITE_CODES.push({
-    id: 'ic' + Date.now(),
-    code, role: r, label,
-    used: false,
-    createdBy: currentUser?.name || 'MT',
-    createdAt: new Date().toISOString().slice(0,10)
-  });
-  toast(`코드 발급: ${code}`);
-  renderInvites();
+  if(sb){
+    try{
+      const { error } = await sb.from('invite_codes').insert({
+        code, role: r, label, used: false, created_by: currentUser?.name || 'admin'
+      });
+      if(error){ toast('Code create failed: ' + error.message, true); console.error('invite insert failed:', error); return; }
+      toast(`Code issued: ${code}`);
+      renderInvites();
+      return;
+    }catch(e){ toast('Code create error: ' + (e&&e.message), true); return; }
+  }
+  toast('No DB connection', true);
 }
 
 function copyInviteCode(code){
@@ -15968,13 +15990,17 @@ function copyInviteCode(code){
   );
 }
 
-function deleteInviteCode(id){
-  const c = INVITE_CODES.find(x => x.id === id);
+async function deleteInviteCode(id){
+  const c = _invitesCache.find(x => String(x.id) === String(id));
   if(!c) return;
-  if(!confirm(`코드 "${c.code}"를 ${c.used ? '이력에서 제거' : '삭제'}할까요?`)) return;
-  const idx = INVITE_CODES.indexOf(c);
-  INVITE_CODES.splice(idx, 1);
-  toast('삭제됨');
+  if(!confirm(`Delete code "${c.code}"?`)) return;
+  if(sb){
+    try{
+      const { error } = await sb.from('invite_codes').delete().eq('id', id);
+      if(error){ toast('Delete failed: ' + error.message, true); return; }
+    }catch(e){ toast('Delete error: ' + (e&&e.message), true); return; }
+  }
+  toast('Deleted');
   renderInvites();
 }
 
