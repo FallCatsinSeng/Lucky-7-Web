@@ -9735,7 +9735,8 @@ async function loadTeamMembers(){
           id: p.id,
           name: p.name || (p.email||'').split('@')[0],
           short: (p.name || p.email || '??').slice(0,2).toUpperCase(),
-          role: p.role
+          role: (typeof mapRoleToAppRole==='function') ? mapRoleToAppRole(p.role) : p.role,
+          db_role: p.role
         }));
       }
     }catch(e){ console.warn('team load failed:', e); }
@@ -15658,19 +15659,33 @@ const PRESENCE_IDLE_MS   = 5 * 60 * 1000;   // seen within 5min → idle
 let _presenceTimer = null;
 
 // MOCK store — remove when Supabase is wired
+let _presenceCache = [];
 function _mockPresence(){ return []; }
 
-// TODO(Supabase): write my last_seen = now()
-//   await sb.from('user_profiles').update({ last_seen:new Date().toISOString() }).eq('id', currentUser.id);
-function pingPresence(){
+// [live] write my last_seen, read everyone's, then render
+async function pingPresence(){
+  if(sb && currentUser && currentUser.id){
+    try{
+      await sb.from('user_profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+    }catch(e){ console.warn('presence write failed:', e && e.message); }
+    try{
+      const { data, error } = await sb.from('user_profiles').select('name, role, last_seen');
+      if(!error && data){
+        _presenceCache = data
+          .filter(r => r.last_seen)
+          .map(r => ({
+            name: r.name || '?',
+            role: (typeof mapRoleToAppRole==='function') ? mapRoleToAppRole(r.role) : r.role,
+            seen: new Date(r.last_seen).getTime()
+          }));
+      }
+    }catch(e){ console.warn('presence read failed:', e && e.message); }
+  }
   renderOnlinePresence();
 }
 
-// TODO(Supabase): read everyone's last_seen
-//   const { data } = await sb.from('user_profiles').select('name,role,last_seen');
-//   return data.map(r => ({ name:r.name, role:r.role, seen:new Date(r.last_seen).getTime() }));
 function fetchPresence(){
-  return _mockPresence();
+  return _presenceCache;
 }
 
 function presenceStatus(seenMs){
