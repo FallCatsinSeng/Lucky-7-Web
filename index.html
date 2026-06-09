@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
+<!-- BUILD: v110 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7541,7 +7542,7 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
      AUTH SCREEN — Sign In / Sign Up (with invite code)
      발렌 디자인 베이스 + 우리 시스템 통합
      ═══════════════════════════════════════════════════ -->
-<div id="auth-screen">
+<div id="auth-screen" style="display:none">
   <div class="auth-split">
     <div class="auth-brand">
       <div class="auth-brand-inner">
@@ -7747,12 +7748,13 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 </div><!-- /#app-screen -->
 
 <script>
-/* [v108] eliminate login-flash on reload: pick the screen BEFORE the ~11k-line main script parses */
+/* [v109] decide the screen BEFORE the ~11k-line main script parses (kills login flash on reload) */
 try{
-  if(sessionStorage.getItem('lucky7_session')){
-    var _a=document.getElementById('auth-screen'); if(_a) _a.style.display='none';
-    var _p=document.getElementById('app-screen'); if(_p) _p.style.display='';
-  }
+  var _hasSess = !!sessionStorage.getItem('lucky7_session');
+  var _a=document.getElementById('auth-screen');
+  var _p=document.getElementById('app-screen');
+  if(_hasSess){ if(_a)_a.style.display='none'; if(_p)_p.style.display=''; }
+  else        { if(_a)_a.style.display='flex'; if(_p)_p.style.display='none'; }
 }catch(_){}
 </script>
 
@@ -17979,7 +17981,7 @@ async function loadStaffPool(){
         short: nm.slice(0,2).toUpperCase(),
         position: roleToPos[p.role] || 'unranked',
         work_days: 6,
-        shiftLen: 8,
+        shiftLen: 12,
         break_hours: 1,
         day_off: false
       });
