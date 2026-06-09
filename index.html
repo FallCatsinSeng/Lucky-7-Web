@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v112 -->
+<!-- BUILD: v113 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -17642,7 +17642,16 @@ function toast(m, isErr){
 // ═══════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════
-function render(){ renderDayPicker(); renderPosLegend(); renderPCs(); renderPools(); loadStaffPool().then(()=>{ try{ if(document.getElementById('staff-pool')) renderPools(); }catch(_){} }); renderTimeline(); renderMetrics(); savePCState(); }
+function render(){
+  try{ renderDayPicker(); }catch(e){ console.warn('renderDayPicker failed:', e); }
+  try{ renderPosLegend(); }catch(e){ console.warn('renderPosLegend failed:', e); }
+  try{ renderPCs(); }catch(e){ console.warn('renderPCs failed:', e); }
+  try{ renderPools(); }catch(e){ console.warn('renderPools failed:', e); }
+  try{ loadStaffPool().then(()=>{ try{ renderPCs(); if(document.getElementById('staff-pool')) renderPools(); }catch(_){} }); }catch(_){}
+  try{ renderTimeline(); }catch(e){ console.warn('renderTimeline failed:', e); }
+  try{ renderMetrics(); }catch(e){ console.warn('renderMetrics failed:', e); }
+  savePCState();
+}
 
 function renderDayPicker(){
   const today = new Date().getDay();
@@ -17802,6 +17811,9 @@ function gameLabel(g){ return g==='lineage'?'Lineage':g==='maple'?'Maple':g==='m
 function staffSlotHTML(p, a, idx){
   const canEdit = currentUserRole === 'admin' || currentUserRole === 'op';
   const s = staffById(a.staff);
+  if(!s){
+    return `<div class="slot staff"><div class="slot-r1"><span class="slot-av" style="background:var(--br)">?</span><span class="slot-nm" style="color:var(--tx3)">${a.len||0}H</span>${canEdit?`<span class="slot-unx" onclick="event.stopPropagation();unassignStaff(${p.id},${idx})">✕</span>`:''}</div></div>`;
+  }
   const endH = (a.start + a.len) % 24;
   const rc = rankColor(s.position);
   const g = shiftGame(a, p);
@@ -19042,6 +19054,7 @@ document.addEventListener('keydown', (e) => {
   }
   renderSidebar();
   routeContent();
+  try{ await loadStaffPool(); }catch(_){}
   await loadPCState();
   render();
   selectPC(1);
