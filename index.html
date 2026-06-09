@@ -7552,6 +7552,12 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
     </div>
     <div class="auth-form-panel">
       <div class="auth-form-inner">
+        <div id="auth-lang" style="display:flex;gap:5px;justify-content:flex-end;margin-bottom:12px">
+          <button type="button" data-l="ko" onclick="setLang('ko')" style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;background:transparent;color:var(--tx3);border:1px solid var(--br);cursor:pointer">한국어</button>
+          <button type="button" data-l="en" onclick="setLang('en')" style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;background:transparent;color:var(--tx3);border:1px solid var(--br);cursor:pointer">EN</button>
+          <button type="button" data-l="id" onclick="setLang('id')" style="font-size:11px;font-weight:700;padding:4px 9px;border-radius:7px;background:transparent;color:var(--tx3);border:1px solid var(--br);cursor:pointer">ID</button>
+        </div>
+        <script>(function(){try{var l=sessionStorage.getItem('lucky7_lang')||'ko';var b=document.querySelector('#auth-lang button[data-l="'+l+'"]');if(b){b.style.color='var(--ac)';b.style.borderColor='var(--ac)';b.style.background='rgba(194,160,74,.12)';}}catch(_){}})();</script>
         <div class="auth-sub" id="auth-sub">계정에 로그인하세요</div>
         <div class="auth-tabs">
           <button class="auth-tab on" id="auth-tab-in" onclick="showAuthTab('in')">로그인</button>
@@ -7561,8 +7567,8 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 
         <!-- SIGN IN -->
         <div id="auth-tab-in-form">
-          <div class="fg"><label>이메일</label><input type="email" id="si-email" placeholder="mt@lucky7.ops" onkeydown="if(event.key==='Enter')signIn()"></div>
-          <div class="fg"><label>비밀번호</label><input type="password" id="si-pass" placeholder="••••••••" value="dev" onkeydown="if(event.key==='Enter')signIn()"></div>
+          <div class="fg"><label>이메일</label><input type="email" id="si-email" placeholder="you@email.com" onkeydown="if(event.key==='Enter')signIn()"></div>
+          <div class="fg"><label>비밀번호</label><input type="password" id="si-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')signIn()"></div>
           <button class="btn btn-ac btn-full" onclick="signIn()">로그인</button>
           
           
