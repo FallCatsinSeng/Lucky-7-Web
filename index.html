@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v114 -->
+<!-- BUILD: v115 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -14392,7 +14392,7 @@ async function renderTrust(){
   const enriched = team.map(m => {
     const t = TRUST_DATA[m.id] || { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked', system:'player' };
     const det = STAFF_DETAILS[m.id] || {};
-    const sys = t.system || (m.role === 'op' ? 'op' : m.role === 'player' ? 'player' : 'admin');
+    const sys = (TRUST_DATA[m.id] && TRUST_DATA[m.id].system) || (m.role === 'op' ? 'op' : m.role === 'player' ? 'player' : 'admin');
     return {
       ...m,
       system: sys,
@@ -16307,7 +16307,7 @@ const CHANNEL_META = {
 };
 
 // 채널 상태
-let activeChannelId = 'pc-status';   // 시작은 PC Status
+let activeChannelId = 'overview';   // 시작은 Overview
 let currentUserRole = 'admin';        // 기본 admin (Role Switcher로 변경)
 let collapsedCats = new Set();        // 접힌 카테고리 id 모음
 let sidebarEditMode = false;          // 사이드바 편집 모드
@@ -17589,7 +17589,6 @@ function savePCState(){
     try{
       const { error } = await sb.from('pc_state').upsert({ id:'default', data: PCS, updated_at: new Date().toISOString() });
       if(error){ console.warn('pc_state save failed:', error.message); toast('PC save FAILED: ' + error.message, true); }
-      else { toast('✓ PC layout saved'); }
     }catch(e){ console.warn('pc_state save error:', e && e.message); toast('PC save error: ' + (e&&e.message), true); }
   }, 400);
 }
