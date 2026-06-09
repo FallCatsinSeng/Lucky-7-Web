@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v115 -->
+<!-- BUILD: v117 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7537,6 +7537,9 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 </style>
 </head>
 <body>
+<div id="boot-splash" style="position:fixed;inset:0;z-index:99999;background:#15140f;display:flex;align-items:center;justify-content:center">
+  <div style="width:54px;height:54px;border-radius:12px;border:2px solid #c2a04a;display:flex;align-items:center;justify-content:center;font:700 22px Georgia,serif;color:#c2a04a">L7</div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════
      AUTH SCREEN — Sign In / Sign Up (with invite code)
@@ -7756,6 +7759,9 @@ try{
   if(_hasSess){ if(_a)_a.style.display='none'; if(_p)_p.style.display=''; }
   else        { if(_a)_a.style.display='flex'; if(_p)_p.style.display='none'; }
 }catch(_){}
+window.hideBootSplash = function(){ var s=document.getElementById('boot-splash'); if(s){ s.style.transition='opacity .25s'; s.style.opacity='0'; setTimeout(function(){ if(s&&s.parentNode) s.parentNode.removeChild(s); }, 280); } };
+// failsafe: never let the splash trap the user even if init fails
+setTimeout(function(){ if(window.hideBootSplash) window.hideBootSplash(); }, 2500);
 </script>
 
 <div class="toast" id="toast"></div>
@@ -13946,6 +13952,21 @@ async function renderStaff(){
   if(!otherView) return;
   const team = await loadTeamMembers();
 
+  // [v116] live attendance status (today) — so clock-in reflects on the Staff List
+  let attMap = {};
+  if(sb){
+    try{
+      const { data } = await sb.from('attendance').select('user_id, clock_in, clock_out, break_start, break_end').eq('date', todayStr());
+      (data||[]).forEach(r => {
+        let st = 'offline';
+        if(r.clock_out) st = 'off';
+        else if(r.break_start && !r.break_end) st = 'break';
+        else if(r.clock_in) st = 'online';
+        attMap[r.user_id] = st;
+      });
+    }catch(e){ console.warn('attendance status load failed:', e && e.message); }
+  }
+
   const enriched = team.map(m => {
     const d = STAFF_DETAILS[m.id] || {};
     const t = TRUST_DATA[m.id] || {};
@@ -13953,7 +13974,7 @@ async function renderStaff(){
       ...m,
       score: calcTrustScore(m.id),
       warnings: d.warnings || 0,
-      status: d.status || 'offline',
+      status: attMap[m.id] || d.status || 'offline',
       joined: d.joined || '—',
       current_shift: d.current_shift,
       current_pc: d.current_pc,
@@ -15590,6 +15611,7 @@ function mapRoleToAppRole(role){
 function showAuthScreen(){
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('app-screen').style.display = 'none';
+  if(window.hideBootSplash) window.hideBootSplash();
 }
 function showAppScreen(){
   document.getElementById('auth-screen').style.display = 'none';
@@ -19068,6 +19090,7 @@ document.addEventListener('keydown', (e) => {
   await loadPCState();
   render();
   selectPC(1);
+  if(window.hideBootSplash) window.hideBootSplash();
 })();
 setInterval(renderTimeline, 60000);
 
