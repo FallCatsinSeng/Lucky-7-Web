@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v118 -->
+<!-- BUILD: v119 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -2895,6 +2895,8 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-kactions .lb-act-tp:hover{background:var(--gr);transform:translateY(-1px);box-shadow:0 2px 8px color-mix(in srgb,var(--gr) 35%,transparent)}
 .lb-kactions .lb-act-wp{background:var(--re-bg);border-color:color-mix(in srgb,var(--re) 28%,transparent)}
 .lb-kactions .lb-act-wp:hover{background:var(--re);transform:translateY(-1px);box-shadow:0 2px 8px color-mix(in srgb,var(--re) 35%,transparent)}
+.lb-kactions .lb-act-rm{width:28px;height:28px;border-radius:7px;border:1px solid color-mix(in srgb,var(--gr) 28%,transparent);background:var(--gr-bg);cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;transition:all .14s var(--ease)}
+.lb-kactions .lb-act-rm:hover{background:var(--gr);transform:translateY(-1px);box-shadow:0 2px 8px color-mix(in srgb,var(--gr) 35%,transparent)}
 .lb-act-ic{font-size:12px;line-height:1}
 @media (max-width:720px){.lb-board{grid-template-columns:1fr}}
 .lb-row{
@@ -14527,6 +14529,7 @@ async function renderTrust(){
         ${canGrant ? `<div class="lb-kactions">
           <button class="lb-act-tp" onclick="event.stopPropagation();quickGrantTrust('${m.id}',1)" title="+1 Trust Point"><span class="lb-act-ic">🏆</span></button>
           <button class="lb-act-wp" onclick="event.stopPropagation();quickGrantWarn('${m.id}',1)" title="+1 Warning"><span class="lb-act-ic">⚠️</span></button>
+          ${m.warn_pts > 0 ? `<button class="lb-act-rm" onclick="event.stopPropagation();quickGrantWarn('${m.id}',-1)" title="-1 Warning (good behavior / forgive)"><span class="lb-act-ic">➖</span></button>` : ''}
         </div>` : ''}
       </div>
     </div>`;
@@ -14565,7 +14568,7 @@ async function renderTrust(){
       <div class="ts-top-l">
         <div class="att-eyebrow">인사</div>
         <div class="ph">점수판</div>
-        <div class="psub">Trust System · ${_uiLang()==='ko'?'카드 색 = 종합 상태 · 드래그로 시스템 이동':'card color = overall status · drag to move'}${canGrant ? (_uiLang()==='ko'?' · 🏆+/⚠+ 빠른 부여':' · 🏆+/⚠+ quick grant') : ''}</div>
+        <div class="psub">Trust System · ${_uiLang()==='ko'?'카드 색 = 종합 상태 · 드래그로 시스템 이동':'card color = overall status · drag to move'}${canGrant ? (_uiLang()==='ko'?' · 🏆+/⚠+/➖ 빠른 부여·감점':' · 🏆+ / ⚠+ / ➖ lower warning') : ''}</div>
       </div>
       <button class="ts-policy-main" onclick="openPolicyPanel('player')">📋 평가 정책 보기</button>
     </div>
@@ -14629,10 +14632,15 @@ async function quickGrantTrust(memberId, pts){
 async function quickGrantWarn(memberId, pts){
   let t = TRUST_DATA[memberId];
   if(!t){ t = TRUST_DATA[memberId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked' }; }
-  t.warn_pts = (t.warn_pts || 0) + pts;
+  t.warn_pts = Math.max(0, (t.warn_pts || 0) + pts);
   if(!t.incidents) t.incidents = [];
-  t.incidents.unshift({ date:new Date().toISOString().slice(0,10), type:'Quick warn', pts });
-  toast(`⚠ ${memberId}에게 +${pts} Warning Pt`, true);
+  if(pts >= 0){
+    t.incidents.unshift({ date:new Date().toISOString().slice(0,10), type:'Quick warn', pts });
+    toast(`⚠ ${memberId} +${pts} Warning Pt`, true);
+  } else {
+    t.incidents.unshift({ date:new Date().toISOString().slice(0,10), type:'Warning reduced (good behavior)', pts });
+    toast(`✓ ${memberId} ${pts} Warning Pt`);
+  }
   renderTrust();
 }
 
