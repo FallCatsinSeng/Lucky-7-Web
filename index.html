@@ -18956,6 +18956,9 @@ document.addEventListener('keydown', (e) => {
 (function(){ try{ const t = sessionStorage.getItem('lucky7_theme'); if(t) applyTheme(t); }catch(_){} })();
 // 세션 체크 — 저장된 세션 있으면 바로 앱, 없으면 인증 화면
 (async () => {
+  // [v104] avoid login-screen flash on language-change reload:
+  // if a session is already cached, show the app immediately before the async check resolves
+  try{ if(sessionStorage.getItem(SESSION_KEY)) showAppScreen(); }catch(_){}
   const hasSession = await checkSession();
   if(hasSession){
     showAppScreen();
