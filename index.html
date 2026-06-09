@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v119 -->
+<!-- BUILD: v120 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -13062,6 +13062,31 @@ const RANKS = {
 // protected_until: 보호 기간 끝나는 날 (Player만 적용, null = 보호 종료)
 const TRUST_DATA = {};
 
+// ── [v120] trust persistence — TRUST_DATA stored as one JSON row in trust_state ──
+let _trustLoaded = false, _trustSaveTimer = null;
+async function loadTrustState(){
+  if(_trustLoaded) return;
+  if(!sb){ _trustLoaded = true; return; }
+  try{
+    const { data, error } = await sb.from('trust_state').select('data').eq('id','default').maybeSingle();
+    if(error){ console.warn('trust_state load failed:', error.message); }
+    else if(data && data.data && typeof data.data === 'object'){
+      Object.keys(data.data).forEach(k => { TRUST_DATA[k] = data.data[k]; });
+    }
+  }catch(e){ console.warn('trust_state load error:', e && e.message); }
+  _trustLoaded = true;
+}
+function saveTrustState(){
+  if(!sb) return;
+  clearTimeout(_trustSaveTimer);
+  _trustSaveTimer = setTimeout(async () => {
+    try{
+      const { error } = await sb.from('trust_state').upsert({ id:'default', data: TRUST_DATA, updated_at: new Date().toISOString() });
+      if(error){ console.warn('trust_state save failed:', error.message); toast('Trust save FAILED: ' + error.message, true); }
+    }catch(e){ console.warn('trust_state save error:', e && e.message); }
+  }, 600);
+}
+
 // 워닝 카탈로그 — Player (v4.1)
 const WARN_CATALOG_PLAYER = {
   'Incorrect report':              { pts:0.5, desc:'Missing / inaccurate report details' },
@@ -14419,6 +14444,7 @@ function closeStaffDetail(){
 // ═══════════════════════════════════════════════════
 
 async function renderTrust(){
+  await loadTrustState();
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
   const team = await loadTeamMembers();
@@ -14626,7 +14652,8 @@ async function quickGrantTrust(memberId, pts){
   t.trust_pts = (t.trust_pts || 0) + pts;
   if(!t.trust_earned) t.trust_earned = [];
   t.trust_earned.unshift({ date:new Date().toISOString().slice(0,10), type:'Quick grant', pts });
-  toast(`🏆 ${memberId}에게 +${pts} Trust Pt`);
+  toast(`🏆 ${memberId} +${pts} Trust Pt`);
+  saveTrustState();
   renderTrust();
 }
 async function quickGrantWarn(memberId, pts){
@@ -14641,6 +14668,7 @@ async function quickGrantWarn(memberId, pts){
     t.incidents.unshift({ date:new Date().toISOString().slice(0,10), type:'Warning reduced (good behavior)', pts });
     toast(`✓ ${memberId} ${pts} Warning Pt`);
   }
+  saveTrustState();
   renderTrust();
 }
 
@@ -14695,6 +14723,7 @@ async function tsCardDrop(e, system){
   }
   toast(`${tsDragId} → ${LABELS[system]} 이전`);
   tsDragId = null; tsDragFrom = null;
+  saveTrustState();
   renderTrust();
 }
 
