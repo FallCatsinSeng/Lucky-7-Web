@@ -7746,6 +7746,16 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 </div>
 </div><!-- /#app-screen -->
 
+<script>
+/* [v108] eliminate login-flash on reload: pick the screen BEFORE the ~11k-line main script parses */
+try{
+  if(sessionStorage.getItem('lucky7_session')){
+    var _a=document.getElementById('auth-screen'); if(_a) _a.style.display='none';
+    var _p=document.getElementById('app-screen'); if(_p) _p.style.display='';
+  }
+}catch(_){}
+</script>
+
 <div class="toast" id="toast"></div>
 <div class="as-arrow up">↑ Scroll</div>
 <div class="as-arrow down">↓ Scroll</div>
