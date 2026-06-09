@@ -15722,8 +15722,8 @@ function finishSignIn(){
   showAppScreen();
   updateSidebarUser();
   startPresence(); // [v65 #5] begin online-status heartbeat
-  try{ loadStaffPool(); }catch(_){}
-  try{ loadAppUsers(); }catch(_){}
+  try{ loadStaffPool().then(()=>{ try{ if(document.getElementById('staff-pool') && typeof renderPools==='function') renderPools(); }catch(_){} }); }catch(_){}
+  try{ loadAppUsers().then(()=>{ try{ if(typeof renderPerms==='function') renderPerms(); }catch(_){} }); }catch(_){}
   // 권한에 따라 첫 보이는 페이지로 이동
   const visible = visibleTree();
   let firstCh = null;
@@ -15778,12 +15778,17 @@ async function signUp(){
 
       // 3. user_profiles 생성
       if(authData.user){
-        await sb.from('user_profiles').upsert({
+        const { error: _profErr } = await sb.from('user_profiles').upsert({
           id: authData.user.id,
           email,
           name,
           role: invite.role || 'staff'
         }).select();
+        if(_profErr){
+          console.error('user_profiles upsert FAILED:', _profErr);
+          showAuthMsg('프로필 저장 실패 — DB 권한(RLS) 확인 필요: ' + (_profErr.message||_profErr.code||'unknown'));
+          return;
+        }
 
         // 4. 초대코드 사용 처리 (DB)
         if(invite.id && typeof invite.id === 'string' && invite.id.length > 8){
