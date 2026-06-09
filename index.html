@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v117 -->
+<!-- BUILD: v118 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -10223,7 +10223,7 @@ function gatherBaseEvents(){
   ensureOffLoaded();
   OFF_REQUESTS.filter(r => r.status === 'approved').forEach(r => {
     if(calScope === 'personal' && r.staffName !== (currentUser?.name || 'MT')) return;
-    events.push({ id:'doff'+r.id, date:r.date, title:`${r.staffName} 휴무 / Day off`, type:'off', icon:'🌴', allDay:true, repeat:'none', reason:r.reason||'', decidedBy:r.decidedBy||'', staffName:r.staffName });
+    events.push({ id:'doff'+r.id, offId:r.id, date:r.date, title:`${r.staffName} 휴무 / Day off`, type:'off', icon:'🌴', allDay:true, repeat:'none', reason:r.reason||'', decidedBy:r.decidedBy||'', staffName:r.staffName });
   });
   // 클라이언트 계약 시작·종료 (자동)
   if(calScope!=='personal' && typeof CLIENT_ACCOUNTS !== 'undefined'){
@@ -10608,6 +10608,7 @@ function openCalDay(dIso){
             <div class="cald-ev-title">${e.icon||''} ${e.title}</div>
             <div class="cald-ev-type" style="color:${meta.color}">${meta.label}${timeLabel?' · '+timeLabel:''}</div>
           </div>
+          ${edit ? `<button class="cald-ev-del" onclick="event.stopPropagation();deleteDayOff('${e.offId||String(e.id).replace('doff','')}','${dIso}')" title="휴무 삭제 / Delete day-off">✕</button>` : ''}
           <span class="cald-ev-arrow cald-off-caret">▾</span>
         </div>
         <div class="cald-off-reason"><b>휴무 사유 / Reason</b><span>${reason}${appr}</span></div>
@@ -10744,6 +10745,16 @@ function deleteCalEvent(id, dIso){
   CAL_EVENTS = CAL_EVENTS.filter(e => String(e.id) !== String(id));
   saveCalEvents();
   openCalDay(dIso);
+  renderCalendar();
+}
+async function deleteDayOff(offId, dIso){
+  if(!confirm('Delete this day-off? / 이 휴무를 삭제할까요?')) return;
+  loadOffRequests();
+  OFF_REQUESTS = OFF_REQUESTS.filter(r => String(r.id) !== String(offId));
+  saveOffRequests();
+  if(sb){ try{ await sb.from('off_requests').delete().eq('id', offId); }catch(e){ console.warn('off_requests delete:', e && e.message); } }
+  toast('휴무 삭제됨 / Day-off deleted');
+  try{ openCalDay(dIso); }catch(_){}
   renderCalendar();
 }
 
@@ -13959,7 +13970,7 @@ async function renderStaff(){
       const { data } = await sb.from('attendance').select('user_id, clock_in, clock_out, break_start, break_end').eq('date', todayStr());
       (data||[]).forEach(r => {
         let st = 'offline';
-        if(r.clock_out) st = 'off';
+        if(r.clock_out) st = 'done';
         else if(r.break_start && !r.break_end) st = 'break';
         else if(r.clock_in) st = 'online';
         attMap[r.user_id] = st;
@@ -14004,7 +14015,8 @@ async function renderStaff(){
     online:  { label:'근무 중', color:'#3aa05a', dot:'#3aa05a' },
     break:   { label:'휴식',    color:'#e0a040', dot:'#e0a040' },
     offline: { label:'미출근',  color:'#9a9a9a', dot:'#9a9a9a' },
-    off:     { label:'휴무',    color:'#5fa3d9', dot:'#5fa3d9' }
+    off:     { label:'휴무',    color:'#5fa3d9', dot:'#5fa3d9' },
+    done:    { label:'Done',    color:'#3aa05a', dot:'#3aa05a' }
   };
 
   // 칸반 미니 카드 (체크인 보드 스타일)
@@ -14071,7 +14083,7 @@ async function renderStaff(){
     <button class="tk-pill ${staffStatusFilter==='online'?'on':''}" onclick="staffStatusFilter='online';renderStaff()">● 근무 중 <span class="lg-count">${onlineN}</span></button>
     <button class="tk-pill ${staffStatusFilter==='break'?'on':''}" onclick="staffStatusFilter='break';renderStaff()">● 휴식 <span class="lg-count">${breakN}</span></button>
     <button class="tk-pill ${staffStatusFilter==='offline'?'on':''}" onclick="staffStatusFilter='offline';renderStaff()">○ 미출근 <span class="lg-count">${enriched.filter(m=>m.status==='offline').length}</span></button>
-    <button class="tk-pill ${staffStatusFilter==='off'?'on':''}" onclick="staffStatusFilter='off';renderStaff()">○ 휴무 <span class="lg-count">${enriched.filter(m=>m.status==='off').length}</span></button>
+    <button class="tk-pill ${staffStatusFilter==='done'?'on':''}" onclick="staffStatusFilter='done';renderStaff()">○ Done <span class="lg-count">${enriched.filter(m=>m.status==='done').length}</span></button>
   `;
 
   otherView.innerHTML = `<div class="sf3-page-wrap">
@@ -14606,8 +14618,8 @@ async function renderTrust(){
 
 // ─── Trust 빠른 부여 (Admin/OP) ───
 async function quickGrantTrust(memberId, pts){
-  const t = TRUST_DATA[memberId];
-  if(!t) return;
+  let t = TRUST_DATA[memberId];
+  if(!t){ t = TRUST_DATA[memberId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked' }; }
   t.trust_pts = (t.trust_pts || 0) + pts;
   if(!t.trust_earned) t.trust_earned = [];
   t.trust_earned.unshift({ date:new Date().toISOString().slice(0,10), type:'Quick grant', pts });
@@ -14615,8 +14627,8 @@ async function quickGrantTrust(memberId, pts){
   renderTrust();
 }
 async function quickGrantWarn(memberId, pts){
-  const t = TRUST_DATA[memberId];
-  if(!t) return;
+  let t = TRUST_DATA[memberId];
+  if(!t){ t = TRUST_DATA[memberId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked' }; }
   t.warn_pts = (t.warn_pts || 0) + pts;
   if(!t.incidents) t.incidents = [];
   t.incidents.unshift({ date:new Date().toISOString().slice(0,10), type:'Quick warn', pts });
