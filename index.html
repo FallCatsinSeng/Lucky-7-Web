@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v113 -->
+<!-- BUILD: v114 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9754,7 +9754,7 @@ async function loadTeamMembers(){
           id: p.id,
           name: p.name || (p.email||'').split('@')[0],
           short: (p.name || p.email || '??').slice(0,2).toUpperCase(),
-          role: (typeof mapRoleToAppRole==='function') ? mapRoleToAppRole(p.role) : p.role,
+          role: (typeof boardTeam==='function') ? boardTeam(p.role) : p.role,
           db_role: p.role
         }));
       }
@@ -11120,11 +11120,16 @@ async function renderMTSystem(mode){
     player: team.filter(m => m.role === 'player' || m.role === 'staff')
   };
 
+  // viewer's own board team (where they actually appear in the lists)
+  const myTeam = (team.find(m => m.name === me)?.role) || (currentUserRole === 'player' ? 'player' : 'op');
   // 개인 모드(내 업무) 또는 직원 → 본인 역할/본인만 강제
   if(personalMode || !isManager){
-    const myRole = currentUserRole === 'player' ? 'player' : currentUserRole === 'op' ? 'op' : currentUserRole === 'admin' ? 'admin' : 'op';
-    mtRoleTab = myRole;
+    mtRoleTab = myTeam;
     mtMember = me;
+  } else if(!window._mtTabInit){
+    // managers: default to their own team tab on first entry, then respect manual clicks
+    mtRoleTab = myTeam;
+    window._mtTabInit = true;
   }
 
   // 선택 멤버 결정 (없으면 현재 탭의 본인 또는 첫 멤버)
@@ -14480,7 +14485,7 @@ async function renderTrust(){
             ${m.protection_days > 0 ? `<span class="lb-protect">🛡 D-${m.protection_days}</span>` : ''}
           </div>
           <div class="lb-kcard-sub">
-            <span class="lb-rankchip" style="background:${rank.bg};color:${rank.color};border:1px solid color-mix(in srgb, ${rank.color} 30%, transparent)">${rank.icon} ${rank.label}</span>
+            <span class="lb-rankchip" style="background:${rank.bg};color:${rank.color};border:1px solid color-mix(in srgb, ${rank.color} 30%, transparent)">${m.system==='player' ? (rank.icon+' '+rank.label) : roleTitle(m.db_role||m.role)}</span>
             <span class="lb-kstat">🏆<b style="color:var(--gr)">${m.trust_pts}</b></span>
             <span class="lb-kstat">⚠<b style="color:${wpColor}">${m.warn_pts.toFixed(1).replace(/\.0$/,'')}</b>/${maxWp}</span>
           </div>
@@ -15716,6 +15721,12 @@ function presenceStatus(seenMs){
 }
 function _presRoleLabel(r){ return r==='admin' ? 'Manager' : r==='op' ? 'Operator' : r==='player' ? 'Player' : 'Staff'; }
 function roleTitle(r){ return ({ceo:'CEO',manager:'Manager',hr:'HR',settlement:'Settlement',staff:'Staff',admin:'Admin',op:'OP',player:'Player'})[r] || (r ? String(r) : '—'); }
+// [v114] board grouping (display only, NOT access): CEO→admin, Manager/HR/Settlement→op, Staff→player
+function boardTeam(r){
+  if(['ceo','admin'].includes(r)) return 'admin';
+  if(['manager','hr','settlement','op','operator'].includes(r)) return 'op';
+  return 'player';
+}
 function _presInitials(n){ return (n||'?').trim().slice(0,2).toUpperCase(); }
 
 function renderOnlinePresence(){
