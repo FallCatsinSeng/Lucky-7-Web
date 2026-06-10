@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v143 -->
+<!-- BUILD: v144 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -1897,6 +1897,9 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .mt-act-del{background:none;border:none;color:var(--tx4);font-size:11px;cursor:pointer;flex-shrink:0;width:18px;height:18px;border-radius:5px;opacity:0;transition:all .14s var(--ease)}
 .mt-act:hover .mt-act-del{opacity:1}
 .mt-act-del:hover{background:var(--re-bg);color:var(--re)}
+.mt-passive-del{background:none;border:none;color:var(--tx4);font-size:11px;cursor:pointer;flex-shrink:0;width:20px;height:20px;border-radius:5px;opacity:0;transition:all .14s var(--ease)}
+.mt-passive:hover .mt-passive-del{opacity:.7}
+.mt-passive-del:hover{background:var(--re-bg);color:var(--re);opacity:1}
 /* 코멘트 패널 */
 .mt-cm-pane{border-top:1px solid var(--br);padding:8px 9px;display:flex;flex-direction:column;gap:7px;cursor:default;background:var(--bg-c)}
 .mt-cm{display:flex;gap:7px;align-items:flex-start}
@@ -11551,6 +11554,7 @@ async function renderMTSystem(mode){
             : childActive.length ? `<span class="mt-stat-active">${childActive.length}</span>` : '<span class="mt-stat-idle">·</span>'}
           ${childDone.length ? `<span class="mt-stat-done">✓${childDone.length}</span>` : ''}
         </div>
+        <button class="mt-passive-del" onclick="event.stopPropagation();mtDeletePassive(${p.id})" title="삭제 / Delete">✕</button>
         <span class="mt-passive-arrow ${isOpen?'open':''}">▾</span>
       </div>
       ${isOpen ? `<div class="mt-passive-body">
@@ -12084,6 +12088,19 @@ function mtCycleActivePri(id){
 }
 function mtDeleteActive(id){
   MT_ACTIVE = MT_ACTIVE.filter(a => a.id !== id);
+  saveMTSystem();
+  renderMTSystem();
+}
+function mtDeletePassive(id){
+  const p = MT_PASSIVE.find(x => x.id === id);
+  if(!p) return;
+  const kids = MT_ACTIVE.filter(a => a.passive_id === id);
+  const msg = kids.length
+    ? `이 책임 영역과 하위 행동 ${kids.length}개를 삭제할까요?\nDelete this responsibility and its ${kids.length} action(s)?`
+    : `이 책임 영역을 삭제할까요? / Delete this responsibility?\n\n${p.title}`;
+  if(!confirm(msg)) return;
+  MT_ACTIVE = MT_ACTIVE.filter(a => a.passive_id !== id);
+  MT_PASSIVE = MT_PASSIVE.filter(x => x.id !== id);
   saveMTSystem();
   renderMTSystem();
 }
