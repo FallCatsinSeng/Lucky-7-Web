@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v147 -->
+<!-- BUILD: v148 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9734,18 +9734,30 @@ async function renderAttendance(){
     <tbody>${rows}</tbody>
   </table></div>`;
 
-  // ── 직원 현황 보드 (상태별 컬럼 — 채용 칸반 미니 버전) ──
+  // ── 직원 현황 보드 (오늘 실제 출퇴근 기반) ──
   let statusBoard = '';
-  if(isManager && typeof STAFF_DETAILS !== 'undefined'){
-    const nameMap = { mt:'MT', manji:'Manji', daham:'Daham', vallen:'Vallen', panda:'Panda', tory:'Tory', guwon:'Guwon', claws:'Claws', ace:'Ace', prod:'Prod', kaiji:'Kaiji', sid:'Sid', joel:'Joel' };
-    const members = Object.entries(STAFF_DETAILS).map(([id, d]) => ({
-      id, name: nameMap[id] || id, short: (nameMap[id]||id).slice(0,2).toUpperCase(),
-      status: d.status || 'offline', shift: d.current_shift || '—', pc: d.current_pc
-    }));
-    // status: online=근무중, break=휴식중, offline/off=퇴근/오프
-    const working = members.filter(m => m.status === 'online');
-    const resting = members.filter(m => m.status === 'break');
-    const offDuty = members.filter(m => m.status === 'offline' || m.status === 'off');
+  if(isManager){
+    const team = await loadTeamMembers();
+    const todayRows = historyData.filter(a => a.date === todayIso);
+    const byUser = {};                          // unlimited clock-in → keep the open session
+    todayRows.forEach(r => {
+      const cur = byUser[r.user_id];
+      const open = r.clock_in && !r.clock_out;
+      if(!cur || (open && !(cur.clock_in && !cur.clock_out))) byUser[r.user_id] = r;
+    });
+    const working = [], resting = [], offDuty = [];
+    const seen = new Set();
+    Object.values(byUser).forEach(r => {
+      seen.add(r.user_id);
+      const card = { id:r.user_id, name:r.user_name||'?', short:(r.user_name||'?').slice(0,2).toUpperCase(), shift:'', pc:null };
+      if(r.clock_out){ card.status='offline'; offDuty.push(card); }
+      else if(r.break_start && !r.break_end){ card.status='break'; resting.push(card); }
+      else if(r.clock_in){ card.status='online'; working.push(card); }
+    });
+    team.forEach(m => {                          // team members with no clock-in today → off
+      if(seen.has(m.id)) return;
+      offDuty.push({ id:m.id, name:m.name, short:(m.name||'?').slice(0,2).toUpperCase(), status:'offline', shift:'', pc:null });
+    });
 
     const miniCard = (m, accent) => {
       const meta = m.pc && m.pc !== '—' ? m.pc : (m.shift||'').split('(')[0].trim();
@@ -16174,8 +16186,18 @@ function startPresence(){
   // [v145] live shared Responsibility Board sync
   if(_mtPollTimer) clearInterval(_mtPollTimer);
   _mtPollTimer = setInterval(pollMTSystem, 15*1000);
+  // [v148] live attendance / staff-status refresh
+  if(_attPollTimer) clearInterval(_attPollTimer);
+  _attPollTimer = setInterval(() => {
+    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
+    if(mod !== 'attendance') return;
+    const ae = document.activeElement;
+    const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
+    if(typing) return;
+    try{ renderAttendance(); }catch(_){}
+  }, 20*1000);
 }
-let _recruitPurgeTimer = null;
+let _recruitPurgeTimer = null, _attPollTimer = null;
 
 let _offTimer = null, _offSig = null;
 async function pollOffRequests(){
