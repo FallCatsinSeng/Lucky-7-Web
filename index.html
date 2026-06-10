@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v137 -->
+<!-- BUILD: v138 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8598,11 +8598,12 @@ function renderApplicantPanel(){
     const isImg = (f.type||'').startsWith('image/');
     const sizeStr = `${(f.size/1024).toFixed(1)} KB`;
     const tagHtml = f.tag?`<span class="ap-file-tag" style="background:color-mix(in srgb,${fileTagColor(f.tag)} 16%,transparent);color:${fileTagColor(f.tag)}">${f.tag}</span>`:'';
+    const delBtn = `<button class="ap-file-del" onclick="event.stopPropagation();removeApplicantFile('${a.id}', ${i})" title="삭제 / Delete">✕</button>`;
     if(f.url){
       const thumb = isImg ? `<img class="ap-file-thumb" src="${f.url}" alt="">` : `<span class="ap-file-ic">📎</span>`;
-      return `<div class="ap-file ap-file-clickable" onclick="openApplicantFile('${a.id}', ${i})" title="열기 / Open">${thumb}<span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span></div>`;
+      return `<div class="ap-file ap-file-clickable" onclick="openApplicantFile('${a.id}', ${i})" title="열기 / Open">${thumb}<span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span>${delBtn}</div>`;
     }
-    return `<div class="ap-file ap-file-clickable" onclick="addFilesToApplicant('${a.id}')" title="재업로드 / Re-upload"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">↻ 클릭해 재업로드 / click to re-upload</span></div>`;
+    return `<div class="ap-file ap-file-clickable" onclick="addFilesToApplicant('${a.id}')" title="재업로드 / Re-upload"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">↻ 클릭해 재업로드 / click to re-upload</span>${delBtn}</div>`;
   }).join('');
   // 지원 시프트 블록
   const shiftBlock = a.applied_shift && APPLY_SHIFTS[a.applied_shift] ? (() => {
@@ -9036,8 +9037,21 @@ async function onNewFilesChange(input){
 function openImgLightbox(src){
   if(!src) return;
   let ov = document.getElementById('img-lightbox');
-  if(!ov){ ov=document.createElement('div'); ov.id='img-lightbox'; ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out'; ov.onclick=()=>ov.remove(); document.body.appendChild(ov); }
+  if(!ov){ ov=document.createElement('div'); ov.id='img-lightbox'; ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out'; document.body.appendChild(ov); }
+  ov.onclick = (e) => { if(e){ e.stopPropagation(); } ov.remove(); };  // [v138] don't bubble → keep panel open
   ov.innerHTML = `<img src="${src}" style="max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6)">`;
+}
+async function removeApplicantFile(appId, idx){
+  const a = APPLICANTS.find(x => x.id === appId);
+  if(!a || !a.files || !a.files[idx]) return;
+  const f = a.files[idx];
+  if(!confirm(`이 첨부를 삭제할까요? / Delete this attachment?\n${f.name}`)) return;
+  a.files.splice(idx, 1);
+  a.updated = new Date().toISOString().slice(0,10);
+  await saveRecruits();
+  toast('첨부 삭제됨 / Attachment deleted');
+  renderApplicantPanel();
+  try{ renderRecruit(); }catch(_){}
 }
 // open an applicant attachment reliably (data URL → blob → lightbox/new tab)
 function openApplicantFile(appId, idx){
