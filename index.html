@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v142 -->
+<!-- BUILD: v143 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -11758,15 +11758,13 @@ function mtClassifyToActive(inboxId){
   if(!item) return;
   const me = window.mtViewingMember || currentUser?.name || 'MT';
   const myPassive = MT_PASSIVE.filter(p => p.owner === me && p.status === 'active');
-  if(!myPassive.length){ toast('먼저 책임 영역을 만들어야 행동을 붙일 수 있어요', true); return; }
-  // 첫 책임에 배치 (드래그로 옮기면 됨)
-  const target = myPassive[0];
+  const target = myPassive[0] || null;
   const newId = Math.max(100, ...MT_ACTIVE.map(a=>a.id)) + 1;
-  MT_ACTIVE.push({ id:newId, title:item.text, passive_id:target.id, owner:me, priority:'P2', status:'todo', due:null, steps:[], created_at:isoDate(new Date()) });
-  mtExpandedPassive.add(target.id);
+  MT_ACTIVE.push({ id:newId, title:item.text, passive_id: target ? target.id : null, owner:me, priority:'P2', status:'todo', due:null, steps:[], created_at:isoDate(new Date()) });
+  if(target) mtExpandedPassive.add(target.id);
   MT_INBOX = MT_INBOX.filter(i => i.id !== inboxId);
   saveMTSystem();
-  toast(`"${target.title}"에 행동으로 추가 — 다른 책임으로 드래그 가능`);
+  toast(target ? `"${target.title}"에 행동으로 추가 — 다른 책임으로 드래그 가능` : '행동으로 추가됨 / Added as action');
   renderMTSystem();
 }
 
@@ -11781,6 +11779,7 @@ function mtKanbanDragStart(e, type, id){
 function mtKanbanDragEnd(e){
   e.currentTarget.classList.remove('mt-kdragging');
   document.querySelectorAll('.mt-kcol-over').forEach(c => c.classList.remove('mt-kcol-over'));
+  mtKDrag = null;
 }
 function mtKanbanOver(e){ e.preventDefault(); e.currentTarget.classList.add('mt-kcol-over'); }
 function mtKanbanLeave(e){ if(e.currentTarget.contains(e.relatedTarget)) return; e.currentTarget.classList.remove('mt-kcol-over'); }
@@ -11790,19 +11789,48 @@ function mtKanbanDrop(e, col){
   if(!mtKDrag) return;
   const { type, id } = mtKDrag;
   mtKDrag = null;
+  const me = window.mtViewingMember || currentUser?.name || 'MT';
+
+  // 1) Resolve the dragged item's title + owner, handle same-column / done cases, then remove from source
+  let title = '', owner = me, carry = null;
   if(type === 'inbox'){
-    if(col === 'passive') mtClassify(id, 'passive');
-    else if(col === 'active') mtClassifyToActive(id);
-    else renderMTSystem();  // inbox 컬럼 내 — 변화 없음
+    const it = MT_INBOX.find(x => x.id === id);
+    if(!it){ renderMTSystem(); return; }
+    if(col === 'inbox'){ renderMTSystem(); return; }            // same column → no change
+    title = it.text; owner = it.owner || me;
+    MT_INBOX = MT_INBOX.filter(x => x.id !== id);
+  } else if(type === 'passive'){
+    const it = MT_PASSIVE.find(x => x.id === id);
+    if(!it){ renderMTSystem(); return; }
+    if(col === 'passive'){ renderMTSystem(); return; }           // same column → reorder handled elsewhere
+    title = it.title; owner = it.owner || me;
+    MT_ACTIVE.forEach(a => { if(a.passive_id === id) a.passive_id = null; });  // keep child actions as orphans
+    MT_PASSIVE = MT_PASSIVE.filter(x => x.id !== id);
   } else if(type === 'active'){
-    const a = MT_ACTIVE.find(x => x.id === id);
-    if(!a){ renderMTSystem(); return; }
-    if(col === 'done'){ a.status = 'done'; a.done_at = isoDate(new Date()); }
-    else if(col === 'active'){ if(a.status === 'done'){ a.status = 'todo'; a.done_at = null; } }
-    // passive/inbox 컬럼으로의 active 드롭은 무시
-    saveMTSystem();
-    renderMTSystem();
+    const it = MT_ACTIVE.find(x => x.id === id);
+    if(!it){ renderMTSystem(); return; }
+    if(col === 'active'){ if(it.status === 'done'){ it.status = 'todo'; it.done_at = null; saveMTSystem(); } renderMTSystem(); return; }
+    if(col === 'done'){ it.status = 'done'; it.done_at = isoDate(new Date()); saveMTSystem(); renderMTSystem(); return; }
+    title = it.title; owner = it.owner || me; carry = it;
+    MT_ACTIVE = MT_ACTIVE.filter(x => x.id !== id);              // moving to inbox/passive → recreate below
+  } else { renderMTSystem(); return; }
+
+  // 2) Create the item in the destination column
+  if(col === 'inbox'){
+    MT_INBOX.push({ id:Date.now(), text:title, created_at:isoDate(new Date()), owner });
+  } else if(col === 'passive'){
+    const newId = Math.max(0, ...MT_PASSIVE.map(p=>p.id)) + 1;
+    MT_PASSIVE.push({ id:newId, title, category:'Operation', priority:(carry&&carry.priority)||'P2', owner, status:'active', created_at:isoDate(new Date()) });
+    mtExpandedPassive.add(newId);
+  } else if(col === 'active' || col === 'done'){
+    const newId = Math.max(100, ...MT_ACTIVE.map(a=>a.id)) + 1;
+    const isDone = col === 'done';
+    MT_ACTIVE.push({ id:newId, title, passive_id:null, owner, priority:(carry&&carry.priority)||'P2',
+      status:isDone?'done':'todo', due:null, steps:(carry&&carry.steps)||[], comments:(carry&&carry.comments)||[],
+      created_at:isoDate(new Date()), done_at:isDone?isoDate(new Date()):null });
   }
+  saveMTSystem();
+  renderMTSystem();
 }
 // 칸반 인박스 컬럼 빠른 입력
 function mtQuickInbox(inputEl){
@@ -12071,8 +12099,8 @@ function mtPassiveDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='mo
 function mtPassiveDragLeave(e){ if(!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('mt-passive-over'); }
 
 // ── 책임 순서 변경 (드래그) ──
-function mtPassiveReorderStart(e, id){ mtDragPassiveId = id; mtDragActiveId = null; mtDragInboxId = null; e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain', 'passive:'+id); }catch(_){} const card = e.currentTarget.closest('.mt-passive'); if(card) card.classList.add('mt-passive-reordering'); }
-function mtPassiveReorderEnd(e){ document.querySelectorAll('.mt-passive').forEach(p=>{p.classList.remove('mt-passive-reordering');p.classList.remove('mt-passive-over');}); mtDragPassiveId = null; }
+function mtPassiveReorderStart(e, id){ mtDragPassiveId = id; mtDragActiveId = null; mtDragInboxId = null; mtKDrag = { type:'passive', id }; e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain', 'passive:'+id); }catch(_){} const card = e.currentTarget.closest('.mt-passive'); if(card) card.classList.add('mt-passive-reordering'); }
+function mtPassiveReorderEnd(e){ document.querySelectorAll('.mt-passive').forEach(p=>{p.classList.remove('mt-passive-reordering');p.classList.remove('mt-passive-over');}); mtDragPassiveId = null; mtKDrag = null; }
 
 // ── 행동 순서 변경 (드래그) ──
 function mtActiveDragOver(e, targetId){
@@ -12119,6 +12147,7 @@ function mtPassiveDrop(e, passiveId){
       }
     }
     mtDragPassiveId = null;
+    mtKDrag = null;
     return;
   }
   if(mtDragInboxId){
