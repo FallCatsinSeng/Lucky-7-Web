@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v158 -->
+<!-- BUILD: v159 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8008,6 +8008,17 @@ async function saveRecruits(){
     if(error){ console.warn('recruit_state save:', error.message); toast('Applicant save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('recruit_state save:', e && e.message); }
 }
+// [v159] cheap change-detection signature.
+// applicants embed base64 image/attachment data-URLs (often multi-MB total); stringifying
+// the whole blob 2-3x per render was making the Recruiting page heavy. This replacer swaps
+// every "data:" URL for just its length, so we never build/compare megabyte strings on render.
+// (Persistence is unaffected — saveRecruits() still serializes the full data.)
+function _recruitSigLite(){
+  return JSON.stringify(APPLICANTS, function(k, v){
+    if(typeof v === 'string' && v.length > 256 && v.charCodeAt(0) === 100 /* 'd' */ && v.startsWith('data:')) return v.length;
+    return v;
+  });
+}
 
 let openApplicantId = null;
 let recruitStageFilter = 'all';
@@ -8349,7 +8360,7 @@ async function deleteApplicant(id){
   const idx = APPLICANTS.findIndex(x => x.id === id);
   if(idx >= 0) APPLICANTS.splice(idx, 1);
   await saveRecruits();
-  _recruitSig = JSON.stringify(APPLICANTS);
+  _recruitSig = _recruitSigLite();
   toast('지원자 삭제됨 / Applicant deleted');
   try{ logAction('delete', 'deleted applicant', a.name); }catch(_){}
   try{ closeApplicant(); }catch(_){}
@@ -8460,10 +8471,10 @@ function onApDropToReject(e, fromStage){
 
 async function renderRecruit(){
   if(sb){
-    if(!_recruitSynced){ await syncRecruitsFromCloud(); _recruitSynced = true; _recruitSig = JSON.stringify(APPLICANTS); }
-    else { const _sig = JSON.stringify(APPLICANTS); if(_sig !== _recruitSig){ _recruitSig = _sig; saveRecruits(); } }
+    if(!_recruitSynced){ await syncRecruitsFromCloud(); _recruitSynced = true; _recruitSig = _recruitSigLite(); }
+    else { const _sig = _recruitSigLite(); if(_sig !== _recruitSig){ _recruitSig = _sig; saveRecruits(); } }
   }
-  if(purgeExpiredRejects() > 0){ saveRecruits(); _recruitSig = JSON.stringify(APPLICANTS); }
+  if(purgeExpiredRejects() > 0){ saveRecruits(); _recruitSig = _recruitSigLite(); }
   const stats = computeRecruitStats();
   let filteredApplicants = APPLICANTS;
   if(recruitStageFilter !== 'all') filteredApplicants = filteredApplicants.filter(a => a.stage === recruitStageFilter);
