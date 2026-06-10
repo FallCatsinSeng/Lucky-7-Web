@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v145 -->
+<!-- BUILD: v146 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -11591,7 +11591,7 @@ async function renderMTSystem(mode){
     return `<div class="mt-passive ${overloaded?'mt-passive-overload':''} ${isOpen?'mt-passive-open':''}" data-pid="${p.id}"
         ondragover="mtPassiveDragOver(event)" ondragleave="mtPassiveDragLeave(event)"
         ondrop="mtPassiveDrop(event, ${p.id})">
-      <div class="mt-passive-head" onclick="mtTogglePassive(${p.id})">
+      <div class="mt-passive-head" draggable="true" ondragstart="mtPassiveReorderStart(event, ${p.id})" ondragend="mtPassiveReorderEnd(event)" onclick="mtTogglePassive(${p.id})">
         <span class="mt-passive-handle" draggable="true" onclick="event.stopPropagation()" ondragstart="event.stopPropagation();mtPassiveReorderStart(event, ${p.id})" ondragend="mtPassiveReorderEnd(event)" title="드래그로 책임 순서 변경">⠿</span>
         <span class="mt-passive-cat-dot" style="background:${overloaded?'var(--re)':cat.color}" title="${cat.label}"></span>
         <span class="mt-passive-title">${p.title}</span>
@@ -11702,6 +11702,9 @@ async function renderMTSystem(mode){
     ? `${myPassive.length} 책임 영역 · ${doingN} 진행 · ${todoN} 대기 · 완료 ${doneActions.length}`
     : `${myPassive.length} 책임 · ${doingN} 진행 · ${todoN} 대기 · <span style="color:var(--ac)">점검·교정 모드</span>`;
 
+  const _prevKanban = otherView.querySelector('.mt-kanban');
+  const _prevScrollL = _prevKanban ? _prevKanban.scrollLeft : 0;
+
   otherView.innerHTML = `<div class="mt-wrap">
     <div class="mt-head">
       <div>
@@ -11720,6 +11723,11 @@ async function renderMTSystem(mode){
 
     ${bodyHTML}
   </div>`;
+
+  if(_prevScrollL){
+    const nk = otherView.querySelector('.mt-kanban');
+    if(nk) nk.scrollLeft = _prevScrollL;   // [v146] keep horizontal scroll after a move
+  }
 }
 
 // 책임 보드 사용법 가이드 패널
