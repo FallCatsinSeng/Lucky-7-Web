@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v133 -->
+<!-- BUILD: v134 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -5904,8 +5904,12 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
   border-radius:6px;margin-bottom:4px;
 }
 .ap-file-ic{font-size:14px}
-.ap-file-name{flex:1;font-size:12px;color:var(--tx);font-weight:500}
+.ap-file-name{flex:1;font-size:12px;color:var(--tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ap-file-size{font-size:10px;color:var(--tx4)}
+.ap-file-thumb{width:34px;height:34px;border-radius:6px;object-fit:cover;flex:none;background:var(--bg-h)}
+.ap-file-clickable{cursor:pointer;text-decoration:none;transition:background .12s}
+.ap-file-clickable:hover{background:var(--bg-h)}
+.ap-file-noprev{font-size:9px;color:var(--tx3);margin-left:6px;white-space:nowrap}
 /* PC 스펙 */
 .ap-spec-table{background:var(--bg-c);border:1px solid var(--br);border-radius:6px;padding:4px 0}
 .ap-spec-row{display:flex;justify-content:space-between;padding:5px 12px;font-size:12px;border-bottom:1px solid var(--br)}
@@ -8590,9 +8594,18 @@ function renderApplicantPanel(){
     document.body.appendChild(panel);
   }
   const stage = getStageById(a.stage);
-  const fileList = (a.files||[]).map(f => 
-    `<div class="ap-file"><span class="ap-file-ic">${(f.type||'').startsWith('image/') ? '🖼' : '📎'}</span><span class="ap-file-name">${f.name}</span>${f.tag?`<span class="ap-file-tag" style="background:color-mix(in srgb,${fileTagColor(f.tag)} 16%,transparent);color:${fileTagColor(f.tag)}">${f.tag}</span>`:''}<span class="ap-file-size">${(f.size/1024).toFixed(1)} KB</span></div>`
-  ).join('');
+  const fileList = (a.files||[]).map(f => {
+    const isImg = (f.type||'').startsWith('image/');
+    const sizeStr = `${(f.size/1024).toFixed(1)} KB`;
+    const tagHtml = f.tag?`<span class="ap-file-tag" style="background:color-mix(in srgb,${fileTagColor(f.tag)} 16%,transparent);color:${fileTagColor(f.tag)}">${f.tag}</span>`:'';
+    if(isImg && f.url){
+      return `<div class="ap-file ap-file-clickable" onclick="openImgLightbox(this.querySelector('img').src)" title="크게 보기 / View"><img class="ap-file-thumb" src="${f.url}" alt=""><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span></div>`;
+    }
+    if(f.url){
+      return `<a class="ap-file ap-file-clickable" href="${f.url}" download="${f.name}" title="다운로드 / Download"><span class="ap-file-ic">📎</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span></a>`;
+    }
+    return `<div class="ap-file"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">미리보기 없음 · 재업로드 / re-upload to preview</span></div>`;
+  }).join('');
   // 지원 시프트 블록
   const shiftBlock = a.applied_shift && APPLY_SHIFTS[a.applied_shift] ? (() => {
     const s = APPLY_SHIFTS[a.applied_shift];
@@ -8999,11 +9012,34 @@ function fileTagColor(t){ return (FILE_TAGS.find(x=>x.id===t)||FILE_TAGS[4]).col
 function guessFileTag(f){ const t=(f.type||''), n=(f.name||'').toLowerCase(); if(t.startsWith('image/')) return '스펙 스샷'; if(t.includes('pdf')||t.includes('word')||n.endsWith('.pdf')||n.endsWith('.doc')||n.endsWith('.docx')) return '이력서'; return '기타'; }
 let _pendingNewFiles = [];
 let _pendingNewFileTags = [];
-function onNewFilesChange(input){
+function _fileToDataUrl(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
+function _resizeImageToDataUrl(file, maxDim, q){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>{ const img=new Image(); img.onload=()=>{ try{ let w=img.width,h=img.height; const sc=Math.min(1, maxDim/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc); const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); res(c.toDataURL('image/jpeg', q)); }catch(err){ rej(err); } }; img.onerror=rej; img.src=e.target.result; };
+    r.onerror=rej; r.readAsDataURL(file);
+  });
+}
+async function onNewFilesChange(input){
   const files = Array.from(input.files || []);
-  _pendingNewFiles = files;
-  _pendingNewFileTags = files.map(guessFileTag);
+  _pendingNewFiles = [];
+  _pendingNewFileTags = [];
+  for(const file of files){
+    const entry = { name:file.name, size:file.size, type:file.type, url:null };
+    try{
+      if((file.type||'').startsWith('image/')) entry.url = await _resizeImageToDataUrl(file, 1280, 0.72);
+      else if(file.size <= 2*1024*1024) entry.url = await _fileToDataUrl(file);
+    }catch(e){ console.warn('file process failed:', e && e.message); }
+    _pendingNewFiles.push(entry);
+    _pendingNewFileTags.push(guessFileTag(file));
+  }
   renderNewFilesList();
+}
+function openImgLightbox(src){
+  if(!src) return;
+  let ov = document.getElementById('img-lightbox');
+  if(!ov){ ov=document.createElement('div'); ov.id='img-lightbox'; ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out'; ov.onclick=()=>ov.remove(); document.body.appendChild(ov); }
+  ov.innerHTML = `<img src="${src}" style="max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6)">`;
 }
 function setNewFileTag(i, v){ _pendingNewFileTags[i] = v; renderNewFilesList(); }
 function renderNewFilesList(){
@@ -9059,8 +9095,7 @@ function submitNewApplicant(){
       size: f.size,
       type: f.type,
       tag: _pendingNewFileTags[i] || '기타',
-      // Supabase Storage URL은 업로드 후 채워짐. 일단 mock.
-      url: null
+      url: f.url || null
     })),
     created: new Date().toISOString().slice(0,10),
     updated: new Date().toISOString().slice(0,10)
