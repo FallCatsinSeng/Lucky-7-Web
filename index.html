@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v159 -->
+<!-- BUILD: v160 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7990,6 +7990,9 @@ const APPLY_SHIFTS = {
 const APPLICANTS = [];
 // [v132] recruiting persistence — APPLICANTS shared as one JSON row in recruit_state
 let _recruitSynced = false, _recruitSig = '';
+// [v160] instant-open support: render board from in-memory / sessionStorage cache, refresh in background
+let _recruitLite = false, _recruitBgBusy = false, _recruitLastSync = 0;
+const RECRUIT_CACHE_KEY = 'lucky7_recruit_cache';
 async function syncRecruitsFromCloud(){
   if(!sb) return;
   try{
@@ -8006,6 +8009,7 @@ async function saveRecruits(){
   try{
     const { error } = await sb.from('recruit_state').upsert({ id:'default', data: APPLICANTS, updated_at: new Date().toISOString() });
     if(error){ console.warn('recruit_state save:', error.message); toast('Applicant save FAILED: ' + error.message, true); }
+    else { try{ _recruitCacheSave(); }catch(_){} }   // [v160] keep the instant-open cache fresh
   }catch(e){ console.warn('recruit_state save:', e && e.message); }
 }
 // [v159] cheap change-detection signature.
@@ -8018,6 +8022,42 @@ function _recruitSigLite(){
     if(typeof v === 'string' && v.length > 256 && v.charCodeAt(0) === 100 /* 'd' */ && v.startsWith('data:')) return v.length;
     return v;
   });
+}
+// [v160] lightweight board cache (no base64) in sessionStorage → instant open, even after a hard refresh.
+// the kanban board never shows attachment images, so the board needs none of the heavy data.
+function _recruitCacheSave(){
+  try{
+    const lite = APPLICANTS.map(function(a){
+      const c = Object.assign({}, a);
+      if(Array.isArray(a.files)) c.files = a.files.map(function(f){ return Object.assign({}, f, { url: null, _lite: !!f.url }); });
+      return c;
+    });
+    sessionStorage.setItem(RECRUIT_CACHE_KEY, JSON.stringify(lite));
+  }catch(_){}
+}
+function _recruitCacheLoad(){
+  try{
+    const raw = sessionStorage.getItem(RECRUIT_CACHE_KEY);
+    if(!raw) return false;
+    const arr = JSON.parse(raw);
+    if(!Array.isArray(arr) || !arr.length) return false;
+    APPLICANTS.length = 0; arr.forEach(function(a){ APPLICANTS.push(a); });
+    return true;
+  }catch(_){ return false; }
+}
+// pull the full (with-base64) data in the background, then repaint if it changed — never blocks the open
+function _recruitBgRefresh(){
+  if(!sb || _recruitBgBusy) return;
+  _recruitBgBusy = true;
+  syncRecruitsFromCloud().then(function(){
+    _recruitBgBusy = false; _recruitSynced = true; _recruitLite = false; _recruitLastSync = Date.now();
+    const sig = _recruitSigLite(); const changed = (sig !== _recruitSig);
+    _recruitSig = sig; _recruitCacheSave();
+    const mod = (typeof findChannelById==='function') ? (findChannelById(activeChannelId)||{}).module : null;
+    const ae = document.activeElement;
+    const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
+    if(mod==='recruit' && !typing && !draggingApplicant && changed){ renderRecruit(); }
+  }).catch(function(){ _recruitBgBusy = false; });
 }
 
 let openApplicantId = null;
@@ -8471,8 +8511,20 @@ function onApDropToReject(e, fromStage){
 
 async function renderRecruit(){
   if(sb){
-    if(!_recruitSynced){ await syncRecruitsFromCloud(); _recruitSynced = true; _recruitSig = _recruitSigLite(); }
-    else { const _sig = _recruitSigLite(); if(_sig !== _recruitSig){ _recruitSig = _sig; saveRecruits(); } }
+    if(!_recruitSynced){
+      // [v160] instant open: hydrate the board from the sessionStorage cache (survives refresh),
+      // then pull the full data in the background. only block on a true cold start with no cache.
+      if(!_recruitLite && APPLICANTS.length === 0 && _recruitCacheLoad()){ _recruitLite = true; }
+      if(_recruitLite){
+        _recruitBgRefresh();
+      } else {
+        await syncRecruitsFromCloud(); _recruitSynced = true; _recruitLite = false; _recruitLastSync = Date.now();
+        _recruitSig = _recruitSigLite(); _recruitCacheSave();
+      }
+    } else {
+      const _sig = _recruitSigLite(); if(_sig !== _recruitSig){ _recruitSig = _sig; saveRecruits(); _recruitCacheSave(); }
+      if(Date.now() - _recruitLastSync > 8000) _recruitBgRefresh();   // freshness on entry, non-blocking
+    }
   }
   if(purgeExpiredRejects() > 0){ saveRecruits(); _recruitSig = _recruitSigLite(); }
   const stats = computeRecruitStats();
@@ -8648,7 +8700,12 @@ function setRecruitSearch(v){
   });
 }
 
-function openApplicant(id){
+async function openApplicant(id){
+  // [v160] if the board is showing cached (no-base64) data, pull the real data first so
+  // attachments render correctly instead of as "re-upload" prompts
+  if(_recruitLite && sb){
+    try{ await syncRecruitsFromCloud(); _recruitSynced = true; _recruitLite = false; _recruitLastSync = Date.now(); _recruitSig = _recruitSigLite(); _recruitCacheSave(); }catch(_){}
+  }
   openApplicantId = id;
   const a = APPLICANTS.find(x => x.id === id);
   if(a && a.unread) { a.unread = 0; renderRecruit(); }
@@ -17412,7 +17469,7 @@ function routeContent(){
   } else if(ch && ch.module === 'recruit'){
     pcView.style.display = 'none';
     otherView.style.display = '';
-    _recruitSynced = false;   // [v132] pull latest shared applicants on each entry
+    _recruitLastSync = 0;   // [v160] force a background refresh on entry (non-blocking — render is instant from memory/cache)
     renderRecruit();
     if(rightSb) rightSb.style.display = 'none';
   } else if(ch && ch.module === 'perms'){
