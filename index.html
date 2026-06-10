@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v148 -->
+<!-- BUILD: v149 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -12716,7 +12716,7 @@ function myShiftWidget(){
       const until = ((s.start - now)%24+24)%24;
       statusTxt = until <= 12 ? `<span class="myshift-until">⏰ 시작까지 ${until}시간</span>` : `<span class="myshift-until">예정</span>`;
     }
-    return `<div class="myshift-card ${active?'myshift-active':''}" onclick="activeChannelId='pc-status';render()">
+    return `<div class="myshift-card ${active?'myshift-active':''}" onclick="setActiveChannel('pc-status')">
       <div class="myshift-top">
         <span class="myshift-time">${icon} ${fmtH(s.start)} ~ ${fmtH(end)}</span>
         <span class="myshift-len">${s.len}H</span>
@@ -13253,10 +13253,10 @@ async function renderOverview(){
 
   // 주의 필요 아이템
   const alerts = [];
-  overdueTasks.forEach(t => alerts.push({ c:'var(--re)', t:`${t.title_ko||t.title}`, s:`${t.owner} · 마감 지남`, act:`activeChannelId='${isManager?'op-daily-board':'pl-daily-board'}';render()` }));
-  warnMembers.forEach(([k,d]) => alerts.push({ c:'var(--re)', t:`${k} — 워닝 ${d.warn_pts.toFixed(1)}점`, s:'코칭/조치 단계', act:`activeChannelId='op-trust';render()` }));
+  overdueTasks.forEach(t => alerts.push({ c:'var(--re)', t:`${t.title_ko||t.title}`, s:`${t.owner} · 마감 지남`, act:`setActiveChannel('${isManager?'op-daily-board':'pl-daily-board'}')` }));
+  warnMembers.forEach(([k,d]) => alerts.push({ c:'var(--re)', t:`${k} — 워닝 ${d.warn_pts.toFixed(1)}점`, s:'코칭/조치 단계', act:`setActiveChannel('op-trust')` }));
   if(isManager) tasksNeedReply.forEach(t => alerts.push({ c:'var(--ac)', t:`${t.title_ko||t.title}`, s:`${t.owner} 답글 — 확인 필요`, act:`openTaskDetail(${t.id})` }));
-  unregistered.forEach(a => alerts.push({ c:'var(--ac)', t:`${a.name} 직원 풀 미등록`, s:'온보딩 대기', act:`activeChannelId='op-recruit';render()` }));
+  unregistered.forEach(a => alerts.push({ c:'var(--ac)', t:`${a.name} 직원 풀 미등록`, s:'온보딩 대기', act:`setActiveChannel('op-recruit')` }));
 
   const alertItems = alerts.length ? alerts.slice(0,5).map(a => `
     <div class="owd-alert" onclick="${a.act}">
@@ -13279,7 +13279,7 @@ async function renderOverview(){
 
     <div class="owd-grid">
       <!-- 오늘 할 일 -->
-      <div class="owd-widget owd-w-tasks" onclick="activeChannelId='pl-daily-board';render()">
+      <div class="owd-widget owd-w-tasks" onclick="setActiveChannel('pl-daily-board')">
         <div class="owd-w-head"><span class="owd-w-ic">⚡</span> 오늘 할 일</div>
         <div class="owd-w-big">
           <span class="owd-big-num" style="color:${todoCount?'var(--ac)':'var(--gr)'}">${todoCount}</span>
@@ -13293,7 +13293,7 @@ async function renderOverview(){
       </div>
 
       <!-- 팀 현황 -->
-      <div class="owd-widget" onclick="activeChannelId='attendance';render()">
+      <div class="owd-widget" onclick="setActiveChannel('attendance')">
         <div class="owd-w-head"><span class="owd-w-ic">👥</span> 팀 현황</div>
         <div class="owd-dots">${attDots}</div>
         <div class="owd-w-statline">
@@ -13308,7 +13308,7 @@ async function renderOverview(){
       </div>
 
       <!-- 업무 진행 -->
-      <div class="owd-widget" onclick="activeChannelId='${isManager?'op-daily-board':'pl-daily-board'}';render()">
+      <div class="owd-widget" onclick="setActiveChannel('${isManager?'op-daily-board':'pl-daily-board'}')">
         <div class="owd-w-head"><span class="owd-w-ic">✓</span> 업무 진행</div>
         <div class="owd-ring-wrap">
           ${ring(taskPct, 'var(--gr)')}
@@ -13322,16 +13322,16 @@ async function renderOverview(){
       </div>
 
       <!-- 사업 현황 (부주마켓 + 럭키세븐) -->
-      <div class="owd-widget owd-w-biz" style="cursor:pointer" onclick="activeChannelId='pc-status';render()">
+      <div class="owd-widget owd-w-biz" style="cursor:pointer" onclick="setActiveChannel('pc-status')">
         <div class="owd-w-head"><span class="owd-w-ic">🏢</span> 사업 현황</div>
         <div class="owd-biz-list">
-          <div class="owd-biz-row" onclick="activeChannelId='pc-status';render()">
+          <div class="owd-biz-row" onclick="setActiveChannel('pc-status')">
             <span class="owd-biz-dot" style="background:#b074ec"></span>
             <span class="owd-biz-name">부주마켓</span>
             <span class="owd-biz-stat"><b style="color:#b074ec">${pcActive}</b><span class="owd-biz-unit">PC 가동</span></span>
             <span class="owd-biz-badge owd-biz-on">정상</span>
           </div>
-          <div class="owd-biz-row" onclick="activeChannelId='pc-status';render()">
+          <div class="owd-biz-row" onclick="setActiveChannel('pc-status')">
             <span class="owd-biz-dot" style="background:#5fa3d9"></span>
             <span class="owd-biz-name">럭키세븐</span>
             <span class="owd-biz-stat"><b style="color:#5fa3d9">${l7Active}</b><span class="owd-biz-unit">계정 운영</span></span>
