@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v149 -->
+<!-- BUILD: v150 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9750,17 +9750,19 @@ async function renderAttendance(){
     Object.values(byUser).forEach(r => {
       seen.add(r.user_id);
       const card = { id:r.user_id, name:r.user_name||'?', short:(r.user_name||'?').slice(0,2).toUpperCase(), shift:'', pc:null };
-      if(r.clock_out){ card.status='offline'; offDuty.push(card); }
-      else if(r.break_start && !r.break_end){ card.status='break'; resting.push(card); }
-      else if(r.clock_in){ card.status='online'; working.push(card); }
+      if(r.clock_out){ card.status='offline'; card.meta='out · '+fmtTime(r.clock_out); offDuty.push(card); }
+      else if(r.break_start && !r.break_end){ card.status='break'; card.meta='on break'; resting.push(card); }
+      else if(r.clock_in){ card.status='online'; card.meta='in · '+fmtTime(r.clock_in); working.push(card); }
     });
-    team.forEach(m => {                          // team members with no clock-in today → off
+    team.forEach(m => {                          // team members with no clock-in today → absent
       if(seen.has(m.id)) return;
-      offDuty.push({ id:m.id, name:m.name, short:(m.name||'?').slice(0,2).toUpperCase(), status:'offline', shift:'', pc:null });
+      offDuty.push({ id:m.id, name:m.name, short:(m.name||'?').slice(0,2).toUpperCase(), status:'offline', shift:'', pc:null, meta:'absent' });
     });
+    const _outN = offDuty.filter(m => m.meta && m.meta.startsWith('out')).length;
+    const _absentN = offDuty.filter(m => m.meta === 'absent').length;
 
     const miniCard = (m, accent) => {
-      const meta = m.pc && m.pc !== '—' ? m.pc : (m.shift||'').split('(')[0].trim();
+      const meta = m.meta || (m.pc && m.pc !== '—' ? m.pc : (m.shift||'').split('(')[0].trim());
       const dotCls = m.status === 'break' ? 'break' : (m.status==='offline'||m.status==='off') ? 'off' : 'on';
       return `<div class="att-sb-card att-sb-${dotCls}" draggable="true"
           ondragstart="attSbDragStart(event,'${m.id}')" ondragend="attSbDragEnd(event)"
