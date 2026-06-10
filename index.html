@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v128 -->
+<!-- BUILD: v129 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9918,13 +9918,33 @@ let _offLoaded = false;
 const OFF_REQ_KEY = 'lucky7_off_requests';
 
 function loadOffRequests(){
-  // TODO(Supabase): const {data}=await sb.from('off_requests').select('*'); OFF_REQUESTS=data||[];
   try{ const r = sessionStorage.getItem(OFF_REQ_KEY); OFF_REQUESTS = r ? JSON.parse(r) : _seedOffRequests(); }
   catch(e){ OFF_REQUESTS = _seedOffRequests(); }
 }
+// [v129] shared day-off store (JSON blob in off_state) — visible to everyone, esp. admin/HR
+let _offSaveTimer = null;
+async function syncOffFromCloud(){
+  if(!sb){ _offLoaded = true; return; }
+  try{
+    const { data, error } = await sb.from('off_state').select('data').eq('id','default').maybeSingle();
+    if(!error){
+      OFF_REQUESTS = (data && Array.isArray(data.data)) ? data.data : [];
+      try{ sessionStorage.setItem(OFF_REQ_KEY, JSON.stringify(OFF_REQUESTS)); }catch(_){}
+      _offLoaded = true;
+    } else { console.warn('off_state load:', error.message); }
+  }catch(e){ console.warn('off_state load:', e && e.message); }
+}
 function saveOffRequests(){
-  // TODO(Supabase): upsert changed rows to off_requests
   try{ sessionStorage.setItem(OFF_REQ_KEY, JSON.stringify(OFF_REQUESTS)); }catch(e){}
+  if(sb){
+    clearTimeout(_offSaveTimer);
+    _offSaveTimer = setTimeout(async () => {
+      try{
+        const { error } = await sb.from('off_state').upsert({ id:'default', data: OFF_REQUESTS, updated_at: new Date().toISOString() });
+        if(error){ console.warn('off_state save:', error.message); toast('Day-off save FAILED: ' + error.message, true); }
+      }catch(e){ console.warn('off_state save:', e && e.message); }
+    }, 400);
+  }
 }
 function ensureOffLoaded(){ if(!_offLoaded){ loadOffRequests(); _offLoaded = true; } }
 function _pendingOffCount(){ try{ ensureOffLoaded(); return OFF_REQUESTS.filter(r=>r.status==='pending').length; }catch(_){ return 0; } }
@@ -9934,8 +9954,8 @@ function _fmtOffDate(iso){ const d=new Date(iso+'T00:00:00'); return _fmtMDW(d);
 function isApprovedOff(staffName, dateIso){ ensureOffLoaded(); return OFF_REQUESTS.some(r=>r.staffName===staffName && r.date===dateIso && r.status==='approved'); }
 
 // staff submits a request
-function submitOffRequest(){
-  ensureOffLoaded();
+async function submitOffRequest(){
+  await syncOffFromCloud();
   const dateEl = document.getElementById('myoff-date');
   const reasonEl = document.getElementById('myoff-reason');
   if(!dateEl || !dateEl.value){ toast('날짜를 선택하세요 / Pick a date'); return; }
@@ -9951,8 +9971,8 @@ function submitOffRequest(){
 }
 
 // manager approve / reject
-function decideOffRequest(id, decision){
-  ensureOffLoaded();
+async function decideOffRequest(id, decision){
+  await syncOffFromCloud();
   const r = OFF_REQUESTS.find(x=>x.id===id); if(!r) return;
   r.status = decision; r.decidedBy = currentUser?.name || 'MT'; r.decidedAt = Date.now();
   if(decision==='approved') applyApprovedOff(r);
@@ -10287,6 +10307,7 @@ function evTimeSort(a, b){
 async function renderCalendar(){
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
+  await syncOffFromCloud();   // [v129] pull everyone's day-offs (shared) before drawing
   loadCalEvents();
   if(!calMonth){ const t = new Date(); calMonth = { y:t.getFullYear(), m:t.getMonth() }; }
   if(!calCursor) calCursor = new Date();
@@ -10755,10 +10776,9 @@ function deleteCalEvent(id, dIso){
 }
 async function deleteDayOff(offId, dIso){
   if(!confirm('Delete this day-off? / 이 휴무를 삭제할까요?')) return;
-  loadOffRequests();
+  await syncOffFromCloud();
   OFF_REQUESTS = OFF_REQUESTS.filter(r => String(r.id) !== String(offId));
   saveOffRequests();
-  if(sb){ try{ await sb.from('off_requests').delete().eq('id', offId); }catch(e){ console.warn('off_requests delete:', e && e.message); } }
   toast('휴무 삭제됨 / Day-off deleted');
   try{ openCalDay(dIso); }catch(_){}
   renderCalendar();
