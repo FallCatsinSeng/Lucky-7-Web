@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v162 -->
+<!-- BUILD: v163 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -10063,7 +10063,10 @@ function saveRosterLocal(){
 }
 
 // 팀 멤버 로드 — Supabase user_profiles 또는 mock TEAM_ATTENDANCE
-async function loadTeamMembers(){
+// [v163] team members were re-fetched from Supabase on every Staff List / Scoreboard open,
+// blocking the render. now: return the cached list instantly and refresh in the background.
+let _teamCache = null, _teamFetching = false;
+async function _fetchTeamMembers(){
   if(sb){
     try{
       const { data } = await sb.from('user_profiles').select('id, name, email, role');
@@ -10085,6 +10088,24 @@ async function loadTeamMembers(){
     short: t.short,
     role: t.role
   }));
+}
+function _teamBgRefresh(){
+  if(_teamFetching) return;
+  _teamFetching = true;
+  _fetchTeamMembers().then(function(fresh){
+    _teamFetching = false;
+    const changed = JSON.stringify(fresh) !== JSON.stringify(_teamCache);
+    _teamCache = fresh;
+    if(changed){
+      const mod = (typeof findChannelById==='function') ? (findChannelById(activeChannelId)||{}).module : null;
+      try{ if(mod==='staff') renderStaff(); else if(mod==='trust') renderTrust(); }catch(_){}
+    }
+  }).catch(function(){ _teamFetching = false; });
+}
+async function loadTeamMembers(){
+  if(_teamCache){ _teamBgRefresh(); return _teamCache; }   // instant; refresh behind the scenes
+  _teamCache = await _fetchTeamMembers();
+  return _teamCache;
 }
 
 // [v80] 로스터 캐러셀 — 옆 주가 이어 붙어 따라오는 연속 스크롤 (continuous)
@@ -14418,25 +14439,40 @@ let staffSort = 'score';  // 'score' | 'name' | 'joined' | 'warnings'
 let staffSearch = '';
 let staffStatusFilter = 'all';  // all | online | break | offline | off
 
+// [v163] cached today-attendance status for the Staff List (refreshed in background, never blocks open)
+let _staffAttCache = null, _staffAttFetching = false;
+function _staffAttBgRefresh(){
+  if(_staffAttFetching || !sb) return;
+  _staffAttFetching = true;
+  sb.from('attendance').select('user_id, clock_in, clock_out, break_start, break_end').eq('date', todayStr())
+    .then(function(res){
+      _staffAttFetching = false;
+      const data = res && res.data; if(!data) return;
+      const m = {};
+      data.forEach(function(r){
+        let st = 'offline';
+        if(r.clock_out) st = 'done';
+        else if(r.break_start && !r.break_end) st = 'break';
+        else if(r.clock_in) st = 'online';
+        m[r.user_id] = st;
+      });
+      const changed = JSON.stringify(m) !== JSON.stringify(_staffAttCache || {});
+      _staffAttCache = m;
+      if(changed){
+        const mod = (typeof findChannelById==='function') ? (findChannelById(activeChannelId)||{}).module : null;
+        if(mod === 'staff'){ try{ renderStaff(); }catch(_){} }
+      }
+    })
+    .catch(function(){ _staffAttFetching = false; });
+}
 async function renderStaff(){
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
   const team = await loadTeamMembers();
 
-  // [v116] live attendance status (today) — so clock-in reflects on the Staff List
-  let attMap = {};
-  if(sb){
-    try{
-      const { data } = await sb.from('attendance').select('user_id, clock_in, clock_out, break_start, break_end').eq('date', todayStr());
-      (data||[]).forEach(r => {
-        let st = 'offline';
-        if(r.clock_out) st = 'done';
-        else if(r.break_start && !r.break_end) st = 'break';
-        else if(r.clock_in) st = 'online';
-        attMap[r.user_id] = st;
-      });
-    }catch(e){ console.warn('attendance status load failed:', e && e.message); }
-  }
+  // [v163] use cached attendance status immediately, refresh in background — don't block the open
+  let attMap = _staffAttCache || {};
+  if(sb) _staffAttBgRefresh();
 
   const enriched = team.map(m => {
     const d = STAFF_DETAILS[m.id] || {};
