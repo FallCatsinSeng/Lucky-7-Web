@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v166 -->
+<!-- BUILD: v167 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8749,6 +8749,17 @@ function closeApplicant(){
   setTimeout(() => { if(!openApplicantId) p && p.remove(); }, 250);
 }
 
+// [v167] set/change an applicant's applied shift later (field is now optional at creation)
+function setApplicantShift(id, shift){
+  const a = APPLICANTS.find(x => x.id === id);
+  if(!a) return;
+  a.applied_shift = shift || '';
+  const lbl = shift && APPLY_SHIFTS[shift] ? (APPLY_SHIFTS[shift].group + ' ' + APPLY_SHIFTS[shift].name) : '(cleared)';
+  try{ logAction('update', 'set applied shift → ' + lbl, a.name); }catch(_){}
+  saveRecruits();
+  renderApplicantPanel();
+  renderRecruit();
+}
 function renderApplicantPanel(){
   const a = APPLICANTS.find(x => x.id === openApplicantId);
   if(!a) return;
@@ -8770,12 +8781,18 @@ function renderApplicantPanel(){
     }
     return `<div class="ap-file ap-file-clickable" onclick="addFilesToApplicant('${a.id}')" title="재업로드 / Re-upload"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">↻ 클릭해 재업로드 / click to re-upload</span>${delBtn}</div>`;
   }).join('');
-  // 지원 시프트 블록
-  const shiftBlock = a.applied_shift && APPLY_SHIFTS[a.applied_shift] ? (() => {
-    const s = APPLY_SHIFTS[a.applied_shift];
+  // 지원 시프트 블록 — [v167] always editable so it can be set/changed later
+  const shiftBlock = (() => {
+    const s = (a.applied_shift && APPLY_SHIFTS[a.applied_shift]) ? APPLY_SHIFTS[a.applied_shift] : null;
+    const groups = {};
+    Object.keys(APPLY_SHIFTS).forEach(k => { const sh = APPLY_SHIFTS[k]; (groups[sh.group] = groups[sh.group] || []).push([k, sh]); });
+    const opts = `<option value="">— 미정 / Not set —</option>` + Object.keys(groups).map(g =>
+      `<optgroup label="${g}">` + groups[g].map(([k, sh]) => `<option value="${k}" ${a.applied_shift===k?'selected':''}>${sh.group} ${sh.name} · ${sh.range}</option>`).join('') + `</optgroup>`
+    ).join('');
     return `<div class="ap-section">
-      <div class="ap-section-title">지원 시프트</div>
-      <div class="ap-shift-card" style="border-left-color:${s.color}">
+      <div class="ap-section-title">지원 시프트 / Applied Shift</div>
+      <div class="ap-fg"><select onchange="setApplicantShift('${a.id}', this.value)">${opts}</select></div>
+      ${s ? `<div class="ap-shift-card" style="border-left-color:${s.color};margin-top:8px">
         <div class="ap-shift-card-head">
           <div>
             <div class="ap-shift-card-group">${s.group}</div>
@@ -8787,9 +8804,9 @@ function renderApplicantPanel(){
           <div class="ap-shift-card-line"><span>근무</span><span>${s.range}</span></div>
           <div class="ap-shift-card-line"><span>휴식</span><span>${s.break} <span class="si-unpaid">Unpaid</span></span></div>
         </div>
-      </div>
+      </div>` : ''}
     </div>`;
-  })() : '';
+  })();
   const specBlock = a.pc_spec ? `<div class="ap-section">
     <div class="ap-section-title">PC 스펙</div>
     <div class="ap-spec-table">
@@ -9023,7 +9040,7 @@ function openAddApplicantPanel(){  // 기존 상세 패널 닫기 (중복 방지
       </div>
 
       <div class="ap-section">
-        <div class="ap-section-title">지원 시프트 <span class="ap-section-sub">*</span></div>
+        <div class="ap-section-title">지원 시프트 <span class="ap-section-sub">(선택 · 나중에 설정 가능 / optional)</span></div>
         <div class="ap-fg">
           <select id="new-shift" onchange="updateShiftPreview()">
             <option value="">— 선택 —</option>
@@ -9304,7 +9321,6 @@ function submitNewApplicant(){
   const name = document.getElementById('new-name').value.trim();
   if(!name){ toast('이름을 입력하세요', true); return; }
   const shift = document.getElementById('new-shift').value;
-  if(!shift){ toast('지원 시프트를 선택하세요', true); return; }
   const short = (document.getElementById('new-short').value.trim() || name.slice(0,2)).toUpperCase().slice(0,3);
   const origin = document.getElementById('new-origin').value.trim();
   const ageVal = parseInt(document.getElementById('new-age').value);
