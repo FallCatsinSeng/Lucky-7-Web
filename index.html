@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v134 -->
+<!-- BUILD: v135 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8713,7 +8713,7 @@ function renderApplicantPanel(){
     <div class="ap-panel-body">
       ${rejectBanner}
       ${shiftBlock}
-      ${fileList ? `<div class="ap-section"><div class="ap-section-title">첨부 파일</div>${fileList}</div>` : ''}
+      <div class="ap-section"><div class="ap-section-title">첨부 파일 / Attachments</div>${fileList || '<div class="ap-file-noprev" style="margin:0 0 6px">첨부 없음 / No attachments yet</div>'}<button class="btn btn-sm" style="margin-top:8px" onclick="addFilesToApplicant('${a.id}')">＋ 파일 추가 / Add file</button></div>
       ${specBlock}
       ${reportsBlock}
       ${commentsBlock}
@@ -9040,6 +9040,33 @@ function openImgLightbox(src){
   let ov = document.getElementById('img-lightbox');
   if(!ov){ ov=document.createElement('div'); ov.id='img-lightbox'; ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out'; ov.onclick=()=>ov.remove(); document.body.appendChild(ov); }
   ov.innerHTML = `<img src="${src}" style="max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6)">`;
+}
+async function addFilesToApplicant(id){
+  const a = APPLICANTS.find(x => x.id === id);
+  if(!a) return;
+  const inp = document.createElement('input');
+  inp.type='file'; inp.multiple=true; inp.accept='image/*,.pdf,.doc,.docx';
+  inp.onchange = async () => {
+    const files = Array.from(inp.files||[]);
+    if(!files.length) return;
+    if(!a.files) a.files = [];
+    toast('업로드 처리 중… / Processing…');
+    for(const file of files){
+      const entry = { name:file.name, size:file.size, type:file.type, tag:guessFileTag(file), url:null };
+      try{
+        if((file.type||'').startsWith('image/')) entry.url = await _resizeImageToDataUrl(file, 1280, 0.72);
+        else if(file.size <= 2*1024*1024) entry.url = await _fileToDataUrl(file);
+        else { toast(`${file.name} too large to store (max 2MB for non-images)`, true); }
+      }catch(e){ console.warn('file process:', e && e.message); }
+      a.files.push(entry);
+    }
+    a.updated = new Date().toISOString().slice(0,10);
+    await saveRecruits();
+    toast('첨부 추가됨 / Files attached ✓');
+    renderApplicantPanel();
+    try{ renderRecruit(); }catch(_){}
+  };
+  inp.click();
 }
 function setNewFileTag(i, v){ _pendingNewFileTags[i] = v; renderNewFilesList(); }
 function renderNewFilesList(){
