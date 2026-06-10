@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v153 -->
+<!-- BUILD: v154 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8351,6 +8351,7 @@ async function deleteApplicant(id){
   await saveRecruits();
   _recruitSig = JSON.stringify(APPLICANTS);
   toast('지원자 삭제됨 / Applicant deleted');
+  try{ logAction('delete', 'deleted applicant', a.name); }catch(_){}
   try{ closeApplicant(); }catch(_){}
   renderRecruit();
 }
@@ -8362,6 +8363,7 @@ function setApplicantStage(id, stageId){
   a.stage = stageId;
   a.rejected_at = (stageId === 'reject') ? Date.now() : null;
   a.updated = new Date().toISOString().slice(0,10);
+  try{ logAction(stageId === 'reject' ? 'warning' : 'update', stageId === 'reject' ? 'rejected applicant' : 'moved applicant → ' + getStageById(stageId).name, a.name); }catch(_){}
   toast(`${a.name} → ${getStageById(stageId).name}`);
   renderRecruit();
 }
@@ -11341,10 +11343,12 @@ async function toggleTaskStatus(id){
 
 async function deleteTask(id){
   if(!confirm('이 업무를 삭제할까요?')) return;
+  const _t = TASKS.find(t => t.id === id);
   if(sb){
     try{ await sb.from('tasks').delete().eq('id', id); }catch(e){ console.warn(e); }
   }
   TASKS = TASKS.filter(t => t.id !== id);
+  try{ logAction('delete', 'deleted task', _t ? (_t.title || _t.title_ko || String(id)) : String(id)); }catch(_){}
   saveTasksLocal();
   renderTasks(window.tasksIsManager);
 }
@@ -11389,6 +11393,7 @@ async function addTask(){
   showAddTask = false;
   window.assignTaskTo = null;
   toast('업무 추가됨');
+  try{ logAction('create', 'created task' + (owner ? ' → ' + owner : ''), title); }catch(_){}
   renderTasks(window.tasksIsManager);
 }
 
@@ -15733,8 +15738,10 @@ function markAnnRead(id){
 }
 function deleteAnn(id){
   if(!confirm('이 공지를 삭제할까요?')) return;
+  const _a = ANNOUNCEMENTS.find(a => a.id === id);
   ANNOUNCEMENTS = ANNOUNCEMENTS.filter(a => a.id !== id);
   toast('삭제됨');
+  try{ logAction('delete', 'deleted notice', _a ? _a.title : String(id)); }catch(_){}
   saveAnnouncements();
   renderAnnouncements();
 }
@@ -15758,6 +15765,7 @@ function addAnn(){
   });
   showNewAnn = false;
   toast(`공지 발행됨 (대상: ${ANN_SCOPES[scope].label})`);
+  try{ logAction('create', 'published notice', title); }catch(_){}
   saveAnnouncements();
   renderAnnouncements();
 }
@@ -15767,7 +15775,90 @@ function addAnn(){
 // activity_log 표시 · 필터 / 검색 / 액션별 컬러
 // ═══════════════════════════════════════════════════
 
+// ── [v154] System Log activated — shared audit trail (log_state JSON blob) ──
+// type ∈ create | update | delete | auth | warning | config  (matches typeStyle below)
 let LOG_DATA = [];
+let _logSynced = false, _logSig = '', _logSaving = false, _logDirty = false, _logSaveTimer = null, _logPollTimer = null;
+const LOG_CAP = 1000;   // keep newest N entries (audit log, not infinite)
+
+function logActor(){ return (currentUser && currentUser.name) ? currentUser.name : 'system'; }
+
+// core entry point — call from any mutating action
+function logAction(type, action, target){
+  try{
+    LOG_DATA.unshift({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+      ts: new Date().toISOString(),
+      actor: logActor(),
+      type: type || 'update',
+      action: action || '',
+      target: target || ''
+    });
+    if(LOG_DATA.length > LOG_CAP) LOG_DATA.length = LOG_CAP;
+    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
+    if(mod === 'logs'){ try{ renderLogs(); }catch(_){} }
+    saveLogs();
+  }catch(e){ console.warn('logAction:', e && e.message); }
+}
+
+async function syncLogsFromCloud(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('log_state').select('data').eq('id','default').maybeSingle();
+    if(!error && data && Array.isArray(data.data)){ LOG_DATA = data.data; }
+    else if(error){ console.warn('log_state load:', error.message); }
+  }catch(e){ console.warn('log_state load:', e && e.message); }
+}
+
+// debounced save with read-merge-write so concurrent writers never clobber each other
+function saveLogs(){
+  _logDirty = true;
+  if(_logSaveTimer) return;
+  _logSaveTimer = setTimeout(flushLogs, 600);
+}
+async function flushLogs(){
+  _logSaveTimer = null;
+  if(!_logDirty) return;
+  _logDirty = false;
+  if(!sb){ _logSig = JSON.stringify(LOG_DATA); return; }
+  _logSaving = true;
+  try{
+    let cloud = [];
+    try{
+      const { data } = await sb.from('log_state').select('data').eq('id','default').maybeSingle();
+      if(data && Array.isArray(data.data)) cloud = data.data;
+    }catch(_){}
+    const seen = new Set();
+    let merged = LOG_DATA.concat(cloud).filter(e => {
+      if(!e || !e.id || seen.has(e.id)) return false;
+      seen.add(e.id); return true;
+    });
+    merged.sort((a,b) => (b.ts||'').localeCompare(a.ts||''));
+    if(merged.length > LOG_CAP) merged = merged.slice(0, LOG_CAP);
+    LOG_DATA = merged;
+    _logSig = JSON.stringify(LOG_DATA);
+    const { error } = await sb.from('log_state').upsert({ id:'default', data: LOG_DATA, updated_at: new Date().toISOString() });
+    if(error){ console.warn('log_state save:', error.message); }
+  }catch(e){ console.warn('log_state save:', e && e.message); }
+  finally{ setTimeout(() => { _logSaving = false; }, 300); }
+}
+
+async function pollLogs(){
+  if(!sb || !currentUser || _logSaving) return;
+  try{
+    const { data, error } = await sb.from('log_state').select('data').eq('id','default').maybeSingle();
+    if(error || !data || !Array.isArray(data.data)) return;
+    const sig = JSON.stringify(data.data);
+    if(sig === _logSig) return;
+    LOG_DATA = data.data; _logSig = sig;
+    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
+    if(mod === 'logs'){
+      const ae = document.activeElement;
+      const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
+      if(!typing){ try{ renderLogs(); }catch(_){} }
+    }
+  }catch(_){}
+}
 
 let logFilter = 'all';
 let logSearch = '';
@@ -15775,6 +15866,9 @@ let logSearch = '';
 async function renderLogs(){
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
+
+  // [v154] pull shared log on first open
+  if(sb && !_logSynced){ await syncLogsFromCloud(); _logSynced = true; _logSig = JSON.stringify(LOG_DATA); }
 
   // 필터
   let filtered = LOG_DATA;
@@ -16244,6 +16338,9 @@ function startPresence(){
   // [v151] live shared notices sync
   if(_annPollTimer) clearInterval(_annPollTimer);
   _annPollTimer = setInterval(pollAnnouncements, 20*1000);
+  // [v154] live shared system-log sync
+  if(_logPollTimer) clearInterval(_logPollTimer);
+  _logPollTimer = setInterval(pollLogs, 20*1000);
 }
 let _recruitPurgeTimer = null, _attPollTimer = null;
 
@@ -16266,6 +16363,7 @@ async function pollOffRequests(){
 
 function finishSignIn(){
   showAppScreen();
+  try{ logAction('auth', 'logged in', currentUser ? (currentUser.role||'') : ''); }catch(_){}
   updateSidebarUser();
   startPresence(); // [v65 #5] begin online-status heartbeat
   try{ loadStaffPool().then(()=>{ try{ if(document.getElementById('staff-pool') && typeof renderPools==='function') renderPools(); }catch(_){} }); }catch(_){}
@@ -16393,6 +16491,7 @@ async function signUp(){
 
 async function signOut(){
   // Supabase 로그아웃
+  try{ logAction('auth', 'logged out', ''); }catch(_){}
   if(sb){
     try{ await sb.auth.signOut(); }catch(e){ console.warn('Supabase signOut:', e); }
   }
@@ -16734,6 +16833,7 @@ function togglePerm(chId, roleId){
   if(!ROLE_PERMS[chId]) ROLE_PERMS[chId] = {};
   ROLE_PERMS[chId][roleId] = !ROLE_PERMS[chId][roleId];
   // 인-메모리 변경 — 페이지 접근은 우리 currentUserRole 시스템과는 별개 (실제 RLS는 백엔드에서)
+  try{ logAction('config', (ROLE_PERMS[chId][roleId]?'granted ':'blocked ') + roleId + ' access', getChannelLabel(chId)); }catch(_){}
   toast(`${getChannelLabel(chId)} · ${roleId} ${ROLE_PERMS[chId][roleId]?'허용':'차단'}`);
 }
 
@@ -16800,6 +16900,7 @@ function setUserRole(uid, roleId){
   const u = APP_USERS.find(x => x.id === uid);
   if(u && u.role !== roleId){
     u.role = roleId;
+    try{ logAction('config', 'changed role → ' + getRoleById(roleId).label, u.name); }catch(_){}
     toast(`${u.name} 포지션 → ${getRoleById(roleId).label}`);
   }
   openUserPerm(uid);  // 모달 갱신 (페이지 접근 반영)
