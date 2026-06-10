@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v130 -->
+<!-- BUILD: v131 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9934,16 +9934,14 @@ async function syncOffFromCloud(){
     } else { console.warn('off_state load:', error.message); }
   }catch(e){ console.warn('off_state load:', e && e.message); }
 }
-function saveOffRequests(){
+async function saveOffRequests(){
   try{ sessionStorage.setItem(OFF_REQ_KEY, JSON.stringify(OFF_REQUESTS)); }catch(e){}
   if(sb){
-    clearTimeout(_offSaveTimer);
-    _offSaveTimer = setTimeout(async () => {
-      try{
-        const { error } = await sb.from('off_state').upsert({ id:'default', data: OFF_REQUESTS, updated_at: new Date().toISOString() });
-        if(error){ console.warn('off_state save:', error.message); toast('Day-off save FAILED: ' + error.message, true); }
-      }catch(e){ console.warn('off_state save:', e && e.message); }
-    }, 400);
+    try{
+      const { error } = await sb.from('off_state').upsert({ id:'default', data: OFF_REQUESTS, updated_at: new Date().toISOString() });
+      if(error){ console.warn('off_state save:', error.message); toast('Day-off save FAILED: ' + error.message, true); }
+      _offSig = JSON.stringify((OFF_REQUESTS||[]).map(r => [r.id, r.status]).sort());  // keep poll baseline in sync
+    }catch(e){ console.warn('off_state save:', e && e.message); }
   }
 }
 function ensureOffLoaded(){ if(!_offLoaded){ loadOffRequests(); _offLoaded = true; } }
@@ -9964,7 +9962,7 @@ async function submitOffRequest(){
     toast('이미 신청한 날짜입니다 / Already requested'); return;
   }
   OFF_REQUESTS.push({ id:_offUid(), staffName:name, role:currentUserRole, date:dateEl.value, reason:(reasonEl?.value||'').trim(), status:'pending', created:Date.now() });
-  saveOffRequests();
+  await saveOffRequests();
   toast('휴무 신청 완료 · 승인 대기 / Submitted · pending');
   renderMyOffRequests();
   try{ renderSidebar(); }catch(_){}
@@ -9976,7 +9974,7 @@ async function decideOffRequest(id, decision){
   const r = OFF_REQUESTS.find(x=>x.id===id); if(!r) return;
   r.status = decision; r.decidedBy = currentUser?.name || 'MT'; r.decidedAt = Date.now();
   if(decision==='approved') applyApprovedOff(r);
-  saveOffRequests();
+  await saveOffRequests();
   toast(`${r.staffName} ${_fmtOffDate(r.date)} → ${decision==='approved'?'승인 ✓':'반려 ✕'}`);
   try{ if(typeof renderSchedule==='function'){ renderSchedule(); } else { renderOffApprovals(); } }catch(_){ try{ renderOffApprovals(); }catch(__){} }
   try{ renderSidebar(); }catch(_){}
@@ -10778,7 +10776,7 @@ async function deleteDayOff(offId, dIso){
   if(!confirm('Delete this day-off? / 이 휴무를 삭제할까요?')) return;
   await syncOffFromCloud();
   OFF_REQUESTS = OFF_REQUESTS.filter(r => String(r.id) !== String(offId));
-  saveOffRequests();
+  await saveOffRequests();
   toast('휴무 삭제됨 / Day-off deleted');
   try{ openCalDay(dIso); }catch(_){}
   renderCalendar();
