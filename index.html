@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v127 -->
+<!-- BUILD: v128 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15643,6 +15643,7 @@ async function checkSession(){
           email: session.user.email,
           name: profile?.name || (session.user.email||'').split('@')[0],
           role: profile?.role || 'staff',
+          avatar_url: profile?.avatar_url || null,
           sessionRole: mapRoleToAppRole(profile?.role)
         };
         currentUserRole = currentUser.sessionRole;
@@ -15775,7 +15776,7 @@ async function pingPresence(){
       await sb.from('user_profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
     }catch(e){ console.warn('presence write failed:', e && e.message); }
     try{
-      const { data, error } = await sb.from('user_profiles').select('name, role, last_seen');
+      const { data, error } = await sb.from('user_profiles').select('name, role, avatar_url, last_seen');
       if(!error && data){
         _presenceCache = data
           .filter(r => r.last_seen)
@@ -15783,6 +15784,7 @@ async function pingPresence(){
             name: r.name || '?',
             role: (typeof mapRoleToAppRole==='function') ? mapRoleToAppRole(r.role) : r.role,
             db_role: r.role,
+            avatar: r.avatar_url || null,
             seen: new Date(r.last_seen).getTime()
           }));
       }
@@ -15825,7 +15827,7 @@ function renderOnlinePresence(){
         const c = _presColor(u.name);
         return `
         <div class="owd-online-pill${u.st==='idle'?' is-idle':''}" title="${u.name} · ${roleTitle(u.db_role||u.role)}">
-          <div class="owd-online-av" style="color:${c};box-shadow:inset 0 0 0 1.5px ${c}66">${_presInitials(u.name)}<span class="owd-online-dot ${u.st}"></span></div>
+          <div class="owd-online-av" style="color:${c};box-shadow:inset 0 0 0 1.5px ${c}66">${u.avatar ? `<img src="${u.avatar}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block">` : _presInitials(u.name)}<span class="owd-online-dot ${u.st}"></span></div>
           <div class="owd-online-meta"><b>${u.name}</b><span>${roleTitle(u.db_role||u.role)}${u.st==='idle'?' · idle':''}</span></div>
         </div>`;
       }).join('')}
@@ -15994,13 +15996,63 @@ function updateSidebarUser(){
   const avEl   = document.getElementById('sb-foot-av');
   const nameEl = document.getElementById('sb-foot-name');
   const roleEl = document.getElementById('sb-foot-role');
-  if(avEl)   avEl.textContent   = currentUser.avatar || currentUser.name.slice(0,2).toUpperCase();
+  if(avEl){
+    if(currentUser.avatar_url){
+      avEl.innerHTML = `<img src="${currentUser.avatar_url}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block">`;
+    } else {
+      avEl.textContent = currentUser.avatar || currentUser.name.slice(0,2).toUpperCase();
+    }
+    avEl.style.cursor = 'pointer';
+    avEl.title = '프로필 사진 변경 / Change profile picture';
+    avEl.onclick = changeAvatar;
+  }
   if(nameEl) nameEl.textContent = currentUser.name;
   if(roleEl){
     const _r = currentUser.role || currentUser.appRole || 'staff';
     const appRoleLabel = ({ceo:'CEO',manager:'MANAGER',hr:'HR',settlement:'SETTLEMENT',staff:'STAFF',admin:'ADMIN',op:'OP',player:'PLAYER'})[_r] || String(_r).toUpperCase();
     roleEl.textContent = `${appRoleLabel} · ${(currentUser.sessionRole||'').toUpperCase()}`;
   }
+}
+
+// [v128] profile picture — pick → resize 128px square → base64 → save to user_profiles
+function changeAvatar(){
+  if(!currentUser){ return; }
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = () => {
+    const file = inp.files && inp.files[0];
+    if(!file) return;
+    if(file.size > 8 * 1024 * 1024){ toast('Image too large (max 8MB)', true); return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = async () => {
+        const size = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        let dataUrl;
+        try{ dataUrl = canvas.toDataURL('image/jpeg', 0.82); }
+        catch(e){ toast('Could not read image', true); return; }
+        currentUser.avatar_url = dataUrl;
+        try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); }catch(_){}
+        updateSidebarUser();
+        if(sb && currentUser.id){
+          try{
+            const { error } = await sb.from('user_profiles').update({ avatar_url: dataUrl }).eq('id', currentUser.id);
+            if(error){ toast('Picture save failed: ' + error.message, true); }
+            else { toast('✓ Profile picture updated'); }
+          }catch(err){ toast('Picture error: ' + (err && err.message), true); }
+        }
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
 }
 
 // ═══════════════════════════════════════════════════
