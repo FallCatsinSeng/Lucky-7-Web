@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v135 -->
+<!-- BUILD: v136 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8594,15 +8594,13 @@ function renderApplicantPanel(){
     document.body.appendChild(panel);
   }
   const stage = getStageById(a.stage);
-  const fileList = (a.files||[]).map(f => {
+  const fileList = (a.files||[]).map((f, i) => {
     const isImg = (f.type||'').startsWith('image/');
     const sizeStr = `${(f.size/1024).toFixed(1)} KB`;
     const tagHtml = f.tag?`<span class="ap-file-tag" style="background:color-mix(in srgb,${fileTagColor(f.tag)} 16%,transparent);color:${fileTagColor(f.tag)}">${f.tag}</span>`:'';
-    if(isImg && f.url){
-      return `<div class="ap-file ap-file-clickable" onclick="openImgLightbox(this.querySelector('img').src)" title="크게 보기 / View"><img class="ap-file-thumb" src="${f.url}" alt=""><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span></div>`;
-    }
     if(f.url){
-      return `<a class="ap-file ap-file-clickable" href="${f.url}" download="${f.name}" title="다운로드 / Download"><span class="ap-file-ic">📎</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span></a>`;
+      const thumb = isImg ? `<img class="ap-file-thumb" src="${f.url}" alt="">` : `<span class="ap-file-ic">📎</span>`;
+      return `<div class="ap-file ap-file-clickable" onclick="openApplicantFile('${a.id}', ${i})" title="열기 / Open">${thumb}<span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span></div>`;
     }
     return `<div class="ap-file"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">미리보기 없음 · 재업로드 / re-upload to preview</span></div>`;
   }).join('');
@@ -9040,6 +9038,33 @@ function openImgLightbox(src){
   let ov = document.getElementById('img-lightbox');
   if(!ov){ ov=document.createElement('div'); ov.id='img-lightbox'; ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;cursor:zoom-out'; ov.onclick=()=>ov.remove(); document.body.appendChild(ov); }
   ov.innerHTML = `<img src="${src}" style="max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.6)">`;
+}
+// open an applicant attachment reliably (data URL → blob → lightbox/new tab)
+function openApplicantFile(appId, idx){
+  const a = APPLICANTS.find(x => x.id === appId);
+  if(!a || !a.files || !a.files[idx]) return;
+  const f = a.files[idx];
+  if(!f.url){ toast('파일 데이터 없음 · 다시 업로드하세요 / No data — re-upload', true); return; }
+  try{
+    let blobUrl = f.url;
+    if(typeof f.url === 'string' && f.url.startsWith('data:')){
+      const comma = f.url.indexOf(',');
+      const meta = f.url.slice(0, comma);
+      const b64 = f.url.slice(comma + 1);
+      const mime = (meta.match(/data:([^;]+)/) || [])[1] || f.type || 'application/octet-stream';
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      blobUrl = URL.createObjectURL(new Blob([arr], { type: mime }));
+      setTimeout(() => { try{ URL.revokeObjectURL(blobUrl); }catch(_){} }, 120000);
+    }
+    if((f.type||'').startsWith('image/')){
+      openImgLightbox(blobUrl);
+    } else {
+      const w = window.open(blobUrl, '_blank');
+      if(!w){ toast('팝업 차단됨 · 팝업 허용 필요 / Pop-up blocked — allow pop-ups', true); }
+    }
+  }catch(e){ toast('열기 실패 / Could not open: ' + (e && e.message), true); }
 }
 async function addFilesToApplicant(id){
   const a = APPLICANTS.find(x => x.id === id);
