@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v151 -->
+<!-- BUILD: v152 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15652,15 +15652,18 @@ async function openAnnDetail(annId){
     if(a.scope === 'player') return true;
     return false;
   });
-  const readMembers = readers.filter(m => (a.read_by||[]).includes(m.id));
-  const unreadMembers = readers.filter(m => !(a.read_by||[]).includes(m.id));
-  const isRead = (a.read_by||[]).includes(myId);
-
-  // 자동 읽음 처리
-  if(!isRead){
-    if(!a.read_by) a.read_by = [];
+  // 자동 읽음 처리 — 칸 계산 전에 먼저 (본인 읽음 즉시 반영)
+  if(!a.read_by) a.read_by = [];
+  if(!a.read_by.includes(myId)){
     a.read_by.push(myId);
+    saveAnnouncements();           // [v152] persist + share read receipt
+    try{ renderSidebar(); }catch(_){}
   }
+  const _annSlug = (m) => (m.name||'').toLowerCase().replace(/\s+/g,'');
+  const _hasRead = (m) => (a.read_by||[]).includes(_annSlug(m)) || (a.read_by||[]).includes(m.id);
+  const readMembers = readers.filter(_hasRead);
+  const unreadMembers = readers.filter(m => !_hasRead(m));
+  const isRead = (a.read_by||[]).includes(myId);
 
   const memberChip = (m, read) => `<div class="anndt-chip ${read?'read':'unread'}" title="${m.name}">
     <span class="anndt-chip-av" style="background:${read?avatarColor(m.short||m.name.slice(0,2).toUpperCase()):'var(--bg-h)'}">${m.short || m.name.slice(0,2).toUpperCase()}</span>
