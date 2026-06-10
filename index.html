@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v144 -->
+<!-- BUILD: v145 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -11207,6 +11207,60 @@ const MT_PRI = {
   P3: { icon:'🌱', label:'장기', num:3, color:'var(--gr)' }
 };
 
+function saveMTLocal(){
+  try{
+    sessionStorage.setItem('lucky7_mt_inbox', JSON.stringify(MT_INBOX));
+    sessionStorage.setItem('lucky7_mt_passive', JSON.stringify(MT_PASSIVE));
+    sessionStorage.setItem('lucky7_mt_active', JSON.stringify(MT_ACTIVE));
+  }catch(_){}
+}
+function saveMTSystem(){
+  saveMTLocal();
+  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE });
+  if(sb) saveMTToCloud();   // [v145] shared across the team
+}
+let _mtSynced = false, _mtSig = '', _mtSaving = false, _mtPollTimer = null;
+async function saveMTToCloud(){
+  if(!sb) return;
+  _mtSaving = true;
+  try{
+    const { error } = await sb.from('mt_state').upsert({ id:'default', data:{ inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE }, updated_at:new Date().toISOString() });
+    if(error){ console.warn('mt_state save:', error.message); toast('Board save FAILED: ' + error.message, true); }
+  }catch(e){ console.warn('mt_state save:', e && e.message); }
+  finally{ setTimeout(() => { _mtSaving = false; }, 400); }
+}
+async function syncMTFromCloud(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('mt_state').select('data').eq('id','default').maybeSingle();
+    if(!error && data && data.data){
+      const d = data.data;
+      MT_INBOX   = Array.isArray(d.inbox)   ? d.inbox   : [];
+      MT_PASSIVE = Array.isArray(d.passive) ? d.passive : [];
+      MT_ACTIVE  = Array.isArray(d.active)  ? d.active  : [];
+      saveMTLocal();
+    } else if(error){ console.warn('mt_state load:', error.message); }
+  }catch(e){ console.warn('mt_state load:', e && e.message); }
+}
+async function pollMTSystem(){
+  if(!sb || !currentUser) return;
+  const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
+  if(mod !== 'tasks' && mod !== 'mytasks') return;   // only while viewing the board
+  if(_mtSaving) return;                              // don't clobber an in-flight local save
+  try{
+    const { data, error } = await sb.from('mt_state').select('data').eq('id','default').maybeSingle();
+    if(error || !data || !data.data) return;
+    const d = data.data;
+    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[] });
+    if(sig === _mtSig) return;                        // no remote change
+    const ae = document.activeElement;
+    const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
+    if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId) return;  // mid-edit / mid-drag
+    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[];
+    _mtSig = sig; saveMTLocal();
+    renderMTSystem();
+  }catch(_){}
+}
 function loadMTSystem(){
   try{
     const ri = sessionStorage.getItem('lucky7_mt_inbox');
@@ -11221,14 +11275,7 @@ function loadMTSystem(){
   }catch(_){}
   _seedMTSystem();
 }
-function saveMTSystem(){
-  try{
-    sessionStorage.setItem('lucky7_mt_inbox', JSON.stringify(MT_INBOX));
-    sessionStorage.setItem('lucky7_mt_passive', JSON.stringify(MT_PASSIVE));
-    sessionStorage.setItem('lucky7_mt_active', JSON.stringify(MT_ACTIVE));
-  }catch(_){}
-}
-function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; try{ saveMTSystem(); }catch(_){} }
+function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; try{ saveMTLocal(); }catch(_){} }
 
 // ═══════════════════════════════════════════════════
 // 담당 영역 (책임 범위) — 각 직원이 지속적으로 신경 쓸 것
@@ -11340,6 +11387,7 @@ async function renderMTSystem(mode){
   if(mode) mtMode = mode;
   const personalMode = mtMode === 'personal';
   loadMTSystem();
+  if(sb && !_mtSynced){ await syncMTFromCloud(); _mtSynced = true; _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE }); }
   const me = currentUser?.name || 'MT';
   const today = new Date(); today.setHours(0,0,0,0);
   const team = await loadTeamMembers();
@@ -16112,6 +16160,9 @@ function startPresence(){
     const hasReject = APPLICANTS.some(a => a.stage === 'reject' && a.rejected_at);
     if(hasReject){ try{ renderRecruit(); }catch(_){} }   // re-render: ticks countdown + purges expired (inside renderRecruit)
   }, 60*1000);
+  // [v145] live shared Responsibility Board sync
+  if(_mtPollTimer) clearInterval(_mtPollTimer);
+  _mtPollTimer = setInterval(pollMTSystem, 15*1000);
 }
 let _recruitPurgeTimer = null;
 
@@ -17196,11 +17247,13 @@ function routeContent(){
   } else if(ch && ch.module === 'tasks'){
     pcView.style.display = 'none';
     otherView.style.display = '';
+    _mtSynced = false;   // [v145] pull latest shared board on each entry
     renderMTSystem('manage');  // 일일 업무 — 팀 점검
     if(rightSb) rightSb.style.display = 'none';
   } else if(ch && ch.module === 'mytasks'){
     pcView.style.display = 'none';
     otherView.style.display = '';
+    _mtSynced = false;   // [v145] pull latest shared board on each entry
     renderMTSystem('personal'); // 내 업무 — 본인 보드만
     if(rightSb) rightSb.style.display = 'none';
   } else if(ch && ch.module === 'staff'){
