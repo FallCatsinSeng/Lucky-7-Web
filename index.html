@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v157 -->
+<!-- BUILD: v158 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -18073,9 +18073,19 @@ function addClientAccount(){
     contract:{ start:iso, end:'', monthly_fee:0, note:'' }, comms:[]
   });
   try{ logAction('create', 'added client', nm); }catch(_){}
+  // [v158] bridge — auto-create a matching pool character so the new client
+  // shows up in the PC-status Client pool (linked by name, the app's existing convention)
+  if(!CLIENTS.some(function(c){ return c.name === nm; })){
+    CLIENTS.push({
+      id: 'c_'+Date.now().toString(36),
+      name: nm, label:'', game:'lineage', char_class:'knight', server:'tbd',
+      weapon:6, armor_set:4, armor_set_max:null, hours:null, schedule_note:''
+    });
+  }
   saveClientState(true);
   toast(nm + (_uiLang()==='ko'?' 추가됨':' added'));
   renderClients();
+  try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
   setTimeout(function(){ try{ openClientDetail(id); }catch(e){} }, 80);
 }
 function removeClientAccount(cid){
