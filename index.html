@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v169 -->
+<!-- BUILD: v170 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -17071,7 +17071,7 @@ function openUserPerm(uid){
   closeUserPerm();
 
   const roleBtns = APP_ROLES.map(r =>
-    `<button class="up-role-btn ${u.role===r.id?'on':''}" style="--rc:${r.color}" onclick="setUserRole('${uid}','${r.id}')">
+    `<button class="up-role-btn ${u.role===r.id?'on':''}" style="--rc:${r.color}" onclick="setMemberRole('${uid}','${r.id}')">
       <span class="up-role-dot" style="background:${r.color}"></span>${r.label}
     </button>`).join('');
 
@@ -17123,20 +17123,25 @@ function closeUserPerm(){
   const m = document.getElementById('up-modal');
   if(m){ m.remove(); }
 }
-async function setUserRole(uid, roleId){
+async function setMemberRole(uid, roleId){
   const u = _permUser(uid);
-  if(u && u.role !== roleId){
-    u.role = roleId;                                  // optimistic local update
-    try{ logAction('config', 'changed role → ' + getRoleById(roleId).label, u.name); }catch(_){}
-    if(sb){
-      try{
-        const { error } = await sb.from('user_profiles').update({ role: roleId }).eq('id', uid);
-        if(error){ toast('Role save failed: ' + error.message, true); }
-        else { toast(`${u.name} → ${getRoleById(roleId).label}`); await loadAppUsers(); }
-      }catch(e){ toast('Role save error: ' + (e && e.message), true); }
-    } else {
-      toast(`${u.name} → ${getRoleById(roleId).label}`);
-    }
+  if(!u || u.role === roleId){ return; }
+  const prev = u.role;
+  u.role = roleId;                                    // optimistic local update
+  if(sb){
+    try{
+      const { error } = await sb.from('user_profiles').update({ role: roleId }).eq('id', uid);
+      if(error){
+        u.role = prev;                                // revert — DB rejected it
+        toast('Role change blocked: ' + error.message, true);
+      } else {
+        try{ logAction('config', 'changed role → ' + getRoleById(roleId).label, u.name); }catch(_){}
+        toast(`${u.name} → ${getRoleById(roleId).label}`);
+        await loadAppUsers();                         // refresh from server
+      }
+    }catch(e){ u.role = prev; toast('Role change error: ' + (e && e.message), true); }
+  } else {
+    toast(`${u.name} → ${getRoleById(roleId).label}`);
   }
   openUserPerm(uid);  // refresh modal
   renderPerms();      // refresh background table
