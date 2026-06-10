@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v150 -->
+<!-- BUILD: v151 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15377,6 +15377,42 @@ async function renderMyPerformance(){
 // ═══════════════════════════════════════════════════
 
 let ANNOUNCEMENTS = [];
+let _annSynced = false, _annSig = '', _annSaving = false, _annPollTimer = null;
+async function syncAnnFromCloud(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('announce_state').select('data').eq('id','default').maybeSingle();
+    if(!error && data && Array.isArray(data.data)){ ANNOUNCEMENTS = data.data; }
+    else if(error){ console.warn('announce_state load:', error.message); }
+  }catch(e){ console.warn('announce_state load:', e && e.message); }
+}
+async function saveAnnouncements(){
+  _annSig = JSON.stringify(ANNOUNCEMENTS);
+  if(!sb) return;
+  _annSaving = true;
+  try{
+    const { error } = await sb.from('announce_state').upsert({ id:'default', data:ANNOUNCEMENTS, updated_at:new Date().toISOString() });
+    if(error){ console.warn('announce_state save:', error.message); toast('Notice save FAILED: ' + error.message, true); }
+  }catch(e){ console.warn('announce_state save:', e && e.message); }
+  finally{ setTimeout(() => { _annSaving = false; }, 400); }
+}
+async function pollAnnouncements(){
+  if(!sb || !currentUser || _annSaving) return;
+  try{
+    const { data, error } = await sb.from('announce_state').select('data').eq('id','default').maybeSingle();
+    if(error || !data || !Array.isArray(data.data)) return;
+    const sig = JSON.stringify(data.data);
+    if(sig === _annSig) return;
+    ANNOUNCEMENTS = data.data; _annSig = sig;
+    try{ renderSidebar(); }catch(_){}
+    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
+    if(mod === 'announce'){
+      const ae = document.activeElement;
+      const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
+      if(!typing){ try{ renderAnnouncements(); }catch(_){} }
+    }
+  }catch(_){}
+}
 
 let annFilter = 'all';
 let annScopeFilter = 'all';  // all / player / op / admin
@@ -15403,6 +15439,7 @@ const ANN_SCOPES = {
 async function renderAnnouncements(){
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
+  if(sb && !_annSynced){ await syncAnnFromCloud(); _annSynced = true; _annSig = JSON.stringify(ANNOUNCEMENTS); }
 
   const canPost = currentUserRole === 'admin' || currentUserRole === 'op';
   const myId = (currentUser?.name || 'MT').toLowerCase().replace(/\s+/g,'');
@@ -15687,6 +15724,7 @@ function markAnnRead(id){
   const myId = (currentUser?.name || 'MT').toLowerCase().replace(/\s+/g,'');
   if(!a.read_by) a.read_by = [];
   if(!a.read_by.includes(myId)) a.read_by.push(myId);
+  saveAnnouncements();
   renderAnnouncements();
   renderSidebar();  // 배지 업데이트
 }
@@ -15694,6 +15732,7 @@ function deleteAnn(id){
   if(!confirm('이 공지를 삭제할까요?')) return;
   ANNOUNCEMENTS = ANNOUNCEMENTS.filter(a => a.id !== id);
   toast('삭제됨');
+  saveAnnouncements();
   renderAnnouncements();
 }
 function addAnn(){
@@ -15716,6 +15755,7 @@ function addAnn(){
   });
   showNewAnn = false;
   toast(`공지 발행됨 (대상: ${ANN_SCOPES[scope].label})`);
+  saveAnnouncements();
   renderAnnouncements();
 }
 
@@ -16198,6 +16238,9 @@ function startPresence(){
     if(typing) return;
     try{ renderAttendance(); }catch(_){}
   }, 20*1000);
+  // [v151] live shared notices sync
+  if(_annPollTimer) clearInterval(_annPollTimer);
+  _annPollTimer = setInterval(pollAnnouncements, 20*1000);
 }
 let _recruitPurgeTimer = null, _attPollTimer = null;
 
@@ -17309,6 +17352,7 @@ function routeContent(){
   } else if(ch && ch.module === 'announce'){
     pcView.style.display = 'none';
     otherView.style.display = '';
+    _annSynced = false;   // [v151] pull latest shared notices on each entry
     renderAnnouncements();
     if(rightSb) rightSb.style.display = 'none';
   } else if(ch && ch.module === 'settings'){
