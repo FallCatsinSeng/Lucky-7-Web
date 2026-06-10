@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v155 -->
+<!-- BUILD: v156 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -16340,9 +16340,14 @@ function startPresence(){
   _annPollTimer = setInterval(pollAnnouncements, 20*1000);
   // [v154] live shared system-log sync
   if(_logPollTimer) clearInterval(_logPollTimer);
+  pollLogs();                                          // [v156] immediate load (also covers refresh)
   _logPollTimer = setInterval(pollLogs, 20*1000);
   // [v154] live shared clients sync (Client page + PC pool)
   if(_clientPollTimer) clearInterval(_clientPollTimer);
+  syncClientStateFromCloud().then(()=>{                // [v156] immediate load on refresh, then repaint
+    try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
+    try{ const mod=(typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null; if(mod==='clients') renderClients(); }catch(_){}
+  });
   _clientPollTimer = setInterval(pollClientState, 20*1000);
 }
 let _recruitPurgeTimer = null, _attPollTimer = null;
