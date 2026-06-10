@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v129 -->
+<!-- BUILD: v130 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15867,6 +15867,27 @@ function startPresence(){
   if(_presenceTimer) clearInterval(_presenceTimer);
   pingPresence();                                      // render immediately
   _presenceTimer = setInterval(pingPresence, 30*1000); // heartbeat every 30s
+  // [v130] live day-off sync — colleagues' requests appear without a manual refresh
+  if(_offTimer) clearInterval(_offTimer);
+  pollOffRequests();
+  _offTimer = setInterval(pollOffRequests, 15*1000);
+}
+
+let _offTimer = null, _offSig = null;
+async function pollOffRequests(){
+  if(!sb || !currentUser) return;
+  await syncOffFromCloud();
+  const sig = JSON.stringify((OFF_REQUESTS||[]).map(r => [r.id, r.status]).sort());
+  if(_offSig === null){ _offSig = sig; return; }   // first run: just set baseline
+  if(sig !== _offSig){
+    _offSig = sig;
+    // don't clobber a form someone is typing in
+    const a = document.activeElement;
+    const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable);
+    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId) || {}).module : null;
+    if(!typing && (mod === 'roster' || mod === 'mycalendar')){ try{ routeContent(); }catch(_){} }
+    try{ renderSidebar(); }catch(_){}   // refresh the pending-count badge everywhere
+  }
 }
 
 function finishSignIn(){
