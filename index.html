@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v164 -->
+<!-- BUILD: v165 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7638,6 +7638,7 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
         <div id="sb-foot-name" style="font-weight:600;font-size:var(--t-cap)">MT</div>
         <div id="sb-foot-role" style="font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;font-weight:600">CEO · ADMIN</div>
       </div>
+      <button class="sb-theme-btn" id="sb-lang-btn" onclick="cycleLang()" title="언어 전환 / Switch language (KO · ID · EN)" style="font-size:10px;font-weight:700">KO</button>
       <button class="sb-theme-btn" onclick="document.documentElement.setAttribute('data-theme',document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')" title="테마 전환">🌓</button>
       <button class="sb-theme-btn" onclick="signOut()" title="로그아웃">⎋</button>
     </div>
@@ -7928,8 +7929,7 @@ const CHANNEL_TREE = {
         { id:'pl-daily-board', name:'내 업무',  icon:'check',    module:'mytasks', kind:'view', unread:6 },
         { id:'pl-my-shift',    name:'내 시프트',icon:'calendar', module:'myshift', kind:'view' },
         { id:'pl-my-calendar', name:'내 캘린더',icon:'calendar', module:'mycalendar', kind:'view' },
-        { id:'pl-performance', name:'내 성과',  icon:'trend',    module:'perf', kind:'view' },
-        { id:'admin-settings', name:'설정',      icon:'cog',      module:'settings', kind:'view' }
+        { id:'pl-performance', name:'내 성과',  icon:'trend',    module:'perf', kind:'view' }
       ]
     },
     {
@@ -7941,6 +7941,7 @@ const CHANNEL_TREE = {
     {
       id:'admin', name:'관리', catIcon:'cog', perms:['admin'], collapsed:true,
       channels:[
+        { id:'admin-settings',     name:'설정',        icon:'cog',     module:'settings', kind:'view' },
         { id:'admin-perms',        name:'권한',        icon:'shield',  kind:'view', module:'perms' },
         { id:'admin-invites',      name:'초대 코드',   icon:'lock',    kind:'view', module:'invites' },
         { id:'admin-invest',       name:'투자내역',    icon:'bag',     kind:'view' },
@@ -16668,6 +16669,8 @@ function updateSidebarUser(){
     avEl.onclick = changeAvatar;
   }
   if(nameEl) nameEl.textContent = currentUser.name;
+  const langBtn = document.getElementById('sb-lang-btn');
+  if(langBtn){ let l='ko'; try{ l = sessionStorage.getItem('lucky7_lang')||'ko'; }catch(_){} langBtn.textContent = ({ko:'KO',id:'ID',en:'EN'})[l] || 'KO'; }
   if(roleEl){
     const _r = currentUser.role || currentUser.appRole || 'staff';
     const appRoleLabel = ({ceo:'CEO',manager:'MANAGER',hr:'HR',settlement:'SETTLEMENT',staff:'STAFF',admin:'ADMIN',op:'OP',player:'PLAYER'})[_r] || String(_r).toUpperCase();
@@ -18016,6 +18019,12 @@ function setLang(lang){
   try{ sessionStorage.setItem('lucky7_lang', lang); sessionStorage.setItem('lucky7_resume_ch', activeChannelId||''); }catch(_){}
   location.reload();
 }
+// [v165] quick language switch from the sidebar footer — available to every staff member
+function cycleLang(){
+  const order = ['ko','id','en'];
+  let cur='ko'; try{ cur = sessionStorage.getItem('lucky7_lang')||'ko'; }catch(_){}
+  setLang(order[(order.indexOf(cur)+1) % order.length]);   // persists + reloads
+}
 function setStartChannel(ch){ try{ sessionStorage.setItem('lucky7_start_ch', ch); }catch(_){} toast('시작 화면 변경됨'); }
 const BACKUP_KEYS = ['lucky7_cal_events','lucky7_mt_active','lucky7_mt_inbox','lucky7_mt_passive','lucky7_roster','lucky7_tasks','lucky7_theme','lucky7_lang','lucky7_start_ch','lucky7_badge_baseline'];
 function backupData(){
@@ -18062,7 +18071,7 @@ function renderSettings(){
   otherView.innerHTML = `<div class="set-page-wrap" style="max-width:680px">
     <div class="att-eyebrow">시스템</div>
     <div class="ph">설정</div>
-    <div class="psub">${isAdmin ? '언어 · 테마 · 기본값 · 데이터 백업' : '언어 · 테마 · 기본값'}</div>
+    <div class="psub">언어 · 테마 · 기본값 · 데이터 백업</div>
 
     <div class="cfg-section">
       <div class="cfg-sec-h">🎨 모양</div>
