@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v146 -->
+<!-- BUILD: v147 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -13144,27 +13144,30 @@ async function renderOverview(){
   const myId = (currentUser?.name || 'MT').toLowerCase().replace(/\s+/g,'');
   const isManager = currentUserRole === 'admin' || currentUserRole === 'op';
 
-  // ── 데이터 ──
-  let attIn = 0;
+  // ── 데이터: 실시간 팀 현황 (오늘 출퇴근 기반) ──
+  const attTotal = team.length;
+  let onlineN = 0, breakN = 0, dayoffN = 0, offN = 0;  // working now / on break / clocked out / absent
   if(sb){
     try{
-      const { data } = await sb.from('attendance').select('user_id, clock_in').eq('date', todayIso);
-      if(data) attIn = data.filter(a => a.clock_in).length;
+      const { data } = await sb.from('attendance')
+        .select('user_id, clock_in, clock_out, break_start, break_end').eq('date', todayIso);
+      if(data){
+        const byUser = {};
+        data.forEach(r => {                                  // unlimited clock-in → pick the open session
+          const cur = byUser[r.user_id];
+          const open = r.clock_in && !r.clock_out;
+          if(!cur || (open && !(cur.clock_in && !cur.clock_out))) byUser[r.user_id] = r;
+        });
+        Object.values(byUser).forEach(r => {
+          if(r.clock_out) dayoffN++;                          // clocked out
+          else if(r.break_start && !r.break_end) breakN++;    // on break
+          else if(r.clock_in) onlineN++;                      // working now
+        });
+      }
     }catch(e){}
   }
-  const attTotal = team.length;
-
-  // 팀 상태 분류 (STAFF_DETAILS 기반)
-  let onlineN = 0, breakN = 0, offN = 0, dayoffN = 0;
-  team.forEach(m => {
-    const d = (typeof STAFF_DETAILS !== 'undefined') ? STAFF_DETAILS[m.id] : null;
-    const st = d?.status || 'offline';
-    if(st === 'online') onlineN++;
-    else if(st === 'break') breakN++;
-    else if(st === 'off') dayoffN++;
-    else offN++;
-  });
-  const workingN = onlineN + breakN;
+  offN = Math.max(0, attTotal - onlineN - breakN - dayoffN);  // not clocked in
+  const workingN = onlineN;
 
   const allTasks = TASKS.length;
   const doneN = TASKS.filter(t => t.status === 'Done').length;
@@ -13264,7 +13267,7 @@ async function renderOverview(){
 
     <div class="owd-grid">
       <!-- 오늘 할 일 -->
-      <div class="owd-widget owd-w-tasks" onclick="${todoCount?`activeChannelId='${isManager?'op-daily-board':'pl-daily-board'}';render()`:''}">
+      <div class="owd-widget owd-w-tasks" onclick="activeChannelId='pl-daily-board';render()">
         <div class="owd-w-head"><span class="owd-w-ic">⚡</span> 오늘 할 일</div>
         <div class="owd-w-big">
           <span class="owd-big-num" style="color:${todoCount?'var(--ac)':'var(--gr)'}">${todoCount}</span>
@@ -13285,10 +13288,10 @@ async function renderOverview(){
           <span class="owd-stat-main"><b>${workingN}</b> / ${attTotal} 근무 중</span>
         </div>
         <div class="owd-w-foot">
-          <span class="owd-mini-stat"><span class="owd-msd owd-dot-on"></span>${onlineN}</span>
-          <span class="owd-mini-stat"><span class="owd-msd owd-dot-break"></span>${breakN}</span>
-          <span class="owd-mini-stat"><span class="owd-msd owd-dot-dayoff"></span>${dayoffN}</span>
-          <span class="owd-mini-stat"><span class="owd-msd owd-dot-off"></span>${offN}</span>
+          <span class="owd-mini-stat" title="근무 중 / Working now"><span class="owd-msd owd-dot-on"></span>${onlineN} Work</span>
+          <span class="owd-mini-stat" title="휴식 / On break"><span class="owd-msd owd-dot-break"></span>${breakN} Break</span>
+          <span class="owd-mini-stat" title="퇴근 / Clocked out"><span class="owd-msd owd-dot-dayoff"></span>${dayoffN} Out</span>
+          <span class="owd-mini-stat" title="미출근 / Not in"><span class="owd-msd owd-dot-off"></span>${offN} Absent</span>
         </div>
       </div>
 
@@ -13307,7 +13310,7 @@ async function renderOverview(){
       </div>
 
       <!-- 사업 현황 (부주마켓 + 럭키세븐) -->
-      <div class="owd-widget owd-w-biz">
+      <div class="owd-widget owd-w-biz" style="cursor:pointer" onclick="activeChannelId='pc-status';render()">
         <div class="owd-w-head"><span class="owd-w-ic">🏢</span> 사업 현황</div>
         <div class="owd-biz-list">
           <div class="owd-biz-row" onclick="activeChannelId='pc-status';render()">
