@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v121 -->
+<!-- BUILD: v122 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9226,7 +9226,7 @@ function attSbDrop(e, status){
 }
 
 async function clockIn(){
-  if(myAtt.clock_in){ toast('이미 출근했습니다', true); return; }
+  if(myAtt.clock_in && !myAtt.clock_out){ toast('이미 근무 중입니다 / Already clocked in', true); return; }
   // Supabase
   if(sb && currentUser?.id){
     try{
@@ -9245,7 +9245,7 @@ async function clockIn(){
     }catch(e){ console.warn('Supabase write denied, using local preview:', e&&e.message); }
   }
   // Mock 폴백
-  myAtt.clock_in = new Date().toISOString();
+  myAtt = { ...myAtt, id: undefined, date: todayStr(), clock_in: new Date().toISOString(), clock_out:null, break_start:null, break_end:null, breaks:[] };
   saveMyAttendance();
   toast('✓ 출근 체크인 완료 (mock)');
   renderAttendance();
@@ -9445,7 +9445,7 @@ async function renderAttendance(){
 
   // 출퇴근 3버튼
   const clockBtns = `<div class="att-clock">
-    <button class="att-btn att-in" onclick="clockIn()" ${att && att.clock_in ? 'disabled' : ''}>⏱ 출근</button>
+    <button class="att-btn att-in" onclick="clockIn()" ${att && att.clock_in && !att.clock_out ? 'disabled' : ''}>⏱ 출근</button>
     <button class="att-btn att-break" onclick="${onBreak ? 'breakEnd()' : 'breakStart()'}" ${!isIn || isOut ? 'disabled' : ''}>${onBreak ? '🔙 복귀' : '☕ 휴식'}</button>
     <button class="att-btn att-out" onclick="clockOut()" ${!isIn || isOut ? 'disabled' : ''}>⏹ 퇴근</button>
   </div>`;
@@ -9480,7 +9480,7 @@ async function renderAttendance(){
         <div class="att-time-val ${att && att.clock_out ? 'has-out' : ''}">${fmtTime(att && att.clock_out)}</div>
       </div>
     </div>
-    ${isOut ? `<div class="att-today-foot">오늘 근무 완료. 다시 출근하려면 초기화를 누르세요.</div>` : ''}
+    ${isOut ? `<div class="att-today-foot">시프트 완료 · 다시 출근하면 새 세션 시작 / Shift done — clock in again for a new session</div>` : ''}
   </div>`;
 
   // 기록 테이블 (이번 주/달/올해)
