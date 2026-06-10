@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v123 -->
+<!-- BUILD: v124 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9529,7 +9529,7 @@ async function renderAttendance(){
       <td class="col-break">${a.break_end ? fmtTime(a.break_end) : '—'}</td>
       <td class="col-out">${fmtTime(a.clock_out)}</td>
       <td>${hrs ? `<span class="bdg bs">${hrs}</span>` : `<span class="bdg bi">근무 중</span>`}</td>
-      ${isManager ? `<td><button class="att-btn-del" onclick="attResetRow(${a.id})" title="이 기록 초기화">↺</button></td>` : ''}
+      ${isManager ? `<td><button class="att-btn-del" onclick="attResetRow('${a.id}')" title="이 기록 초기화">↺</button></td>` : ''}
     </tr>`;
   }).join('') : `<tr><td colspan="${(showAll?1:0)+(isManager?1:0)+6}" class="att-row-empty">기록 없음</td></tr>`;
 
