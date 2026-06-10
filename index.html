@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v122 -->
+<!-- BUILD: v123 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9154,24 +9154,26 @@ async function loadMyAttendance(){
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('date', todayStr())
-        .maybeSingle();
-      if(!error && data){
+        .order('clock_in', { ascending:false });
+      if(!error && data && data.length){
+        // prefer an OPEN session (clocked in, not out); else the most recent
+        const rec = data.find(r => r.clock_in && !r.clock_out) || data[0];
         myAtt = {
           ...myAtt,
-          id: data.id,
-          date: data.date,
-          clock_in: data.clock_in,
-          clock_out: data.clock_out,
-          break_start: data.break_start,
-          break_end: data.break_end,
-          breaks: data.break_start ? [{
-            start: data.break_start,
-            end: data.break_end
+          id: rec.id,
+          date: rec.date,
+          clock_in: rec.clock_in,
+          clock_out: rec.clock_out,
+          break_start: rec.break_start,
+          break_end: rec.break_end,
+          breaks: rec.break_start ? [{
+            start: rec.break_start,
+            end: rec.break_end
           }] : []
         };
         return;
       }
-      if(!data){
+      if(!error && (!data || !data.length)){
         // 오늘 기록 없음 — 리셋
         myAtt = { id:null, date:todayStr(), clock_in:null, clock_out:null, break_start:null, break_end:null, breaks:[], shift:myAtt.shift };
       }
