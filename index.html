@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v165 -->
+<!-- BUILD: v166 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -13972,20 +13972,68 @@ function recalcSettlement(){
 
 // === 기준 EXP (맵·캐릭터별 시간당 목표) ===
 let STANDARD_EXP = []
+// [v166] persist Standard-EXP PCs + custom maps (were in-memory only → vanished on refresh)
+let _expSynced=false, _expSig='', _expSaving=false, _expPollTimer=null, _expSaveTimer=null;
+function _expSigNow(){ return JSON.stringify({ p: STANDARD_EXP, m: (typeof MAP_GROUPS!=='undefined'?MAP_GROUPS:{}) }); }
+function _applyExpState(d){
+  if(!d) return;
+  if(Array.isArray(d.pcs)){ STANDARD_EXP.length = 0; d.pcs.forEach(function(x){ STANDARD_EXP.push(x); }); }
+  if(d.maps && typeof d.maps==='object' && typeof MAP_GROUPS!=='undefined'){
+    Object.keys(MAP_GROUPS).forEach(function(k){ delete MAP_GROUPS[k]; });
+    Object.keys(d.maps).forEach(function(k){ MAP_GROUPS[k] = d.maps[k]; });
+  }
+}
+async function syncExpFromCloud(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('exp_state').select('data').eq('id','default').maybeSingle();
+    if(!error && data && data.data){ _applyExpState(data.data); }
+    else if(error){ console.warn('exp_state load:', error.message); }
+  }catch(e){ console.warn('exp_state load:', e && e.message); }
+  _expSynced = true; _expSig = _expSigNow();
+}
+function saveExpState(){
+  _expSig = _expSigNow();
+  if(!sb) return;
+  _expSaving = true;
+  clearTimeout(_expSaveTimer);
+  _expSaveTimer = setTimeout(async function(){
+    try{
+      const { error } = await sb.from('exp_state').upsert({ id:'default', data:{ pcs: STANDARD_EXP, maps: (typeof MAP_GROUPS!=='undefined'?MAP_GROUPS:{}) }, updated_at: new Date().toISOString() });
+      if(error){ console.warn('exp_state save:', error.message); toast('EXP save FAILED: ' + error.message, true); }
+    }catch(e){ console.warn('exp_state save:', e && e.message); }
+    finally{ setTimeout(function(){ _expSaving = false; }, 300); }
+  }, 400);
+}
+async function pollExp(){
+  if(!sb || !currentUser || _expSaving) return;
+  try{
+    const { data, error } = await sb.from('exp_state').select('data').eq('id','default').maybeSingle();
+    if(error || !data || !data.data) return;
+    const incoming = JSON.stringify({ p: data.data.pcs||[], m: data.data.maps||{} });
+    if(incoming === _expSig) return;
+    _applyExpState(data.data); _expSig = incoming; _expSynced = true;
+    const mod = (typeof findChannelById==='function') ? (findChannelById(activeChannelId)||{}).module : null;
+    const ae = document.activeElement;
+    const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
+    if(mod==='exp-standard' && !typing){ try{ renderExpStandard(); }catch(_){} }
+  }catch(_){}
+}
 function expLabel(r){ const m=(r.map||'').trim(); const spec=('LV.'+(r.lv||'-')+' '+(r.cls||'')+' 검 +'+(r.we||0)+' 방 +'+(r.ae||0)).replace(/\s+/g,' ').trim(); return m ? (m+' · '+spec) : spec; }
 function setExpStd(i,f,v){ const r=STANDARD_EXP[i]; if(!r) return;
   if(f==='target') r.target=parseFloat(String(v).replace(/[^0-9.]/g,''))||0;
   else if(f==='lv'||f==='we'||f==='ae'||f==='pc') r[f]=String(v).replace(/[^0-9]/g,'');
   else r[f]=v;
+  saveExpState();
 }
-function addExpStd(){ const mx=STANDARD_EXP.reduce((a,r)=>Math.max(a,Number(r.pc)||0),0); STANDARD_EXP.push({pc:mx+1,on:true,clientId:'',lv:'',map:((MAP_GROUPS['경험치 맵']||[])[0]||{}).full||'',target:0}); renderExpStandard(); }
-function delExpStd(i){ STANDARD_EXP.splice(i,1); renderExpStandard(); }
+function addExpStd(){ const mx=STANDARD_EXP.reduce((a,r)=>Math.max(a,Number(r.pc)||0),0); STANDARD_EXP.push({pc:mx+1,on:true,clientId:'',lv:'',map:((MAP_GROUPS['경험치 맵']||[])[0]||{}).full||'',target:0}); saveExpState(); renderExpStandard(); }
+function delExpStd(i){ STANDARD_EXP.splice(i,1); saveExpState(); renderExpStandard(); }
 let EXP_DRAG=null;
 function expDragStart(i,el){ EXP_DRAG=i; el.classList.add('dragging'); }
 function expDragEnd(el){ el.classList.remove('dragging'); document.querySelectorAll('.std-card').forEach(x=>x.classList.remove('over')); }
 function expDragOver(ev,el){ ev.preventDefault(); el.classList.add('over'); }
 function expDragLeave(el){ el.classList.remove('over'); }
-function expDrop(i){ if(EXP_DRAG===null||EXP_DRAG===i){EXP_DRAG=null;return;} const m=STANDARD_EXP.splice(EXP_DRAG,1)[0]; STANDARD_EXP.splice(i,0,m); EXP_DRAG=null; renderExpStandard(); }
+function expDrop(i){ if(EXP_DRAG===null||EXP_DRAG===i){EXP_DRAG=null;return;} const m=STANDARD_EXP.splice(EXP_DRAG,1)[0]; STANDARD_EXP.splice(i,0,m); EXP_DRAG=null; saveExpState(); renderExpStandard(); }
 const MAP_GROUPS={'경험치 맵':[{full:'본던 3층 고구마자리 왼쪽 9시',short:'본던3F'},{full:'기던 3층 중간 광장쪽 통로자리',short:'기던3F'},{full:'타땅 인간밭 7시 해변 끝자리',short:'타땅인간'},{full:'타땅 요정밭 7시 자리',short:'타땅요정'},{full:'에바던전 1층 통로쪽 변신 X 사냥',short:'에바1F'}],'아데나 맵':[{full:'오크밭 토템',short:'오크밭'}]};
 const CLASS_KO={knight:'기사',mage:'법사',fairy:'요정',elf:'요정',darkelf:'다크엘프',prince:'군주',royal:'군주',warrior:'전사',illusionist:'환술사',dragonknight:'용기사'};
 function entrySpec(r){ const c=clientById(r.clientId); if(c) return {name:c.name,label:c.label||'',cls:(CLASS_KO[c.char_class]||c.char_class||''),we:(c.weapon!=null?c.weapon:''),ae:(c.armor_set!=null?c.armor_set:''),game:(c.game==='maple'?'mp':'li'),fromClient:true}; return {name:'',label:'',cls:r.cls||'',we:r.we||'',ae:r.ae||'',game:(r.game==='메이플'||r.game==='mp')?'mp':'li',fromClient:false}; }
@@ -13993,9 +14041,9 @@ function clientOptionsHTML(sel){ let h='<option value="">— 미배정 —</opti
 function shortOf(full){ for(const g in MAP_GROUPS){ const m=MAP_GROUPS[g].find(x=>x.full===full); if(m) return m.short||m.full; } return full||''; }
 function mapGroupOptHTML(sel){ let h='';let found=false; for(const g in MAP_GROUPS){ h+=`<optgroup label="${g}">`+MAP_GROUPS[g].map(m=>{ if(m.full===sel) found=true; return `<option ${m.full===sel?'selected':''}>${m.full}</option>`; }).join('')+'</optgroup>'; } if(sel&&!found) h=`<option selected>${sel}</option>`+h; return h; }
 function expCanEdit(){ return (typeof currentUserRole==='undefined') || currentUserRole==='admin' || currentUserRole==='op'; }
-function expToggleOn(i){ const cur=STANDARD_EXP[i].on!==false; STANDARD_EXP[i].on=!cur; const bg=document.getElementById('pcb-mbg'); if(bg&&bg.classList.contains('show')) expOpenPC(i); else renderExpStandard(); }
-function expSetClient(i,id){ STANDARD_EXP[i].clientId=id||''; expOpenPC(i); }
-function expDelPC(i){ STANDARD_EXP.splice(i,1); expClosePC(); }
+function expToggleOn(i){ const cur=STANDARD_EXP[i].on!==false; STANDARD_EXP[i].on=!cur; saveExpState(); const bg=document.getElementById('pcb-mbg'); if(bg&&bg.classList.contains('show')) expOpenPC(i); else renderExpStandard(); }
+function expSetClient(i,id){ STANDARD_EXP[i].clientId=id||''; saveExpState(); expOpenPC(i); }
+function expDelPC(i){ STANDARD_EXP.splice(i,1); saveExpState(); expClosePC(); }
 function expOpenPC(i){
   const r=STANDARD_EXP[i]; if(!r) return; const s=entrySpec(r);
   const ce=expCanEdit(); const dis=ce?'':'disabled'; const ro=ce?'':'readonly';
@@ -14038,11 +14086,13 @@ function expMapManager(){
   modal.innerHTML=`<div class="pcb-mhd"><b style="font-size:16px">⚙ 맵 관리</b><button class="pcb-mclose" onclick="expClosePC()">✕</button></div><div class="pcb-mbd">${body}</div>`;
   bg.classList.add('show');
 }
-function mgEdit(g,idx,f,v){ MAP_GROUPS[g][idx][f]=v; }
-function mgDel(g,idx){ MAP_GROUPS[g].splice(idx,1); expMapManager(); }
-function mgAdd(g){ MAP_GROUPS[g].push({full:'새 맵',short:''}); expMapManager(); }
+function mgEdit(g,idx,f,v){ MAP_GROUPS[g][idx][f]=v; saveExpState(); }
+function mgDel(g,idx){ MAP_GROUPS[g].splice(idx,1); saveExpState(); expMapManager(); }
+function mgAdd(g){ MAP_GROUPS[g].push({full:'새 맵',short:''}); saveExpState(); expMapManager(); }
 function renderExpStandard(){
   const otherView=document.getElementById('ch-other'); if(!otherView) return;
+  // [v166] pull shared EXP data on first open, then re-render when it arrives (non-blocking)
+  if(sb && !_expSynced){ _expSynced=true; syncExpFromCloud().then(function(){ try{ const ch=findChannelById(activeChannelId); if(ch && ch.module==='exp-standard') renderExpStandard(); }catch(_){} }); }
   let on=0,off=0;
   const tiles=STANDARD_EXP.map((r,i)=>{
     const isOn=r.on!==false; if(isOn) on++; else off++;
@@ -16484,6 +16534,10 @@ function startPresence(){
     try{ const mod=(typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null; if(mod==='clients') renderClients(); }catch(_){}
   });
   _clientPollTimer = setInterval(pollClientState, 20*1000);
+  // [v166] live shared Standard-EXP sync
+  if(_expPollTimer) clearInterval(_expPollTimer);
+  pollExp();
+  _expPollTimer = setInterval(pollExp, 20*1000);
 }
 let _recruitPurgeTimer = null, _attPollTimer = null;
 
