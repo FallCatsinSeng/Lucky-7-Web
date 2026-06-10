@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v140 -->
+<!-- BUILD: v141 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7970,11 +7970,11 @@ const BUSINESSES = {
 // 지원 가능 시프트 ─── 3가지 카테고리, 총 7개 시프트
 const APPLY_SHIFTS = {
   // 12 Hours
-  '12h_day':   { group:'12H', name:'Day Shift',   range:'07:00 AM - 07:00 PM', break:'01:00 PM - 02:00 PM', salary:null, duration:12, color:'#4a8fd9' },
-  '12h_night': { group:'12H', name:'Night Shift', range:'07:00 PM - 07:00 AM', break:'01:00 AM - 02:00 AM', salary:null, duration:12, color:'#b074ec' },
+  '12h_day':   { group:'12H', name:'Day Shift',   range:'07:00 AM - 07:00 PM', break:'01:00 PM - 02:00 PM', salary:'3.5 Juta', duration:12, color:'#4a8fd9' },
+  '12h_night': { group:'12H', name:'Night Shift', range:'07:00 PM - 07:00 AM', break:'01:00 AM - 02:00 AM', salary:'4.0 Juta', duration:12, color:'#b074ec' },
   // 10 Hours
-  '10h_day':   { group:'10H', name:'Day Shift',   range:'09:00 AM - 07:00 PM', break:'02:00 PM - 03:00 PM', salary:null, duration:10, color:'#4ec3e0' },
-  '10h_night': { group:'10H', name:'Night Shift', range:'09:00 PM - 07:00 AM', break:'02:00 AM - 03:00 AM', salary:null, duration:10, color:'#9a6cd0' },
+  '10h_day':   { group:'10H', name:'Day Shift',   range:'09:00 AM - 07:00 PM', break:'02:00 PM - 03:00 PM', salary:'3.0 Juta', duration:10, color:'#4ec3e0' },
+  '10h_night': { group:'10H', name:'Night Shift', range:'09:00 PM - 07:00 AM', break:'02:00 AM - 03:00 AM', salary:'3.5 Juta', duration:10, color:'#9a6cd0' },
   // 8 Hours (3 Rotation)
   '8h_s1':     { group:'8H',  name:'Shift 1',     range:'09:00 AM - 05:00 PM', break:'01:00 PM - 02:00 PM', salary:'2.5 Juta', duration:8, color:'#3aa05a' },
   '8h_s2':     { group:'8H',  name:'Shift 2',     range:'05:00 PM - 01:00 AM', break:'09:00 PM - 10:00 PM', salary:'2.7 Juta', duration:8, color:'#e0a040' },
