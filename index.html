@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v156 -->
+<!-- BUILD: v157 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -17745,8 +17745,15 @@ let _clientSynced = false, _clientSig = '', _clientSaving = false, _clientPollTi
 function _clientStateSig(){ return JSON.stringify({ a: CLIENT_ACCOUNTS, p: CLIENTS }); }
 function _applyClientState(d){
   if(!d) return;
-  if(Array.isArray(d.accounts)) CLIENT_ACCOUNTS.splice(0, CLIENT_ACCOUNTS.length, ...d.accounts);
-  if(Array.isArray(d.pool))     CLIENTS.splice(0, CLIENTS.length, ...d.pool);
+  // [v157] never wipe a non-empty local array with an empty incoming one.
+  // protects a just-added account / pool client from being clobbered by a stale
+  // poll or sync before its own save has committed to the cloud.
+  if(Array.isArray(d.accounts) && (d.accounts.length || !CLIENT_ACCOUNTS.length)){
+    CLIENT_ACCOUNTS.splice(0, CLIENT_ACCOUNTS.length, ...d.accounts);
+  }
+  if(Array.isArray(d.pool) && (d.pool.length || !CLIENTS.length)){
+    CLIENTS.splice(0, CLIENTS.length, ...d.pool);
+  }
 }
 async function syncClientStateFromCloud(){
   if(!sb) return;
@@ -17757,18 +17764,20 @@ async function syncClientStateFromCloud(){
   }catch(e){ console.warn('client_state load:', e && e.message); }
   _clientSynced = true; _clientSig = _clientStateSig();
 }
-function saveClientState(){
+function saveClientState(immediate){
   _clientSig = _clientStateSig();
   if(!sb) return;
   _clientSaving = true;
   clearTimeout(_clientSaveTimer);
-  _clientSaveTimer = setTimeout(async () => {
+  const doSave = async () => {
     try{
       const { error } = await sb.from('client_state').upsert({ id:'default', data:{ accounts: CLIENT_ACCOUNTS, pool: CLIENTS }, updated_at: new Date().toISOString() });
       if(error){ console.warn('client_state save:', error.message); toast('Client save FAILED: ' + error.message, true); }
     }catch(e){ console.warn('client_state save:', e && e.message); }
     finally{ setTimeout(() => { _clientSaving = false; }, 300); }
-  }, 400);
+  };
+  if(immediate){ doSave(); }                                  // [v157] adds/deletes flush now
+  else { _clientSaveTimer = setTimeout(doSave, 400); }        // field edits stay debounced
 }
 async function pollClientState(){
   if(!sb || !currentUser || _clientSaving) return;
@@ -18064,7 +18073,7 @@ function addClientAccount(){
     contract:{ start:iso, end:'', monthly_fee:0, note:'' }, comms:[]
   });
   try{ logAction('create', 'added client', nm); }catch(_){}
-  saveClientState();
+  saveClientState(true);
   toast(nm + (_uiLang()==='ko'?' 추가됨':' added'));
   renderClients();
   setTimeout(function(){ try{ openClientDetail(id); }catch(e){} }, 80);
@@ -18077,7 +18086,7 @@ function removeClientAccount(cid){
   var idx = CLIENT_ACCOUNTS.indexOf(c);
   if(idx >= 0) CLIENT_ACCOUNTS.splice(idx, 1);
   try{ logAction('delete', 'deleted client', c.name); }catch(_){}
-  saveClientState();
+  saveClientState(true);
   toast(c.name + (_uiLang()==='ko'?' 삭제됨':' removed'));
   renderClients();
 }
@@ -19162,7 +19171,7 @@ function addClient(){
   CLIENTS.push(newClient);
   editingClient = nextId; // 즉시 편집
   try{ logAction('create', 'added pool client', newClient.name); }catch(_){}
-  saveClientState();
+  saveClientState(true);
   toast('새 클라이언트 추가 — 정보 입력');
   render();
   // 새로 추가된 칩으로 스크롤
@@ -19181,7 +19190,7 @@ function removeClient(cid){
   if(idx >= 0) CLIENTS.splice(idx, 1);
   if(editingClient === cid) editingClient = null;
   try{ logAction('delete', 'deleted pool client', c.name); }catch(_){}
-  saveClientState();
+  saveClientState(true);
   savePCState();   // PC client-assignments changed above → persist them too
   toast(`${c.name} 삭제됨`);
   render();
