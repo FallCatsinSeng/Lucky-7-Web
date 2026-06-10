@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v141 -->
+<!-- BUILD: v142 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -5528,6 +5528,9 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .rf-pill:hover{border-color:var(--tx3);color:var(--tx)}
 .rf-pill.on{background:var(--tx);color:var(--bg);border-color:var(--tx);font-weight:600}
 .rf-right{display:flex;align-items:center;gap:8px}
+.rf-search{width:200px;max-width:42vw;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--br);background:var(--bg-c);color:var(--tx);outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+.rf-search::placeholder{color:var(--tx4)}
+.rf-search:focus{border-color:var(--ac);box-shadow:0 0 0 2px color-mix(in srgb,var(--ac) 20%,transparent)}
 .rf-view-toggle{
   display:inline-flex;border:1px solid var(--br);border-radius:6px;overflow:hidden;
 }
@@ -8007,6 +8010,7 @@ let openApplicantId = null;
 let recruitStageFilter = 'all';
 let recruitSpecFilter = 'all';
 let recruitViewMode = 'kanban';
+let recruitSearch = '';
 
 function getStageById(id){ return RECRUIT_STAGES.find(s => s.id === id); }
 function avatarColor(short){
@@ -8459,6 +8463,10 @@ async function renderRecruit(){
   let filteredApplicants = APPLICANTS;
   if(recruitStageFilter !== 'all') filteredApplicants = filteredApplicants.filter(a => a.stage === recruitStageFilter);
   if(recruitSpecFilter !== 'all') filteredApplicants = filteredApplicants.filter(a => a.spec_status === recruitSpecFilter);
+  if(recruitSearch && recruitSearch.trim()){
+    const q = recruitSearch.trim().toLowerCase();
+    filteredApplicants = filteredApplicants.filter(a => (a.name||'').toLowerCase().includes(q));
+  }
 
   // ── Kanban 5단계 (Reject 제외) ──
   const stagesHTML = KANBAN_STAGES.map(stage => {
@@ -8590,6 +8598,7 @@ async function renderRecruit(){
         ${RECRUIT_STAGES.map(s => `<button class="rf-pill ${recruitStageFilter===s.id?'on':''}" onclick="setRecruitFilter('stage','${s.id}')">${s.name}</button>`).join('')}
       </div>
       <div class="rf-right">
+        <input id="recruit-search" class="rf-search" type="text" placeholder="🔍 이름 검색 / Search name…" value="${recruitSearch||''}" oninput="setRecruitSearch(this.value)">
         <button class="rf-pill ${recruitSpecFilter==='all'?'on':''}" onclick="setRecruitFilter('spec','all')">All</button>
         <button class="rf-pill ${recruitSpecFilter==='pass'?'on':''}" onclick="setRecruitFilter('spec','pass')">Pass</button>
         <button class="rf-pill ${recruitSpecFilter==='pending'?'on':''}" onclick="setRecruitFilter('spec','pending')">Pending</button>
@@ -8614,6 +8623,14 @@ function setRecruitFilter(kind, val){
   renderRecruit();
 }
 function setRecruitView(mode){ recruitViewMode = mode; renderRecruit(); }
+function setRecruitSearch(v){
+  recruitSearch = v;
+  renderRecruit();
+  requestAnimationFrame(() => {
+    const el = document.getElementById('recruit-search');
+    if(el){ el.focus(); const val = el.value; el.value = ''; el.value = val; }  // keep focus + cursor at end
+  });
+}
 
 function openApplicant(id){
   openApplicantId = id;
