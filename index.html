@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v163 -->
+<!-- BUILD: v164 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7928,7 +7928,8 @@ const CHANNEL_TREE = {
         { id:'pl-daily-board', name:'내 업무',  icon:'check',    module:'mytasks', kind:'view', unread:6 },
         { id:'pl-my-shift',    name:'내 시프트',icon:'calendar', module:'myshift', kind:'view' },
         { id:'pl-my-calendar', name:'내 캘린더',icon:'calendar', module:'mycalendar', kind:'view' },
-        { id:'pl-performance', name:'내 성과',  icon:'trend',    module:'perf', kind:'view' }
+        { id:'pl-performance', name:'내 성과',  icon:'trend',    module:'perf', kind:'view' },
+        { id:'admin-settings', name:'설정',      icon:'cog',      module:'settings', kind:'view' }
       ]
     },
     {
@@ -7940,7 +7941,6 @@ const CHANNEL_TREE = {
     {
       id:'admin', name:'관리', catIcon:'cog', perms:['admin'], collapsed:true,
       channels:[
-        { id:'admin-settings',     name:'설정',        icon:'cog',     module:'settings', kind:'view' },
         { id:'admin-perms',        name:'권한',        icon:'shield',  kind:'view', module:'perms' },
         { id:'admin-invites',      name:'초대 코드',   icon:'lock',    kind:'view', module:'invites' },
         { id:'admin-invest',       name:'투자내역',    icon:'bag',     kind:'view' },
@@ -18062,7 +18062,7 @@ function renderSettings(){
   otherView.innerHTML = `<div class="set-page-wrap" style="max-width:680px">
     <div class="att-eyebrow">시스템</div>
     <div class="ph">설정</div>
-    <div class="psub">언어 · 테마 · 기본값 · 데이터 백업</div>
+    <div class="psub">${isAdmin ? '언어 · 테마 · 기본값 · 데이터 백업' : '언어 · 테마 · 기본값'}</div>
 
     <div class="cfg-section">
       <div class="cfg-sec-h">🎨 모양</div>
@@ -18097,7 +18097,7 @@ function renderSettings(){
       </div>
     </div>
 
-    <div class="cfg-section">
+    ${isAdmin ? `<div class="cfg-section">
       <div class="cfg-sec-h">💾 데이터</div>
       <div class="cfg-row">
         <div class="cfg-row-l"><div class="cfg-row-title">백업 다운로드</div><div class="cfg-row-desc">설정·일정·업무·MT 시스템을 JSON 파일로 저장</div></div>
@@ -18107,11 +18107,11 @@ function renderSettings(){
         <div class="cfg-row-l"><div class="cfg-row-title">백업 복원</div><div class="cfg-row-desc">저장한 백업 파일에서 불러오기</div></div>
         <label class="cfg-btn"><input type="file" accept=".json,application/json" style="display:none" onchange="restoreData(this)">⬆ 파일 선택</label>
       </div>
-      ${isAdmin ? `<div class="cfg-row">
+      <div class="cfg-row">
         <div class="cfg-row-l"><div class="cfg-row-title cfg-danger">로컬 데이터 초기화</div><div class="cfg-row-desc">일정·MT 시스템·캐시 삭제 (서버 데이터는 유지)</div></div>
         <button class="cfg-btn cfg-btn-danger" onclick="resetLocalData()">초기화</button>
-      </div>` : ''}
-    </div>
+      </div>
+    </div>` : ''}
 
     <div class="cfg-note">⚠️ 테마·언어·시작화면 설정은 이 브라우저에만 저장돼요. 다른 기기와 동기화하려면 로그인 계정 기반 저장(백엔드)이 필요해요.</div>
   </div>`;
