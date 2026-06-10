@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v154 -->
+<!-- BUILD: v155 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -16341,6 +16341,9 @@ function startPresence(){
   // [v154] live shared system-log sync
   if(_logPollTimer) clearInterval(_logPollTimer);
   _logPollTimer = setInterval(pollLogs, 20*1000);
+  // [v154] live shared clients sync (Client page + PC pool)
+  if(_clientPollTimer) clearInterval(_clientPollTimer);
+  _clientPollTimer = setInterval(pollClientState, 20*1000);
 }
 let _recruitPurgeTimer = null, _attPollTimer = null;
 
@@ -16368,6 +16371,11 @@ function finishSignIn(){
   startPresence(); // [v65 #5] begin online-status heartbeat
   try{ loadStaffPool().then(()=>{ try{ if(document.getElementById('staff-pool') && typeof renderPools==='function') renderPools(); }catch(_){} }); }catch(_){}
   try{ loadAppUsers().then(()=>{ try{ if(typeof renderPerms==='function') renderPerms(); }catch(_){} }); }catch(_){}
+  // [v154] load shared clients (Client page + PC pool) at startup
+  try{ syncClientStateFromCloud().then(()=>{
+    try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
+    try{ const mod=(typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null; if(mod==='clients') renderClients(); }catch(_){}
+  }); }catch(_){}
   // 권한에 따라 첫 보이는 페이지로 이동
   const visible = visibleTree();
   let firstCh = null;
@@ -17724,6 +17732,56 @@ const CLIENTS = [];
 // 고객(클라이언트) 단위 — 결제·계약·소통 (캐릭터는 CLIENTS에서 name으로 매칭)
 // work: 작업 시간대 {start, end} (24h) · 쌀 단위 = 총 작업시간 / 10
 const CLIENT_ACCOUNTS = [];
+
+// ── [v154] client persistence — CLIENT_ACCOUNTS (Client page) + CLIENTS (pool) ──
+// both stored in one JSON row in client_state: { accounts:[...], pool:[...] }
+// (CLIENTS / CLIENT_ACCOUNTS are const arrays → mutate in place via splice, never reassign)
+let _clientSynced = false, _clientSig = '', _clientSaving = false, _clientPollTimer = null, _clientSaveTimer = null;
+function _clientStateSig(){ return JSON.stringify({ a: CLIENT_ACCOUNTS, p: CLIENTS }); }
+function _applyClientState(d){
+  if(!d) return;
+  if(Array.isArray(d.accounts)) CLIENT_ACCOUNTS.splice(0, CLIENT_ACCOUNTS.length, ...d.accounts);
+  if(Array.isArray(d.pool))     CLIENTS.splice(0, CLIENTS.length, ...d.pool);
+}
+async function syncClientStateFromCloud(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('client_state').select('data').eq('id','default').maybeSingle();
+    if(!error && data && data.data){ _applyClientState(data.data); }
+    else if(error){ console.warn('client_state load:', error.message); }
+  }catch(e){ console.warn('client_state load:', e && e.message); }
+  _clientSynced = true; _clientSig = _clientStateSig();
+}
+function saveClientState(){
+  _clientSig = _clientStateSig();
+  if(!sb) return;
+  _clientSaving = true;
+  clearTimeout(_clientSaveTimer);
+  _clientSaveTimer = setTimeout(async () => {
+    try{
+      const { error } = await sb.from('client_state').upsert({ id:'default', data:{ accounts: CLIENT_ACCOUNTS, pool: CLIENTS }, updated_at: new Date().toISOString() });
+      if(error){ console.warn('client_state save:', error.message); toast('Client save FAILED: ' + error.message, true); }
+    }catch(e){ console.warn('client_state save:', e && e.message); }
+    finally{ setTimeout(() => { _clientSaving = false; }, 300); }
+  }, 400);
+}
+async function pollClientState(){
+  if(!sb || !currentUser || _clientSaving) return;
+  try{
+    const { data, error } = await sb.from('client_state').select('data').eq('id','default').maybeSingle();
+    if(error || !data || !data.data) return;
+    const incoming = JSON.stringify({ a: data.data.accounts||[], p: data.data.pool||[] });
+    if(incoming === _clientSig) return;
+    _applyClientState(data.data); _clientSig = incoming;
+    const ae = document.activeElement;
+    const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
+    if(typing) return;
+    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
+    if(mod === 'clients'){ try{ renderClients(); }catch(_){} }
+    try{ if(document.getElementById('client-pool')) renderPools(); }catch(_){}
+  }catch(_){}
+}
+
 const PAY_STATUS = {
   paid:    { label:'완납',  color:'#3aa05a', bg:'rgba(58,160,90,.14)',  icon:'✓' },
   unpaid:  { label:'미납',  color:'#e0a83a', bg:'rgba(224,168,58,.14)', icon:'○' },
@@ -17914,6 +17972,8 @@ function renderSettings(){
 async function renderClients(){
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
+  // [v154] pull shared clients on first open
+  if(sb && !_clientSynced){ await syncClientStateFromCloud(); }
   // 권한 — PLAYER/STAFF는 접근 불가, 돈/계약은 ADMIN만, OP는 운영 정보만
   const role = currentUserRole;
   const canSeeMoney = role === 'admin';  // 결제·계약료·인보이스·미수금 = ADMIN 전용
@@ -17998,6 +18058,8 @@ function addClientAccount(){
     payment:{ status:'unpaid', monthly:0, due_day:1, last_paid:null, invoices:[] },
     contract:{ start:iso, end:'', monthly_fee:0, note:'' }, comms:[]
   });
+  try{ logAction('create', 'added client', nm); }catch(_){}
+  saveClientState();
   toast(nm + (_uiLang()==='ko'?' 추가됨':' added'));
   renderClients();
   setTimeout(function(){ try{ openClientDetail(id); }catch(e){} }, 80);
@@ -18009,6 +18071,8 @@ function removeClientAccount(cid){
   if(!confirm('"'+c.name+'" ' + (_uiLang()==='ko'?'클라이언트를 삭제할까요?':'Delete this client?'))) return;
   var idx = CLIENT_ACCOUNTS.indexOf(c);
   if(idx >= 0) CLIENT_ACCOUNTS.splice(idx, 1);
+  try{ logAction('delete', 'deleted client', c.name); }catch(_){}
+  saveClientState();
   toast(c.name + (_uiLang()==='ko'?' 삭제됨':' removed'));
   renderClients();
 }
@@ -18155,6 +18219,7 @@ function markClientPaid(cid){
   c.payment.last_paid = isoDate(new Date());
   const inv = c.payment.invoices.find(i => i.status !== 'paid');
   if(inv) inv.status = 'paid';
+  saveClientState();
   toast(`${c.name} 납부 완료 처리`);
   closeClientDetail();
   renderClients();
@@ -18179,6 +18244,7 @@ function revertClientPaid(cid){
     const paid = (c.payment.invoices || []).filter(i => i.status === 'paid');
     if(paid.length) paid[0].status = c.payment.status;
   }
+  saveClientState();
   toast(`${c.name} 납부 되돌림 / Payment reverted`);
   closeClientDetail();
   renderClients();
@@ -18202,6 +18268,7 @@ function setClientPayStatus(cid, status){
     if(latest) latest.status = status;
     delete c._payBackup;
   }
+  saveClientState();
   toast(`${c.name} → ${PAY_STATUS[status].icon} ${PAY_STATUS[status].label}`);
   openClientDetail(cid); // refresh panel in place so the highlight updates
   renderClients();
@@ -18220,6 +18287,7 @@ function adjClientWork(cid, which, delta){
   const eEl = document.getElementById('cld-end-'+cid);
   if(sEl) sEl.textContent = pad2(c.work.start)+':00';
   if(eEl) eEl.textContent = pad2(c.work.end)+':00';
+  saveClientState();
 }
 let PCS = [];
 const MAX_SLOTS = 8;
@@ -19088,6 +19156,8 @@ function addClient(){
   };
   CLIENTS.push(newClient);
   editingClient = nextId; // 즉시 편집
+  try{ logAction('create', 'added pool client', newClient.name); }catch(_){}
+  saveClientState();
   toast('새 클라이언트 추가 — 정보 입력');
   render();
   // 새로 추가된 칩으로 스크롤
@@ -19105,6 +19175,9 @@ function removeClient(cid){
   const idx = CLIENTS.findIndex(x => x.id === cid);
   if(idx >= 0) CLIENTS.splice(idx, 1);
   if(editingClient === cid) editingClient = null;
+  try{ logAction('delete', 'deleted pool client', c.name); }catch(_){}
+  saveClientState();
+  savePCState();   // PC client-assignments changed above → persist them too
   toast(`${c.name} 삭제됨`);
   render();
 }
@@ -19139,6 +19212,7 @@ function setClientField(cid, field, val){
       }
     }
   }
+  saveClientState();   // [v154] debounced — persists pool field edits
 }
 function unassignStaff(pcId, idx){
   const p = PCS.find(x=>x.id===pcId);
