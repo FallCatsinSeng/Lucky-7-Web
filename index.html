@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v168 -->
+<!-- BUILD: v169 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -16907,11 +16907,12 @@ async function deleteInviteCode(id){
 // PERMISSIONS MODULE — 사용자 역할 + 페이지 접근 매트릭스
 // ═══════════════════════════════════════════════════
 const APP_ROLES = [
-  { id:'ceo',        label:'CEO',        color:'#daa520', desc:'Full access to everything' },
-  { id:'manager',    label:'Manager',    color:'#3aa05a', desc:'Full access to everything' },
-  { id:'settlement', label:'Settlement', color:'#0f7b6c', desc:'대쉬보드, 정산 처리, PC 현황 (보기)' },
-  { id:'hr',         label:'HR',         color:'#a87a1e', desc:'대쉬보드, 업무, 채용, 직원 목록' },
-  { id:'staff',      label:'Staff',      color:'#a8a8a8', desc:'대쉬보드, PC 현황 (보기), 내 업무, 내 시프트' }
+  { id:'ceo',        label:'CEO',         color:'#3fb564', desc:'Full access to everything' },
+  { id:'manager',    label:'Manager',     color:'#e05656', desc:'Full access to everything' },
+  { id:'leader',     label:'Team Leader', color:'#4e9ae6', desc:'팀 리딩 플레이어 — 플레이어 페이지 + 팀 보드' },
+  { id:'settlement', label:'Settlement',  color:'#0f7b6c', desc:'대쉬보드, 정산 처리, PC 현황 (보기)' },
+  { id:'hr',         label:'HR',          color:'#e272ab', desc:'대쉬보드, 업무, 채용, 직원 목록' },
+  { id:'staff',      label:'Staff',       color:'#9aa3b0', desc:'대쉬보드, PC 현황 (보기), 내 업무, 내 시프트' }
 ];
 
 const APP_USERS = [
@@ -16924,27 +16925,27 @@ const APP_USERS = [
 // CEO는 자동으로 모두 true (체크박스 비활성, 검정)
 const ROLE_PERMS = {
   // 매트릭스에 포함될 페이지 (CEO 제외하고 토글 가능한 것들만)
-  'overview':       { manager:true, settlement:true, hr:true, staff:true },
-  'pc-status':      { manager:true, settlement:true, hr:true, staff:true },
-  'attendance':     { manager:true, settlement:true, hr:true, staff:true },
-  'op-daily-board': { manager:true, settlement:false, hr:true, staff:false },
-  'op-schedule':    { manager:true, settlement:false, hr:true, staff:false },
-  'op-clients':     { manager:true, settlement:true, hr:false, staff:false },
-  'op-weekly-kpi':  { manager:true, settlement:false, hr:true, staff:false },
-  'op-recruit':     { manager:true, settlement:false, hr:true, staff:false },
-  'op-onboarding':  { manager:true, settlement:false, hr:true, staff:false },
-  'op-hr':          { manager:true, settlement:false, hr:true, staff:false },
-  'op-trust':       { manager:true, settlement:false, hr:true, staff:false },
-  'op-settlement':  { manager:true, settlement:true, hr:false, staff:false },
-  'op-paystub':     { manager:true, settlement:true, hr:false, staff:false },
-  'op-revenue':     { manager:true, settlement:true, hr:false, staff:false },
-  'pl-lineage-guide':{ manager:true, settlement:false, hr:false, staff:true },
-  'pl-maple-guide': { manager:true, settlement:false, hr:false, staff:true },
-  'pl-maps':        { manager:true, settlement:false, hr:false, staff:true },
-  'pl-daily-board': { manager:true, settlement:false, hr:false, staff:true },
-  'pl-my-shift':    { manager:true, settlement:false, hr:false, staff:true },
-  'pl-performance': { manager:true, settlement:false, hr:false, staff:true },
-  'res-sop':        { manager:true, settlement:true, hr:true, staff:true }
+  'overview':       { manager:true, settlement:true, hr:true, staff:true, leader:true },
+  'pc-status':      { manager:true, settlement:true, hr:true, staff:true, leader:true },
+  'attendance':     { manager:true, settlement:true, hr:true, staff:true, leader:true },
+  'op-daily-board': { manager:true, settlement:false, hr:true, staff:false, leader:false },
+  'op-schedule':    { manager:true, settlement:false, hr:true, staff:false, leader:false },
+  'op-clients':     { manager:true, settlement:true, hr:false, staff:false, leader:false },
+  'op-weekly-kpi':  { manager:true, settlement:false, hr:true, staff:false, leader:false },
+  'op-recruit':     { manager:true, settlement:false, hr:true, staff:false, leader:false },
+  'op-onboarding':  { manager:true, settlement:false, hr:true, staff:false, leader:false },
+  'op-hr':          { manager:true, settlement:false, hr:true, staff:false, leader:false },
+  'op-trust':       { manager:true, settlement:false, hr:true, staff:false, leader:false },
+  'op-settlement':  { manager:true, settlement:true, hr:false, staff:false, leader:false },
+  'op-paystub':     { manager:true, settlement:true, hr:false, staff:false, leader:false },
+  'op-revenue':     { manager:true, settlement:true, hr:false, staff:false, leader:false },
+  'pl-lineage-guide':{ manager:true, settlement:false, hr:false, staff:true, leader:true },
+  'pl-maple-guide': { manager:true, settlement:false, hr:false, staff:true, leader:true },
+  'pl-maps':        { manager:true, settlement:false, hr:false, staff:true, leader:true },
+  'pl-daily-board': { manager:true, settlement:false, hr:false, staff:true, leader:true },
+  'pl-my-shift':    { manager:true, settlement:false, hr:false, staff:true, leader:true },
+  'pl-performance': { manager:true, settlement:false, hr:false, staff:true, leader:true },
+  'res-sop':        { manager:true, settlement:true, hr:true, staff:true, leader:true }
 };
 
 function getRoleById(id){ return APP_ROLES.find(r => r.id === id); }
