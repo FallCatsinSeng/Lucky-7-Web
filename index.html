@@ -18442,6 +18442,7 @@ function pcCardHTML(p){
         ${canEdit?`<button class="pc-off-toggle ${isPcOff?'on':''}" onclick="event.stopPropagation();togglePCOff(${p.id})" title="${isPcOff?'OFF 해제 (가동 복귀)':'PC OFF 설정 (배정 차단)'}">${isPcOff?'🚫 OFF':'OFF'}</button>`:(isPcOff?`<span class="pc-off-stamp-mini">🚫 OFF</span>`:'')}
         <span class="pc-shifts-info">${p.assignments.length}/${MAX_SLOTS}</span>
         <span class="pc-stat-dot"></span>
+        ${canEdit?`<button onclick="event.stopPropagation();deletePC(${p.id})" title="이 PC 삭제 / Delete this PC" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;line-height:1;padding:2px 4px;margin-left:2px;border-radius:6px" onmouseover="this.style.color='var(--re)';this.style.background='var(--re-bg)'" onmouseout="this.style.color='var(--tx3)';this.style.background='none'">🗑</button>`:''}
       </div>
     </div>
     ${leaderHTML}
@@ -19285,9 +19286,25 @@ function togglePCOff(pcId){
   render();
 }
 function addPC(){
-  const n = PCS.length+1;
+  // [v154] collision-free id (max+1, not length+1 — length+1 duplicates after a delete)
+  const n = PCS.length ? Math.max(...PCS.map(p => p.id)) + 1 : 1;
   PCS.push({id:n, status:'online', game:'lineage', clients:[], leader:null, assignments:[]});
+  try{ logAction('create', 'added PC', 'PC-'+pad2(n)); }catch(_){}
+  savePCState();   // [v154] addPC now persists to Supabase
   toast('PC-'+pad2(n)+' 추가'); render();
+}
+// [v154] delete a PC — fixes "added PCs can't be deleted"
+function deletePC(id){
+  const p = PCS.find(x => x.id === id);
+  if(!p) return;
+  if(!confirm('PC-'+pad2(id)+' 삭제할까요? / Delete this PC?\n\n배정·클라이언트·리더가 모두 제거됩니다 / All assignments, clients & leader will be removed.\n되돌릴 수 없습니다 / Cannot be undone.')) return;
+  PCS = PCS.filter(x => x.id !== id);
+  if(selectedPC === id) selectedPC = null;
+  if(tlFocus === id) tlFocus = 'all';
+  try{ logAction('delete', 'deleted PC', 'PC-'+pad2(id)); }catch(_){}
+  savePCState();
+  toast('PC-'+pad2(id)+' 삭제됨 / deleted');
+  render();
 }
 function resetAll(){
   PCS.forEach(p => { if(p.id>3){ p.assignments=[]; p.clients=[]; p.leader=null; }});
