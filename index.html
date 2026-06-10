@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v160 -->
+<!-- BUILD: v161 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7993,6 +7993,7 @@ let _recruitSynced = false, _recruitSig = '';
 // [v160] instant-open support: render board from in-memory / sessionStorage cache, refresh in background
 let _recruitLite = false, _recruitBgBusy = false, _recruitLastSync = 0;
 const RECRUIT_CACHE_KEY = 'lucky7_recruit_cache';
+const RECRUIT_BOARD_ID = 'board';   // [v161] tiny no-base64 row in recruit_state for fast cold opens
 async function syncRecruitsFromCloud(){
   if(!sb) return;
   try{
@@ -8001,8 +8002,34 @@ async function syncRecruitsFromCloud(){
       const arr = (data && Array.isArray(data.data)) ? data.data : [];
       APPLICANTS.length = 0;
       arr.forEach(a => APPLICANTS.push(a));
+      // [v161] seed/refresh the tiny board row so future cold opens are fast (fire-and-forget)
+      try{ sb.from('recruit_state').upsert({ id: RECRUIT_BOARD_ID, data: _recruitStripped(), updated_at: new Date().toISOString() }); }catch(_){}
     } else { console.warn('recruit_state load:', error.message); }
   }catch(e){ console.warn('recruit_state load:', e && e.message); }
+}
+// [v161] fast cold open — load the tiny no-base64 board row instead of the heavy full blob
+async function loadRecruitBoard(){
+  if(!sb) return false;
+  try{
+    const { data, error } = await sb.from('recruit_state').select('data').eq('id', RECRUIT_BOARD_ID).maybeSingle();
+    if(!error && data && Array.isArray(data.data) && data.data.length){
+      APPLICANTS.length = 0; data.data.forEach(function(a){ APPLICANTS.push(a); });
+      return true;
+    }
+  }catch(e){ console.warn('recruit board load:', e && e.message); }
+  return false;
+}
+async function saveRecruits(){
+  if(!sb) return;
+  if(_recruitLite) return;   // [v161] CRITICAL: never overwrite the real cloud copy with stripped/cache data
+  try{
+    const { error } = await sb.from('recruit_state').upsert({ id:'default', data: APPLICANTS, updated_at: new Date().toISOString() });
+    if(error){ console.warn('recruit_state save:', error.message); toast('Applicant save FAILED: ' + error.message, true); }
+    else {
+      try{ _recruitCacheSave(); }catch(_){}   // [v160] keep the instant-open cache fresh
+      try{ sb.from('recruit_state').upsert({ id: RECRUIT_BOARD_ID, data: _recruitStripped(), updated_at: new Date().toISOString() }); }catch(_){}  // [v161] refresh board row
+    }
+  }catch(e){ console.warn('recruit_state save:', e && e.message); }
 }
 async function saveRecruits(){
   if(!sb) return;
@@ -8025,15 +8052,17 @@ function _recruitSigLite(){
 }
 // [v160] lightweight board cache (no base64) in sessionStorage → instant open, even after a hard refresh.
 // the kanban board never shows attachment images, so the board needs none of the heavy data.
+// [v161] shared lightweight projection (no base64) — used for both the sessionStorage cache
+// and a tiny server-side 'board' row so a cold open never downloads the megabyte blob first.
+function _recruitStripped(){
+  return APPLICANTS.map(function(a){
+    const c = Object.assign({}, a);
+    if(Array.isArray(a.files)) c.files = a.files.map(function(f){ return Object.assign({}, f, { url: null, _lite: !!f.url }); });
+    return c;
+  });
+}
 function _recruitCacheSave(){
-  try{
-    const lite = APPLICANTS.map(function(a){
-      const c = Object.assign({}, a);
-      if(Array.isArray(a.files)) c.files = a.files.map(function(f){ return Object.assign({}, f, { url: null, _lite: !!f.url }); });
-      return c;
-    });
-    sessionStorage.setItem(RECRUIT_CACHE_KEY, JSON.stringify(lite));
-  }catch(_){}
+  try{ sessionStorage.setItem(RECRUIT_CACHE_KEY, JSON.stringify(_recruitStripped())); }catch(_){}
 }
 function _recruitCacheLoad(){
   try{
@@ -8512,9 +8541,10 @@ function onApDropToReject(e, fromStage){
 async function renderRecruit(){
   if(sb){
     if(!_recruitSynced){
-      // [v160] instant open: hydrate the board from the sessionStorage cache (survives refresh),
-      // then pull the full data in the background. only block on a true cold start with no cache.
+      // [v160/161] instant open: sessionStorage cache → tiny server board row → (last resort) full blob.
+      // the board never needs base64, so we paint from a light source and pull the full data in the background.
       if(!_recruitLite && APPLICANTS.length === 0 && _recruitCacheLoad()){ _recruitLite = true; }
+      if(!_recruitLite && APPLICANTS.length === 0){ if(await loadRecruitBoard()){ _recruitLite = true; } }
       if(_recruitLite){
         _recruitBgRefresh();
       } else {
