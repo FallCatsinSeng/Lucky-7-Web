@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v138 -->
+<!-- BUILD: v139 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -5879,6 +5879,9 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
   transition:all var(--d-fast) var(--ease);
 }
 .ap-panel-close:hover{background:var(--bg-h);color:var(--tx)}
+.ap-panel-head-actions{display:flex;align-items:center;gap:8px}
+.ap-panel-del{font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid color-mix(in srgb,var(--re) 35%,transparent);background:var(--re-bg);color:var(--re);cursor:pointer;white-space:nowrap;font-family:inherit}
+.ap-panel-del:hover{background:var(--re);color:#fff}
 .ap-panel-stage{
   padding:12px 22px;background:var(--bg-c);
   display:flex;align-items:center;gap:10px;flex-shrink:0;
@@ -8306,12 +8309,37 @@ function recommendPCForNew(game, shift){
   return candidate ? `PC-${pad2(candidate.id)}` : null;
 }
 
+const REJECT_TTL_MS = 60 * 60 * 1000;  // [v139] rejected applicants auto-delete after 1 hour
+function purgeExpiredRejects(){
+  const now = Date.now();
+  let removed = 0;
+  for(let i = APPLICANTS.length - 1; i >= 0; i--){
+    const a = APPLICANTS[i];
+    if(a.stage === 'reject' && a.rejected_at && (now - a.rejected_at > REJECT_TTL_MS)){
+      APPLICANTS.splice(i, 1); removed++;
+    }
+  }
+  return removed;
+}
+async function deleteApplicant(id){
+  const a = APPLICANTS.find(x => x.id === id);
+  if(!a) return;
+  if(!confirm(`이 지원자를 완전히 삭제할까요? / Permanently delete this applicant?\n\n${a.name}\n\n되돌릴 수 없습니다 / Cannot be undone.`)) return;
+  const idx = APPLICANTS.findIndex(x => x.id === id);
+  if(idx >= 0) APPLICANTS.splice(idx, 1);
+  await saveRecruits();
+  _recruitSig = JSON.stringify(APPLICANTS);
+  toast('지원자 삭제됨 / Applicant deleted');
+  try{ closeApplicant(); }catch(_){}
+  renderRecruit();
+}
 function setApplicantStage(id, stageId){
   const a = APPLICANTS.find(x => x.id === id);
   if(!a) return;
   const oldStage = a.stage;
   if(oldStage === stageId) return; // 같은 단계로 드롭 → 변화 없음
   a.stage = stageId;
+  a.rejected_at = (stageId === 'reject') ? Date.now() : null;
   a.updated = new Date().toISOString().slice(0,10);
   toast(`${a.name} → ${getStageById(stageId).name}`);
   renderRecruit();
@@ -8399,6 +8427,7 @@ function onApDropToReject(e, fromStage){
   if(a.stage === 'reject' && a.rejected_from === fromStage) return;
   a.stage = 'reject';
   a.rejected_from = fromStage;
+  a.rejected_at = Date.now();
   a.business = null; // 비즈니스 배치 해제
   a.updated = new Date().toISOString().slice(0,10);
   const stageName = KANBAN_STAGES.find(s => s.id === fromStage)?.name || fromStage;
@@ -8411,6 +8440,7 @@ async function renderRecruit(){
     if(!_recruitSynced){ await syncRecruitsFromCloud(); _recruitSynced = true; _recruitSig = JSON.stringify(APPLICANTS); }
     else { const _sig = JSON.stringify(APPLICANTS); if(_sig !== _recruitSig){ _recruitSig = _sig; saveRecruits(); } }
   }
+  if(purgeExpiredRejects() > 0){ saveRecruits(); _recruitSig = JSON.stringify(APPLICANTS); }
   const stats = computeRecruitStats();
   let filteredApplicants = APPLICANTS;
   if(recruitStageFilter !== 'all') filteredApplicants = filteredApplicants.filter(a => a.stage === recruitStageFilter);
@@ -8701,7 +8731,10 @@ function renderApplicantPanel(){
           <div class="ap-panel-meta">${a.origin||''} · ${a.age?a.age+'세':''} · Source: ${a.source}</div>
         </div>
       </div>
-      <button class="ap-panel-close" onclick="closeApplicant()">✕</button>
+      <div class="ap-panel-head-actions">
+        <button class="ap-panel-del" onclick="deleteApplicant('${a.id}')" title="지원자 삭제 / Delete applicant">🗑 삭제 / Delete</button>
+        <button class="ap-panel-close" onclick="closeApplicant()">✕</button>
+      </div>
     </div>
     <div class="ap-panel-stage">
       <label>단계</label>
@@ -15994,7 +16027,16 @@ function startPresence(){
   if(_offTimer) clearInterval(_offTimer);
   pollOffRequests();
   _offTimer = setInterval(pollOffRequests, 15*1000);
+  // [v139] auto-delete rejected applicants 1h after rejection (while recruiting is open)
+  if(_recruitPurgeTimer) clearInterval(_recruitPurgeTimer);
+  _recruitPurgeTimer = setInterval(() => {
+    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
+    if(mod === 'recruit' && typeof purgeExpiredRejects === 'function'){
+      if(purgeExpiredRejects() > 0){ saveRecruits(); try{ renderRecruit(); }catch(_){} }
+    }
+  }, 60*1000);
 }
+let _recruitPurgeTimer = null;
 
 let _offTimer = null, _offSig = null;
 async function pollOffRequests(){
