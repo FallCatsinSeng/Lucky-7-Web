@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v139 -->
+<!-- BUILD: v140 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -5882,6 +5882,9 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .ap-panel-head-actions{display:flex;align-items:center;gap:8px}
 .ap-panel-del{font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid color-mix(in srgb,var(--re) 35%,transparent);background:var(--re-bg);color:var(--re);cursor:pointer;white-space:nowrap;font-family:inherit}
 .ap-panel-del:hover{background:var(--re);color:#fff}
+.ap-pill-ttl{font-size:9px;font-weight:700;color:var(--re);background:var(--re-bg);border:1px solid color-mix(in srgb,var(--re) 28%,transparent);padding:1px 6px;border-radius:5px;white-space:nowrap;margin-left:auto}
+.ap-pill-ttl.soon{animation:ttlpulse 1s infinite}
+@keyframes ttlpulse{50%{opacity:.5}}
 .ap-panel-stage{
   padding:12px 22px;background:var(--bg-c);
   display:flex;align-items:center;gap:10px;flex-shrink:0;
@@ -8061,6 +8064,16 @@ function shortenGpu(gpu){  if(!gpu) return '';
     .trim();
 }
 
+function _rejectCountdownHTML(a){
+  if(a.stage !== 'reject' || !a.rejected_at) return '';
+  const delAt = a.rejected_at + REJECT_TTL_MS;
+  const left = delAt - Date.now();
+  const delTime = new Date(delAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  if(left <= 0) return `<span class="ap-pill-ttl soon" title="삭제 중 / deleting now">⏳ deleting…</span>`;
+  const mins = Math.ceil(left / 60000);
+  const txt = mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins}m`;
+  return `<span class="ap-pill-ttl" title="자동 삭제 / auto-delete">🗑 ${txt} · ${delTime}</span>`;
+}
 function pillCardHTML(a){  const fromStage = a.rejected_from ? KANBAN_STAGES.find(s => s.id === a.rejected_from) : null;
   let title = a.name;
   if(a.stage === 'reject' && fromStage) title = `${a.name} · ${fromStage.name}에서 탈락`;
@@ -8080,6 +8093,7 @@ function pillCardHTML(a){  const fromStage = a.rejected_from ? KANBAN_STAGES.fin
     <span class="ap-pill-av" style="background:${avatarColor(a.short)}">${a.short}</span>
     <span class="ap-pill-name">${a.name}</span>
     ${speedHint}
+    ${_rejectCountdownHTML(a)}
     ${showReg ? (
       a.staff_registered
         ? `<span class="ap-pill-reg-done" title="직원 풀 등록 완료">✅</span>`
@@ -16031,9 +16045,9 @@ function startPresence(){
   if(_recruitPurgeTimer) clearInterval(_recruitPurgeTimer);
   _recruitPurgeTimer = setInterval(() => {
     const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
-    if(mod === 'recruit' && typeof purgeExpiredRejects === 'function'){
-      if(purgeExpiredRejects() > 0){ saveRecruits(); try{ renderRecruit(); }catch(_){} }
-    }
+    if(mod !== 'recruit') return;
+    const hasReject = APPLICANTS.some(a => a.stage === 'reject' && a.rejected_at);
+    if(hasReject){ try{ renderRecruit(); }catch(_){} }   // re-render: ticks countdown + purges expired (inside renderRecruit)
   }, 60*1000);
 }
 let _recruitPurgeTimer = null;
