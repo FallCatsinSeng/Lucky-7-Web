@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v136 -->
+<!-- BUILD: v137 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8602,7 +8602,7 @@ function renderApplicantPanel(){
       const thumb = isImg ? `<img class="ap-file-thumb" src="${f.url}" alt="">` : `<span class="ap-file-ic">📎</span>`;
       return `<div class="ap-file ap-file-clickable" onclick="openApplicantFile('${a.id}', ${i})" title="열기 / Open">${thumb}<span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span></div>`;
     }
-    return `<div class="ap-file"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">미리보기 없음 · 재업로드 / re-upload to preview</span></div>`;
+    return `<div class="ap-file ap-file-clickable" onclick="addFilesToApplicant('${a.id}')" title="재업로드 / Re-upload"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">↻ 클릭해 재업로드 / click to re-upload</span></div>`;
   }).join('');
   // 지원 시프트 블록
   const shiftBlock = a.applied_shift && APPLY_SHIFTS[a.applied_shift] ? (() => {
@@ -9198,7 +9198,7 @@ function addApplicantComment(id){  const ta = document.getElementById('ap-new-co
   const a = APPLICANTS.find(x => x.id === id);
   if(!a) return;
   a.comments = a.comments || [];
-  const role = currentUserRole === 'admin' ? 'MT' : currentUserRole === 'op' ? 'OP Team' : 'Player';
+  const role = currentUser?.name || (currentUserRole === 'admin' ? 'MT' : currentUserRole === 'op' ? 'OP Team' : 'Player');
   a.comments.push({ id:'c'+Date.now(), author:role, date:new Date().toISOString(), text, replies:[] });
   ta.value = '';
   toast('코멘트 추가됨');
@@ -9215,7 +9215,7 @@ function addApplicantReply(applicantId, commentId){
   const c = (a.comments||[]).find(x => x.id === commentId);
   if(!c) return;
   c.replies = c.replies || [];
-  const role = currentUserRole === 'admin' ? 'MT' : currentUserRole === 'op' ? 'OP Team' : 'Player';
+  const role = currentUser?.name || (currentUserRole === 'admin' ? 'MT' : currentUserRole === 'op' ? 'OP Team' : 'Player');
   c.replies.push({ id:'r'+Date.now(), author:role, date:new Date().toISOString(), text });
   // 부모 코멘트 작성자에게 unread 알림 (자기 자신 제외)
   if(c.author !== role){
