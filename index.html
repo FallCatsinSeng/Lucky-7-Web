@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v161 -->
+<!-- BUILD: v162 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -18198,6 +18198,37 @@ function removeClientAccount(cid){
   toast(c.name + (_uiLang()==='ko'?' 삭제됨':' removed'));
   renderClients();
 }
+// [v162] make the client detail panel editable — contract fields + communication log
+function setClientContract(cid, field, val){
+  const c = CLIENT_ACCOUNTS.find(x => x.id === cid);
+  if(!c) return;
+  if(!c.contract) c.contract = { start:'', end:'', monthly_fee:0, note:'' };
+  if(field === 'monthly_fee') c.contract.monthly_fee = parseInt(val, 10) || 0;
+  else c.contract[field] = val;
+  try{ logAction('update', 'edited contract ('+field+')', c.name); }catch(_){}
+  saveClientState();
+  openClientDetail(cid);   // refresh derived values (D-day etc.)
+}
+function addClientComm(cid, type){
+  const c = CLIENT_ACCOUNTS.find(x => x.id === cid);
+  if(!c) return;
+  const note = prompt(type==='요청' ? '요청 내용 / Request note' : '피드백 내용 / Feedback note', '');
+  if(note === null) return;
+  const t = (note||'').trim();
+  if(!t) return;
+  if(!Array.isArray(c.comms)) c.comms = [];
+  c.comms.unshift({ type: type, note: t, date: new Date().toISOString().slice(0,10) });
+  try{ logAction('update', 'client log ('+type+')', c.name); }catch(_){}
+  saveClientState();
+  openClientDetail(cid);
+}
+function removeClientComm(cid, idx){
+  const c = CLIENT_ACCOUNTS.find(x => x.id === cid);
+  if(!c || !Array.isArray(c.comms)) return;
+  c.comms.splice(idx, 1);
+  saveClientState();
+  openClientDetail(cid);
+}
 function openClientDetail(cid){
   const c = CLIENT_ACCOUNTS.find(x => x.id === cid);
   if(!c) return;
@@ -18238,9 +18269,10 @@ function openClientDetail(cid){
     </div>`;
   }).join('');
 
-  const commsRows = c.comms.map(cm => `<div class="cld-comm">
+  const commsRows = (c.comms||[]).map((cm, i) => `<div class="cld-comm">
     <span class="cld-comm-type cld-comm-${cm.type==='요청'?'req':'fb'}">${cm.type}</span>
     <div class="cld-comm-body"><div class="cld-comm-note">${cm.note}</div><div class="cld-comm-date">${cm.date}</div></div>
+    <button onclick="removeClientComm('${c.id}',${i})" title="삭제 / Delete" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;line-height:1;align-self:flex-start;padding:2px 4px">✕</button>
   </div>`).join('');
 
   panel.innerHTML = `<div class="ap-panel-inner">
@@ -18304,12 +18336,13 @@ function openClientDetail(cid){
       </div>
 
       ${canSeeMoney ? `<div class="cld-block">
-        <div class="cld-block-h">📅 계약</div>
+        <div class="cld-block-h">📅 계약 / Contract</div>
         <div class="cld-contract">
-          <div class="cld-pay-row"><span>기간</span><b>${c.contract.start} ~ ${c.contract.end}</b></div>
+          <div class="cld-pay-row"><span>기간 시작 / Start</span><input type="date" value="${c.contract.start||''}" onchange="setClientContract('${c.id}','start',this.value)" style="background:var(--bg-h);border:1px solid var(--br);color:var(--tx);border-radius:6px;padding:4px 8px;font:inherit;font-size:13px;color-scheme:dark"></div>
+          <div class="cld-pay-row"><span>종료일 / Until End</span><input type="date" value="${c.contract.end||''}" onchange="setClientContract('${c.id}','end',this.value)" style="background:var(--bg-h);border:1px solid var(--br);color:var(--tx);border-radius:6px;padding:4px 8px;font:inherit;font-size:13px;color-scheme:dark"></div>
           <div class="cld-pay-row"><span>종료까지</span><b style="color:${endDD!=null&&endDD<=14?'var(--ye)':'var(--tx)'}">${endDD!=null ? (endDD>0?`D-${endDD}`:'만료됨') : '—'}</b></div>
-          <div class="cld-pay-row"><span>월 계약료</span><b>${fmtMoney(c.contract.monthly_fee)}</b></div>
-          <div class="cld-contract-note">${c.contract.note}</div>
+          <div class="cld-pay-row"><span>월 계약료 / Monthly Fee</span><input type="number" min="0" step="1000" value="${c.contract.monthly_fee||0}" onchange="setClientContract('${c.id}','monthly_fee',this.value)" style="width:120px;text-align:right;background:var(--bg-h);border:1px solid var(--br);color:var(--tx);border-radius:6px;padding:4px 8px;font:inherit;font-size:13px"></div>
+          <textarea placeholder="메모 / Note" onchange="setClientContract('${c.id}','note',this.value)" style="width:100%;margin-top:8px;background:var(--bg-h);border:1px solid var(--br);color:var(--tx);border-radius:8px;padding:8px;font:inherit;font-size:13px;min-height:54px;resize:vertical;box-sizing:border-box">${c.contract.note||''}</textarea>
         </div>
       </div>` : `<div class="cld-block">
         <div class="cld-block-h">📅 계약 기간</div>
@@ -18320,8 +18353,12 @@ function openClientDetail(cid){
       </div>`}
 
       <div class="cld-block">
-        <div class="cld-block-h">💬 소통 기록</div>
-        <div class="cld-comms">${commsRows || '<div class="cld-empty">기록 없음</div>'}</div>
+        <div class="cld-block-h">💬 소통 기록 / Communication Log</div>
+        <div class="cld-comms">${commsRows || '<div class="cld-empty">기록 없음 / No records</div>'}</div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-sm" onclick="addClientComm('${c.id}','요청')">＋ 요청 / Request</button>
+          <button class="btn btn-sm" onclick="addClientComm('${c.id}','피드백')">＋ 피드백 / Feedback</button>
+        </div>
       </div>
     </div>
   </div>`;
