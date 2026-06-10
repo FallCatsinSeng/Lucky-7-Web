@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v131 -->
+<!-- BUILD: v132 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7972,6 +7972,26 @@ const APPLY_SHIFTS = {
 };
 
 const APPLICANTS = [];
+// [v132] recruiting persistence — APPLICANTS shared as one JSON row in recruit_state
+let _recruitSynced = false, _recruitSig = '';
+async function syncRecruitsFromCloud(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('recruit_state').select('data').eq('id','default').maybeSingle();
+    if(!error){
+      const arr = (data && Array.isArray(data.data)) ? data.data : [];
+      APPLICANTS.length = 0;
+      arr.forEach(a => APPLICANTS.push(a));
+    } else { console.warn('recruit_state load:', error.message); }
+  }catch(e){ console.warn('recruit_state load:', e && e.message); }
+}
+async function saveRecruits(){
+  if(!sb) return;
+  try{
+    const { error } = await sb.from('recruit_state').upsert({ id:'default', data: APPLICANTS, updated_at: new Date().toISOString() });
+    if(error){ console.warn('recruit_state save:', error.message); toast('Applicant save FAILED: ' + error.message, true); }
+  }catch(e){ console.warn('recruit_state save:', e && e.message); }
+}
 
 let openApplicantId = null;
 let recruitStageFilter = 'all';
@@ -8382,7 +8402,11 @@ function onApDropToReject(e, fromStage){
   renderRecruit();
 }
 
-function renderRecruit(){
+async function renderRecruit(){
+  if(sb){
+    if(!_recruitSynced){ await syncRecruitsFromCloud(); _recruitSynced = true; _recruitSig = JSON.stringify(APPLICANTS); }
+    else { const _sig = JSON.stringify(APPLICANTS); if(_sig !== _recruitSig){ _recruitSig = _sig; saveRecruits(); } }
+  }
   const stats = computeRecruitStats();
   let filteredApplicants = APPLICANTS;
   if(recruitStageFilter !== 'all') filteredApplicants = filteredApplicants.filter(a => a.stage === recruitStageFilter);
@@ -8774,7 +8798,7 @@ function openAddApplicantPanel(){  // 기존 상세 패널 닫기 (중복 방지
           <div class="ap-panel-meta">Applied 단계로 새 지원자를 등록합니다</div>
         </div>
       </div>
-      <button class="ap-panel-close" onclick="closeAddApplicantPanel()">✕</button>
+      <button class="ap-panel-close" onclick="if(confirm('닫을까요? 입력한 내용이 사라집니다 / Close? Your input will be lost.')) closeAddApplicantPanel()">✕</button>
     </div>
     <div class="ap-panel-body">
       <div class="ap-section">
@@ -8906,7 +8930,7 @@ function openAddApplicantPanel(){  // 기존 상세 패널 닫기 (중복 방지
       </div>
 
       <div class="ap-form-actions">
-        <button class="btn" onclick="closeAddApplicantPanel()">취소</button>
+        <button class="btn" onclick="if(confirm('취소할까요? 입력한 내용이 사라집니다 / Cancel? Your input will be lost.')) closeAddApplicantPanel()">취소</button>
         <button class="btn btn-ac" onclick="submitNewApplicant()">+ 지원자 등록</button>
       </div>
     </div>
@@ -16911,6 +16935,7 @@ function routeContent(){
   } else if(ch && ch.module === 'recruit'){
     pcView.style.display = 'none';
     otherView.style.display = '';
+    _recruitSynced = false;   // [v132] pull latest shared applicants on each entry
     renderRecruit();
     if(rightSb) rightSb.style.display = 'none';
   } else if(ch && ch.module === 'perms'){
@@ -19195,9 +19220,7 @@ document.addEventListener('click', (e) => {
     if(!inside && !isTrigger) closeShiftInfoPanel();
   }
   if(addPanel?.classList.contains('open')){
-    const inside = addPanel.contains(e.target);
-    const isTrigger = e.target.closest('[onclick*="openAddApplicantPanel"]');
-    if(!inside && !isTrigger) closeAddApplicantPanel();
+    // [v132] locked — do NOT close on outside click (use Cancel / ✕ / Esc)
   }
   if(apPanel?.classList.contains('open')){
     const inside = apPanel.contains(e.target);
