@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v184 -->
+<!-- BUILD: v185 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -13929,21 +13929,56 @@ function staffMonthlySalary(staffId){
   return 0;
 }
 function calcSalary(staffId, role){
-  const auto = staffMonthlySalary(staffId);   // [v184] shift-derived base pay
+  // [v185] MANUAL mode — base pay is entered by HR/admin (no auto-fill from shift yet).
+  //        To re-enable shift-based auto salary later, swap `0` below for `staffMonthlySalary(staffId)`.
   if(role === 'player'){
     const p = PERF_DATA[staffId];
-    const base = (p && p.base) ? p.base : auto;
-    if(!p) return { base, rate:100, incentive:0, deduction:0, net:base, type:'fixed' };
-    const net = Math.round(base * p.rate / 100);
-    return { base, rate:p.rate, incentive:p.incentive||0, deduction:p.deduction||0, net, type:'perf' };
+    if(!p) return { base:0, rate:100, incentive:0, deduction:0, net:0, type:'perf' };
+    const net = Math.round(p.base * p.rate / 100);   // base goes up/down with performance rate
+    return { base:p.base, rate:p.rate, incentive:p.incentive||0, deduction:p.deduction||0, net, type:'perf' };
   }
-  const fixed = (FIXED_SALARY[staffId] != null) ? FIXED_SALARY[staffId] : auto;
+  const fixed = (FIXED_SALARY[staffId] != null) ? FIXED_SALARY[staffId] : 0;
   return { base:fixed, rate:100, incentive:0, deduction:0, net:fixed, type:'fixed' };
 }
 
 // ─── 월급 계산 (항목별 + 사유, 직원 클릭 → 서랍 편집) ───
 let settlementView = 'summary';   // 'summary' | 'sheet'
 let settlementFilter = 'all';      // 'all' | 'op' | 'player'
+
+// [v185] manually-added settlement people (Manager / HR / Team Leader / Staff).
+// In-memory for now (like the rest of the perm/payroll config); HR adds & edits salary by hand.
+let MANUAL_PAYROLL = [];
+const MANUAL_ROLE_LABELS = { manager:'Manager', hr:'HR', leader:'Team Leader', staff:'Staff' };
+function addManualStaff(){
+  if(currentUserRole !== 'admin' && currentUserRole !== 'op'){ toast(_uiLang()==='ko'?'권한 없음':'No permission', true); return; }
+  let name = prompt(_uiLang()==='ko'?'직원 이름 / Staff name':'Staff name', '');
+  if(name === null) return;
+  name = name.trim();
+  if(!name){ toast(_uiLang()==='ko'?'이름을 입력하세요':'Enter a name', true); return; }
+  const pick = prompt(name + ' — role?\n1 = Manager\n2 = HR\n3 = Team Leader\n4 = Staff', '4');
+  if(pick === null) return;
+  const map = { '1':'manager','2':'hr','3':'leader','4':'staff','manager':'manager','hr':'hr','leader':'leader','staff':'staff' };
+  const role = map[(pick||'').trim().toLowerCase()] || 'staff';
+  const id = 'man_' + Date.now().toString(36);
+  MANUAL_PAYROLL.push({ id, name, short: name.slice(0,2).toUpperCase(), role });
+  // start them with an editable Base Pay line at 0 — HR fills in the amount
+  PAYROLL_SHEET[id] = { items:[{ label:'기본급', icon:'💰', color:'#c2a04a', amount:0, note:'', negative:false }] };
+  try{ logAction('create', 'added settlement staff ('+role+')', name); }catch(_){}
+  toast(name + ' · ' + MANUAL_ROLE_LABELS[role] + (_uiLang()==='ko'?' 추가됨 — 급여 입력':' added — set base pay'));
+  renderSettlement();
+}
+function removeManualStaff(id){
+  if(currentUserRole !== 'admin' && currentUserRole !== 'op'){ toast(_uiLang()==='ko'?'권한 없음':'No permission', true); return; }
+  const i = MANUAL_PAYROLL.findIndex(x => x.id === id);
+  if(i < 0) return;
+  const nm = MANUAL_PAYROLL[i].name;
+  if(!confirm('"'+nm+'" ' + (_uiLang()==='ko'?'정산에서 제거할까요?':'Remove from settlement?'))) return;
+  MANUAL_PAYROLL.splice(i, 1);
+  delete PAYROLL_SHEET[id];
+  try{ logAction('delete', 'removed settlement staff', nm); }catch(_){}
+  toast(nm + (_uiLang()==='ko'?' 제거됨':' removed'));
+  renderSettlement();
+}
 let settlementTitle = '정산';      // 메뉴에 따라 '정산' or '정산 마스터'
 let PAYROLL_SHEET = {};            // staffId → { items:[{label, icon, color, amount, note}] }
 const PAYROLL_PRESETS = [
@@ -14184,6 +14219,7 @@ function payrollEmpBox(m, s, idx){
       <span class="set-emp-name">${m.name}</span>
       ${rateBadge}
       <span class="set-emp-net" id="pmnet-${m.id}">${fmtMoney(total)}</span>
+      ${String(m.id).startsWith('man_') ? `<button class="set-emp-del" title="${_uiLang()==='ko'?'정산에서 제거':'Remove from settlement'}" onclick="removeManualStaff('${m.id}')" style="margin-left:8px">✕</button>` : ''}
     </div>
     <div class="set-emp-items">${items || '<div class="set-emp-empty">아래 ＋ 항목으로 급여 항목을 추가하세요</div>'}</div>
     ${(m.role==='player') ? payrollPerfRow(m.id) : ''}
@@ -14509,9 +14545,11 @@ async function renderSettlement(){
     return;
   }
   // 정산은 전체 팀(13명 mock) 기준 — 급여 계산/시연용 (실제 가입자와 무관)
-  const team = (typeof TEAM_ATTENDANCE !== 'undefined')
+  let team = (typeof TEAM_ATTENDANCE !== 'undefined')
     ? TEAM_ATTENDANCE.map(t => ({ id:t.name.toLowerCase(), name:t.name, short:t.short, role:t.role }))
     : [];
+  // [v185] append manually-added people (Manager/HR/Team Leader/Staff)
+  team = team.concat(MANUAL_PAYROLL.map(p => ({ id:p.id, name:p.name, short:p.short, role:p.role })));
   initPayrollSheet(team);
   const monthLabel = _fmtYM(2026,5);
 
@@ -14519,7 +14557,7 @@ async function renderSettlement(){
   const rows = team.map(m => {
     const s = calcSalary(m.id, m.role);
     return { m, s };
-  }).filter(r => r.s.net > 0 || r.m.role === 'player');  // 0급여(대표) 제외, player는 포함
+  }).filter(r => r.m.role === 'player' || String(r.m.id).startsWith('man_') || payrollTotal(r.m.id) > 0 || r.s.net > 0);  // 0급여(대표) 제외 · 수동 추가는 항상 표시
 
   const laborCost = rows.reduce((sum, r) => sum + payrollTotal(r.m.id), 0);
   const revenue = (typeof CLIENT_ACCOUNTS !== 'undefined') ? CLIENT_ACCOUNTS.reduce((s,c) => s + (c.contract?.monthly_fee || 0), 0) : 0;
@@ -14528,8 +14566,12 @@ async function renderSettlement(){
 
   // 역할별 그룹
   const ROLE_ORDER = [
-    { id:'op', label:'⚙️ OPTEAM', color:'#c2a04a' },
-    { id:'player', label:'🎮 플레이어', color:'#3aa05a' }
+    { id:'manager', label:'👑 Manager',     color:'#e05656' },
+    { id:'hr',      label:'🧑‍💼 HR',          color:'#e272ab' },
+    { id:'op',      label:'⚙️ OPTEAM',       color:'#c2a04a' },
+    { id:'leader',  label:'⭐ Team Leader',  color:'#4e9ae6' },
+    { id:'player',  label:'🎮 플레이어',      color:'#3aa05a' },
+    { id:'staff',   label:'👤 Staff',        color:'#9aa3b0' }
   ];
   const __SF = (typeof settlementFilter!=='undefined') ? settlementFilter : 'all';
   let __ix = 0;
@@ -14541,7 +14583,8 @@ async function renderSettlement(){
     const boxes = members.map(({m, s}) => { __ix++; return payrollEmpBox(m, s, __ix); }).join('');
     return `<div class="set-gsec">${g.label}<span class="set-gsec-cnt">${_U(members.length,'명','')}</span><span class="set-gsec-sum" id="gsum-${g.id}">${fmtMoney(subTotal)}</span></div>${boxes}`;
   }).join('');
-  const __filterBar = `<div class="set-filter"><button class="${__SF==='all'?'on':''}" onclick="setSettlementFilter('all')">전체</button>${ROLE_ORDER.map(g=>`<button class="${__SF===g.id?'on':''}" onclick="setSettlementFilter('${g.id}')">${g.label}</button>`).join('')}</div>`;
+  const __present = ROLE_ORDER.filter(g => rows.some(r => r.m.role === g.id));
+  const __filterBar = `<div class="set-filter"><button class="${__SF==='all'?'on':''}" onclick="setSettlementFilter('all')">전체</button>${__present.map(g=>`<button class="${__SF===g.id?'on':''}" onclick="setSettlementFilter('${g.id}')">${g.label}</button>`).join('')}</div>`;
   const __visTotal = rows.filter(r => __SF==='all' || r.m.role===__SF).reduce((s,r)=>s+payrollTotal(r.m.id),0);
   const __grandLbl = __SF==='all' ? '전체 인건비 합계' : ((ROLE_ORDER.find(g=>g.id===__SF)||{}).label||'') + ' 합계';
   const salarySections = `${__filterBar}${__sections}<div class="set-grand"><span id="set-grand-lbl">${__grandLbl}</span><b id="set-grand">${fmtMoney(__visTotal)}</b></div>`;
@@ -14586,7 +14629,7 @@ async function renderSettlement(){
     ${summaryHTML}
 
     <div class="set-section">
-      <div class="set-section-h">💸 직원 급여 <span class="set-section-hint">항목별 사유 · ＋/− 부호 전환</span><button class="set-csv-btn" onclick="exportPayrollCSV()">⬇ CSV</button></div>
+      <div class="set-section-h">💸 직원 급여 <span class="set-section-hint">항목별 사유 · ＋/− 부호 전환</span><button class="set-csv-btn" onclick="addManualStaff()" style="margin-right:6px">＋ Add Staff</button><button class="set-csv-btn" onclick="exportPayrollCSV()">⬇ CSV</button></div>
       ${salarySections}
     </div>
 
