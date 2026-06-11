@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v204 -->
+<!-- BUILD: v205 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8819,6 +8819,20 @@ function closeApplicant(){
 }
 
 // [v167] set/change an applicant's applied shift later (field is now optional at creation)
+// [v205] edit PC specs directly from the applicant panel (works for pending applicants too)
+function setApplicantSpec(id, field, value){
+  const a = APPLICANTS.find(x => x.id === id);
+  if(!a) return;
+  if(!a.pc_spec) a.pc_spec = {};
+  if(field === 'processor' || field === 'memory' || field === 'gpu'){ a.pc_spec[field] = value; }
+  else if(field === 'ssd' || field === 'lan'){ a.pc_spec[field] = (value === 'yes'); if(value === '') delete a.pc_spec[field]; }
+  else if(field === 'down' || field === 'up'){ if(!a.pc_spec.wifi) a.pc_spec.wifi = {}; const n = parseFloat(String(value).replace(/[^0-9.]/g,'')); a.pc_spec.wifi[field] = isNaN(n) ? '' : n; }
+  else if(field === 'status'){ a.spec_status = value; }
+  try{ logAction('update', 'edited PC spec', a.name); }catch(_){}
+  saveRecruits();
+  renderApplicantPanel();
+  renderRecruit();
+}
 function setApplicantShift(id, shift){
   const a = APPLICANTS.find(x => x.id === id);
   if(!a) return;
@@ -8876,18 +8890,27 @@ function renderApplicantPanel(){
       </div>` : ''}
     </div>`;
   })();
-  const specBlock = a.pc_spec ? `<div class="ap-section">
-    <div class="ap-section-title">PC 스펙</div>
-    <div class="ap-spec-table">
-      ${a.pc_spec.processor ? `<div class="ap-spec-row"><span>Processor</span><b>${a.pc_spec.processor}</b></div>`:''}
-      ${a.pc_spec.memory ? `<div class="ap-spec-row"><span>Memory</span><b>${a.pc_spec.memory}</b></div>`:''}
-      ${a.pc_spec.gpu ? `<div class="ap-spec-row"><span>GPU</span><b>${a.pc_spec.gpu}</b></div>`:''}
-      ${a.pc_spec.ssd !== undefined ? `<div class="ap-spec-row"><span>SSD</span><b style="color:${a.pc_spec.ssd?'var(--gr)':'var(--tx3)'}">${a.pc_spec.ssd?'Yes':'No'}</b></div>`:''}
-      ${a.pc_spec.lan !== undefined ? `<div class="ap-spec-row"><span>LAN</span><b style="color:${a.pc_spec.lan?'var(--gr)':'var(--tx3)'}">${a.pc_spec.lan?'Yes':'No'}</b></div>`:''}
-      ${a.pc_spec.wifi ? `<div class="ap-spec-row"><span>${a.pc_spec.lan?'LAN 스피드':'Wi-Fi 스피드'}</span><b>↓${a.pc_spec.wifi.down}${a.pc_spec.wifi.up?' / ↑'+a.pc_spec.wifi.up:''} Mbps</b></div>`:''}
-      <div class="ap-spec-row"><span>Status</span><b style="color:${a.spec_status==='pass'?'var(--ok)':a.spec_status==='fail'?'var(--re)':'var(--warn)'}">${a.spec_status==='pass'?'✓ Passed':a.spec_status==='fail'?'✗ Failed':'⏳ Pending'}</b></div>
+  // [v205] editable PC specs — always shown so HR can fill/edit specs for pending applicants
+  const _sp = a.pc_spec || {};
+  const _wf = _sp.wifi || {};
+  const _ist = "width:100%;box-sizing:border-box;background:var(--bg-h,#16161c);border:1px solid var(--br,#333);border-radius:7px;padding:7px 9px;color:var(--tx,#e8e8ea);font-size:13px";
+  const _lbl = (t)=>`<div style="font-size:10.5px;color:var(--tx3,#8a8a92);margin:9px 0 3px;text-transform:uppercase;letter-spacing:.3px">${t}</div>`;
+  const _esc = (v)=>String(v==null?'':v).replace(/"/g,'&quot;');
+  const specBlock = `<div class="ap-section">
+    <div class="ap-section-title">PC 스펙 / PC Specs <span class="ap-section-sub" style="color:${a.spec_status==='pass'?'var(--ok)':a.spec_status==='fail'?'var(--re)':'var(--warn)'}">${a.spec_status==='pass'?'✓ Passed':a.spec_status==='fail'?'✗ Failed':'⏳ Pending'}</span></div>
+    ${_lbl('Processor')}<input type="text" style="${_ist}" value="${_esc(_sp.processor)}" placeholder="e.g. Intel i5-12400F" onchange="setApplicantSpec('${a.id}','processor',this.value)">
+    ${_lbl('Memory')}<input type="text" style="${_ist}" value="${_esc(_sp.memory)}" placeholder="e.g. 16 GB" onchange="setApplicantSpec('${a.id}','memory',this.value)">
+    ${_lbl('GPU')}<input type="text" style="${_ist}" value="${_esc(_sp.gpu)}" placeholder="e.g. RTX 3060" onchange="setApplicantSpec('${a.id}','gpu',this.value)">
+    <div style="display:flex;gap:8px">
+      <div style="flex:1">${_lbl('SSD')}<select style="${_ist}" onchange="setApplicantSpec('${a.id}','ssd',this.value)"><option value="">—</option><option value="yes" ${_sp.ssd===true?'selected':''}>Yes</option><option value="no" ${_sp.ssd===false?'selected':''}>No</option></select></div>
+      <div style="flex:1">${_lbl('LAN')}<select style="${_ist}" onchange="setApplicantSpec('${a.id}','lan',this.value)"><option value="">—</option><option value="yes" ${_sp.lan===true?'selected':''}>Yes</option><option value="no" ${_sp.lan===false?'selected':''}>No</option></select></div>
     </div>
-  </div>` : '';
+    <div style="display:flex;gap:8px">
+      <div style="flex:1">${_lbl('↓ Down (Mbps)')}<input type="text" style="${_ist}" value="${_esc(_wf.down)}" placeholder="0" onchange="setApplicantSpec('${a.id}','down',this.value)"></div>
+      <div style="flex:1">${_lbl('↑ Up (Mbps)')}<input type="text" style="${_ist}" value="${_esc(_wf.up)}" placeholder="0" onchange="setApplicantSpec('${a.id}','up',this.value)"></div>
+    </div>
+    ${_lbl('Spec Status')}<select style="${_ist}" onchange="setApplicantSpec('${a.id}','status',this.value)"><option value="pending" ${(!a.spec_status||a.spec_status==='pending')?'selected':''}>⏳ Pending</option><option value="pass" ${a.spec_status==='pass'?'selected':''}>✓ Passed</option><option value="fail" ${a.spec_status==='fail'?'selected':''}>✗ Failed</option></select>
+  </div>`;
   const reportsBlock = (a.reports||[]).length ? `<div class="ap-section">
     <div class="ap-section-title">인터뷰 리포트</div>
     ${a.reports.map(r => `<div class="ap-report">
