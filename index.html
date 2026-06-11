@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v195 -->
+<!-- BUILD: v196 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -10083,7 +10083,7 @@ async function renderAttendance(){
     const hrs = calcHours(a.clock_in, a.clock_out, a.break_start, a.break_end);
     const init = (a.user_name || '?').slice(0,2).toUpperCase();
     return `<tr>
-      ${showAll ? `<td><div class="col-name"><span class="att-av" style="${avatarBg(a.user_name, init)}">${init}</span><span style="font-weight:500">${a.user_name || '?'}</span></div></td>` : ''}
+      ${showAll ? `<td><div class="col-name"><span class="att-av" style="${avatarBg(a.user_id || a.user_name, init)}">${init}</span><span style="font-weight:500">${a.user_name || '?'}</span></div></td>` : ''}
       <td style="font-variant-numeric:tabular-nums">${a.date || '—'}</td>
       <td class="col-in">${fmtTime(a.clock_in)}</td>
       <td class="col-break">${a.break_start ? fmtTime(a.break_start) : '—'}</td>
@@ -10137,7 +10137,7 @@ async function renderAttendance(){
           ondragstart="attSbDragStart(event,'${m.id}')" ondragend="attSbDragEnd(event)"
           onclick="openStaffDetail('${m.id}')" style="border-left:3px solid ${accent}">
         <span class="att-sb-av-wrap">
-          <span class="att-sb-av" style="${avatarBg(m.name, m.short)}">${m.short}</span>
+          <span class="att-sb-av" style="${avatarBg(m.id || m.name, m.short)}">${m.short}</span>
           <span class="att-sb-dot att-sb-dot-${dotCls}"></span>
         </span>
         <span class="att-sb-name">${m.name}</span>
@@ -19875,18 +19875,23 @@ function renderTimeline(){
       gl += `<div class="gl ${cls}"></div>`;
     }
     const nowL = `<div class="now-line" style="left:${(nowDisp/tlSpan*100).toFixed(2)}%"></div>`;
-    return `<div class="tl-row">
+    const rowH = (r.laneCount && r.laneCount > 1) ? Math.max(56, r.laneCount*40 + 12) : 56;
+    return `<div class="tl-row" style="min-height:${rowH}px">
       <div class="tl-person">${r.label}</div>
       <div class="tl-track">${gl}${r.bars.join('')}${nowL}</div>
     </div>`;
   }).join('') || `<div style="padding:32px;text-align:center;color:var(--tx3);font-size:var(--t-cap)">배정 없음 — 직원 풀에서 PC로 드래그</div>`;
 }
 
-function barHTML(pcId, idx, a, p, seg, isWrapped, subLabel, isLastPiece){
+function barHTML(pcId, idx, a, p, seg, isWrapped, subLabel, isLastPiece, laneInfo){
   const left = (seg.dispStart/tlSpan*100).toFixed(3);
   const w   = (seg.len/tlSpan*100).toFixed(3);
   const g   = shiftGame(a, p);
   const cls = `tl-bar ${g}${isWrapped?' wrapped':''}`;
+  // [v196] stack overlapping shifts into vertical lanes so none get hidden
+  const laneCount = laneInfo ? laneInfo.laneCount : 1;
+  const lane = laneInfo ? laneInfo.lane : 0;
+  const laneStyle = laneCount > 1 ? `top:${6 + lane*40}px;transform:none;height:34px;` : '';
   const moveHandler = `onmousedown="barMouseDown(event, ${pcId}, ${idx}, 'move')"`;
   // 리사이즈 핸들은 마지막 조각에만 (전체 길이 늘이는 의미는 끝부분에서만 직관적)
   const resizeH = isLastPiece ? `<div class="bar-resize" onmousedown="barMouseDown(event, ${pcId}, ${idx}, 'resize')"></div>` : '';
@@ -19905,7 +19910,7 @@ function barHTML(pcId, idx, a, p, seg, isWrapped, subLabel, isLastPiece){
     brkHtml = `<div class="tl-break" title="${_bt}" style="left:${brkLeft}%;width:${brkWidth}%" onmousedown="brkMouseDown(event, ${pcId}, ${idx}, 'move')"><div class="tl-break-h tl-break-h-l" onmousedown="brkMouseDown(event, ${pcId}, ${idx}, 'left')"></div><div class="tl-break-h tl-break-h-r" onmousedown="brkMouseDown(event, ${pcId}, ${idx}, 'right')"></div></div>`;
   }
   return `<div class="${cls}" data-pc="${pcId}" data-idx="${idx}" data-piece-disp="${seg.dispStart}" data-piece-len="${seg.len}"
-              style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px" ${moveHandler}>
+              style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px;${laneStyle}" ${moveHandler}>
     <span class="tl-bar-edge"></span>
     <div class="b-time">${fmtAmPm(a.start)} – ${fmtAmPm(fullEnd)}</div>
     <div class="b-sub">${subLabel}</div>
@@ -19930,14 +19935,28 @@ function assignmentToSegs(a){
   ]};
 }
 
+// [v196] greedy lane assignment so overlapping shifts stack vertically
+function _assignLanes(intervals){
+  const order = intervals.map((it,i)=>({s:it.s, e:it.e, i})).sort((a,b)=> a.s-b.s || a.e-b.e);
+  const laneEnd = []; const laneOf = {};
+  order.forEach(it => {
+    let placed = -1;
+    for(let l=0; l<laneEnd.length; l++){ if(laneEnd[l] <= it.s + 1e-6){ placed = l; break; } }
+    if(placed < 0){ placed = laneEnd.length; laneEnd.push(0); }
+    laneEnd[placed] = it.e; laneOf[it.i] = placed;
+  });
+  return { laneOf, count: Math.max(1, laneEnd.length) };
+}
 function buildPCRows(){
   return PCS.filter(p => p.assignments.length > 0).map(p => {
     const bars = [];
+    const _intervals = p.assignments.map(a => { const ds = displayStartOf(a.start); return { s:ds, e:ds + a.len }; });
+    const { laneOf, count } = _assignLanes(_intervals);
     p.assignments.forEach((a, idx) => {
       const s = staffById(a.staff);
       const {wrapped, segs} = assignmentToSegs(a);
       segs.forEach((seg, si) => {
-        bars.push(barHTML(p.id, idx, a, p, seg, wrapped, `${s.name} · ${a.len}h`, si === segs.length-1));
+        bars.push(barHTML(p.id, idx, a, p, seg, wrapped, `${s.name} · ${a.len}h`, si === segs.length-1, {lane:laneOf[idx]||0, laneCount:count}));
       });
     });
     const totalH = p.assignments.reduce((s,a)=>s+a.len,0);
@@ -19957,7 +19976,8 @@ function buildPCRows(){
           <div class="tl-pc-meta">${totalH}h · ${p.assignments.length} shifts</div>
         </div>
       </div>`,
-      bars
+      bars,
+      laneCount: count
     };
   });
 }
