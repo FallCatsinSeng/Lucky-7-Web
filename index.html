@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v214 -->
+<!-- BUILD: v215 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -10682,6 +10682,7 @@ let scheduleView = 'calendar';  // 'roster' | 'calendar'
 async function renderSchedule(){
   await loadRoster();  // 캘린더·로스터 둘 다 시프트 데이터 필요
   calScope = 'team';
+  try{ await syncCalFromCloud(); }catch(_){}  // [v215] pull teammates' calendar events before drawing
   if(scheduleView === 'calendar') return renderCalendar();
   return renderRoster();
 }
@@ -10846,7 +10847,36 @@ function loadCalEvents(){
     CAL_EVENTS = raw ? JSON.parse(raw) : seed();
   }catch(_){ CAL_EVENTS = seed(); }
 }
-function saveCalEvents(){ try{ sessionStorage.setItem(calKey(), JSON.stringify(CAL_EVENTS)); }catch(_){} }
+function saveCalEvents(){
+  try{ sessionStorage.setItem(calKey(), JSON.stringify(CAL_EVENTS)); }catch(_){}
+  // [v215] team calendar events were sessionStorage-only (per browser) → a teammate's events
+  // never reached anyone else. Push the team set to the shared calendar_state(id='team') row.
+  if(calScope === 'team'){ try{ pauseSync(4000); }catch(_){} try{ pushCalTeam(CAL_EVENTS.slice()); }catch(_){} }
+}
+// [v215] ── team calendar cloud sync (mirrors client_state pattern; personal scope stays local) ──
+async function pushCalTeam(arr){
+  if(!sb || calScope !== 'team') return;
+  try{
+    const { error } = await sb.from('calendar_state').upsert({ id:'team', data: arr, updated_at: new Date().toISOString() });
+    if(error){ console.warn('calendar_state save:', error.message); toast('Calendar save FAILED: ' + error.message, true); }
+  }catch(e){ console.warn('calendar_state save:', e && e.message); }
+}
+async function syncCalFromCloud(){
+  if(!sb || calScope !== 'team') return;
+  if(Date.now() < _syncPausedUntil) return;          // we just edited locally — let our own save settle
+  try{
+    const { data, error } = await sb.from('calendar_state').select('data').eq('id','team').maybeSingle();
+    if(error){ return; }                              // table missing / no read access → keep showing local data
+    if(data && Array.isArray(data.data)){
+      try{ sessionStorage.setItem('lucky7_cal_events', JSON.stringify(data.data)); }catch(_){}  // cloud = source of truth
+    } else {
+      // no shared row yet → seed it once from this browser so existing local events aren't lost on first migration
+      let local = [];
+      try{ local = JSON.parse(sessionStorage.getItem('lucky7_cal_events') || '[]'); }catch(_){}
+      if(local.length) await pushCalTeam(local);
+    }
+  }catch(_){}
+}
 function _seedCalEvents(){ return []; }
 function _seedMyCalEvents(){ return []; }
 
@@ -19035,8 +19065,8 @@ async function renderClients(){
   if(syncClientBridge()) saveClientState(true);
   // 권한 — PLAYER/STAFF는 접근 불가, 돈/계약은 ADMIN만, OP는 운영 정보만
   const role = currentUserRole;
-  const canSeeMoney = role === 'admin';  // 결제·계약료·인보이스·미수금 = ADMIN 전용
-  const canSeeSsal = role === 'admin';  // 작업량(쌀) = ADMIN 전용
+  const canSeeMoney = role === 'admin' || role === 'op';  // [v215] HR/settlement (op) see payment·fees like manager
+  const canSeeSsal = role === 'admin' || role === 'op';   // [v215] op sees workload (쌀)
   const canOpenDetail = role === 'admin' || role === 'op';  // 상세 드릴다운 = 운영진+
   if(typeof PCS !== 'undefined'){ try{ await loadRoster?.(); }catch(_){} }
 
@@ -19197,8 +19227,8 @@ function openClientDetail(cid){
   if(!c) return;
   const role = currentUserRole;
   if(role !== 'admin' && role !== 'op') return;  // PLAYER 차단
-  const canSeeMoney = role === 'admin';
-  const canSeeSsal = role === 'admin';  // 작업량(쌀) = ADMIN 전용 (OP에게도 숨김)
+  const canSeeMoney = role === 'admin' || role === 'op';  // [v215] HR/settlement (op) now see payment·settlement·contract-fee like a manager
+  const canSeeSsal = role === 'admin' || role === 'op';   // [v215] op also sees workload (쌀)
   let panel = document.getElementById('client-detail-panel');
   if(!panel){
     panel = document.createElement('div');
