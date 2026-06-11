@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v190 -->
+<!-- BUILD: v191 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -13948,11 +13948,11 @@ let settlementFilter = 'all';      // 'all' | 'op' | 'player'
 // [v185] manually-added settlement people (Manager / HR / Team Leader / Staff).
 // In-memory for now (like the rest of the perm/payroll config); HR adds & edits salary by hand.
 let MANUAL_PAYROLL = [];
-const MANUAL_ROLE_LABELS = { manager:'Manager', hr:'HR', leader:'Team Leader', staff:'Staff', op:'OPTEAM', player:'Player' };
+const MANUAL_ROLE_LABELS = { ceo:'CEO', manager:'Manager', hr:'HR', leader:'Team Leader', staff:'Staff', op:'OPTEAM', player:'Player' };
 function isManualEntry(id){ return MANUAL_PAYROLL.some(p => p.id === id); }
 // account role → settlement group
 function settlementRoleGroup(r){
-  return ({ ceo:'manager', admin:'manager', manager:'manager', leader:'leader', settlement:'op', op:'op', hr:'hr', staff:'staff', player:'player' })[(r||'').toLowerCase()] || 'staff';
+  return ({ ceo:'ceo', admin:'ceo', manager:'manager', leader:'leader', settlement:'op', op:'op', hr:'hr', staff:'staff', player:'player' })[(r||'').toLowerCase()] || 'staff';
 }
 // [v188] core add — name-keyed so it links to the person's My Payslip and merges with their real account
 function _addSettlementStaff(name, role){
@@ -13974,9 +13974,9 @@ function addManualStaff(){   // manual typing — for people not registered yet
   if(name === null) return;
   name = name.trim();
   if(!name){ toast(_uiLang()==='ko'?'이름을 입력하세요':'Enter a name', true); return; }
-  const pick = prompt(name + ' — role?\n1 = Manager\n2 = HR\n3 = Team Leader\n4 = Staff', '4');
+  const pick = prompt(name + ' — role?\n1 = CEO\n2 = Manager\n3 = HR\n4 = Team Leader\n5 = Staff', '5');
   if(pick === null) return;
-  const map = { '1':'manager','2':'hr','3':'leader','4':'staff','manager':'manager','hr':'hr','leader':'leader','staff':'staff' };
+  const map = { '1':'ceo','2':'manager','3':'hr','4':'leader','5':'staff','ceo':'ceo','manager':'manager','hr':'hr','leader':'leader','staff':'staff' };
   _addSettlementStaff(name, map[(pick||'').trim().toLowerCase()] || 'staff');
 }
 // [v188] pick a person who is already in the website (registered users)
@@ -14026,10 +14026,10 @@ function setManualRole(id){
   if(currentUserRole !== 'admin' && currentUserRole !== 'op'){ toast(_uiLang()==='ko'?'권한 없음':'No permission', true); return; }
   const p = MANUAL_PAYROLL.find(x => x.id === id);
   if(!p) return;
-  const cur = ({manager:'1',hr:'2',leader:'3',staff:'4'})[p.role] || '4';
-  const pick = prompt(p.name + ' — role?\n1 = Manager\n2 = HR\n3 = Team Leader\n4 = Staff', cur);
+  const cur = ({ceo:'1',manager:'2',hr:'3',leader:'4',staff:'5'})[p.role] || '5';
+  const pick = prompt(p.name + ' — role?\n1 = CEO\n2 = Manager\n3 = HR\n4 = Team Leader\n5 = Staff', cur);
   if(pick === null) return;
-  const map = { '1':'manager','2':'hr','3':'leader','4':'staff','manager':'manager','hr':'hr','leader':'leader','staff':'staff' };
+  const map = { '1':'ceo','2':'manager','3':'hr','4':'leader','5':'staff','ceo':'ceo','manager':'manager','hr':'hr','leader':'leader','staff':'staff' };
   p.role = map[(pick||'').trim().toLowerCase()] || p.role;
   saveSettlementState(true);
   renderSettlement();
@@ -14663,7 +14663,8 @@ async function renderSettlement(){
 
   // 역할별 그룹
   const ROLE_ORDER = [
-    { id:'manager', label:'👑 Manager',     color:'#e05656' },
+    { id:'ceo',     label:'👑 CEO',         color:'#3fb564' },
+    { id:'manager', label:'🎖 Manager',     color:'#e05656' },
     { id:'hr',      label:'🧑‍💼 HR',          color:'#e272ab' },
     { id:'op',      label:'⚙️ OPTEAM',       color:'#c2a04a' },
     { id:'leader',  label:'⭐ Team Leader',  color:'#4e9ae6' },
