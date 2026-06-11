@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v206 -->
+<!-- BUILD: v207 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -17309,7 +17309,12 @@ function updateSidebarUser(){
     avEl.title = '프로필 사진 변경 / Change profile picture';
     avEl.onclick = changeAvatar;
   }
-  if(nameEl) nameEl.textContent = currentUser.name;
+  if(nameEl){
+    nameEl.textContent = currentUser.name;
+    nameEl.style.cursor = 'pointer';
+    nameEl.title = '이름 변경 / Edit name';
+    nameEl.onclick = changeName;
+  }
   const langBtn = document.getElementById('sb-lang-btn');
   if(langBtn){ let l='ko'; try{ l = sessionStorage.getItem('lucky7_lang')||'ko'; }catch(_){} langBtn.textContent = ({ko:'KO',id:'ID',en:'EN'})[l] || 'KO'; }
   if(roleEl){
@@ -17317,6 +17322,29 @@ function updateSidebarUser(){
     const appRoleLabel = ({ceo:'CEO',manager:'MANAGER',leader:'TEAM LEADER',hr:'HR',settlement:'SETTLEMENT',staff:'STAFF',admin:'ADMIN',op:'OP',player:'PLAYER'})[_r] || String(_r).toUpperCase();
     roleEl.textContent = `${appRoleLabel} · ${(currentUser.sessionRole||'').toUpperCase()}`;
   }
+}
+
+// [v207] edit your own display name from the sidebar (saves to user_profiles)
+async function changeName(){
+  if(!currentUser) return;
+  const v = prompt(_uiLang()==='ko' ? '표시 이름 / Display name:' : 'Display name:', currentUser.name || '');
+  if(v === null) return;
+  const name = v.trim();
+  if(!name){ toast('Name cannot be empty', true); return; }
+  currentUser.name = name;
+  try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); }catch(_){}
+  updateSidebarUser();
+  if(sb && currentUser.id){
+    try{
+      const { error } = await sb.from('user_profiles').update({ name }).eq('id', currentUser.id);
+      if(error){ toast('Name save failed: ' + error.message, true); }
+      else { toast('✓ Name updated'); }
+    }catch(err){ toast('Name error: ' + (err && err.message), true); }
+  } else {
+    toast('✓ Name updated');
+  }
+  try{ if(typeof renderSidebar === 'function') renderSidebar(); }catch(_){}
+  try{ if(typeof _teamCache !== 'undefined') _teamCache = null; }catch(_){}  // refresh team-derived views (name shows there too)
 }
 
 // [v128] profile picture — pick → resize 128px square → base64 → save to user_profiles
