@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v174 -->
+<!-- BUILD: v175 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -18817,7 +18817,16 @@ function rankColor(pos){ return POSITIONS[pos]?.color || 'var(--ac)'; }
 function rankLabel(pos){ return POSITIONS[pos]?.label || 'Unranked'; }
 function rankShort(pos){ const m={admin:'ADM',gm:'GEN',manager:'MGR',hr:'HR',settlement:'SET',support:'SPT',challenger:'CHA',grandmaster:'GM',master:'MAS',diamond:'DIA',platinum:'PLT',emerald:'EME',gold:'GLD',silver:'SLV',bronze:'BRZ',iron:'IRN',unranked:'UNR'}; return m[pos]||'?'; }
 
+let _permWarned = false;
 function toast(m, isErr){
+  // [v175] Supabase "permission denied" errors (missing table grants) spam a red toast on every
+  // table read/write. Collapse them into ONE calm note and keep running on local data instead.
+  if(typeof m === 'string' && m.indexOf('permission denied') !== -1){
+    if(_permWarned) return;                 // already informed once — stay quiet
+    _permWarned = true;
+    m = '클라우드 동기화 off — 로컬 데이터로 표시 중 / Cloud sync off — showing local data';
+    isErr = false;
+  }
   try{ m = (window._t ? window._t(m) : m); }catch(e){}
   const t = document.getElementById('toast');
   t.textContent = m;
