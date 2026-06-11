@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v207 -->
+<!-- BUILD: v208 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8055,6 +8055,7 @@ async function loadRecruitBoard(){
   return false;
 }
 async function saveRecruits(){
+  try{ pauseSync(); }catch(_){}
   if(!sb) return;
   if(_recruitLite) return;   // [v161] CRITICAL: never overwrite the real cloud copy with stripped/cache data
   try{
@@ -13847,6 +13848,7 @@ async function loadTrustState(){
   _trustLoaded = true;
 }
 function saveTrustState(){
+  try{ pauseSync(); }catch(_){}
   if(!sb) return;
   clearTimeout(_trustSaveTimer);
   _trustSaveTimer = setTimeout(async () => {
@@ -14120,6 +14122,7 @@ function setManualRole(id){
 // other *_state tables). Stores hand-added people + every per-item salary edit so reloads keep them.
 let _settlementSynced = false, _settlementSaving = false, _settlementSaveTimer = null;
 function saveSettlementState(immediate){
+  try{ pauseSync(); }catch(_){}
   if(!sb) return;
   _settlementSaving = true;
   clearTimeout(_settlementSaveTimer);
@@ -17076,6 +17079,58 @@ function _presColor(name){
   return palette[h % palette.length];
 }
 
+// [v208] ── Live cross-user sync ───────────────────────────────────────────────
+// Pulls the shared JSON-blob tables on a short interval and re-renders ONLY the
+// page that's open, so a teammate's edit shows up without anyone refreshing.
+let _syncPausedUntil = 0;
+function pauseSync(ms){ _syncPausedUntil = Date.now() + (ms || 5000); }   // called by save fns so a poll can't revert your own in-flight edit
+const _pullSig = {};
+function _syncBusyUI(){
+  const ae = document.activeElement;
+  if(ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA' || ae.tagName==='SELECT' || ae.isContentEditable)) return true;  // mid-typing
+  if(document.querySelector('.dragging, .ts-dragging, .sf-dragging, .tl-bar.dragging, .ap-dragging')) return true;          // mid-drag
+  return false;
+}
+async function _pullShared(table, applyFn, rerenderFn){
+  if(!sb || !currentUser) return;
+  try{
+    const { data, error } = await sb.from(table).select('data').eq('id','default').maybeSingle();
+    if(error || !data) return;
+    const sig = JSON.stringify(data.data);
+    if(sig === _pullSig[table]) return;                 // unchanged since last pull
+    if(!(table in _pullSig)){ _pullSig[table] = sig; return; }  // first sight = baseline (boot already loaded current data)
+    if(Date.now() < _syncPausedUntil) return;           // we just saved — let it settle, retry next tick
+    if(_syncBusyUI()) return;                            // user is mid-edit — retry next tick (don't update sig)
+    _pullSig[table] = sig;
+    try{ applyFn(data.data); }catch(_){}
+    try{ rerenderFn(); }catch(_){}
+  }catch(_){}
+}
+async function pollSyncAll(){
+  if(!sb || !currentUser) return;
+  const mod = () => (typeof findChannelById === 'function') ? (findChannelById(activeChannelId) || {}).module : null;
+  // PC Status (shifts, leaders, add/delete PC)
+  await _pullShared('pc_state',
+    d => { if(Array.isArray(d)) PCS = d; },
+    () => { if(mod() === 'pc-hub'){ try{ render(); }catch(_){} } });
+  // Trust / Scoreboard (ranks, player-leader, trust pts)
+  await _pullShared('trust_state',
+    d => { if(d && typeof d === 'object') Object.keys(d).forEach(k => { TRUST_DATA[k] = d[k]; }); },
+    () => { const m = mod(); if(m === 'trust'){ try{ renderTrust(); }catch(_){} } if(m === 'staff'){ try{ renderStaff(); }catch(_){} } });
+  // Settlement / Payroll
+  await _pullShared('settlement_state',
+    d => { if(d){ if(Array.isArray(d.manual)) MANUAL_PAYROLL = d.manual; if(d.sheet && typeof d.sheet === 'object') Object.keys(d.sheet).forEach(k => { PAYROLL_SHEET[k] = d.sheet[k]; }); } },
+    () => { if(mod() === 'settlement'){ try{ renderSettlement(); }catch(_){} } });
+  // Recruiting (applicants + their specs/info edits)
+  await _pullShared('recruit_state',
+    d => { if(Array.isArray(d)){ APPLICANTS.length = 0; d.forEach(a => APPLICANTS.push(a)); } },
+    () => { if(mod() === 'recruit'){ try{ renderRecruit(); }catch(_){} } if(typeof openApplicantId !== 'undefined' && openApplicantId){ try{ renderApplicantPanel(); }catch(_){} } });
+  // Permissions matrix + player-leaders + capabilities (drives sidebar visibility live)
+  await _pullShared('perm_state',
+    d => { if(typeof _applyPermPayload === 'function') _applyPermPayload(d); },
+    () => { try{ renderSidebar(); }catch(_){} if(mod() === 'perms'){ try{ renderPerms(); }catch(_){} } });
+}
+
 function startPresence(){
   if(_presenceTimer) clearInterval(_presenceTimer);
   pingPresence();                                      // render immediately
@@ -17123,7 +17178,12 @@ function startPresence(){
   if(_expPollTimer) clearInterval(_expPollTimer);
   pollExp();
   _expPollTimer = setInterval(pollExp, 20*1000);
+  // [v208] live cross-user sync for the remaining shared states (PC / Trust / Settlement / Recruiting / Permissions)
+  if(_syncAllTimer) clearInterval(_syncAllTimer);
+  pollSyncAll();
+  _syncAllTimer = setInterval(pollSyncAll, 10*1000);
 }
+let _syncAllTimer = null;
 let _recruitPurgeTimer = null, _attPollTimer = null;
 
 let _offTimer = null, _offSig = null;
@@ -17572,6 +17632,7 @@ function _applyPermPayload(d){
   if(Array.isArray(d.player_leaders) && typeof PLAYER_LEADERS !== 'undefined'){ PLAYER_LEADERS.clear(); d.player_leaders.forEach(x => PLAYER_LEADERS.add(x)); }
 }
 async function savePermState(){
+  try{ pauseSync(); }catch(_){}
   const payload = _permPayload();
   try{ localStorage.setItem('lucky7_perm_state', JSON.stringify(payload)); }catch(_){}
   if(!sb) return;
@@ -19328,6 +19389,7 @@ async function loadPCState(){
   _pcLoaded = true;
 }
 function savePCState(){
+  try{ pauseSync(); }catch(_){}
   if(!_pcLoaded || !sb) return;
   clearTimeout(_pcSaveTimer);
   _pcSaveTimer = setTimeout(async () => {
