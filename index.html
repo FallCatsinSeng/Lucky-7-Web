@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v183 -->
+<!-- BUILD: v184 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -13903,14 +13903,41 @@ const PERF_DATA = {};
 // OP/Admin 고정 월급 (게임 퍼포먼스 아님)
 const FIXED_SALARY = {};
 // 직원 급여 계산 — Player는 퍼포먼스 배율, OP/Admin은 고정
+// [v184] resolve a staff's monthly base salary from their assigned shift (image-1 salary structure).
+// "X.Y Juta" → X.Y million IDR. Flows into Settlement, Payslip, and the admin paystub via calcSalary.
+function shiftSalaryNum(shiftId){
+  if(!shiftId) return 0;
+  const def = (typeof SHIFTS !== 'undefined' && SHIFTS[shiftId]) ||
+              (typeof APPLY_SHIFTS !== 'undefined' && APPLY_SHIFTS[shiftId]) || null;
+  if(def && def.salary){ const m = String(def.salary).match(/([\d.]+)/); if(m) return Math.round(parseFloat(m[1]) * 1000000); }
+  return 0;
+}
+function staffMonthlySalary(staffId){
+  if(typeof STAFF === 'undefined') return 0;
+  const key = String(staffId || '').toLowerCase();
+  const m = STAFF.find(s =>
+    s.id === staffId ||
+    (s.name && s.name.toLowerCase() === key) ||
+    (s.full_name && s.full_name.toLowerCase() === key));
+  if(!m) return 0;
+  if(m.monthly_salary) return m.monthly_salary;                 // set at onboarding from chosen shift
+  const fromShift = shiftSalaryNum(m.pref_shift || m.shift);    // else derive from assigned shift
+  if(fromShift) return fromShift;
+  if(m.shiftLen === 12) return 3500000;                         // else by shift length
+  if(m.shiftLen === 10) return 3000000;
+  if(m.shiftLen === 8)  return 2500000;
+  return 0;
+}
 function calcSalary(staffId, role){
+  const auto = staffMonthlySalary(staffId);   // [v184] shift-derived base pay
   if(role === 'player'){
     const p = PERF_DATA[staffId];
-    if(!p) return { base:0, rate:100, incentive:0, deduction:0, net:0, type:'perf' };
-    const net = Math.round(p.base * p.rate / 100);
-    return { base:p.base, rate:p.rate, incentive:p.incentive, deduction:p.deduction, net, type:'perf' };
+    const base = (p && p.base) ? p.base : auto;
+    if(!p) return { base, rate:100, incentive:0, deduction:0, net:base, type:'fixed' };
+    const net = Math.round(base * p.rate / 100);
+    return { base, rate:p.rate, incentive:p.incentive||0, deduction:p.deduction||0, net, type:'perf' };
   }
-  const fixed = FIXED_SALARY[staffId] ?? 0;
+  const fixed = (FIXED_SALARY[staffId] != null) ? FIXED_SALARY[staffId] : auto;
   return { base:fixed, rate:100, incentive:0, deduction:0, net:fixed, type:'fixed' };
 }
 
