@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v193 -->
+<!-- BUILD: v194 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -16951,7 +16951,7 @@ function presenceStatus(seenMs){
   return 'offline';
 }
 function _presRoleLabel(r){ return r==='admin' ? 'Manager' : r==='op' ? 'Operator' : r==='player' ? 'Player' : 'Staff'; }
-function roleTitle(r){ return ({ceo:'CEO',manager:'Manager',hr:'HR',settlement:'Settlement',staff:'Staff',admin:'Admin',op:'OP',player:'Player'})[r] || (r ? String(r) : '—'); }
+function roleTitle(r){ return ({ceo:'CEO',manager:'Manager',leader:'Team Leader',hr:'HR',settlement:'Settlement',staff:'Staff',admin:'Admin',op:'OP',player:'Player'})[r] || (r ? String(r) : '—'); }
 // [v114] board grouping (display only, NOT access): CEO→admin, Manager/HR/Settlement→op, Staff→player
 function boardTeam(r){
   if(['ceo','admin'].includes(r)) return 'admin';
@@ -17226,7 +17226,7 @@ function updateSidebarUser(){
   if(langBtn){ let l='ko'; try{ l = sessionStorage.getItem('lucky7_lang')||'ko'; }catch(_){} langBtn.textContent = ({ko:'KO',id:'ID',en:'EN'})[l] || 'KO'; }
   if(roleEl){
     const _r = currentUser.role || currentUser.appRole || 'staff';
-    const appRoleLabel = ({ceo:'CEO',manager:'MANAGER',hr:'HR',settlement:'SETTLEMENT',staff:'STAFF',admin:'ADMIN',op:'OP',player:'PLAYER'})[_r] || String(_r).toUpperCase();
+    const appRoleLabel = ({ceo:'CEO',manager:'MANAGER',leader:'TEAM LEADER',hr:'HR',settlement:'SETTLEMENT',staff:'STAFF',admin:'ADMIN',op:'OP',player:'PLAYER'})[_r] || String(_r).toUpperCase();
     roleEl.textContent = `${appRoleLabel} · ${(currentUser.sessionRole||'').toUpperCase()}`;
   }
 }
@@ -17342,13 +17342,14 @@ async function renderInvites(){
 }
 
 async function createInviteCode(){
-  const role = prompt('Role (ceo / manager / hr / settlement / staff):', 'staff');
+  const role = prompt('Role (ceo / manager / hr / settlement / leader / staff):\n("leader" = Team Leader)', 'staff');
   if(!role) return;
-  const r = role.trim().toLowerCase();
-  if(!['ceo','manager','hr','settlement','staff'].includes(r)){ toast('Invalid role', true); return; }
+  let r = role.trim().toLowerCase();
+  if(r === 'team leader' || r === 'teamleader' || r === 'tl') r = 'leader';
+  if(!['ceo','manager','hr','settlement','leader','staff'].includes(r)){ toast('Invalid role', true); return; }
   const label = prompt('Label (e.g. "New hire", "Replacement"):', 'Open Slot') || 'Open Slot';
   // auto code (PREFIX-XXXX)
-  const prefix = ({ceo:'CEO',manager:'MGR',hr:'HR',settlement:'SETL',staff:'STAFF'})[r] || 'CODE';
+  const prefix = ({ceo:'CEO',manager:'MGR',hr:'HR',settlement:'SETL',leader:'LEAD',staff:'STAFF'})[r] || 'CODE';
   const suffix = Math.random().toString(36).slice(2,7).toUpperCase();
   const code = `${prefix}-${suffix}`;
   if(sb){
@@ -19611,7 +19612,7 @@ async function loadStaffPool(){
   try{
     const { data, error } = await sb.from('user_profiles').select('id, name, email, role');
     if(error || !data) return;
-    const roleToPos = { ceo:'admin', manager:'manager', hr:'hr', settlement:'settlement', staff:'unranked' };
+    const roleToPos = { ceo:'admin', manager:'manager', leader:'master', hr:'hr', settlement:'settlement', staff:'unranked' };
     STAFF.length = 0;
     data.forEach(p => {
       const nm = (p.name && p.name.trim()) || (p.email||'').split('@')[0] || '??';
