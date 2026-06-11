@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v194 -->
+<!-- BUILD: v195 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9702,6 +9702,7 @@ async function breakEnd(){
 }
 
 async function attReset(){
+  if(currentUserRole !== 'admin'){ toast(_uiLang()==='ko'?'권한 없음 — CEO/매니저 전용':'No permission — CEO/Manager only', true); return; }
   if(!confirm('오늘 출퇴근 기록을 초기화합니다. 진행할까요?')) return;
   if(sb && myAtt.id){
     try{
@@ -10011,7 +10012,7 @@ async function renderAttendance(){
           : isIn ? `<span class="bdg bi">근무 중${onBreak ? ' · 휴식' : ''}</span>`
           : att ? `<span class="bdg bx">완료</span>`
           : `<span class="bdg bx">미출근</span>`}
-        ${att ? `<button class="att-btn-sm" onclick="attReset()" title="오늘 기록 초기화">↺ 초기화</button>` : ''}
+        ${att && currentUserRole === 'admin' ? `<button class="att-btn-sm" onclick="attReset()" title="오늘 기록 초기화">↺ 초기화</button>` : ''}
       </div>
     </div>
     <div class="att-times-grid">
