@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v173 -->
+<!-- BUILD: v174 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9722,56 +9722,156 @@ function updateAttCounter(){
   }
 }
 
-// [v173] export the attendance log (currently filtered view) to CSV (opens in Excel) or JSON
-function exportAttendance(fmt){
+// [v173/v174] export the attendance log (currently filtered view).
+//  'xlsx' → branded, styled Excel file (lazy-loads ExcelJS; falls back to CSV if it can't load)
+//  'json' → raw JSON
+function _loadExcelJS(){
+  return new Promise((resolve, reject) => {
+    if(window.ExcelJS) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('ExcelJS load failed'));
+    document.head.appendChild(s);
+  });
+}
+function _attDownload(content, filename, type){
+  const blob = (content instanceof Blob) ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+function _attFmtT(ts){ if(!ts) return ''; return new Date(ts).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true }); }
+function _attMs(r){ if(!r.clock_in || !r.clock_out) return 0; let ms = new Date(r.clock_out) - new Date(r.clock_in); if(r.break_start && r.break_end) ms -= (new Date(r.break_end) - new Date(r.break_start)); return ms < 0 ? 0 : ms; }
+function _attHrsText(r){ const ms = _attMs(r); return Math.floor(ms/3600000) + 'h ' + Math.floor((ms%3600000)/60000) + 'm'; }
+
+async function exportAttendance(fmt){
   const ex = window._attExport || {};
   const data = ex.rows || [];
   const view = ex.view || 'all';
   if(!data.length){ toast('내보낼 출퇴근 기록이 없어요 / No records to export', true); return; }
-  const fmtT = ts => {
-    if(!ts) return '';
-    const d = new Date(ts);
-    return d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true });
-  };
-  const hoursOf = (i,o,bs,be) => {
-    if(!i || !o) return '';
-    let ms = new Date(o) - new Date(i);
-    if(bs && be) ms -= (new Date(be) - new Date(bs));
-    if(ms < 0) ms = 0;
-    return Math.floor(ms/3600000) + 'h ' + Math.floor((ms%3600000)/60000) + 'm';
-  };
   const viewLabel = view==='weekly' ? 'this-week' : view==='monthly' ? 'this-month' : 'all';
+  const periodLabel = view==='weekly' ? 'This Week' : view==='monthly' ? 'This Month' : 'All Records';
   const stamp = new Date().toISOString().slice(0,10);
-  const dl = (content, filename, type) => {
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-  };
+
+  // ── JSON ──
   if(fmt === 'json'){
     const out = data.map(r => ({
       name: r.user_name || '', date: r.date || '',
       clock_in: r.clock_in || null, break_start: r.break_start || null,
       break_end: r.break_end || null, clock_out: r.clock_out || null,
-      total_hours: hoursOf(r.clock_in, r.clock_out, r.break_start, r.break_end)
+      total_hours: _attHrsText(r), hours_decimal: Number((_attMs(r)/3600000).toFixed(2))
     }));
-    dl(JSON.stringify(out, null, 2), `attendance-${viewLabel}-${stamp}.json`, 'application/json');
-  } else {
-    const head = ['Name','Date','Clock In','Break Start','Break End','Clock Out','Total Hours'];
+    _attDownload(JSON.stringify(out, null, 2), `attendance-${viewLabel}-${stamp}.json`, 'application/json');
+    toast(`${data.length}건 내보냄 / Exported ${data.length} rows`);
+    return;
+  }
+
+  // ── CSV fallback (used if Excel library can't load) ──
+  const csvFallback = () => {
+    const head = ['Name','Date','Clock In','Break Start','Break End','Clock Out','Total Hours','Hours (dec)'];
     const esc = v => { v = (v==null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
     const lines = [head.join(',')];
-    data.forEach(r => {
-      lines.push([
-        r.user_name || '', r.date || '', fmtT(r.clock_in), fmtT(r.break_start),
-        fmtT(r.break_end), fmtT(r.clock_out), hoursOf(r.clock_in, r.clock_out, r.break_start, r.break_end)
-      ].map(esc).join(','));
+    data.forEach(r => lines.push([
+      r.user_name||'', r.date||'', _attFmtT(r.clock_in), _attFmtT(r.break_start),
+      _attFmtT(r.break_end), _attFmtT(r.clock_out), _attHrsText(r), (_attMs(r)/3600000).toFixed(2)
+    ].map(esc).join(',')));
+    _attDownload('\uFEFF' + lines.join('\r\n'), `attendance-${viewLabel}-${stamp}.csv`, 'text/csv;charset=utf-8');
+  };
+
+  // ── XLSX (styled) ──
+  try{
+    await _loadExcelJS();
+    const ExcelJS = window.ExcelJS;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Lucky7 ERP'; wb.created = new Date();
+    const ws = wb.addWorksheet('Attendance', { views:[{ state:'frozen', ySplit:4 }] });
+
+    const NAVY = 'FF0E1A2B', NAVY2 = 'FF1C2C44', GOLD = 'FFD4B15E', MUTE = 'FFAAB3C5',
+          ZEBRA = 'FFF4F6F9', LINE = 'FFD8DEE8', SUMBG = 'FFFBF3DF', WHITE = 'FFFFFFFF';
+    const thin = { style:'thin', color:{ argb:LINE } };
+    const allBorder = { top:thin, left:thin, bottom:thin, right:thin };
+
+    ws.columns = [
+      { width:18 }, { width:13 }, { width:12 }, { width:12 },
+      { width:12 }, { width:12 }, { width:13 }, { width:12 }
+    ];
+    const NCOL = 8;
+    const paintRowBg = (rowIdx, argb) => { for(let c=1;c<=NCOL;c++){ ws.getCell(rowIdx, c).fill = { type:'pattern', pattern:'solid', fgColor:{ argb } }; } };
+
+    // Row 1 — title
+    ws.mergeCells(1,1,1,NCOL);
+    const t = ws.getCell('A1');
+    t.value = 'LUCKY7 · ATTENDANCE REPORT';
+    t.font = { bold:true, size:16, color:{ argb:GOLD } };
+    t.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    paintRowBg(1, NAVY); ws.getRow(1).height = 30;
+
+    // Row 2 — subtitle
+    ws.mergeCells(2,1,2,NCOL);
+    const s = ws.getCell('A2');
+    s.value = `Period: ${periodLabel}     •     Generated: ${new Date().toLocaleString('en-GB')}     •     ${data.length} entries`;
+    s.font = { size:10, color:{ argb:MUTE } };
+    s.alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    paintRowBg(2, NAVY); ws.getRow(2).height = 18;
+
+    // Row 3 — spacer
+    ws.getRow(3).height = 6;
+
+    // Row 4 — header
+    const headers = ['Name','Date','Clock In','Break Start','Break End','Clock Out','Total Hours','Hours (dec)'];
+    const hr = ws.getRow(4);
+    headers.forEach((h,i) => {
+      const c = hr.getCell(i+1);
+      c.value = h;
+      c.font = { bold:true, color:{ argb:WHITE }, size:11 };
+      c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:NAVY2 } };
+      c.alignment = { horizontal: i===0 ? 'left' : 'center', vertical:'middle', indent: i===0?1:0 };
+      c.border = allBorder;
     });
-    // BOM so Excel reads UTF-8 (Korean names) correctly
-    dl('\uFEFF' + lines.join('\r\n'), `attendance-${viewLabel}-${stamp}.csv`, 'text/csv;charset=utf-8');
+    hr.height = 22;
+
+    // Data rows (from row 5)
+    let totalDec = 0;
+    data.forEach((r, i) => {
+      const dec = _attMs(r)/3600000; totalDec += dec;
+      const row = ws.addRow([
+        r.user_name || '', r.date || '', _attFmtT(r.clock_in), _attFmtT(r.break_start),
+        _attFmtT(r.break_end), _attFmtT(r.clock_out), _attHrsText(r), Number(dec.toFixed(2))
+      ]);
+      row.height = 18;
+      row.eachCell((c, col) => {
+        c.border = allBorder;
+        c.alignment = { horizontal: col===1 ? 'left' : 'center', vertical:'middle', indent: col===1?1:0 };
+        c.font = { size:10, color:{ argb:'FF1C2533' } };
+        if(col===6 && r.clock_out) c.font = { size:10, color:{ argb:'FFB54848' } };  // clock-out reddish
+        if(col===3 && r.clock_in)  c.font = { size:10, color:{ argb:'FF2E7D5B' } };  // clock-in greenish
+      });
+      row.getCell(8).numFmt = '0.00';
+      if(i % 2 === 1) for(let c=1;c<=NCOL;c++){ ws.getCell(row.number, c).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:ZEBRA } }; }
+    });
+
+    // Summary row
+    const sum = ws.addRow(['TOTAL', '', '', '', '', '', `${data.length} entries`, Number(totalDec.toFixed(2))]);
+    sum.height = 20;
+    sum.eachCell((c, col) => {
+      c.border = allBorder;
+      c.font = { bold:true, color:{ argb:'FF1C2533' }, size:10 };
+      c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:SUMBG } };
+      c.alignment = { horizontal: col===1 ? 'left' : 'center', vertical:'middle', indent: col===1?1:0 };
+    });
+    sum.getCell(8).numFmt = '0.00';
+
+    const buf = await wb.xlsx.writeBuffer();
+    _attDownload(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Lucky7-Attendance-${viewLabel}-${stamp}.xlsx`);
+    toast(`Excel 내보내기 완료 / Exported ${data.length} rows (.xlsx)`);
+  }catch(e){
+    console.warn('xlsx export failed → CSV fallback', e);
+    csvFallback();
+    toast('Excel 라이브러리 로드 실패 → CSV로 저장 / Saved as CSV instead', true);
   }
-  toast(`${data.length}건 내보냄 / Exported ${data.length} rows (${viewLabel})`);
 }
 async function renderAttendance(){
   await loadMyAttendance();
@@ -9879,7 +9979,7 @@ async function renderAttendance(){
       `<button class="att-tab ${attView===v?'on':''}" onclick="window.attCurrentView='${v}';renderAttendance()">${lbl}</button>`
     ).join('')}
     <div style="margin-left:auto;display:flex;gap:6px">
-      <button class="att-tab" onclick="exportAttendance('csv')" title="Excel / CSV로 내보내기">⬇ Excel (CSV)</button>
+      <button class="att-tab" onclick="exportAttendance('xlsx')" title="Excel(.xlsx)로 내보내기">⬇ Excel</button>
       <button class="att-tab" onclick="exportAttendance('json')" title="JSON으로 내보내기">⬇ JSON</button>
     </div>
   </div>`;
