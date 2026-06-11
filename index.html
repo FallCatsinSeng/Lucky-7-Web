@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v171 -->
+<!-- BUILD: v172 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -13300,27 +13300,26 @@ async function renderOverview(){
   const isManager = currentUserRole === 'admin' || currentUserRole === 'op';
 
   // ── 데이터: 실시간 팀 현황 (오늘 출퇴근 기반) ──
+  // [v172] mirror the Attendance page exactly: TODAY only (UTC date, same as storage).
+  // Yesterday's still-open sessions are NOT counted as working (they're stale/forgot-to-clock-out),
+  // so this matches the Attendance "Live Staff Status" board one-to-one.
   const attTotal = team.length;
   let onlineN = 0, breakN = 0, dayoffN = 0, offN = 0;  // working now / on break / clocked out / absent
   if(sb){
     try{
-      // [v171] include yesterday too — an overnight session (clocked in before midnight, still open) must still count as working
-      const yIso = new Date(Date.now() - 86400000).toISOString().slice(0,10);
       const { data } = await sb.from('attendance')
-        .select('user_id, clock_in, clock_out, break_start, break_end, date').in('date', [yIso, todayIso]);
+        .select('user_id, clock_in, clock_out, break_start, break_end').eq('date', todayIso);
       if(data){
         const byUser = {};
-        data.forEach(r => {                                  // prefer the open session; else the most recent day
+        data.forEach(r => {                                  // unlimited clock-in → keep the open session
           const cur = byUser[r.user_id];
           const open = r.clock_in && !r.clock_out;
-          const curOpen = cur && cur.clock_in && !cur.clock_out;
-          if(!cur || (open && !curOpen) || (!curOpen && (r.date||'') >= (cur.date||''))) byUser[r.user_id] = r;
+          if(!cur || (open && !(cur.clock_in && !cur.clock_out))) byUser[r.user_id] = r;
         });
         Object.values(byUser).forEach(r => {
-          const open = r.clock_in && !r.clock_out;
-          if(open && r.break_start && !r.break_end) breakN++;     // on break (overnight ok)
-          else if(open) onlineN++;                                // working now (overnight ok)
-          else if(r.clock_out && r.date === todayIso) dayoffN++;  // clocked out today
+          if(r.clock_out) dayoffN++;                          // clocked out
+          else if(r.break_start && !r.break_end) breakN++;    // on break
+          else if(r.clock_in) onlineN++;                      // working now
         });
       }
     }catch(e){}
