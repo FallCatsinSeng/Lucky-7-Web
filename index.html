@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v180 -->
+<!-- BUILD: v181 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -19164,16 +19164,36 @@ function filteredStaffList(){
 }
 
 function groupedStaffList(list){
-  if(staffFilter.group === 'none') return [{label:null, staff:list}];
-  const grpOrder = ['exec','op','leader','asst','player'];
-  const grpLabels = {exec:'EXECUTIVE', op:'OPERATION', leader:'PLAYER LEADER', asst:'ASSISTANT', player:'PLAYER'};
-  const groups = {};
+  // [v181] GROUP button → group by position tier (legacy behavior)
+  if(staffFilter.group === 'position'){
+    const grpOrder = ['exec','op','leader','asst','player'];
+    const grpLabels = {exec:'EXECUTIVE', op:'OPERATION', leader:'PLAYER LEADER', asst:'ASSISTANT', player:'PLAYER'};
+    const groups = {};
+    list.forEach(s => {
+      const g = (POSITIONS[s.position]||{}).group || 'other';
+      if(!groups[g]) groups[g] = [];
+      groups[g].push(s);
+    });
+    return grpOrder.filter(g => groups[g]).map(g => ({label:grpLabels[g], staff:groups[g], group:g}));
+  }
+  // [v181] DEFAULT — separate role boxes, ordered CEO → Manager → HR → Team Leader → Staff
+  const ROLE_SECTIONS = [
+    { key:'ceo',     label:'CEO',         color:'#3fb564', match:['ceo','admin'] },
+    { key:'manager', label:'MANAGER',     color:'#e05656', match:['manager','gm'] },
+    { key:'hr',      label:'HR',          color:'#e272ab', match:['hr','settlement','support'] },
+    { key:'leader',  label:'TEAM LEADER', color:'#4e9ae6', match:['challenger','grandmaster','master','diamond','platinum'] },
+    { key:'staff',   label:'STAFF',       color:'#9aa3b0', match:['emerald','gold','silver','bronze','iron','unranked'] }
+  ];
+  const posToSec = {};
+  ROLE_SECTIONS.forEach(sec => sec.match.forEach(p => { posToSec[p] = sec.key; }));
+  const buckets = {};
   list.forEach(s => {
-    const g = (POSITIONS[s.position]||{}).group || 'other';
-    if(!groups[g]) groups[g] = [];
-    groups[g].push(s);
+    const k = posToSec[s.position] || 'staff';   // unknown position → Staff
+    if(!buckets[k]) buckets[k] = [];
+    buckets[k].push(s);
   });
-  return grpOrder.filter(g => groups[g]).map(g => ({label:grpLabels[g], staff:groups[g], group:g}));
+  return ROLE_SECTIONS.filter(sec => buckets[sec.key] && buckets[sec.key].length)
+                      .map(sec => ({ label:sec.label, color:sec.color, staff:buckets[sec.key], group:sec.key }));
 }
 
 function staffChipHTML(s){
@@ -19301,10 +19321,16 @@ function renderPools(){
     sHtml = `<div class="pool-empty">조건에 맞는 직원 없음</div>`;
   } else {
     sHtml = groups.map(g => {
-      let h = '';
-      if(g.label) h += `<div class="pool-group-label">${g.label} <span class="pool-group-count">${g.staff.length}</span></div>`;
-      h += g.staff.map(staffChipHTML).join('');
-      return h;
+      const cards = g.staff.map(staffChipHTML).join('');
+      if(!g.label) return cards;
+      const col = g.color || '#9aa3b0';
+      // [v181] each role is its own bordered box with a colored header
+      return `<div class="pool-rolebox" style="border:1px solid ${col}40;border-radius:12px;padding:8px 8px 4px;margin-bottom:11px;background:${col}10">
+        <div class="pool-role-hd" style="color:${col};font-weight:800;font-size:11px;letter-spacing:.4px;text-transform:uppercase;padding:1px 4px 9px;display:flex;align-items:center;gap:6px">
+          ${g.label}<span style="opacity:.55;font-weight:600">${g.staff.length}</span>
+        </div>
+        ${cards}
+      </div>`;
     }).join('');
   }
   document.getElementById('staff-pool').innerHTML = sHtml;
