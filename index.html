@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v185 -->
+<!-- BUILD: v186 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -13965,6 +13965,7 @@ function addManualStaff(){
   PAYROLL_SHEET[id] = { items:[{ label:'기본급', icon:'💰', color:'#c2a04a', amount:0, note:'', negative:false }] };
   try{ logAction('create', 'added settlement staff ('+role+')', name); }catch(_){}
   toast(name + ' · ' + MANUAL_ROLE_LABELS[role] + (_uiLang()==='ko'?' 추가됨 — 급여 입력':' added — set base pay'));
+  saveSettlementState(true);
   renderSettlement();
 }
 function removeManualStaff(id){
@@ -13977,7 +13978,52 @@ function removeManualStaff(id){
   delete PAYROLL_SHEET[id];
   try{ logAction('delete', 'removed settlement staff', nm); }catch(_){}
   toast(nm + (_uiLang()==='ko'?' 제거됨':' removed'));
+  saveSettlementState(true);
   renderSettlement();
+}
+function setManualRole(id){
+  if(currentUserRole !== 'admin' && currentUserRole !== 'op'){ toast(_uiLang()==='ko'?'권한 없음':'No permission', true); return; }
+  const p = MANUAL_PAYROLL.find(x => x.id === id);
+  if(!p) return;
+  const cur = ({manager:'1',hr:'2',leader:'3',staff:'4'})[p.role] || '4';
+  const pick = prompt(p.name + ' — role?\n1 = Manager\n2 = HR\n3 = Team Leader\n4 = Staff', cur);
+  if(pick === null) return;
+  const map = { '1':'manager','2':'hr','3':'leader','4':'staff','manager':'manager','hr':'hr','leader':'leader','staff':'staff' };
+  p.role = map[(pick||'').trim().toLowerCase()] || p.role;
+  saveSettlementState(true);
+  renderSettlement();
+}
+
+// [v186] settlement persistence — Supabase table `settlement_state` (JSON blob, same shape as the
+// other *_state tables). Stores hand-added people + every per-item salary edit so reloads keep them.
+let _settlementSynced = false, _settlementSaving = false, _settlementSaveTimer = null;
+function saveSettlementState(immediate){
+  if(!sb) return;
+  _settlementSaving = true;
+  clearTimeout(_settlementSaveTimer);
+  const doSave = async () => {
+    try{
+      const { error } = await sb.from('settlement_state').upsert({ id:'default', data:{ manual: MANUAL_PAYROLL, sheet: PAYROLL_SHEET }, updated_at: new Date().toISOString() });
+      if(error){ console.warn('settlement_state save:', error.message); toast('Settlement save FAILED: ' + error.message, true); }
+    }catch(e){ console.warn('settlement_state save:', e && e.message); }
+    finally{ setTimeout(() => { _settlementSaving = false; }, 300); }
+  };
+  if(immediate){ doSave(); }
+  else { _settlementSaveTimer = setTimeout(doSave, 500); }
+}
+async function loadSettlementState(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('settlement_state').select('data').eq('id','default').maybeSingle();
+    if(error){ console.warn('settlement_state load:', error.message); return; }
+    if(data && data.data){
+      const d = data.data;
+      if(Array.isArray(d.manual)) MANUAL_PAYROLL = d.manual;
+      if(d.sheet && typeof d.sheet === 'object'){
+        Object.keys(d.sheet).forEach(k => { PAYROLL_SHEET[k] = d.sheet[k]; });   // merge saved edits over defaults
+      }
+    }
+  }catch(e){ console.warn('settlement_state load:', e && e.message); }
 }
 let settlementTitle = '정산';      // 메뉴에 따라 '정산' or '정산 마스터'
 let PAYROLL_SHEET = {};            // staffId → { items:[{label, icon, color, amount, note}] }
@@ -14121,6 +14167,7 @@ function payrollAddItem(staffId, label){
   } else {
     sheet.items.push({ label:preset.label, icon:preset.icon, color:preset.color, amount:0, note:'' });
   }
+  if(typeof saveSettlementState==='function') saveSettlementState(true);   // [v186]
   if(typeof renderSettlement==='function'){ renderSettlement().then(()=>{ const ls=document.querySelectorAll('.set-emp-lbl[data-sid="'+staffId+'"]'); if(ls.length) ls[ls.length-1].focus(); }); }
 }
 function refreshPayrollInline(staffId){
@@ -14132,6 +14179,7 @@ function payrollAddCustom(input){
   const staffId = input.dataset.sid; if(!staffId) return;
   if(!PAYROLL_SHEET[staffId]) PAYROLL_SHEET[staffId] = { items:[] };
   PAYROLL_SHEET[staffId].items.push({ label, icon:'⚙️', color:'#8a8a8a', amount:0, note:'' });
+  if(typeof saveSettlementState==='function') saveSettlementState(true);   // [v186]
   if(typeof renderSettlement==='function'){ renderSettlement().then(()=>{ const ls=document.querySelectorAll('.set-emp-lbl[data-sid="'+staffId+'"]'); if(ls.length) ls[ls.length-1].focus(); }); }
 }
 function setPayrollItem(staffId, i, field, value){
@@ -14151,6 +14199,7 @@ function setPayrollItem(staffId, i, field, value){
   } else {
     it[field] = value;
   }
+  if(typeof saveSettlementState==='function') saveSettlementState();   // [v186]
 }
 // 금액 입력 중 천 단위 콤마 자동 삽입 (커서 위치 보존, 콤마 강제)
 function fmtAmtInput(el){
@@ -14170,6 +14219,7 @@ function fmtAmtInput(el){
 function deletePayrollItem(staffId, i){
   if(!PAYROLL_SHEET[staffId]) return;
   PAYROLL_SHEET[staffId].items.splice(i, 1);
+  if(typeof saveSettlementState==='function') saveSettlementState(true);   // [v186]
   if(typeof renderSettlement==='function'){ renderSettlement(); }
 }
 function exportPayrollCSV(){
@@ -14217,7 +14267,9 @@ function payrollEmpBox(m, s, idx){
       <span class="set-emp-idx">${idx}</span>
       <span class="set-av" style="background:${avatarColor(short)}">${short}</span>
       <span class="set-emp-name">${m.name}</span>
-      ${rateBadge}
+      ${String(m.id).startsWith('man_')
+        ? `<span class="set-rate-badge" style="cursor:pointer;background:rgba(120,140,200,.18);color:#aab3c4" onclick="setManualRole('${m.id}')" title="${_uiLang()==='ko'?'역할 변경':'Change role'}">${(MANUAL_ROLE_LABELS[m.role]||m.role)} ▾</span>`
+        : rateBadge}
       <span class="set-emp-net" id="pmnet-${m.id}">${fmtMoney(total)}</span>
       ${String(m.id).startsWith('man_') ? `<button class="set-emp-del" title="${_uiLang()==='ko'?'정산에서 제거':'Remove from settlement'}" onclick="removeManualStaff('${m.id}')" style="margin-left:8px">✕</button>` : ''}
     </div>
@@ -14249,6 +14301,7 @@ function payrollAmtInput(staffId, i, el){
 }
 function recalcSettlement(){
   if(typeof PAYROLL_SHEET==='undefined') return;
+  if(typeof saveSettlementState==='function') saveSettlementState();   // [v186] persist amount/sign edits
   const SF = (typeof settlementFilter!=='undefined') ? settlementFilter : 'all';
   Object.keys(PAYROLL_SHEET).forEach(id=>{
     const t = payrollTotal(id);
@@ -14544,6 +14597,8 @@ async function renderSettlement(){
     otherView.innerHTML = `<div class="set-page-wrap"><div class="att-eyebrow">운영 · 정산</div><div class="ph">${settlementTitle}</div><div class="cl-noaccess">🔒 정산은 운영진 전용입니다.</div></div>`;
     return;
   }
+  // [v186] pull saved settlement (manual staff + per-item edits) once per session
+  if(sb && !_settlementSynced){ _settlementSynced = true; await loadSettlementState(); }
   // 정산은 전체 팀(13명 mock) 기준 — 급여 계산/시연용 (실제 가입자와 무관)
   let team = (typeof TEAM_ATTENDANCE !== 'undefined')
     ? TEAM_ATTENDANCE.map(t => ({ id:t.name.toLowerCase(), name:t.name, short:t.short, role:t.role }))
