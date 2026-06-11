@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v203 -->
+<!-- BUILD: v204 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -14434,6 +14434,26 @@ function saveExpState(){
     finally{ setTimeout(function(){ _expSaving = false; }, 300); }
   }, 400);
 }
+// [v204] make PC Status and Standard EXP match (PC Status = source of truth). Cleans legacy drift.
+function reconcilePcExp(){
+  try{
+    if(typeof PCS === 'undefined' || typeof STANDARD_EXP === 'undefined') return;
+    if(!PCS.length) return;  // safety: don't reconcile if PCs failed to load
+    let changed = false;
+    // drop EXP tiles with no matching PC
+    for(let j=STANDARD_EXP.length-1; j>=0; j--){
+      const pc = Number(STANDARD_EXP[j].pc);
+      if(!PCS.some(p => p.id === pc)){ STANDARD_EXP.splice(j,1); changed = true; }
+    }
+    // add a blank EXP tile for any PC missing one
+    PCS.forEach(p => {
+      if(!STANDARD_EXP.some(r => Number(r.pc) === p.id)){
+        STANDARD_EXP.push({pc:p.id, on:true, clientId:'', lv:'', map:'', target:0}); changed = true;
+      }
+    });
+    if(changed && typeof saveExpState === 'function') saveExpState();
+  }catch(_){}
+}
 async function pollExp(){
   if(!sb || !currentUser || _expSaving) return;
   try{
@@ -17106,6 +17126,7 @@ function finishSignIn(){
   document.querySelectorAll('.rs-btn').forEach(b => b.classList.toggle('on', b.dataset.role === currentUserRole));
   try{ loadPCState().then(()=>{ try{ if(typeof render==='function') render(); }catch(_){} }); }catch(_){}
   try{ loadPermState().then(()=>{ try{ renderSidebar(); routeContent(); }catch(_){} }); }catch(_){}
+  try{ syncExpFromCloud().then(()=>{ try{ reconcilePcExp(); }catch(_){} }); }catch(_){}
 }
 
 // 원클릭 dev 진입
@@ -20817,6 +20838,7 @@ document.addEventListener('keydown', (e) => {
     routeContent();
     try{ await loadStaffPool(); }catch(_){}
     await loadPCState();
+    try{ await syncExpFromCloud(); reconcilePcExp(); }catch(_){}  // [v204] keep PC Status & Standard EXP in sync from any page
     render();
     selectPC(1);
   } else {
