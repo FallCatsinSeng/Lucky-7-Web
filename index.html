@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v196 -->
+<!-- BUILD: v197 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9595,6 +9595,8 @@ function attSbLeave(e){ if(e.currentTarget.contains(e.relatedTarget)) return; e.
 function attSbDrop(e, status){
   e.preventDefault();
   e.currentTarget.classList.remove('att-sb-col-over');
+  const _raw = (currentUser && currentUser.role || '').toLowerCase();
+  if(!(currentUserRole === 'admin' || _raw === 'hr')){ toast(_uiLang()==='ko'?'권한 없음 — CEO/매니저/HR 전용':'No permission — CEO/Manager/HR only', true); attSbDragId = null; return; }
   if(!attSbDragId) return;
   const id = attSbDragId; attSbDragId = null;
   if(typeof STAFF_DETAILS !== 'undefined' && STAFF_DETAILS[id]){
@@ -10105,8 +10107,10 @@ async function renderAttendance(){
 
   // ── 직원 현황 보드 (오늘 실제 출퇴근 기반) ──
   let statusBoard = '';
-  if(isManager){
+  {
     const team = await loadTeamMembers();
+    // [v197] everyone can SEE the live status; only CEO/Manager/HR can DRAG to change status
+    const canDragStatus = currentUserRole === 'admin' || ((currentUser && currentUser.role || '').toLowerCase() === 'hr');
     const todayRows = historyData.filter(a => a.date === todayIso);
     const byUser = {};                          // unlimited clock-in → keep the open session
     todayRows.forEach(r => {
@@ -10133,8 +10137,8 @@ async function renderAttendance(){
     const miniCard = (m, accent) => {
       const meta = m.meta || (m.pc && m.pc !== '—' ? m.pc : (m.shift||'').split('(')[0].trim());
       const dotCls = m.status === 'break' ? 'break' : (m.status==='offline'||m.status==='off') ? 'off' : 'on';
-      return `<div class="att-sb-card att-sb-${dotCls}" draggable="true"
-          ondragstart="attSbDragStart(event,'${m.id}')" ondragend="attSbDragEnd(event)"
+      return `<div class="att-sb-card att-sb-${dotCls}" draggable="${canDragStatus}"
+          ${canDragStatus ? `ondragstart="attSbDragStart(event,'${m.id}')" ondragend="attSbDragEnd(event)"` : ''}
           onclick="openStaffDetail('${m.id}')" style="border-left:3px solid ${accent}">
         <span class="att-sb-av-wrap">
           <span class="att-sb-av" style="${avatarBg(m.id || m.name, m.short)}">${m.short}</span>
@@ -10146,7 +10150,7 @@ async function renderAttendance(){
     };
 
     const col = (title, icon, list, accent, statusKey) => `<div class="att-sb-col"
-        ondragover="attSbOver(event)" ondragleave="attSbLeave(event)" ondrop="attSbDrop(event,'${statusKey}')">
+        ${canDragStatus ? `ondragover="attSbOver(event)" ondragleave="attSbLeave(event)" ondrop="attSbDrop(event,'${statusKey}')"` : ''}>
       <div class="att-sb-col-head" style="--col-c:${accent}">
         <span class="att-sb-col-name">${icon} ${title}</span>
         <span class="att-sb-col-cnt">${list.length}</span>
@@ -10157,7 +10161,7 @@ async function renderAttendance(){
     </div>`;
 
     statusBoard = `<div class="att-sb-section">
-      <div class="att-sb-title">실시간 직원 현황 <span class="att-sb-hint">드래그로 상태 변경</span></div>
+      <div class="att-sb-title">실시간 직원 현황 ${canDragStatus ? `<span class="att-sb-hint">드래그로 상태 변경</span>` : ''}</div>
       <div class="att-sb-board">
         ${col('근무 중', '🟢', working, '#3aa05a', 'online')}
         ${col('휴식 중', '🟡', resting, '#e0a040', 'break')}
