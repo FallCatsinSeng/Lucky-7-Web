@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v172 -->
+<!-- BUILD: v173 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9722,6 +9722,57 @@ function updateAttCounter(){
   }
 }
 
+// [v173] export the attendance log (currently filtered view) to CSV (opens in Excel) or JSON
+function exportAttendance(fmt){
+  const ex = window._attExport || {};
+  const data = ex.rows || [];
+  const view = ex.view || 'all';
+  if(!data.length){ toast('내보낼 출퇴근 기록이 없어요 / No records to export', true); return; }
+  const fmtT = ts => {
+    if(!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true });
+  };
+  const hoursOf = (i,o,bs,be) => {
+    if(!i || !o) return '';
+    let ms = new Date(o) - new Date(i);
+    if(bs && be) ms -= (new Date(be) - new Date(bs));
+    if(ms < 0) ms = 0;
+    return Math.floor(ms/3600000) + 'h ' + Math.floor((ms%3600000)/60000) + 'm';
+  };
+  const viewLabel = view==='weekly' ? 'this-week' : view==='monthly' ? 'this-month' : 'all';
+  const stamp = new Date().toISOString().slice(0,10);
+  const dl = (content, filename, type) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  };
+  if(fmt === 'json'){
+    const out = data.map(r => ({
+      name: r.user_name || '', date: r.date || '',
+      clock_in: r.clock_in || null, break_start: r.break_start || null,
+      break_end: r.break_end || null, clock_out: r.clock_out || null,
+      total_hours: hoursOf(r.clock_in, r.clock_out, r.break_start, r.break_end)
+    }));
+    dl(JSON.stringify(out, null, 2), `attendance-${viewLabel}-${stamp}.json`, 'application/json');
+  } else {
+    const head = ['Name','Date','Clock In','Break Start','Break End','Clock Out','Total Hours'];
+    const esc = v => { v = (v==null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
+    const lines = [head.join(',')];
+    data.forEach(r => {
+      lines.push([
+        r.user_name || '', r.date || '', fmtT(r.clock_in), fmtT(r.break_start),
+        fmtT(r.break_end), fmtT(r.clock_out), hoursOf(r.clock_in, r.clock_out, r.break_start, r.break_end)
+      ].map(esc).join(','));
+    });
+    // BOM so Excel reads UTF-8 (Korean names) correctly
+    dl('\uFEFF' + lines.join('\r\n'), `attendance-${viewLabel}-${stamp}.csv`, 'text/csv;charset=utf-8');
+  }
+  toast(`${data.length}건 내보냄 / Exported ${data.length} rows (${viewLabel})`);
+}
 async function renderAttendance(){
   await loadMyAttendance();
   const otherView = document.getElementById('ch-other');
@@ -9820,10 +9871,17 @@ async function renderAttendance(){
   }
   // yearly = 전체
 
-  const tabRow = `<div class="att-tab-row">
+  // [v173] stash the currently-filtered rows so the export buttons grab exactly what's on screen
+  try{ window._attExport = { rows: filtered, view: attView }; }catch(_){}
+
+  const tabRow = `<div class="att-tab-row" style="align-items:center">
     ${[['weekly','이번 주'],['monthly','이번 달'],['yearly','전체']].map(([v,lbl]) => 
       `<button class="att-tab ${attView===v?'on':''}" onclick="window.attCurrentView='${v}';renderAttendance()">${lbl}</button>`
     ).join('')}
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="att-tab" onclick="exportAttendance('csv')" title="Excel / CSV로 내보내기">⬇ Excel (CSV)</button>
+      <button class="att-tab" onclick="exportAttendance('json')" title="JSON으로 내보내기">⬇ JSON</button>
+    </div>
   </div>`;
 
   const showAll = isManager;
