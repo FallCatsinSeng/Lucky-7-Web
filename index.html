@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v210 -->
+<!-- BUILD: v211 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -17167,17 +17167,32 @@ function startPresence(){
     try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
     try{ const mod=(typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null; if(mod==='clients') renderClients(); }catch(_){}
   });
-  _clientPollTimer = setInterval(pollClientState, 20*1000);
+  _clientPollTimer = setInterval(pollClientState, 10*1000);  // [v211] 20s→10s so a paid/unpaid change reaches teammates faster
   // [v166] live shared Standard-EXP sync
   if(_expPollTimer) clearInterval(_expPollTimer);
   pollExp();
   _expPollTimer = setInterval(pollExp, 20*1000);
+  // [v211] live calendar/schedule sync — re-render the open calendar so another user's
+  // day-offs, roster shifts, and contract/due changes appear without a manual refresh.
+  if(_calPollTimer) clearInterval(_calPollTimer);
+  _calPollTimer = setInterval(pollCalendarSync, 15*1000);
   // [v208] live cross-user sync for the remaining shared states (PC / Trust / Settlement / Recruiting / Permissions)
   if(_syncAllTimer) clearInterval(_syncAllTimer);
   pollSyncAll();
   _syncAllTimer = setInterval(pollSyncAll, 10*1000);
 }
-let _syncAllTimer = null;
+let _calPollTimer = null;
+async function pollCalendarSync(){
+  if(!currentUser) return;
+  if(Date.now() < _syncPausedUntil) return;                 // we just edited something — let it settle
+  const ae = document.activeElement;
+  if(ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable)) return;  // don't yank a field mid-type
+  const mod = (typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null;
+  try{
+    if(mod==='mycalendar') renderMyCalendar();
+    else if(mod==='roster'||mod==='schedule') renderSchedule();  // renderSchedule re-pulls roster via loadRoster()
+  }catch(_){}
+}
 let _recruitPurgeTimer = null, _attPollTimer = null;
 
 let _offTimer = null, _offSig = null;
@@ -18753,6 +18768,7 @@ async function syncClientStateFromCloud(){
 }
 function saveClientState(immediate){
   _clientSig = _clientStateSig();
+  pauseSync(7000);            // [v211] hold polls ~7s so a fresh paid/unpaid change can't be reverted by a stale cloud read
   if(!sb) return;
   _clientSaving = true;
   clearTimeout(_clientSaveTimer);
@@ -18768,6 +18784,7 @@ function saveClientState(immediate){
 }
 async function pollClientState(){
   if(!sb || !currentUser || _clientSaving) return;
+  if(Date.now() < _syncPausedUntil) return;        // [v211] we just changed a client locally — don't let a stale read revert it
   try{
     const { data, error } = await sb.from('client_state').select('data').eq('id','default').maybeSingle();
     if(error || !data || !data.data) return;
@@ -18779,6 +18796,9 @@ async function pollClientState(){
     if(typing) return;
     const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
     if(mod === 'clients'){ try{ renderClients(); }catch(_){} }
+    // [v211] client contract / due / payment also feed the calendar+schedule — repaint them too
+    if(mod === 'mycalendar'){ try{ renderMyCalendar(); }catch(_){} }
+    if(mod === 'roster' || mod === 'schedule'){ try{ renderSchedule(); }catch(_){} }
     try{ if(document.getElementById('client-pool')) renderPools(); }catch(_){}
   }catch(_){}
 }
