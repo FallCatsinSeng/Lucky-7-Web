@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v179 -->
+<!-- BUILD: v180 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9748,6 +9748,10 @@ function _attMs(r){ if(!r.clock_in || !r.clock_out) return 0; let ms = new Date(
 function _attHrsText(r){ const ms = _attMs(r); return Math.floor(ms/3600000) + 'h ' + Math.floor((ms%3600000)/60000) + 'm'; }
 
 async function exportAttendance(fmt){
+  // [v180] guard — export limited to admin, manager, HR (CEO via admin tier)
+  if(!((currentUserRole === 'admin') || (currentUser && currentUser.role === 'hr'))){
+    toast('권한 없음 / No permission to export', true); return;
+  }
   const ex = window._attExport || {};
   const data = ex.rows || [];
   const view = ex.view || 'all';
@@ -9990,14 +9994,17 @@ async function renderAttendance(){
   // [v173] stash the currently-filtered rows so the export buttons grab exactly what's on screen
   try{ window._attExport = { rows: filtered, view: attView }; }catch(_){}
 
+  // [v180] Excel/JSON export is limited to admin, manager, and HR (CEO included in the admin tier).
+  // Settlement, staff, players and other roles don't see the export buttons.
+  const _canExportAtt = (currentUserRole === 'admin') || (currentUser && currentUser.role === 'hr');
   const tabRow = `<div class="att-tab-row" style="align-items:center">
     ${[['weekly','이번 주'],['monthly','이번 달'],['yearly','전체']].map(([v,lbl]) => 
       `<button class="att-tab ${attView===v?'on':''}" onclick="window.attCurrentView='${v}';renderAttendance()">${lbl}</button>`
     ).join('')}
-    <div style="margin-left:auto;display:flex;gap:6px">
+    ${_canExportAtt ? `<div style="margin-left:auto;display:flex;gap:6px">
       <button class="att-tab" onclick="exportAttendance('xlsx')" title="Excel(.xlsx)로 내보내기">⬇ Excel</button>
       <button class="att-tab" onclick="exportAttendance('json')" title="JSON으로 내보내기">⬇ JSON</button>
-    </div>
+    </div>` : ''}
   </div>`;
 
   const showAll = isManager;
