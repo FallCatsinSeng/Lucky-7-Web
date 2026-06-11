@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v198 -->
+<!-- BUILD: v199 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15147,6 +15147,7 @@ async function sfCardDrop(e, role){
   const realRole = (role === 'player_leader') ? 'player' : role;
   if(role === 'player_leader') PLAYER_LEADERS.add(sfDragId);
   else PLAYER_LEADERS.delete(sfDragId);
+  savePermState();
   // Mock: TEAM_ATTENDANCE에서 role 변경
   if(typeof TEAM_ATTENDANCE !== 'undefined'){
     const t = TEAM_ATTENDANCE.find(x => x.name.toLowerCase() === sfDragId);
@@ -15191,6 +15192,7 @@ function setStaffRank(staffId, key){
   const tl = ['challenger','grandmaster','master'];
   if(tl.indexOf(key) >= 0){ TRUST_DATA[staffId].system = 'player'; if(typeof PLAYER_LEADERS!=='undefined') PLAYER_LEADERS.add(staffId); }
   else { if(typeof PLAYER_LEADERS!=='undefined') PLAYER_LEADERS.delete(staffId); TRUST_DATA[staffId].system = 'player'; }
+  savePermState();
   try{ logAction('update', 'rank → '+RANKS[key].label, staffId); }catch(_){}
   if(typeof saveTrustState==='function') saveTrustState();
   toast((_uiLang()==='ko'?'랭크 변경: ':'Rank → ') + RANKS[key].label);
@@ -15736,10 +15738,10 @@ async function tsCardDrop(e, system){
   // player_leader는 system='player' + 리더 플래그로 처리 (필터 깨짐 방지)
   if(system === 'player_leader'){
     t.system = 'player';
-    if(typeof PLAYER_LEADERS !== 'undefined') PLAYER_LEADERS.add(tsDragId);
+    if(typeof PLAYER_LEADERS !== 'undefined') { PLAYER_LEADERS.add(tsDragId); savePermState(); }
   } else {
     t.system = system;
-    if(typeof PLAYER_LEADERS !== 'undefined') PLAYER_LEADERS.delete(tsDragId);  // op/player로 가면 리더 해제
+    if(typeof PLAYER_LEADERS !== 'undefined') { PLAYER_LEADERS.delete(tsDragId); savePermState(); }  // op/player로 가면 리더 해제
   }
   // 출퇴근 역할도 동기화
   if(typeof TEAM_ATTENDANCE !== 'undefined'){
@@ -17083,6 +17085,7 @@ function finishSignIn(){
   routeContent();
   document.querySelectorAll('.rs-btn').forEach(b => b.classList.toggle('on', b.dataset.role === currentUserRole));
   try{ loadPCState().then(()=>{ try{ if(typeof render==='function') render(); }catch(_){} }); }catch(_){}
+  try{ loadPermState().then(()=>{ try{ renderSidebar(); routeContent(); }catch(_){} }); }catch(_){}
 }
 
 // 원클릭 dev 진입
@@ -17439,6 +17442,33 @@ const ROLE_PERMS = {
 const CAPABILITY_PERMS = {
   rank: { manager:false, settlement:false, hr:false, staff:false, leader:false }
 };
+// [v199] persist permission matrix + capabilities + player-leaders so they survive refresh
+async function savePermState(){
+  if(!sb) return;
+  try{
+    const payload = {
+      role_perms: ROLE_PERMS,
+      capability_perms: CAPABILITY_PERMS,
+      user_overrides: (typeof USER_OVERRIDES !== 'undefined' ? USER_OVERRIDES : {}),
+      player_leaders: Array.from((typeof PLAYER_LEADERS !== 'undefined' ? PLAYER_LEADERS : []))
+    };
+    const { error } = await sb.from('perm_state').upsert({ id:'default', data:payload, updated_at:new Date().toISOString() });
+    if(error){ console.warn('perm_state save:', error.message); }
+  }catch(e){ console.warn('perm_state save:', e && e.message); }
+}
+async function loadPermState(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('perm_state').select('data').eq('id','default').maybeSingle();
+    if(error){ console.warn('perm_state load:', error.message); return; }
+    const d = data && data.data; if(!d) return;
+    if(d.role_perms) Object.keys(d.role_perms).forEach(k => { ROLE_PERMS[k] = d.role_perms[k]; });
+    if(d.capability_perms) Object.keys(d.capability_perms).forEach(k => { CAPABILITY_PERMS[k] = d.capability_perms[k]; });
+    if(d.user_overrides && typeof USER_OVERRIDES !== 'undefined') Object.keys(d.user_overrides).forEach(k => { USER_OVERRIDES[k] = d.user_overrides[k]; });
+    if(Array.isArray(d.player_leaders) && typeof PLAYER_LEADERS !== 'undefined'){ PLAYER_LEADERS.clear(); d.player_leaders.forEach(x => PLAYER_LEADERS.add(x)); }
+  }catch(e){ console.warn('perm_state load:', e && e.message); }
+}
+
 function canChangeRank(){
   // [v190] management tier — CEO / Admin / Manager — can change ranks by default.
   // HR / Settlement / Team Leader / Staff only if granted "Rank Up/Down" in the Permissions matrix.
@@ -17448,6 +17478,7 @@ function canChangeRank(){
   return !!(CAPABILITY_PERMS.rank && CAPABILITY_PERMS.rank[r]);
 }
 function toggleCapability(cap, roleId){
+  setTimeout(savePermState, 0);
   if(!CAPABILITY_PERMS[cap]) CAPABILITY_PERMS[cap] = {};
   CAPABILITY_PERMS[cap][roleId] = !CAPABILITY_PERMS[cap][roleId];
   try{ logAction('config', (CAPABILITY_PERMS[cap][roleId]?'granted ':'blocked ') + roleId + ' ' + cap, 'capability'); }catch(_){}
@@ -17572,6 +17603,7 @@ function renderPerms(){
 function togglePerm(chId, roleId){
   if(!ROLE_PERMS[chId]) ROLE_PERMS[chId] = {};
   ROLE_PERMS[chId][roleId] = !ROLE_PERMS[chId][roleId];
+  savePermState();
   // 인-메모리 변경 — 페이지 접근은 우리 currentUserRole 시스템과는 별개 (실제 RLS는 백엔드에서)
   try{ logAction('config', (ROLE_PERMS[chId][roleId]?'granted ':'blocked ') + roleId + ' access', getChannelLabel(chId)); }catch(_){}
   toast(`${getChannelLabel(chId)} · ${roleId} ${ROLE_PERMS[chId][roleId]?'허용':'차단'}`);
@@ -20269,6 +20301,13 @@ function addPC(){
   const n = PCS.length ? Math.max(...PCS.map(p => p.id)) + 1 : 1;
   PCS.push({id:n, status:'online', game:'lineage', clients:[], leader:null, assignments:[]});
   try{ logAction('create', 'added PC', 'PC-'+pad2(n)); }catch(_){}
+  // [v199] auto-create a matching blank Standard EXP tile (content left blank for manual fill)
+  try{
+    if(typeof STANDARD_EXP !== 'undefined' && !STANDARD_EXP.some(r => Number(r.pc) === n)){
+      STANDARD_EXP.push({pc:n, on:true, clientId:'', lv:'', map:'', target:0});
+      if(typeof saveExpState === 'function') saveExpState();
+    }
+  }catch(_){}
   savePCState();   // [v154] addPC now persists to Supabase
   toast('PC-'+pad2(n)+' 추가'); render();
 }
