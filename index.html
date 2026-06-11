@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v178 -->
+<!-- BUILD: v179 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -18392,11 +18392,35 @@ function renderSettings(){
   </div>`;
 }
 
+// [v179] bridge pool → Client page. Clients added in the PC-status "Client pool" (CLIENTS)
+// don't auto-appear on the Client page (CLIENT_ACCOUNTS). This creates a matching account
+// for any pool client that has a real (non-placeholder) name, linked by name.
+function syncClientBridge(){
+  if(typeof CLIENTS === 'undefined' || typeof CLIENT_ACCOUNTS === 'undefined') return false;
+  const placeholders = ['새 클라이언트', 'New client', 'New Client', 'Klien baru', 'Klien Baru'];
+  let changed = false;
+  CLIENTS.forEach(function(pc){
+    const nm = (pc.name || '').trim();
+    if(!nm || placeholders.indexOf(nm) >= 0) return;            // skip empty / unnamed placeholders
+    if(CLIENT_ACCOUNTS.some(function(a){ return a.name === nm; })) return;  // already linked
+    const iso = new Date().toISOString().slice(0,10);
+    CLIENT_ACCOUNTS.push({
+      id: 'ca_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+      name: nm, discord:'', joined:iso, work:{ start:9, end:19 },
+      payment:{ status:'unpaid', monthly:0, due_day:1, last_paid:null, invoices:[] },
+      contract:{ start:iso, end:'', monthly_fee:0, note:'' }, comms:[]
+    });
+    changed = true;
+  });
+  return changed;
+}
 async function renderClients(){
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
   // [v154] pull shared clients on first open
   if(sb && !_clientSynced){ await syncClientStateFromCloud(); }
+  // [v179] mirror any named pool clients into the Client page so both views stay in sync
+  if(syncClientBridge()) saveClientState(true);
   // 권한 — PLAYER/STAFF는 접근 불가, 돈/계약은 ADMIN만, OP는 운영 정보만
   const role = currentUserRole;
   const canSeeMoney = role === 'admin';  // 결제·계약료·인보이스·미수금 = ADMIN 전용
