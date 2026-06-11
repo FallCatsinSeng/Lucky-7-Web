@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v182 -->
+<!-- BUILD: v183 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -7554,6 +7554,35 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
   .pool-row{grid-template-columns:1fr}
   #main{padding:var(--s5) var(--s4)}
 }
+
+/* ===================== MOBILE LAYER (v183) ===================== */
+#mob-topbar{display:none;position:fixed;top:0;left:0;right:0;height:52px;align-items:center;gap:12px;padding:0 14px;background:var(--bg-sb);border-bottom:1px solid var(--br);z-index:1000}
+#mob-burger{background:none;border:1px solid var(--br);color:var(--tx);font-size:18px;width:38px;height:38px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
+#mob-burger:active{background:var(--bg-h)}
+.mob-topbar-name{font-weight:700;font-size:14px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mob-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;opacity:0;visibility:hidden;transition:opacity .25s ease}
+
+@media(max-width:760px){
+  #mob-topbar{display:flex}
+  #mob-backdrop{display:block}
+  body.sb-open #mob-backdrop{opacity:1;visibility:visible}
+  #app{overflow-x:hidden}
+  /* sidebar → slide-in drawer */
+  #sb{position:fixed;left:0;top:0;height:100vh;height:100dvh;width:82vw;max-width:300px;transform:translateX(-100%);transition:transform .26s ease;z-index:1200;box-shadow:0 0 50px rgba(0,0,0,.55)}
+  body.sb-open #sb{transform:translateX(0)}
+  #main{padding:64px var(--s4) var(--s7);width:100%;min-width:0}
+  /* tighten oversized page wrappers */
+  .sf3-page-wrap,.ppc-page-wrap,.pcs-page-wrap,.ppc-page-wrap{padding:16px 14px 48px !important;max-width:100% !important}
+  /* stack common dashboard rows */
+  .met-row,.cl-summary,.sf3-board,.tk-fgrid,.set-salary-board,.pcb-grid,.cdo-summary,.std-card .stats{grid-template-columns:1fr !important}
+  /* wide tables/boards scroll inside their box instead of breaking the page */
+  .perms-matrix,.perms-users,.set-table-wrap,.tbl-wrap,.exs-wrap{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+  .pm-table,.pm-matrix-table{min-width:560px}
+  /* headings + head rows */
+  .ph{font-size:23px}
+  .perms-title{font-size:22px}
+  .ppc-head-row,.pcs-head-row{flex-wrap:wrap;gap:10px}
+}
 </style>
 </head>
 <body>
@@ -7621,6 +7650,11 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 <div id="app-screen" style="display:none">
 
 <div id="app">
+  <header id="mob-topbar">
+    <button id="mob-burger" onclick="toggleMobileSidebar()" aria-label="Menu">☰</button>
+    <span class="mob-topbar-name">TEAM Lucky7</span>
+  </header>
+  <div id="mob-backdrop" onclick="closeMobileSidebar()"></div>
   <aside id="sb">
     <div class="sb-ws">
       <div class="sb-ws-logo">L7</div>
@@ -17988,8 +18022,17 @@ function renderPlaceholder(ch){
   </div>`;
 }
 
-function renderSidebar(){
-  // 편집 모드 토글 버튼 상태
+// [v183] mobile sidebar drawer
+function toggleMobileSidebar(){ document.body.classList.toggle('sb-open'); }
+function closeMobileSidebar(){ document.body.classList.remove('sb-open'); }
+// auto-close the drawer after tapping a channel (mobile only)
+document.addEventListener('click', function(e){
+  if(!document.body.classList.contains('sb-open')) return;
+  if(window.innerWidth > 760) return;
+  if(e.target.closest && e.target.closest('#sb-channels [onclick*="setActiveChannel"]')) closeMobileSidebar();
+}, true);
+
+function renderSidebar(){  // 편집 모드 토글 버튼 상태
   const editBtn = document.getElementById('sb-edit-btn');
   if(editBtn) editBtn.classList.toggle('on', sidebarEditMode);
   const sb = document.getElementById('sb');
