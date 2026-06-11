@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v205 -->
+<!-- BUILD: v206 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8357,7 +8357,7 @@ function openOnboarding(applicantId){
         <div class="ob-av" style="background:${avatarColor(a.short || a.name.slice(0,2).toUpperCase())}">${a.short || a.name.slice(0,2).toUpperCase()}</div>
         <div>
           <div class="ap-panel-name">${a.name}</div>
-          <div class="ap-panel-meta">🚀 직원 풀 온보딩 · ${a.origin || ''} ${a.age?`· ${a.age}세`:''}</div>
+          <div class="ap-panel-meta">🚀 직원 풀 온보딩 · ${a.origin || ''} ${a.age?`· ${a.age} yrs`:''}</div>
         </div>
       </div>
       <button class="ap-panel-close" onclick="closeOnboarding()">✕</button>
@@ -8833,6 +8833,17 @@ function setApplicantSpec(id, field, value){
   renderApplicantPanel();
   renderRecruit();
 }
+// [v206] edit hometown / age / source from the applicant panel header
+function setApplicantInfo(id, field, value){
+  const a = APPLICANTS.find(x => x.id === id);
+  if(!a) return;
+  if(field === 'age'){ const n = parseInt(String(value).replace(/[^0-9]/g,''),10); a.age = isNaN(n) ? '' : n; }
+  else a[field] = value;
+  try{ logAction('update', 'edited applicant info (' + field + ')', a.name); }catch(_){}
+  saveRecruits();
+  renderApplicantPanel();
+  renderRecruit();
+}
 function setApplicantShift(id, shift){
   const a = APPLICANTS.find(x => x.id === id);
   if(!a) return;
@@ -8896,6 +8907,7 @@ function renderApplicantPanel(){
   const _ist = "width:100%;box-sizing:border-box;background:var(--bg-h,#16161c);border:1px solid var(--br,#333);border-radius:7px;padding:7px 9px;color:var(--tx,#e8e8ea);font-size:13px";
   const _lbl = (t)=>`<div style="font-size:10.5px;color:var(--tx3,#8a8a92);margin:9px 0 3px;text-transform:uppercase;letter-spacing:.3px">${t}</div>`;
   const _esc = (v)=>String(v==null?'':v).replace(/"/g,'&quot;');
+  const _mst = "background:transparent;border:none;border-bottom:1px dashed var(--br,#555);color:var(--tx2,#c8c8d0);font-size:11px;padding:1px 2px;font-family:inherit;outline:none";
   const specBlock = `<div class="ap-section">
     <div class="ap-section-title">PC 스펙 / PC Specs <span class="ap-section-sub" style="color:${a.spec_status==='pass'?'var(--ok)':a.spec_status==='fail'?'var(--re)':'var(--warn)'}">${a.spec_status==='pass'?'✓ Passed':a.spec_status==='fail'?'✗ Failed':'⏳ Pending'}</span></div>
     ${_lbl('Processor')}<input type="text" style="${_ist}" value="${_esc(_sp.processor)}" placeholder="e.g. Intel i5-12400F" onchange="setApplicantSpec('${a.id}','processor',this.value)">
@@ -8972,11 +8984,19 @@ function renderApplicantPanel(){
         <span class="ap-av lg" style="background:${avatarColor(a.short)}">${a.short}</span>
         <div>
           <div class="ap-panel-name">${a.name}</div>
-          <div class="ap-panel-meta">${a.origin||''} · ${a.age?a.age+'세':''} · Source: ${a.source}</div>
+          <div class="ap-panel-meta" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+            <input style="${_mst};width:98px" value="${_esc(a.origin)}" placeholder="Hometown" title="Hometown" onchange="setApplicantInfo('${a.id}','origin',this.value)">
+            <span style="opacity:.45">·</span>
+            <input style="${_mst};width:28px;text-align:center" value="${_esc(a.age)}" placeholder="Age" title="Age" onchange="setApplicantInfo('${a.id}','age',this.value)">
+            <span style="opacity:.7">yrs</span>
+            <span style="opacity:.45">·</span>
+            <span style="opacity:.7">Source:</span>
+            <input style="${_mst};width:92px" value="${_esc(a.source)}" placeholder="Source" title="Source" onchange="setApplicantInfo('${a.id}','source',this.value)">
+          </div>
         </div>
       </div>
       <div class="ap-panel-head-actions">
-        <button class="ap-panel-del" onclick="deleteApplicant('${a.id}')" title="지원자 삭제 / Delete applicant">🗑 삭제 / Delete</button>
+        <button class="ap-panel-del" onclick="deleteApplicant('${a.id}')" title="Delete applicant">🗑 Delete</button>
         <button class="ap-panel-close" onclick="closeApplicant()">✕</button>
       </div>
     </div>
