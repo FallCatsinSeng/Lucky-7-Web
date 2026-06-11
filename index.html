@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v202 -->
+<!-- BUILD: v203 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -14455,8 +14455,23 @@ function setExpStd(i,f,v){ const r=STANDARD_EXP[i]; if(!r) return;
   else r[f]=v;
   saveExpState();
 }
-function addExpStd(){ const mx=STANDARD_EXP.reduce((a,r)=>Math.max(a,Number(r.pc)||0),0); STANDARD_EXP.push({pc:mx+1,on:true,clientId:'',lv:'',map:((MAP_GROUPS['경험치 맵']||[])[0]||{}).full||'',target:0}); saveExpState(); renderExpStandard(); }
-function delExpStd(i){ STANDARD_EXP.splice(i,1); saveExpState(); renderExpStandard(); }
+function addExpStd(){
+  const _maxExp = STANDARD_EXP.reduce((a,r)=>Math.max(a,Number(r.pc)||0),0);
+  const _maxPc = (typeof PCS!=='undefined' && PCS.length) ? Math.max(...PCS.map(p=>p.id)) : 0;
+  const n = Math.max(_maxExp, _maxPc) + 1;
+  STANDARD_EXP.push({pc:n, on:true, clientId:'', lv:'', map:'', target:0});
+  saveExpState();
+  // [v203] two-way sync: adding an EXP PC also creates the matching PC Status PC
+  try{ if(typeof PCS!=='undefined' && !PCS.some(p=>p.id===n)){ PCS.push({id:n, status:'online', game:'lineage', clients:[], leader:null, assignments:[]}); if(typeof savePCState==='function') savePCState(); } }catch(_){}
+  renderExpStandard();
+}
+function delExpStd(i){
+  const _pc = Number(STANDARD_EXP[i] && STANDARD_EXP[i].pc);
+  STANDARD_EXP.splice(i,1); saveExpState();
+  // [v203] two-way sync: removing an EXP PC also removes the matching PC Status PC
+  try{ if(!isNaN(_pc) && typeof PCS!=='undefined'){ PCS = PCS.filter(p=>p.id!==_pc); if(typeof savePCState==='function') savePCState(); } }catch(_){}
+  renderExpStandard();
+}
 let EXP_DRAG=null;
 function expDragStart(i,el){ EXP_DRAG=i; el.classList.add('dragging'); }
 function expDragEnd(el){ el.classList.remove('dragging'); document.querySelectorAll('.std-card').forEach(x=>x.classList.remove('over')); }
@@ -14472,7 +14487,12 @@ function mapGroupOptHTML(sel){ let h='';let found=false; for(const g in MAP_GROU
 function expCanEdit(){ return (typeof currentUserRole==='undefined') || currentUserRole==='admin' || currentUserRole==='op'; }
 function expToggleOn(i){ const cur=STANDARD_EXP[i].on!==false; STANDARD_EXP[i].on=!cur; saveExpState(); const bg=document.getElementById('pcb-mbg'); if(bg&&bg.classList.contains('show')) expOpenPC(i); else renderExpStandard(); }
 function expSetClient(i,id){ STANDARD_EXP[i].clientId=id||''; saveExpState(); expOpenPC(i); }
-function expDelPC(i){ STANDARD_EXP.splice(i,1); saveExpState(); expClosePC(); }
+function expDelPC(i){
+  const _pc = Number(STANDARD_EXP[i] && STANDARD_EXP[i].pc);
+  STANDARD_EXP.splice(i,1); saveExpState();
+  try{ if(!isNaN(_pc) && typeof PCS!=='undefined'){ PCS = PCS.filter(p=>p.id!==_pc); if(typeof savePCState==='function') savePCState(); } }catch(_){}
+  expClosePC();
+}
 function expOpenPC(i){
   const r=STANDARD_EXP[i]; if(!r) return; const s=entrySpec(r);
   const ce=expCanEdit(); const dis=ce?'':'disabled'; const ro=ce?'':'readonly';
@@ -20332,7 +20352,9 @@ function togglePCOff(pcId){
 }
 function addPC(){
   // [v154] collision-free id (max+1, not length+1 — length+1 duplicates after a delete)
-  const n = PCS.length ? Math.max(...PCS.map(p => p.id)) + 1 : 1;
+  const _mp = PCS.length ? Math.max(...PCS.map(p => p.id)) : 0;
+  const _me = (typeof STANDARD_EXP!=='undefined' && STANDARD_EXP.length) ? Math.max(...STANDARD_EXP.map(r=>Number(r.pc)||0)) : 0;
+  const n = Math.max(_mp, _me) + 1;
   PCS.push({id:n, status:'online', game:'lineage', clients:[], leader:null, assignments:[]});
   try{ logAction('create', 'added PC', 'PC-'+pad2(n)); }catch(_){}
   // [v199] auto-create a matching blank Standard EXP tile (content left blank for manual fill)
@@ -20353,6 +20375,13 @@ function deletePC(id){
   PCS = PCS.filter(x => x.id !== id);
   if(selectedPC === id) selectedPC = null;
   if(tlFocus === id) tlFocus = 'all';
+  // [v203] two-way sync: deleting a PC also removes its Standard EXP tile
+  try{
+    if(typeof STANDARD_EXP !== 'undefined'){
+      for(let j=STANDARD_EXP.length-1; j>=0; j--){ if(Number(STANDARD_EXP[j].pc) === id) STANDARD_EXP.splice(j,1); }
+      if(typeof saveExpState === 'function') saveExpState();
+    }
+  }catch(_){}
   try{ logAction('delete', 'deleted PC', 'PC-'+pad2(id)); }catch(_){}
   savePCState();
   toast('PC-'+pad2(id)+' 삭제됨 / deleted');
