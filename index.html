@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v211 -->
+<!-- BUILD: v212 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -17105,7 +17105,7 @@ async function pollSyncAll(){
   const mod = () => (typeof findChannelById === 'function') ? (findChannelById(activeChannelId) || {}).module : null;
   // PC Status (shifts, leaders, add/delete PC)
   await _pullShared('pc_state',
-    d => { if(Array.isArray(d)) PCS = d; },
+    d => { if(Array.isArray(d)){ PCS = d; try{ normalizePCs(); }catch(_){} } },
     () => { if(mod() === 'pc-hub'){ try{ render(); }catch(_){} } });
   // Trust / Scoreboard (ranks, player-leader, trust pts)
   await _pullShared('trust_state',
@@ -19398,7 +19398,7 @@ async function loadPCState(){
   try{
     const { data, error } = await sb.from('pc_state').select('data').eq('id','default').maybeSingle();
     if(error){ console.warn('pc_state load failed:', error.message); toast('PC load error: ' + error.message, true); }
-    else if(data && Array.isArray(data.data)){ PCS = data.data; }
+    else if(data && Array.isArray(data.data)){ PCS = data.data; try{ normalizePCs(); }catch(_){} }
   }catch(e){ console.warn('pc_state load error:', e && e.message); toast('PC load error: ' + (e&&e.message), true); }
   _pcLoaded = true;
 }
@@ -19482,7 +19482,30 @@ function toast(m, isErr){
 // ═══════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════
+// [v212] SELF-HEAL: guarantee every PC has the arrays the renderers loop over.
+// A single PC missing .assignments was crashing the entire PC-grid / timeline /
+// metrics render (silently swallowed by try/catch -> blank board, dash-only stats).
+// This mutates PCS in place; savePCState() at the end of render() then re-saves the
+// healed data back to Supabase so the bad row is permanently fixed.
+function normalizePCs(){
+  if(!Array.isArray(PCS)){ PCS = []; return; }
+  PCS.forEach(p => {
+    if(!p || typeof p !== 'object') return;
+    if(!Array.isArray(p.assignments)) p.assignments = [];
+    if(!Array.isArray(p.clients)) p.clients = [];
+    if(p.leader === undefined) p.leader = null;
+    if(!p.status) p.status = 'online';
+    // coerce assignment numbers so totals never become NaN
+    p.assignments.forEach(a => {
+      if(a && typeof a === 'object'){
+        if(typeof a.len !== 'number' || isNaN(a.len)) a.len = Number(a.len) || 0;
+        if(typeof a.start !== 'number' || isNaN(a.start)) a.start = Number(a.start) || 0;
+      }
+    });
+  });
+}
 function render(){
+  try{ normalizePCs(); }catch(e){ console.warn('normalizePCs failed:', e); }
   try{ renderDayPicker(); }catch(e){ console.warn('renderDayPicker failed:', e); }
   try{ renderPosLegend(); }catch(e){ console.warn('renderPosLegend failed:', e); }
   try{ renderPCs(); }catch(e){ console.warn('renderPCs failed:', e); }
@@ -19550,6 +19573,7 @@ function renderPosLegend(){
 }
 
 function renderPCs(){
+  try{ normalizePCs(); }catch(_){}
   const q = (document.getElementById('q').value||'').toLowerCase();
   let list = PCS.filter(p => filter==='all' || p.status===filter);
   if(q) list = list.filter(p => {
@@ -20067,6 +20091,7 @@ function clearPreviewSegs(staffId){
 // TIMELINE — anchor + span (24h 또는 48h) 기반
 // ═══════════════════════════════════════════════════
 function renderTimeline(){
+  try{ normalizePCs(); }catch(_){}
   // tl-root 에 data-span 반영
   document.getElementById('tl-root').setAttribute('data-span', String(tlSpan));
 
@@ -20266,6 +20291,7 @@ function buildStaffRows(){
 }
 
 function renderMetrics(){
+  try{ normalizePCs(); }catch(_){}
   const on = PCS.filter(p=>p.status==='online').length;
   const warn = PCS.filter(p=>p.status==='warning').length;
   const off = PCS.filter(p=>p.status==='offline').length;
