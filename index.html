@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v201 -->
+<!-- BUILD: v202 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15001,7 +15001,7 @@ async function renderStaff(){
       rank: t.rank || 'unranked',
       trust_pts: t.trust_pts || 0,
       warn_pts: t.warn_pts || 0,
-      leader: PLAYER_LEADERS.has(m.id),
+      leader: PLAYER_LEADERS.has(m.id) || m.db_role === 'leader',  // [v202] Team Leader role auto-places in Player Leader column
       system: t.system || (m.role === 'op' ? 'op' : m.role === 'player' ? 'player' : 'admin')
     };
   });
@@ -15476,7 +15476,7 @@ async function renderTrust(){
     return {
       ...m,
       system: sys,
-      leader: (typeof PLAYER_LEADERS !== 'undefined') && PLAYER_LEADERS.has(m.id),
+      leader: ((typeof PLAYER_LEADERS !== 'undefined') && PLAYER_LEADERS.has(m.id)) || m.db_role === 'leader',  // [v202] Team Leader auto-leader
       warn_pts: t.warn_pts || 0,
       trust_pts: t.trust_pts || 0,
       protected_until: t.protected_until,
