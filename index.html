@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v181 -->
+<!-- BUILD: v182 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -14803,7 +14803,7 @@ async function renderStaff(){
     { id:'player',        label:'플레이어',    icon:'🎮', color:'#3aa05a', desc:'플레이어 — 게임 운영 인력', match: m => m.role==='player' && !m.leader }
   ];
 
-  const canMove = currentUserRole === 'admin';
+  const canMove = canChangeRank();  // [v182] CEO-only by default, or roles granted "Rank Up/Down"
 
   const sections = `<div class="sf3-board">${groups.map(g => {
     const members = filtered.filter(g.match);
@@ -14851,7 +14851,7 @@ async function renderStaff(){
 let sfDragId = null;
 let sfDragFrom = null;
 function sfCardDragStart(e, mid, role){
-  if(currentUserRole !== 'admin'){ e.preventDefault(); return; }
+  if(!canChangeRank()){ e.preventDefault(); return; }
   sfDragId = mid;
   sfDragFrom = role;
   e.dataTransfer.effectAllowed = 'move';
@@ -14863,7 +14863,7 @@ function sfCardDragEnd(e){
   sfDragId = null; sfDragFrom = null;
 }
 function sfCardDragOver(e, role){
-  if(currentUserRole !== 'admin') return;
+  if(!canChangeRank()) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
   e.currentTarget.classList.add('sf3-sec-over');
@@ -14876,6 +14876,7 @@ function sfCardDragLeave(e){
 async function sfCardDrop(e, role){
   e.preventDefault();
   e.currentTarget.classList.remove('sf3-sec-over');
+  if(!canChangeRank()){ toast(_uiLang()==='ko'?'랭크 변경 권한 없음':'No permission to change rank', true); sfDragId=null; sfDragFrom=null; return; }
   if(!sfDragId || sfDragFrom === role) return;
   const roleLabel = ({admin:'어드민', op:'OPTEAM', player_leader:'플레이어 리더', player:'플레이어', staff:'Staff'})[role];
   if(!confirm(`${sfDragId}의 역할을 ${roleLabel}(으)로 변경할까요?\n\n관련 시스템 권한이 자동 조정됩니다.`)){
@@ -15402,6 +15403,7 @@ async function quickGrantWarn(memberId, pts){
 let tsDragId = null;
 let tsDragFrom = null;
 function tsCardDragStart(e, mid, system){
+  if(!canChangeRank()){ e.preventDefault(); return; }
   tsDragId = mid;
   tsDragFrom = system;
   e.dataTransfer.effectAllowed = 'move';
@@ -15426,6 +15428,7 @@ function tsCardDragLeave(e){
 async function tsCardDrop(e, system){
   e.preventDefault();
   e.currentTarget.classList.remove('ts-sec-over');
+  if(!canChangeRank()){ toast(_uiLang()==='ko'?'랭크 변경 권한 없음':'No permission to change rank', true); tsDragId=null; tsDragFrom=null; return; }
   if(!tsDragId || tsDragFrom === system) return;
   let t = TRUST_DATA[tsDragId];
   if(!t){ t = TRUST_DATA[tsDragId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked', system:'player' }; }
@@ -17132,6 +17135,24 @@ const ROLE_PERMS = {
   'res-sop':        { manager:true, settlement:true, hr:true, staff:true, leader:true }
 };
 
+// [v182] capability permissions — actions beyond page access. Who may promote/demote a member's
+// rank/role (move cards between Admin/OPTEAM/Leader/Player, change rank). CEO is ALWAYS allowed;
+// every other role is OFF by default and must be granted via the Permissions matrix.
+const CAPABILITY_PERMS = {
+  rank: { manager:false, settlement:false, hr:false, staff:false, leader:false }
+};
+function canChangeRank(){
+  const r = (currentUser && currentUser.role) || '';
+  if(r === 'ceo') return true;                       // CEO always has it
+  return !!(CAPABILITY_PERMS.rank && CAPABILITY_PERMS.rank[r]);
+}
+function toggleCapability(cap, roleId){
+  if(!CAPABILITY_PERMS[cap]) CAPABILITY_PERMS[cap] = {};
+  CAPABILITY_PERMS[cap][roleId] = !CAPABILITY_PERMS[cap][roleId];
+  try{ logAction('config', (CAPABILITY_PERMS[cap][roleId]?'granted ':'blocked ') + roleId + ' ' + cap, 'capability'); }catch(_){}
+  toast('Rank Up/Down · ' + roleId + ' ' + (CAPABILITY_PERMS[cap][roleId] ? (_uiLang()==='ko'?'허용':'allowed') : (_uiLang()==='ko'?'차단':'blocked')));
+}
+
 function getRoleById(id){ return APP_ROLES.find(r => r.id === id); }
 function getChannelLabel(chId){
   for(const cat of CHANNEL_TREE.categories){
@@ -17192,6 +17213,19 @@ function renderPerms(){
     return `<tr><td class="pm-page-name">${label}</td>${cells}</tr>`;
   }).join('');
 
+  // [v182] capability rows (actions, not pages) — appended below the page matrix
+  const capDefs = [
+    { key:'rank', label:'Rank Up / Down', desc: _uiLang()==='ko' ? '직원 랭크 승급/강등' : 'Promote / demote staff rank' }
+  ];
+  const capRows = `<tr><td colspan="${togglableRoles.length+1}" class="pm-cap-divider" style="padding:16px 12px 6px;font-size:11px;font-weight:800;letter-spacing:.6px;color:var(--ac);text-transform:uppercase;opacity:.85">${_uiLang()==='ko'?'권한 작업 (CAPABILITIES)':'CAPABILITIES'}</td></tr>` +
+    capDefs.map(cap => {
+      const cells = togglableRoles.map(r => {
+        const on = !!(CAPABILITY_PERMS[cap.key] && CAPABILITY_PERMS[cap.key][r.id]);
+        return `<td class="pm-cell"><label class="pm-check"><input type="checkbox" ${on?'checked':''} onchange="toggleCapability('${cap.key}','${r.id}')"/><span class="pm-check-box"></span></label></td>`;
+      }).join('');
+      return `<tr><td class="pm-page-name">${cap.label}<div style="font-size:11px;opacity:.5;font-weight:500;margin-top:2px">${cap.desc}</div></td>${cells}</tr>`;
+    }).join('');
+
   const html = `<div class="content">
     <div class="perms-head">
       <h1 class="perms-title">사용자 역할</h1>
@@ -17227,7 +17261,7 @@ function renderPerms(){
           <th class="pm-page-col">페이지</th>
           ${togglableRoles.map(r => `<th class="pm-role-col" style="color:${r.color}">${r.label.toUpperCase()}</th>`).join('')}
         </tr></thead>
-        <tbody>${matrixRows}</tbody>
+        <tbody>${matrixRows}${capRows}</tbody>
       </table>
     </div>
   </div>`;
