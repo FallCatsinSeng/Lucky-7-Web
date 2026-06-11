@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v191 -->
+<!-- BUILD: v192 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8138,6 +8138,41 @@ function avatarColor(short){
   return palette[seed];
 }
 
+// [v192] profile-picture sync — real photos live in user_profiles.avatar_url (set via "change avatar").
+const PHOTOS = {};
+let _photosLoaded = false;
+async function loadPhotos(){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('user_profiles').select('id, name, avatar_url');
+    if(error || !data) return;
+    data.forEach(p => {
+      if(!p.avatar_url) return;
+      if(p.name) PHOTOS[p.name.toLowerCase().trim()] = p.avatar_url;
+      if(p.id)   PHOTOS[String(p.id).toLowerCase()] = p.avatar_url;
+    });
+  }catch(e){ console.warn('photos load:', e && e.message); }
+}
+function ensurePhotos(cb){
+  if(_photosLoaded || !sb) return;
+  _photosLoaded = true;
+  loadPhotos().then(() => { if(typeof cb === 'function') cb(); });
+}
+function photoFor(key){
+  if(!key) return null;
+  const k = String(key).toLowerCase().trim();
+  if(currentUser && currentUser.avatar_url && (currentUser.name||'').toLowerCase().trim() === k) return currentUser.avatar_url;
+  if(PHOTOS[k]) return PHOTOS[k];
+  if(typeof STAFF_PROFILE !== 'undefined'){ const sp = STAFF_PROFILE[key] || STAFF_PROFILE[k]; if(sp && sp.photo) return sp.photo; }
+  return null;
+}
+// returns a style string: profile photo as background if set, else the given/initial color
+function avatarBg(key, init, fallbackColor){
+  const p = photoFor(key);
+  if(p) return `background-image:url('${p}');background-size:cover;background-position:center;color:transparent`;
+  return 'background:' + (fallbackColor || avatarColor(init || ''));
+}
+
 function computeRecruitStats(){
   const cnt = id => APPLICANTS.filter(a => a.stage === id).length;
   return {
@@ -9928,6 +9963,7 @@ async function exportAttendance(fmt){
   }
 }
 async function renderAttendance(){
+  ensurePhotos(renderAttendance);
   await loadMyAttendance();
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
@@ -10046,7 +10082,7 @@ async function renderAttendance(){
     const hrs = calcHours(a.clock_in, a.clock_out, a.break_start, a.break_end);
     const init = (a.user_name || '?').slice(0,2).toUpperCase();
     return `<tr>
-      ${showAll ? `<td><div class="col-name"><span class="att-av" style="background:${avatarColor(init)}">${init}</span><span style="font-weight:500">${a.user_name || '?'}</span></div></td>` : ''}
+      ${showAll ? `<td><div class="col-name"><span class="att-av" style="${avatarBg(a.user_name, init)}">${init}</span><span style="font-weight:500">${a.user_name || '?'}</span></div></td>` : ''}
       <td style="font-variant-numeric:tabular-nums">${a.date || '—'}</td>
       <td class="col-in">${fmtTime(a.clock_in)}</td>
       <td class="col-break">${a.break_start ? fmtTime(a.break_start) : '—'}</td>
@@ -10100,7 +10136,7 @@ async function renderAttendance(){
           ondragstart="attSbDragStart(event,'${m.id}')" ondragend="attSbDragEnd(event)"
           onclick="openStaffDetail('${m.id}')" style="border-left:3px solid ${accent}">
         <span class="att-sb-av-wrap">
-          <span class="att-sb-av" style="background:${avatarColor(m.short)}">${m.short}</span>
+          <span class="att-sb-av" style="${avatarBg(m.name, m.short)}">${m.short}</span>
           <span class="att-sb-dot att-sb-dot-${dotCls}"></span>
         </span>
         <span class="att-sb-name">${m.name}</span>
@@ -13996,7 +14032,7 @@ async function openStaffPicker(){
     const ini = u.name.slice(0,2).toUpperCase();
     const nm = u.name.replace(/'/g, "\\'");
     return `<button onclick="addStaffFromUser('${nm}','${grp}')" style="display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;border-radius:9px;padding:9px 10px;cursor:pointer;color:var(--tx,#eee);font-family:inherit;text-align:left" onmouseover="this.style.background='var(--bg-h,#222)'" onmouseout="this.style.background='none'">
-      <span style="width:30px;height:30px;border-radius:8px;background:${avatarColor(ini)};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${ini}</span>
+      <span style="width:30px;height:30px;border-radius:8px;color:#fff;${avatarBg(u.name, ini)};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${ini}</span>
       <span style="flex:1;font-weight:600;font-size:13px">${u.name}</span>
       <span style="font-size:11px;color:var(--tx3,#888);text-transform:uppercase;letter-spacing:.4px">${MANUAL_ROLE_LABELS[grp]||u.role||''}</span>
     </button>`;
@@ -14306,7 +14342,7 @@ function payrollEmpBox(m, s, idx){
   return `<div class="set-emp">
     <div class="set-emp-head">
       <span class="set-emp-idx">${idx}</span>
-      <span class="set-av" style="background:${avatarColor(short)}">${short}</span>
+      <span class="set-av" style="${avatarBg(m.name, short)}">${short}</span>
       <span class="set-emp-name">${m.name}</span>
       ${isManualEntry(m.id)
         ? `<span class="set-rate-badge" style="cursor:pointer;background:rgba(120,140,200,.18);color:#aab3c4" onclick="setManualRole('${m.id}')" title="${_uiLang()==='ko'?'역할 변경':'Change role'}">${(MANUAL_ROLE_LABELS[m.role]||m.role)} ▾</span>`
@@ -14628,6 +14664,7 @@ function expShiftUpdate(i, hrs){
 async function renderSettlement(){
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
+  ensurePhotos(renderSettlement);
   const isMaster = settlementTitle === '정산 마스터';
   // 마스터(매출·인건비·순익·클라이언트 매출)는 ADMIN 전용 / 일반 정산은 OP도 (급여만)
   if(isMaster && currentUserRole !== 'admin'){
@@ -14937,6 +14974,7 @@ function _staffAttBgRefresh(){
     .catch(function(){ _staffAttFetching = false; });
 }
 async function renderStaff(){
+  ensurePhotos(renderStaff);
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
   const team = await loadTeamMembers();
@@ -14999,7 +15037,7 @@ async function renderStaff(){
       onclick="openStaffDetail('${m.id}')"
       style="border-left:3px solid ${status.dot}">
       <div class="sf3-mini-av-wrap">
-        <span class="sf3-mini-av" style="background:${avatarColor(m.short || m.name.slice(0,2).toUpperCase())}">${m.short || m.name.slice(0,2).toUpperCase()}</span>
+        <span class="sf3-mini-av" style="${avatarBg(m.name, m.short || m.name.slice(0,2).toUpperCase())}">${m.short || m.name.slice(0,2).toUpperCase()}</span>
         <span class="sf3-mini-dot" style="background:${status.dot}"></span>
       </div>
       <div class="sf3-mini-info">
@@ -16284,6 +16322,7 @@ async function renderAnnouncements(){
 }
 // 공지 상세 패널 (우측 슬라이드)
 async function openAnnDetail(annId){
+  ensurePhotos(()=>openAnnDetail(annId));
   const a = ANNOUNCEMENTS.find(x => x.id === annId);
   if(!a) return;
   const team = await loadTeamMembers();
@@ -16315,7 +16354,7 @@ async function openAnnDetail(annId){
   const isRead = (a.read_by||[]).includes(myId);
 
   const memberChip = (m, read) => `<div class="anndt-chip ${read?'read':'unread'}" title="${m.name}">
-    <span class="anndt-chip-av" style="background:${read?avatarColor(m.short||m.name.slice(0,2).toUpperCase()):'var(--bg-h)'}">${m.short || m.name.slice(0,2).toUpperCase()}</span>
+    <span class="anndt-chip-av" style="${read ? avatarBg(m.name, (m.short||m.name.slice(0,2).toUpperCase())) : 'background:var(--bg-h)'}">${m.short || m.name.slice(0,2).toUpperCase()}</span>
     <span class="anndt-chip-name">${m.name}</span>
     ${read ? '<span class="anndt-chip-chk">✓</span>' : ''}
   </div>`;
@@ -19367,7 +19406,7 @@ function staffSlotHTML(p, a, idx){
   const dragAttr = canEdit ? `ondragover="dragOverSlot(event,${p.id},'staff')" ondragleave="dragLeaveSlot(event)" ondrop="dropOnPC(event,${p.id},'staff',${idx})"` : '';
   return `<div class="slot staff filled" style="--rank-color:${rc}" ${dragAttr}>
     <div class="slot-r1">
-      <span class="slot-av" style="background:${rc}">${initials(s.name)}</span>
+      <span class="slot-av" style="${avatarBg(s.name, initials(s.name), rc)}">${initials(s.name)}</span>
       <span class="slot-nm">${s.name}</span>
       <span class="slot-pos" style="background:${rc}33;color:${rc}">${rankShort(s.position)}</span>
       ${canEdit?`<span class="slot-unx" onclick="event.stopPropagation();unassignStaff(${p.id},${idx})">✕</span>`:''}
@@ -19547,9 +19586,9 @@ function staffChipHTML(s){
 
   return `<div class="${cls}" data-staff-chip="${s.id}" style="--rank-color:${rc}">
     <div class="s-chip-top">
-      <div class="s-chip-av" style="background:${rc}" title="${rankLabel(s.position)}${s.position_secondary?' · '+rankLabel(s.position_secondary):''} · 주${s.work_days}일">${initials(s.name)}</div>
+      <div class="s-chip-av" style="${avatarBg(s.name, initials(s.name), rc)}" title="${rankLabel(s.position)}${s.position_secondary?' · '+rankLabel(s.position_secondary):''} · 주${s.work_days}일">${initials(s.name)}</div>
       <div class="s-chip-info">
-        <div class="s-chip-nm">${canLead?'<span class="crown">👑</span>':''}${s.name}${s.is_new?'<span class="s-chip-new" title="신입 — 7일 보호 기간">🆕</span>':''}</div>
+        <div class="s-chip-nm">${s.name}${s.is_new?'<span class="s-chip-new" title="신입 — 7일 보호 기간">🆕</span>':''}</div>
         <div class="s-chip-meta">
           <span class="pos-tag" style="background:${rc}33;color:${rc}">${rankLabel(s.position)}${s.position_secondary?` · ${rankLabel(s.position_secondary)}`:''}</span>
           <span class="wd-tag" title="${s.work_days===6?'월~토':s.work_days===5?'월~금':s.work_days+'일/주'}">주${s.work_days}일</span>
@@ -19607,8 +19646,11 @@ async function loadAppUsers(){
   }catch(e){ LIVE_USERS = []; console.warn('app users load failed:', e); }
 }
 
+// [v192] collapsible staff-pool role boxes
+const _poolCollapsed = new Set();
+function togglePoolBox(key){ if(_poolCollapsed.has(key)) _poolCollapsed.delete(key); else _poolCollapsed.add(key); renderPools(); }
 function renderPools(){
-  // 카테고리 칩 렌더 — 카운트는 전체 STAFF 기준 (필터 영향 X)
+  ensurePhotos(renderPools);  // 카테고리 칩 렌더 — 카운트는 전체 STAFF 기준 (필터 영향 X)
   const catCounts = { all: STAFF.length, admin: 0, op: 0, player: 0 };
   STAFF.forEach(s => { catCounts[staffCategory(s)]++; });
   const cats = ['all','admin','op','player'];
@@ -19626,12 +19668,14 @@ function renderPools(){
       const cards = g.staff.map(staffChipHTML).join('');
       if(!g.label) return cards;
       const col = g.color || '#9aa3b0';
-      // [v181] each role is its own bordered box with a colored header
-      return `<div class="pool-rolebox" style="border:1px solid ${col}40;border-radius:12px;padding:8px 8px 4px;margin-bottom:11px;background:${col}10">
-        <div class="pool-role-hd" style="color:${col};font-weight:800;font-size:11px;letter-spacing:.4px;text-transform:uppercase;padding:1px 4px 9px;display:flex;align-items:center;gap:6px">
-          ${g.label}<span style="opacity:.55;font-weight:600">${g.staff.length}</span>
+      const collapsed = _poolCollapsed.has(g.group);
+      // [v181/192] each role is its own bordered box with a colored header + minimize toggle
+      return `<div class="pool-rolebox" style="border:1px solid ${col}40;border-radius:12px;padding:8px 8px ${collapsed?'8px':'4px'};margin-bottom:11px;background:${col}10">
+        <div class="pool-role-hd" style="color:${col};font-weight:800;font-size:11px;letter-spacing:.4px;text-transform:uppercase;padding:1px 4px ${collapsed?'1px':'9px'};display:flex;align-items:center;gap:6px;justify-content:space-between">
+          <span style="display:flex;align-items:center;gap:6px">${g.label}<span style="opacity:.55;font-weight:600">${g.staff.length}</span></span>
+          <button onclick="togglePoolBox('${g.group}')" title="${collapsed?(_uiLang()==='ko'?'펼치기':'Expand'):(_uiLang()==='ko'?'접기':'Minimize')}" style="background:none;border:1px solid ${col}66;color:${col};width:20px;height:20px;border-radius:6px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0">${collapsed?'+':'−'}</button>
         </div>
-        ${cards}
+        ${collapsed ? '' : cards}
       </div>`;
     }).join('');
   }
