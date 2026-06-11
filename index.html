@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v213 -->
+<!-- BUILD: v214 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -17190,7 +17190,14 @@ async function pollCalendarSync(){
   if(ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable)) return;  // don't yank a field mid-type
   const mod = (typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null;
   try{
-    if(mod==='mycalendar') renderMyCalendar();
+    if(mod==='mycalendar'){
+      // [v214] re-pull roster + day-offs from the cloud first, so a colleague's new shifts and
+      // day-offs show up in the calendar automatically (renderCalendar reads in-memory
+      // ROSTER/OFF_REQUESTS only; contracts already arrive via pollClientState).
+      try{ await loadRoster(); }catch(_){}
+      try{ await syncOffFromCloud(); }catch(_){}
+      renderMyCalendar();
+    }
     else if(mod==='roster'||mod==='schedule') renderSchedule();  // renderSchedule re-pulls roster via loadRoster()
   }catch(_){}
 }
@@ -19133,10 +19140,26 @@ function removeClientAccount(cid){
   if(!confirm('"'+c.name+'" ' + (_uiLang()==='ko'?'클라이언트를 삭제할까요?':'Delete this client?'))) return;
   var idx = CLIENT_ACCOUNTS.indexOf(c);
   if(idx >= 0) CLIENT_ACCOUNTS.splice(idx, 1);
+  // [v214] DELETE FIX: also remove the matching pool chip(s) by name + unassign from any PC.
+  // Otherwise syncClientBridge() re-creates this account from the lingering pool client on the
+  // very next render — which is exactly why deleting a client "didn't work". Removing both, and
+  // saving client_state + pc_state, also makes the deletion propagate to every user.
+  try{
+    var _nm = (c.name||'').trim();
+    var _poolIds = CLIENTS.filter(function(p){ return (p.name||'').trim() === _nm; }).map(function(p){ return p.id; });
+    if(_poolIds.length){
+      for(var _k = CLIENTS.length-1; _k >= 0; _k--){ if(_poolIds.indexOf(CLIENTS[_k].id) >= 0) CLIENTS.splice(_k, 1); }
+      if(typeof PCS !== 'undefined' && Array.isArray(PCS)){
+        PCS.forEach(function(pcObj){ pcObj.clients = (pcObj.clients||[]).filter(function(id){ return _poolIds.indexOf(id) < 0; }); });
+        if(typeof savePCState === 'function') savePCState();
+      }
+    }
+  }catch(_){}
   try{ logAction('delete', 'deleted client', c.name); }catch(_){}
   saveClientState(true);
   toast(c.name + (_uiLang()==='ko'?' 삭제됨':' removed'));
   renderClients();
+  try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
 }
 // [v162] make the client detail panel editable — contract fields + communication log
 function setClientContract(cid, field, val){
@@ -20361,6 +20384,8 @@ function removeClient(cid){
   const idx = CLIENTS.findIndex(x => x.id === cid);
   if(idx >= 0) CLIENTS.splice(idx, 1);
   if(editingClient === cid) editingClient = null;
+  // [v214] also drop the bridged Client-page account by name so it doesn't linger / get re-bridged
+  try{ const _nm=(c.name||'').trim(); for(let _k=CLIENT_ACCOUNTS.length-1;_k>=0;_k--){ if((CLIENT_ACCOUNTS[_k].name||'').trim()===_nm) CLIENT_ACCOUNTS.splice(_k,1); } }catch(_){}
   try{ logAction('delete', 'deleted pool client', c.name); }catch(_){}
   saveClientState(true);
   savePCState();   // PC client-assignments changed above → persist them too
