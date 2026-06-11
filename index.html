@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v192 -->
+<!-- BUILD: v193 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -11788,6 +11788,7 @@ async function addTask(){
 // MT SYSTEM 렌더링 (Step 1: 핵심 엔진)
 // ═══════════════════════════════════════════════════
 async function renderMTSystem(mode){
+  ensurePhotos(()=>renderMTSystem(mode));
   const otherView = document.getElementById('ch-other');
   if(!otherView) return;
   if(mode) mtMode = mode;
@@ -12094,7 +12095,7 @@ async function renderMTSystem(mode){
       const on = m.name === viewingMember;
       const mDoing = MT_ACTIVE.filter(a => a.owner === m.name && a.status === 'doing').length;
       return `<button class="mt-member-chip ${on?'on':''}" onclick="mtMember='${m.name}';renderMTSystem()">
-        <span class="mt-mc-av" style="background:${avatarColor(m.short||m.name.slice(0,2).toUpperCase())}">${m.short||m.name.slice(0,2).toUpperCase()}</span>
+        <span class="mt-mc-av" style="${avatarBg(m.name, m.short||m.name.slice(0,2).toUpperCase())}">${m.short||m.name.slice(0,2).toUpperCase()}</span>
         <span class="mt-mc-name">${m.name}${m.name===me?' (나)':''}</span>
         ${mDoing?`<span class="mt-mc-badge">${mDoing}</span>`:''}
       </button>`;
