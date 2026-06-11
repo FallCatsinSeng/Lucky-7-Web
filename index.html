@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v199 -->
+<!-- BUILD: v200 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8767,9 +8767,9 @@ async function renderRecruit(){
       </div>
       <div class="rf-right">
         <input id="recruit-search" class="rf-search" type="text" placeholder="🔍 이름 검색 / Search name…" value="${recruitSearch||''}" oninput="setRecruitSearch(this.value)">
-        <button class="rf-pill ${recruitSpecFilter==='all'?'on':''}" onclick="setRecruitFilter('spec','all')">All</button>
-        <button class="rf-pill ${recruitSpecFilter==='pass'?'on':''}" onclick="setRecruitFilter('spec','pass')">Pass</button>
-        <button class="rf-pill ${recruitSpecFilter==='pending'?'on':''}" onclick="setRecruitFilter('spec','pending')">Pending</button>
+        <button class="rf-pill ${recruitSpecFilter==='all'?'on':''}" onclick="setRecruitFilter('spec','all')" title="PC/internet spec check — show everyone">Spec: All</button>
+        <button class="rf-pill ${recruitSpecFilter==='pass'?'on':''}" onclick="setRecruitFilter('spec','pass')" title="PC/internet specs verified & meet requirements">Spec ✓ Passed</button>
+        <button class="rf-pill ${recruitSpecFilter==='pending'?'on':''}" onclick="setRecruitFilter('spec','pending')" title="PC/internet specs not checked yet">Spec ⏳ Pending</button>
         <div class="rf-view-toggle">
           <button class="${recruitViewMode==='table'?'on':''}" onclick="setRecruitView('table')">테이블</button>
           <button class="${recruitViewMode==='kanban'?'on':''}" onclick="setRecruitView('kanban')">파이프라인</button>
@@ -17442,32 +17442,44 @@ const ROLE_PERMS = {
 const CAPABILITY_PERMS = {
   rank: { manager:false, settlement:false, hr:false, staff:false, leader:false }
 };
-// [v199] persist permission matrix + capabilities + player-leaders so they survive refresh
+// [v199/200] persist permission matrix + capabilities + player-leaders so they survive refresh.
+// Writes to BOTH localStorage (instant, no setup) and Supabase (team-wide sync, needs perm_state table).
+function _permPayload(){
+  return {
+    role_perms: ROLE_PERMS,
+    capability_perms: CAPABILITY_PERMS,
+    user_overrides: (typeof USER_OVERRIDES !== 'undefined' ? USER_OVERRIDES : {}),
+    player_leaders: Array.from((typeof PLAYER_LEADERS !== 'undefined' ? PLAYER_LEADERS : []))
+  };
+}
+function _applyPermPayload(d){
+  if(!d) return;
+  if(d.role_perms) Object.keys(d.role_perms).forEach(k => { ROLE_PERMS[k] = d.role_perms[k]; });
+  if(d.capability_perms) Object.keys(d.capability_perms).forEach(k => { CAPABILITY_PERMS[k] = d.capability_perms[k]; });
+  if(d.user_overrides && typeof USER_OVERRIDES !== 'undefined') Object.keys(d.user_overrides).forEach(k => { USER_OVERRIDES[k] = d.user_overrides[k]; });
+  if(Array.isArray(d.player_leaders) && typeof PLAYER_LEADERS !== 'undefined'){ PLAYER_LEADERS.clear(); d.player_leaders.forEach(x => PLAYER_LEADERS.add(x)); }
+}
 async function savePermState(){
+  const payload = _permPayload();
+  try{ localStorage.setItem('lucky7_perm_state', JSON.stringify(payload)); }catch(_){}
   if(!sb) return;
   try{
-    const payload = {
-      role_perms: ROLE_PERMS,
-      capability_perms: CAPABILITY_PERMS,
-      user_overrides: (typeof USER_OVERRIDES !== 'undefined' ? USER_OVERRIDES : {}),
-      player_leaders: Array.from((typeof PLAYER_LEADERS !== 'undefined' ? PLAYER_LEADERS : []))
-    };
     const { error } = await sb.from('perm_state').upsert({ id:'default', data:payload, updated_at:new Date().toISOString() });
-    if(error){ console.warn('perm_state save:', error.message); }
+    if(error){ console.warn('perm_state save (Supabase):', error.message); }
   }catch(e){ console.warn('perm_state save:', e && e.message); }
 }
 async function loadPermState(){
+  // localStorage first (instant, always available)
+  try{ const ls = localStorage.getItem('lucky7_perm_state'); if(ls) _applyPermPayload(JSON.parse(ls)); }catch(_){}
   if(!sb) return;
+  // Supabase second (authoritative team-wide; only if table exists)
   try{
     const { data, error } = await sb.from('perm_state').select('data').eq('id','default').maybeSingle();
-    if(error){ console.warn('perm_state load:', error.message); return; }
-    const d = data && data.data; if(!d) return;
-    if(d.role_perms) Object.keys(d.role_perms).forEach(k => { ROLE_PERMS[k] = d.role_perms[k]; });
-    if(d.capability_perms) Object.keys(d.capability_perms).forEach(k => { CAPABILITY_PERMS[k] = d.capability_perms[k]; });
-    if(d.user_overrides && typeof USER_OVERRIDES !== 'undefined') Object.keys(d.user_overrides).forEach(k => { USER_OVERRIDES[k] = d.user_overrides[k]; });
-    if(Array.isArray(d.player_leaders) && typeof PLAYER_LEADERS !== 'undefined'){ PLAYER_LEADERS.clear(); d.player_leaders.forEach(x => PLAYER_LEADERS.add(x)); }
+    if(error){ console.warn('perm_state load (Supabase):', error.message); return; }
+    if(data && data.data) _applyPermPayload(data.data);
   }catch(e){ console.warn('perm_state load:', e && e.message); }
 }
+
 
 function canChangeRank(){
   // [v190] management tier — CEO / Admin / Manager — can change ranks by default.
@@ -17992,6 +18004,18 @@ function canSee(perms){
 }
 
 // 권한 필터링된 트리 반환
+// [v200] enforce the permission matrix (ROLE_PERMS) on actual page visibility.
+// CEO + Manager tier always keep full access (never self-lock); HR/Settlement/Team Leader/Staff follow the matrix.
+function matrixAllows(chId){
+  const u = currentUser;
+  if(!u || !chId) return true;
+  if(u.role === 'ceo' || (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin')) return true;
+  const ov = (typeof USER_OVERRIDES !== 'undefined') ? USER_OVERRIDES[u.id] : null;
+  if(ov && (chId in ov)) return !!ov[chId];
+  const perms = ROLE_PERMS[chId];
+  if(!perms || !(u.role in perms)) return true;  // page not in the matrix for this role → don't restrict
+  return !!perms[u.role];
+}
 function visibleTree(){
   return {
     ...CHANNEL_TREE,
@@ -17999,7 +18023,7 @@ function visibleTree(){
       .filter(cat => canSee(cat.perms))
       .map(cat => ({
         ...cat,
-        channels: cat.channels.filter(ch => ch.kind === 'divider' || canSee(ch.perms))
+        channels: cat.channels.filter(ch => ch.kind === 'divider' || (canSee(ch.perms) && matrixAllows(ch.id)))
       }))
   };
 }
@@ -18112,6 +18136,11 @@ function dismissChannelBadge(channelId){
 }
 
 function setActiveChannel(id){
+  // [v200] enforce matrix — non-admin roles can't open a page they aren't granted
+  if(id && !matrixAllows(id) && !sidebarEditMode){
+    const fc = findFirstChannel(visibleTree());
+    if(fc) id = fc.id;
+  }
   dismissChannelBadge(id);  // 클릭 즉시 해당 채널 배지 소거
   activeChannelId = id;
   try{ renderSidebar(); }catch(e){ console.error('renderSidebar error:', e); }
@@ -18119,6 +18148,11 @@ function setActiveChannel(id){
 }
 
 function routeContent(){
+  // [v200] if the current page isn't allowed for this role, fall back to the first visible page
+  if(activeChannelId && !matrixAllows(activeChannelId) && !sidebarEditMode){
+    const fc = findFirstChannel(visibleTree());
+    if(fc && fc.id !== activeChannelId) activeChannelId = fc.id;
+  }
   const ch = findChannelById(activeChannelId);
   const pcView = document.getElementById('ch-pc-status');
   const otherView = document.getElementById('ch-other');
