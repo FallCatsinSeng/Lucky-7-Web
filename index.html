@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v176 -->
+<!-- BUILD: v177 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9762,7 +9762,7 @@ async function exportAttendance(fmt){
       name: r.user_name || '', date: r.date || '',
       clock_in: r.clock_in || null, break_start: r.break_start || null,
       break_end: r.break_end || null, clock_out: r.clock_out || null,
-      total_hours: _attHrsText(r), hours_decimal: Number((_attMs(r)/3600000).toFixed(2))
+      total_hours: Number((_attMs(r)/3600000).toFixed(2))
     }));
     _attDownload(JSON.stringify(out, null, 2), `attendance-${viewLabel}-${stamp}.json`, 'application/json');
     toast(`${data.length}건 내보냄 / Exported ${data.length} rows`);
@@ -9771,12 +9771,12 @@ async function exportAttendance(fmt){
 
   // ── CSV fallback (used if Excel library can't load) ──
   const csvFallback = () => {
-    const head = ['Name','Date','Clock In','Break Start','Break End','Clock Out','Total Hours','Hours (dec)'];
+    const head = ['Name','Date','Clock In','Break Start','Break End','Clock Out','Total Hours'];
     const esc = v => { v = (v==null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
     const lines = [head.join(',')];
     data.forEach(r => lines.push([
       r.user_name||'', r.date||'', _attFmtT(r.clock_in), _attFmtT(r.break_start),
-      _attFmtT(r.break_end), _attFmtT(r.clock_out), _attHrsText(r), (_attMs(r)/3600000).toFixed(2)
+      _attFmtT(r.break_end), _attFmtT(r.clock_out), (_attMs(r)/3600000).toFixed(2)
     ].map(esc).join(',')));
     _attDownload('\uFEFF' + lines.join('\r\n'), `attendance-${viewLabel}-${stamp}.csv`, 'text/csv;charset=utf-8');
   };
@@ -9794,11 +9794,15 @@ async function exportAttendance(fmt){
     const thin = { style:'thin', color:{ argb:LINE } };
     const allBorder = { top:thin, left:thin, bottom:thin, right:thin };
 
+    // real Excel values so HR can calculate: times as time-of-day, dates as real dates
+    const timeFrac = ts => { if(!ts) return null; const d = new Date(ts); return (d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds())/86400; };
+    const dateVal  = ds => { if(!ds) return null; const p = String(ds).split('-'); if(p.length!==3) return null; return new Date(+p[0], +p[1]-1, +p[2], 12, 0, 0); };
+
     ws.columns = [
       { width:18 }, { width:13 }, { width:12 }, { width:12 },
-      { width:12 }, { width:12 }, { width:13 }, { width:12 }
+      { width:12 }, { width:12 }, { width:13 }
     ];
-    const NCOL = 8;
+    const NCOL = 7;
     const paintRowBg = (rowIdx, argb) => { for(let c=1;c<=NCOL;c++){ ws.getCell(rowIdx, c).fill = { type:'pattern', pattern:'solid', fgColor:{ argb } }; } };
 
     // Row 1 — title
@@ -9821,7 +9825,7 @@ async function exportAttendance(fmt){
     ws.getRow(3).height = 6;
 
     // Row 4 — header
-    const headers = ['Name','Date','Clock In','Break Start','Break End','Clock Out','Total Hours','Hours (dec)'];
+    const headers = ['Name','Date','Clock In','Break Start','Break End','Clock Out','Total Hours'];
     const hr = ws.getRow(4);
     headers.forEach((h,i) => {
       const c = hr.getCell(i+1);
@@ -9833,36 +9837,48 @@ async function exportAttendance(fmt){
     });
     hr.height = 22;
 
-    // Data rows (from row 5)
-    let totalDec = 0;
+    // Data rows (from row 5). Times/dates are REAL Excel values; Total Hours is a LIVE formula.
     data.forEach((r, i) => {
-      const dec = _attMs(r)/3600000; totalDec += dec;
+      const cIn = timeFrac(r.clock_in), bS = timeFrac(r.break_start), bE = timeFrac(r.break_end), cOut = timeFrac(r.clock_out);
       const row = ws.addRow([
-        r.user_name || '', r.date || '', _attFmtT(r.clock_in), _attFmtT(r.break_start),
-        _attFmtT(r.break_end), _attFmtT(r.clock_out), _attHrsText(r), Number(dec.toFixed(2))
+        r.user_name || '', dateVal(r.date) || '',
+        cIn==null?'':cIn, bS==null?'':bS, bE==null?'':bE, cOut==null?'':cOut, null
       ]);
+      const rn = row.number;
       row.height = 18;
-      row.eachCell((c, col) => {
+      if(r.date) row.getCell(2).numFmt = 'yyyy-mm-dd';
+      [3,4,5,6].forEach(col => { if(row.getCell(col).value !== '') row.getCell(col).numFmt = 'h:mm AM/PM'; });
+      // Total Hours = (out − in − break) × 24, MOD handles overnight shifts. Recalculates if HR edits a time.
+      const g = row.getCell(7);
+      if(cIn!=null && cOut!=null){
+        g.value = { formula: `(MOD(F${rn}-C${rn},1)-IF(AND(D${rn}<>"",E${rn}<>""),MOD(E${rn}-D${rn},1),0))*24` };
+      } else { g.value = ''; }
+      g.numFmt = '0.00';
+      for(let col=1; col<=NCOL; col++){
+        const c = ws.getCell(rn, col);
         c.border = allBorder;
         c.alignment = { horizontal: col===1 ? 'left' : 'center', vertical:'middle', indent: col===1?1:0 };
         c.font = { size:10, color:{ argb:'FF1C2533' } };
-        if(col===6 && r.clock_out) c.font = { size:10, color:{ argb:'FFB54848' } };  // clock-out reddish
-        if(col===3 && r.clock_in)  c.font = { size:10, color:{ argb:'FF2E7D5B' } };  // clock-in greenish
-      });
-      row.getCell(8).numFmt = '0.00';
-      if(i % 2 === 1) for(let c=1;c<=NCOL;c++){ ws.getCell(row.number, c).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:ZEBRA } }; }
+      }
+      if(cIn!=null)  row.getCell(3).font = { size:10, color:{ argb:'FF2E7D5B' } };  // clock-in green
+      if(cOut!=null) row.getCell(6).font = { size:10, color:{ argb:'FFB54848' } };  // clock-out red
+      if(i % 2 === 1) for(let c=1;c<=NCOL;c++){ ws.getCell(rn, c).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:ZEBRA } }; }
     });
 
-    // Summary row
-    const sum = ws.addRow(['TOTAL', '', '', '', '', '', `${data.length} entries`, Number(totalDec.toFixed(2))]);
+    // TOTAL row — real SUM formula over the Total Hours column
+    const lastDataRow = 4 + data.length;
+    const sum = ws.addRow(['TOTAL', '', '', '', '', '', null]);
+    const srn = sum.number;
+    sum.getCell(7).value = { formula: `SUM(G5:G${lastDataRow})` };
+    sum.getCell(7).numFmt = '0.00';
     sum.height = 20;
-    sum.eachCell((c, col) => {
+    for(let col=1; col<=NCOL; col++){
+      const c = ws.getCell(srn, col);
       c.border = allBorder;
-      c.font = { bold:true, color:{ argb:'FF1C2533' }, size:10 };
+      c.font = { bold:true, color:{ argb:'FF1C2533' }, size:11 };
       c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:SUMBG } };
       c.alignment = { horizontal: col===1 ? 'left' : 'center', vertical:'middle', indent: col===1?1:0 };
-    });
-    sum.getCell(8).numFmt = '0.00';
+    }
 
     const buf = await wb.xlsx.writeBuffer();
     _attDownload(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Lucky7-Attendance-${viewLabel}-${stamp}.xlsx`);
