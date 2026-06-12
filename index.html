@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v216 -->
+<!-- BUILD: v217 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -4130,6 +4130,10 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .sf-tab:not(.on):hover{color:var(--tx)}
 .sf-tabpane{display:none}
 .sf-tabpane.on{display:block;animation:fadeIn .2s var(--ease)}
+.sf-add-btn{display:block;width:100%;margin-top:10px;background:transparent;border:1px dashed var(--br);color:var(--tx3);font-size:12px;font-weight:600;padding:9px;border-radius:9px;cursor:pointer;font-family:inherit;transition:all .14s var(--ease)}
+.sf-add-btn:hover{border-color:var(--ac);color:var(--ac)}
+.sf-add-row{display:flex;gap:8px}
+.sf-add-row .sf-add-btn{margin-top:10px}
 
 .sf-sum-card{
   background:var(--bg-c);border:1px solid var(--br);
@@ -15544,10 +15548,12 @@ async function openStaffDetail(staffId){
 
       <div class="sf-tabpane on" data-pane="info">
         ${infoHtml}
+        ${_sfCanEdit() ? `<button class="sf-add-btn" onclick="openStaffInfoEditor('${staffId}')">✎ 개인정보 입력·수정 / Edit info</button>` : ''}
       </div>
 
       <div class="sf-tabpane" data-pane="iv">
         ${ivHtml}
+        ${_sfCanEdit() ? `<button class="sf-add-btn" onclick="addStaffInterview('${staffId}')">＋ 면접 기록 / Add interview</button>` : ''}
       </div>
 
       <div class="sf-tabpane" data-pane="incidents">
@@ -15561,18 +15567,25 @@ async function openStaffDetail(staffId){
             ${trustRows}
           </div>
         </div>
+        ${_sfCanEdit() ? `<div class="sf-add-row">
+          <button class="sf-add-btn" style="color:var(--re);border-color:color-mix(in srgb,var(--re) 40%,transparent)" onclick="addStaffIncident('${staffId}','warn')">＋ 워닝 / Warning</button>
+          <button class="sf-add-btn" style="color:var(--gr);border-color:color-mix(in srgb,var(--gr) 40%,transparent)" onclick="addStaffIncident('${staffId}','reward')">＋ 포상 / Reward</button>
+        </div>` : ''}
       </div>
 
       <div class="sf-tabpane" data-pane="evals">
         ${evalsHtml}
+        ${_sfCanEdit() ? `<button class="sf-add-btn" onclick="addStaffEval('${staffId}')">＋ 평가 / Add evaluation</button>` : ''}
       </div>
 
       <div class="sf-tabpane" data-pane="acts">
         ${actsHtml}
+        ${_sfCanEdit() ? `<button class="sf-add-btn" onclick="addStaffNote('${staffId}')">＋ 메모 / Add note</button>` : ''}
       </div>
 
       <div class="sf-tabpane" data-pane="photo">
         ${prof.photo ? `<div class="sf-photo-tab"><img src="${prof.photo}" alt="${m.name}"></div>` : `<div class="sf-empty">등록된 사진 없음</div>`}
+        ${_sfCanEdit() ? `<button class="sf-add-btn" onclick="uploadStaffPhoto('${staffId}')">📷 ${prof.photo ? '사진 변경 / Change photo' : '사진 업로드 / Upload photo'}</button>` : ''}
       </div>
 
     </div>
@@ -15589,6 +15602,195 @@ function sfDetailTab(e, pane){
 function closeStaffDetail(){
   const p = document.getElementById('sf-panel');
   if(p){ p.classList.remove('open'); setTimeout(() => p.remove(), 260); }
+}
+
+// ═══ [v217] Staff detail tabs — editors + shared persistence (staff_state) ═══
+// STAFF_PROFILE / STAFF_DETAILS were memory-only: nothing could be entered and nothing survived
+// a refresh. Admin/OP can now enter data in every tab; it saves to the shared staff_state row.
+const _STAFF_STATE_KEY = 'lucky7_staff_state';
+function _applyStaffPayload(p){
+  try{
+    if(p && p.profiles){ Object.keys(STAFF_PROFILE).forEach(k => delete STAFF_PROFILE[k]); Object.assign(STAFF_PROFILE, p.profiles); }
+    if(p && p.details){ Object.keys(STAFF_DETAILS).forEach(k => delete STAFF_DETAILS[k]); Object.assign(STAFF_DETAILS, p.details); }
+  }catch(_){}
+}
+async function saveStaffState(){
+  try{ pauseSync(); }catch(_){}
+  const payload = { profiles: STAFF_PROFILE, details: STAFF_DETAILS };
+  try{ localStorage.setItem(_STAFF_STATE_KEY, JSON.stringify(payload)); }catch(_){}
+  if(!sb) return;
+  try{
+    const { error } = await sb.from('staff_state').upsert({ id:'default', data:payload, updated_at:new Date().toISOString() });
+    if(error){ console.warn('staff_state save:', error.message); toast('Staff info save FAILED: ' + error.message, true); }
+  }catch(e){ console.warn('staff_state save:', e && e.message); }
+}
+async function loadStaffState(){
+  try{ const ls = localStorage.getItem(_STAFF_STATE_KEY); if(ls) _applyStaffPayload(JSON.parse(ls)); }catch(_){}
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from('staff_state').select('data').eq('id','default').maybeSingle();
+    if(error){ console.warn('staff_state load:', error.message); return; }
+    if(data && data.data) _applyStaffPayload(data.data);
+  }catch(_){}
+}
+
+// small reusable form modal
+let _sfFormCb = null;
+function openSfForm(title, fields, cb){
+  _sfFormCb = cb;
+  let ov = document.getElementById('sf-form-ov');
+  if(!ov){ ov = document.createElement('div'); ov.id = 'sf-form-ov'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;z-index:3300;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px';
+  const rows = fields.map(f => `
+    <label style="display:block;margin-bottom:10px">
+      <span style="display:block;font-size:11px;font-weight:700;color:var(--tx3,#888);margin-bottom:4px">${f.label}</span>
+      ${f.type === 'textarea'
+        ? `<textarea data-k="${f.k}" rows="3" placeholder="${f.ph||''}" style="width:100%;box-sizing:border-box;background:var(--bg-c,#111);border:1px solid var(--br,#333);border-radius:8px;color:var(--tx,#eee);font-family:inherit;font-size:13px;padding:8px 10px;resize:vertical">${f.value||''}</textarea>`
+        : `<input data-k="${f.k}" type="${f.type||'text'}" value="${f.value||''}" placeholder="${f.ph||''}" style="width:100%;box-sizing:border-box;background:var(--bg-c,#111);border:1px solid var(--br,#333);border-radius:8px;color:var(--tx,#eee);font-family:inherit;font-size:13px;padding:8px 10px">`}
+    </label>`).join('');
+  ov.innerHTML = `<div style="background:var(--bg-c,#1a1a1a);border:1px solid var(--br,#333);border-radius:14px;max-width:400px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--br,#333)"><b style="color:var(--tx,#eee);font-size:15px">${title}</b><button onclick="closeSfForm()" style="background:none;border:0;color:var(--tx3,#888);font-size:16px;cursor:pointer">✕</button></div>
+    <div style="overflow-y:auto;padding:14px 16px 4px">${rows}</div>
+    <div style="padding:10px 16px 16px;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="closeSfForm()" style="background:transparent;border:1px solid var(--br,#333);color:var(--tx2,#aaa);border-radius:8px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:13px">취소 / Cancel</button>
+      <button onclick="submitSfForm()" style="background:var(--ac,#c2a04a);border:0;color:#fff;border-radius:8px;padding:8px 18px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700">저장 / Save</button>
+    </div>
+  </div>`;
+}
+function closeSfForm(){ const ov = document.getElementById('sf-form-ov'); if(ov) ov.remove(); _sfFormCb = null; }
+function submitSfForm(){
+  const ov = document.getElementById('sf-form-ov'); if(!ov || !_sfFormCb) return;
+  const vals = {};
+  ov.querySelectorAll('[data-k]').forEach(el => { vals[el.dataset.k] = el.value.trim(); });
+  const cb = _sfFormCb;
+  closeSfForm();
+  cb(vals);
+}
+function _sfCanEdit(){ return currentUserRole === 'admin' || currentUserRole === 'op'; }
+function _sfToday(){ return new Date().toISOString().slice(0,10); }
+
+function openStaffInfoEditor(staffId){
+  if(!_sfCanEdit()) return;
+  const p = (STAFF_PROFILE[staffId] && STAFF_PROFILE[staffId].personal) || {};
+  openSfForm('📋 개인정보 / Personal info', [
+    { k:'full_name',  label:'이름 / Full name', value:p.full_name },
+    { k:'bank',       label:'은행 / Bank', value:p.bank },
+    { k:'account',    label:'계좌번호 / Account', value:p.account },
+    { k:'phone',      label:'전화번호 / Phone', value:p.phone },
+    { k:'anydesk',    label:'AnyDesk', value:p.anydesk },
+    { k:'start_work', label:'입사일 / Start date', type:'date', value:p.start_work },
+    { k:'shift_pattern', label:'시프트 / Shift', value:p.shift_pattern, ph:'12H Day · 10H Night ...' }
+  ], vals => {
+    if(!STAFF_PROFILE[staffId]) STAFF_PROFILE[staffId] = {};
+    STAFF_PROFILE[staffId].personal = vals;
+    saveStaffState();
+    toast('✓ 저장됨 / Saved');
+    openStaffDetail(staffId);
+  });
+}
+function addStaffInterview(staffId){
+  if(!_sfCanEdit()) return;
+  openSfForm('🎤 면접 기록 / Add interview', [
+    { k:'round', label:'차수 / Round', type:'number', value:'1' },
+    { k:'date',  label:'날짜 / Date', type:'date', value:_sfToday() },
+    { k:'notes', label:'내용 / Notes', type:'textarea' }
+  ], vals => {
+    if(!vals.notes){ toast(_uiLang()==='ko'?'내용을 입력하세요':'Notes required', true); return; }
+    if(!STAFF_PROFILE[staffId]) STAFF_PROFILE[staffId] = {};
+    if(!Array.isArray(STAFF_PROFILE[staffId].interviews)) STAFF_PROFILE[staffId].interviews = [];
+    STAFF_PROFILE[staffId].interviews.push({ round: vals.round || '1', date: vals.date || _sfToday(), by: (currentUser && currentUser.name) || '—', notes: vals.notes });
+    saveStaffState();
+    toast('✓ 면접 기록 추가 / Interview added');
+    openStaffDetail(staffId);
+  });
+}
+function addStaffEval(staffId){
+  if(!_sfCanEdit()) return;
+  openSfForm('📊 평가 / Add evaluation', [
+    { k:'score', label:'점수 0–100 / Score', type:'number', value:'80' },
+    { k:'note',  label:'코멘트 / Note', type:'textarea' }
+  ], vals => {
+    const score = Math.max(0, Math.min(100, parseInt(vals.score || '0', 10) || 0));
+    if(!STAFF_DETAILS[staffId]) STAFF_DETAILS[staffId] = { evaluations:[], activity:[], warnings:0 };
+    if(!Array.isArray(STAFF_DETAILS[staffId].evaluations)) STAFF_DETAILS[staffId].evaluations = [];
+    STAFF_DETAILS[staffId].evaluations.unshift({ score, by:(currentUser && currentUser.name) || '—', date:_sfToday(), note: vals.note || '' });
+    saveStaffState();
+    toast('✓ 평가 추가 / Evaluation added');
+    openStaffDetail(staffId);
+  });
+}
+function addStaffNote(staffId){
+  if(!_sfCanEdit()) return;
+  openSfForm('🕐 활동 메모 / Add note', [
+    { k:'details', label:'내용 / Note', type:'textarea' }
+  ], vals => {
+    if(!vals.details){ toast(_uiLang()==='ko'?'내용을 입력하세요':'Note required', true); return; }
+    if(!STAFF_DETAILS[staffId]) STAFF_DETAILS[staffId] = { evaluations:[], activity:[], warnings:0 };
+    if(!Array.isArray(STAFF_DETAILS[staffId].activity)) STAFF_DETAILS[staffId].activity = [];
+    STAFF_DETAILS[staffId].activity.unshift({ date:_sfToday(), action:'메모', details: vals.details });
+    saveStaffState();
+    toast('✓ 메모 추가 / Note added');
+    openStaffDetail(staffId);
+  });
+}
+function addStaffIncident(staffId, kind){
+  if(!_sfCanEdit()) return;
+  const isWarn = kind === 'warn';
+  openSfForm(isWarn ? '⚠ 워닝 기록 / Add warning' : '🏆 포상 기록 / Add reward', [
+    { k:'pts',  label:'점수 / Points', type:'number', value:'1' },
+    { k:'type', label:'사유 / Reason' }
+  ], vals => {
+    const pts = Math.abs(parseFloat(vals.pts || '1')) || 1;
+    if(!vals.type){ toast(_uiLang()==='ko'?'사유를 입력하세요':'Reason required', true); return; }
+    if(!TRUST_DATA[staffId]) TRUST_DATA[staffId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked', system:'player' };
+    const t = TRUST_DATA[staffId];
+    if(isWarn){
+      if(!Array.isArray(t.incidents)) t.incidents = [];
+      t.incidents.unshift({ pts, type: vals.type, date:_sfToday() });
+      t.warn_pts = Math.round(((t.warn_pts || 0) + pts) * 10) / 10;
+    } else {
+      if(!Array.isArray(t.trust_earned)) t.trust_earned = [];
+      t.trust_earned.unshift({ pts, type: vals.type, date:_sfToday() });
+      t.trust_pts = Math.round(((t.trust_pts || 0) + pts) * 10) / 10;
+    }
+    try{ logAction('update', (isWarn ? 'warning +' : 'reward +') + pts + ' · ' + vals.type, staffId); }catch(_){}
+    if(typeof saveTrustState === 'function') saveTrustState();
+    toast(isWarn ? '⚠ 워닝 기록됨 / Warning added' : '🏆 포상 기록됨 / Reward added');
+    openStaffDetail(staffId);
+  });
+}
+function uploadStaffPhoto(staffId){
+  if(!_sfCanEdit()) return;
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = () => {
+    const file = inp.files && inp.files[0];
+    if(!file) return;
+    if(file.size > 8 * 1024 * 1024){ toast('Image too large (max 8MB)', true); return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 512;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        let dataUrl;
+        try{ dataUrl = canvas.toDataURL('image/jpeg', 0.82); }
+        catch(e){ toast('Could not read image', true); return; }
+        if(!STAFF_PROFILE[staffId]) STAFF_PROFILE[staffId] = {};
+        STAFF_PROFILE[staffId].photo = dataUrl;
+        saveStaffState();
+        toast('✓ 사진 저장됨 / Photo saved');
+        openStaffDetail(staffId);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
 }
 
 // ═══════════════════════════════════════════════════
@@ -21086,6 +21288,7 @@ document.addEventListener('keydown', (e) => {
     // [v201] CRITICAL: load saved permission matrix + player-leaders on reload too
     // (the reload path doesn't go through finishSignIn, so without this the matrix reverted every refresh)
     try{ await loadPermState(); }catch(_){}
+    try{ await loadStaffState(); }catch(_){}  // [v217] staff detail tabs (info/interview/eval/photo) — shared via staff_state
     // [v176] cloud loads ONLY run when logged in — a guest on the login screen must not hit the DB (avoids "permission denied")
     renderSidebar();
     routeContent();
