@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v215 -->
+<!-- BUILD: v216 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15223,7 +15223,12 @@ let sfDragFrom = null;
 function sfCardDragStart(e, mid, role){
   if(!canChangeRank()){ e.preventDefault(); return; }
   sfDragId = mid;
-  sfDragFrom = role;
+  // [v216] derive the source group from the column the card actually sits in.
+  // A Player Leader card's raw role is still 'player', so leader→player looked like a
+  // same-column drop and was silently ignored — that's why cards got "stuck" as leader.
+  let from = role;
+  try{ const col = e.currentTarget.closest('.sf3-col'); if(col && col.dataset.role) from = col.dataset.role; }catch(_){}
+  sfDragFrom = from;
   e.dataTransfer.effectAllowed = 'move';
   e.currentTarget.classList.add('sf3-card-dragging');
 }
@@ -15248,8 +15253,11 @@ async function sfCardDrop(e, role){
   e.currentTarget.classList.remove('sf3-sec-over');
   if(!canChangeRank()){ toast(_uiLang()==='ko'?'랭크 변경 권한 없음':'No permission to change rank', true); sfDragId=null; sfDragFrom=null; return; }
   if(!sfDragId || sfDragFrom === role) return;
+  // [v216] show the member's name in the confirm (Supabase ids are UUIDs)
+  let mName = sfDragId;
+  try{ const tc = (_teamCache||[]).find(x => x.id === sfDragId); if(tc && tc.name) mName = tc.name; }catch(_){}
   const roleLabel = ({admin:'어드민', op:'OPTEAM', player_leader:'플레이어 리더', player:'플레이어', staff:'Staff'})[role];
-  if(!confirm(`${sfDragId}의 역할을 ${roleLabel}(으)로 변경할까요?\n\n관련 시스템 권한이 자동 조정됩니다.`)){
+  if(!confirm(`${mName}의 역할을 ${roleLabel}(으)로 변경할까요?\n\n관련 시스템 권한이 자동 조정됩니다.`)){
     sfDragId = null; sfDragFrom = null;
     return;
   }
@@ -15258,6 +15266,22 @@ async function sfCardDrop(e, role){
   if(role === 'player_leader') PLAYER_LEADERS.add(sfDragId);
   else PLAYER_LEADERS.delete(sfDragId);
   savePermState();
+  // [v216] persist the move to user_profiles so it survives reload and reaches every user.
+  // Before, only an in-memory list changed — moves reverted on refresh and never synced,
+  // and a blocked save failed silently. Now a failed save shows a red toast.
+  const dbRole = ({ admin:'admin', op:'op', player_leader:'leader', player:'staff' })[role];
+  let dbSaved = true;
+  if(sb && dbRole){
+    try{
+      const { error } = await sb.from('user_profiles').update({ role: dbRole }).eq('id', sfDragId);
+      if(error){ dbSaved = false; toast('Role save FAILED: ' + error.message, true); }
+    }catch(err){ dbSaved = false; toast('Role save FAILED: ' + ((err && err.message) || err), true); }
+  }
+  // update the cached team list so the board reflects the new role instantly
+  try{
+    const tc = (_teamCache||[]).find(x => x.id === sfDragId);
+    if(tc && dbSaved && dbRole){ tc.db_role = dbRole; tc.role = (typeof boardTeam==='function') ? boardTeam(dbRole) : realRole; }
+  }catch(_){}
   // Mock: TEAM_ATTENDANCE에서 role 변경
   if(typeof TEAM_ATTENDANCE !== 'undefined'){
     const t = TEAM_ATTENDANCE.find(x => x.name.toLowerCase() === sfDragId);
@@ -15266,7 +15290,7 @@ async function sfCardDrop(e, role){
   // TRUST_DATA의 system도 자동 변경
   const td = TRUST_DATA[sfDragId];
   if(td) td.system = realRole === 'op' ? 'op' : realRole === 'player' ? 'player' : 'admin';
-  toast(`${sfDragId} → ${roleLabel} 이동`);
+  toast(`${mName} → ${roleLabel} 이동`);
   sfDragId = null; sfDragFrom = null;
   renderStaff();
 }
