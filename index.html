@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v219 -->
+<!-- BUILD: v220 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8631,10 +8631,10 @@ function onApDrop(e, stageId){
   if(!draggingApplicantId) return;
   const a = APPLICANTS.find(x => x.id === draggingApplicantId);
   if(!a) return;
-  // PASS 외 단계로 이동 시 비즈니스 배치 초기화
-  if(a.stage === 'pass' && stageId !== 'pass'){
-    a.business = null;
-  }
+  // [v220] dropping into ANY kanban column clears the business placement — so a card placed in
+  // Buju/Lucky7 can be dragged straight back to Pass (it returns to the unplaced Pass pool).
+  // Placement is its own area (onApDropToBiz); being in a kanban column means "not placed".
+  a.business = null;
   // Reject에서 Kanban으로 돌아오면 rejected_from 초기화
   if(a.stage === 'reject' && stageId !== 'reject'){
     a.rejected_from = null;
@@ -8711,7 +8711,10 @@ async function renderRecruit(){
 
   // ── Kanban 5단계 (Reject 제외) ──
   const stagesHTML = KANBAN_STAGES.map(stage => {
-    const cards = filteredApplicants.filter(a => a.stage === stage.id);
+    // [v220] the Pass column shows only applicants NOT yet placed into a business.
+    // Once placed (a.business set), the card moves to the Placement area and leaves Pass —
+    // before, a placed applicant showed in BOTH Pass and Placement (the duplicate).
+    const cards = filteredApplicants.filter(a => a.stage === stage.id && !(stage.id === 'pass' && a.business));
     const count = cards.length;
     return `<div class="rk-col" style="--col-color:${stage.color};--col-bg:${stage.bg}"
          ondragover="onApDragOver(event,this)"
