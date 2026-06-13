@@ -19662,9 +19662,14 @@ function openClientDetail(cid){
 
   const charRows = chars.map(ch => {
     const pc = pcs.find(p => (p.clients||[]).includes(ch.id));
+    const _setR = `${ch.armor_set}${ch.armor_set_max?'~'+ch.armor_set_max:''}`;
+    const _csl = _uiLang();
+    const _charSpec = _csl==='ko' ? `${ch.weapon}검 ${_setR}셋 · ${ch.hours||'?'}H`
+                    : _csl==='id' ? `+${ch.weapon} sjt · ${_setR} set · ${ch.hours||'?'}H`
+                    :               `+${ch.weapon} wpn · ${_setR} set · ${ch.hours||'?'}H`;
     return `<div class="cld-char">
       <span class="cld-char-label">${ch.label}</span>
-      <span class="cld-char-spec">${ch.weapon}검 ${ch.armor_set}${ch.armor_set_max?'~'+ch.armor_set_max:''}셋 · ${ch.hours||'?'}H</span>
+      <span class="cld-char-spec">${_charSpec}</span>
       <span class="cld-char-pc">${pc?'🖥 PC-'+String(pc.id).padStart(2,'0'):'미배정'}</span>
     </div>`;
   }).join('');
