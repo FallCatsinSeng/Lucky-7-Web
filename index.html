@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v221 -->
+<!-- BUILD: v222 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8630,16 +8630,26 @@ function onApDrop(e, stageId){
   e.currentTarget.classList.remove('drag-over');
   if(!draggingApplicantId) return;
   const a = APPLICANTS.find(x => x.id === draggingApplicantId);
+  const dragId = draggingApplicantId;
+  draggingApplicantId = null;                                   // [v222] clear immediately (re-render destroys the source node, so dragend may not fire)
+  document.querySelectorAll('.rk-col.drag-over, .rk-assign-zone.drag-over').forEach(c => c.classList.remove('drag-over'));
   if(!a) return;
-  // [v220] dropping into ANY kanban column clears the business placement — so a card placed in
-  // Buju/Lucky7 can be dragged straight back to Pass (it returns to the unplaced Pass pool).
-  // Placement is its own area (onApDropToBiz); being in a kanban column means "not placed".
+  // [v220] dropping into ANY kanban column un-places the card (clears business) so a placed
+  // applicant can be dragged straight back to Pass.
+  const stageChanged = a.stage !== stageId;
+  const hadBusiness = !!a.business;
   a.business = null;
-  // Reject에서 Kanban으로 돌아오면 rejected_from 초기화
-  if(a.stage === 'reject' && stageId !== 'reject'){
-    a.rejected_from = null;
+  if(a.stage === 'reject' && stageId !== 'reject') a.rejected_from = null;
+  if(stageChanged){
+    setApplicantStage(dragId, stageId);                         // changes stage + toast + re-render
+  } else if(hadBusiness){
+    // [v222] THE FIX: same stage (placed Pass → Pass) — setApplicantStage bails on same-stage and
+    // never re-renders, so the un-placed card looked stuck. Finalize + re-render here.
+    a.updated = new Date().toISOString().slice(0,10);
+    try{ logAction('update', 'unplaced applicant → ' + getStageById(stageId).name, a.name); }catch(_){}
+    toast(`${a.name} → ${getStageById(stageId).name}`);
+    renderRecruit();
   }
-  setApplicantStage(draggingApplicantId, stageId);
 }
 
 // 배치 컬럼 zone에 드롭 — stage='pass' + business 자동 할당
@@ -8648,6 +8658,8 @@ function onApDropToBiz(e, biz){
   e.currentTarget.classList.remove('drag-over');
   if(!draggingApplicantId) return;
   const a = APPLICANTS.find(x => x.id === draggingApplicantId);
+  draggingApplicantId = null;                                   // [v222] clear before re-render
+  document.querySelectorAll('.rk-col.drag-over, .rk-assign-zone.drag-over').forEach(c => c.classList.remove('drag-over'));
   if(!a) return;
   const wasPass = a.stage === 'pass';
   const bizChanged = a.business !== biz;
@@ -8668,6 +8680,8 @@ function onApDropToReject(e, fromStage){
   e.currentTarget.classList.remove('drag-over');
   if(!draggingApplicantId) return;
   const a = APPLICANTS.find(x => x.id === draggingApplicantId);
+  draggingApplicantId = null;                                   // [v222] clear before re-render
+  document.querySelectorAll('.rk-col.drag-over, .rk-assign-zone.drag-over').forEach(c => c.classList.remove('drag-over'));
   if(!a) return;
   // 같은 셀로 드롭하면 변화 없음
   if(a.stage === 'reject' && a.rejected_from === fromStage) return;
