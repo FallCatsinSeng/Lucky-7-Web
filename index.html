@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v223 -->
+<!-- BUILD: v224 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15113,6 +15113,20 @@ async function renderMyPaystub(){
   const _revealed = _now.getDate() >= _revealDay;
   const _isAdminView = currentUserRole === 'admin';
   const _mLabel = (_now.getMonth() + 1) + '/' + _revealDay;
+  // [v224] localize the lock-card strings at the source — they interpolate ${_mLabel}/${_dLeft}
+  // in one text node, so the i18n dictionary can't translate them. Branch on the UI language here.
+  const _psL = _uiLang();
+  const _psTitle = _psL==='en' ? 'Payslip is released at the end of the month'
+                 : _psL==='id' ? 'Slip gaji dirilis di akhir bulan'
+                 :               '급여 명세는 매월 말에 공개됩니다';
+  const _psSub   = _psL==='en' ? 'Payslip unlocks at the end of the month'
+                 : _psL==='id' ? 'Slip gaji terbuka di akhir bulan'
+                 :               '매월 말일에 공개돼요';
+  const _psPillPrefix = _psL==='en' ? 'Unlocks ' : _psL==='id' ? 'Terbuka ' : '';
+  const _psPillSuffix = _psL==='ko' ? ' 공개' : '';   // Korean puts the word after the date
+  const _psAdminNote  = _psL==='en' ? `Admin preview — staff see it on ${_mLabel}`
+                      : _psL==='id' ? `Pratinjau admin — staf melihatnya pada ${_mLabel}`
+                      :               `관리자 미리보기 — 직원에게는 ${_mLabel} 공개`;
 
   if(!_revealed && !_isAdminView){
     const _dLeft = _revealDay - _now.getDate();
@@ -15122,9 +15136,9 @@ async function renderMyPaystub(){
       <div class="psub">${_fmtYM(_now.getFullYear(), _now.getMonth())} 급여 명세</div>
       <div class="ps-card" style="margin-top:20px;text-align:center;padding:40px 24px">
         <div style="font-size:34px;margin-bottom:12px">🔒</div>
-        <div style="font-size:15px;font-weight:700;color:var(--tx)">급여 명세는 매월 말에 공개됩니다</div>
-        <div style="font-size:12px;color:var(--tx3);margin-top:6px">Payslip unlocks at the end of the month</div>
-        <div style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--br);border-radius:999px;padding:7px 16px;font-size:12.5px;color:var(--tx2)">📅 ${_mLabel} 공개 · <b style="color:var(--ac)">D-${_dLeft}</b></div>
+        <div style="font-size:15px;font-weight:700;color:var(--tx)">${_psTitle}</div>
+        <div style="font-size:12px;color:var(--tx3);margin-top:6px">${_psSub}</div>
+        <div style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--br);border-radius:999px;padding:7px 16px;font-size:12.5px;color:var(--tx2)">📅 ${_psPillPrefix}${_mLabel}${_psPillSuffix} · <b style="color:var(--ac)">D-${_dLeft}</b></div>
       </div>
     </div>`;
     return;
@@ -15134,7 +15148,7 @@ async function renderMyPaystub(){
     <div class="att-eyebrow">내 페이지</div>
     <div class="ph">내 페이슬립</div>
     <div class="psub">${_fmtYM(_now.getFullYear(), _now.getMonth())} 급여 명세</div>
-    ${(!_revealed && _isAdminView) ? `<div style="margin-top:14px;display:inline-flex;align-items:center;gap:7px;border:1px dashed var(--br);border-radius:9px;padding:7px 12px;font-size:11.5px;color:var(--tx3)">👁 관리자 미리보기 — 직원에게는 ${_mLabel} 공개</div>` : ''}
+    ${(!_revealed && _isAdminView) ? `<div style="margin-top:14px;display:inline-flex;align-items:center;gap:7px;border:1px dashed var(--br);border-radius:9px;padding:7px 12px;font-size:11.5px;color:var(--tx3)">👁 ${_psAdminNote}</div>` : ''}
     <div class="ps-card" style="margin-top:20px">
       <div class="ps-card-h">급여 명세</div>
       ${bodyHTML}
