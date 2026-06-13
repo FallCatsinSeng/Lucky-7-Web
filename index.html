@@ -15045,14 +15045,13 @@ async function renderMyPaystub(){
     takeHome = s.net;
   }
 
-// [v219] My Payslip reveals at the end of the month. Staff see a locked card with a
-// countdown until PAYSLIP_REVEAL_DAY; admins always see it (with a preview note) so
-// payroll can be verified before staff do. Change the day here (capped to short months).
-const PAYSLIP_REVEAL_DAY = 28;
+// [v219] My Payslip reveals on the LAST DAY of the month — always end of month, whatever it is
+// (30, 31, 28, or 29 on a leap year). Staff see a locked card with a countdown until then;
+// admins always see it (with a preview note) so payroll can be verified before staff do.
 
   const _now = new Date();
   const _lastDay = new Date(_now.getFullYear(), _now.getMonth() + 1, 0).getDate();
-  const _revealDay = Math.min(PAYSLIP_REVEAL_DAY, _lastDay);
+  const _revealDay = _lastDay;   // always the final day of the current month
   const _revealed = _now.getDate() >= _revealDay;
   const _isAdminView = currentUserRole === 'admin';
   const _mLabel = (_now.getMonth() + 1) + '/' + _revealDay;
