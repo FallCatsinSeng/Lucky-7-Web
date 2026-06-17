@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v226 -->
+<!-- BUILD: v227 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -15946,7 +15946,7 @@ function addStaffIncident(staffId, kind){
       t.trust_earned.unshift({ pts, type: vals.type, date:_sfToday() });
       t.trust_pts = Math.round(((t.trust_pts || 0) + pts) * 10) / 10;
     }
-    try{ logAction('update', (isWarn ? 'warning +' : 'reward +') + pts + ' · ' + vals.type, staffId); }catch(_){}
+    try{ logAction(isWarn ? 'warning' : 'update', (isWarn ? 'warning +' : 'reward +') + pts + ' · ' + vals.type, staffId); }catch(_){}
     if(typeof saveTrustState === 'function') saveTrustState();
     toast(isWarn ? '⚠ 워닝 기록됨 / Warning added' : '🏆 포상 기록됨 / Reward added');
     openStaffDetail(staffId);
@@ -16207,6 +16207,7 @@ async function quickGrantTrust(memberId, pts){
     t.trust_earned.unshift({ date:new Date().toISOString().slice(0,10), type:'Trust reduced (mistake)', pts });
     toast(`▽ ${memberId} ${pts} Trust Pt`, true);
   }
+  try{ logAction('update', (pts>=0 ? 'trust +'+pts+' (quick grant)' : 'trust '+pts+' (correction)'), memberId); }catch(_){}
   saveTrustState();
   renderTrust();
 }
@@ -16222,6 +16223,7 @@ async function quickGrantWarn(memberId, pts){
     t.incidents.unshift({ date:new Date().toISOString().slice(0,10), type:'Warning reduced (good behavior)', pts });
     toast(`✓ ${memberId} ${pts} Warning Pt`);
   }
+  try{ logAction('warning', (pts>=0 ? 'warning +'+pts+' (quick)' : 'warning '+pts+' (forgiven)'), memberId); }catch(_){}
   saveTrustState();
   renderTrust();
 }
@@ -16277,6 +16279,7 @@ async function tsCardDrop(e, system){
     const am = TEAM_ATTENDANCE.find(x => x.name && x.name.toLowerCase() === tsDragId);
     if(am) am.role = (system === 'op') ? 'op' : 'player';
   }
+  try{ logAction('update', 'moved to '+LABELS[system], tsDragId); }catch(_){}
   toast(`${tsDragId} → ${LABELS[system]} 이전`);
   tsDragId = null; tsDragFrom = null;
   saveTrustState();
