@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v227 -->
+<!-- BUILD: v228 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -10563,10 +10563,12 @@ function _teamBgRefresh(){
   }).catch(function(){ _teamFetching = false; });
 }
 async function loadTeamMembers(){
-  if(_teamCache){ _teamBgRefresh(); return _teamCache; }   // instant; refresh behind the scenes
+  if(_teamCache){ _teamBgRefresh(); _trustNamesFrom(_teamCache); return _teamCache; }   // instant; refresh behind the scenes
   _teamCache = await _fetchTeamMembers();
+  _trustNamesFrom(_teamCache);
   return _teamCache;
 }
+function _trustNamesFrom(list){ try{ if(Array.isArray(list)) list.forEach(m => { if(m && m.id) TRUST_NAME_BY_ID[m.id] = m.name || m.id; }); }catch(_){} }
 
 // [v80] 로스터 캐러셀 — 옆 주가 이어 붙어 따라오는 연속 스크롤 (continuous)
 // [v84] pointer-capture + recovery so the drag can never get "stuck" off the element
@@ -13876,7 +13878,7 @@ async function renderOverview(){
   // 주의 필요 아이템
   const alerts = [];
   overdueTasks.forEach(t => alerts.push({ c:'var(--re)', t:`${t.title_ko||t.title}`, s:`${t.owner} · 마감 지남`, act:`setActiveChannel('${isManager?'op-daily-board':'pl-daily-board'}')` }));
-  warnMembers.forEach(([k,d]) => alerts.push({ c:'var(--re)', t:`${k} — 워닝 ${d.warn_pts.toFixed(1)}점`, s:'코칭/조치 단계', act:`setActiveChannel('op-trust')` }));
+  warnMembers.forEach(([k,d]) => { const _nm=trustName(k); const _wp=d.warn_pts.toFixed(1).replace(/\.0$/,''); const _wl=_uiLang(); const _wt=_wl==='ko'?`${_nm} — 워닝 ${_wp}점`:_wl==='id'?`${_nm} — Peringatan ${_wp}`:`${_nm} — Warning ${_wp}`; alerts.push({ c:'var(--re)', t:_wt, s:'코칭/조치 단계', act:`setActiveChannel('op-trust')` }); });
   if(isManager) tasksNeedReply.forEach(t => alerts.push({ c:'var(--ac)', t:`${t.title_ko||t.title}`, s:`${t.owner} 답글 — 확인 필요`, act:`openTaskDetail(${t.id})` }));
   unregistered.forEach(a => alerts.push({ c:'var(--ac)', t:`${a.name} 직원 풀 미등록`, s:'온보딩 대기', act:`setActiveChannel('op-recruit')` }));
 
@@ -15743,7 +15745,7 @@ async function openStaffDetail(staffId){
 
       <div class="sf-tabpane on" data-pane="info">
         ${infoHtml}
-        ${_sfCanEdit() ? `<button class="sf-add-btn" onclick="openStaffInfoEditor('${staffId}')">✎ 개인정보 입력·수정 / Edit info</button>` : ''}
+        ${_sfCanEdit() ? `<button class="sf-add-btn" onclick="openStaffInfoEditor('${staffId}')">${_uiLang()==='ko'?'✎ 개인정보 입력·수정':_uiLang()==='id'?'✎ Ubah info':'✎ Edit info'}</button>` : ''}
       </div>
 
       <div class="sf-tabpane" data-pane="iv">
