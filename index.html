@@ -14011,6 +14011,8 @@ const RANKS = {
 // trust_pts: Trust Points (누적, 보상)
 // protected_until: 보호 기간 끝나는 날 (Player만 적용, null = 보호 종료)
 const TRUST_DATA = {};
+let TRUST_NAME_BY_ID = {};
+function trustName(id){ return (typeof TRUST_NAME_BY_ID !== 'undefined' && TRUST_NAME_BY_ID[id]) || id; }
 
 // ── [v120] trust persistence — TRUST_DATA stored as one JSON row in trust_state ──
 let _trustLoaded = false, _trustSaveTimer = null;
@@ -16017,6 +16019,7 @@ async function renderTrust(){
       stat: det.status || 'offline'
     };
   });
+  enriched.forEach(m => { if(m && m.id) TRUST_NAME_BY_ID[m.id] = m.name || m.id; });
 
   const sortFn = (a,b) => (b.trust_pts - a.trust_pts) || (a.warn_pts - b.warn_pts);
   const opMembers = enriched.filter(m => m.system === 'op').sort(sortFn);
@@ -16200,14 +16203,15 @@ async function quickGrantTrust(memberId, pts){
   if(!t){ t = TRUST_DATA[memberId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked' }; }
   t.trust_pts = Math.max(0, (t.trust_pts || 0) + pts);
   if(!t.trust_earned) t.trust_earned = [];
+  const _nm = trustName(memberId);
   if(pts >= 0){
     t.trust_earned.unshift({ date:new Date().toISOString().slice(0,10), type:'Quick grant', pts });
-    toast(`🏆 ${memberId} +${pts} Trust Pt`);
+    toast(`🏆 ${_nm} +${pts} Trust Pt`);
   } else {
     t.trust_earned.unshift({ date:new Date().toISOString().slice(0,10), type:'Trust reduced (mistake)', pts });
-    toast(`▽ ${memberId} ${pts} Trust Pt`, true);
+    toast(`▽ ${_nm} ${pts} Trust Pt`, true);
   }
-  try{ logAction('update', (pts>=0 ? 'trust +'+pts+' (quick grant)' : 'trust '+pts+' (correction)'), memberId); }catch(_){}
+  try{ logAction('update', (pts>=0 ? 'trust +'+pts+' (quick grant)' : 'trust '+pts+' (correction)'), _nm); }catch(_){}
   saveTrustState();
   renderTrust();
 }
@@ -16216,14 +16220,15 @@ async function quickGrantWarn(memberId, pts){
   if(!t){ t = TRUST_DATA[memberId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked' }; }
   t.warn_pts = Math.max(0, (t.warn_pts || 0) + pts);
   if(!t.incidents) t.incidents = [];
+  const _nm = trustName(memberId);
   if(pts >= 0){
     t.incidents.unshift({ date:new Date().toISOString().slice(0,10), type:'Quick warn', pts });
-    toast(`⚠ ${memberId} +${pts} Warning Pt`, true);
+    toast(`⚠ ${_nm} +${pts} Warning Pt`, true);
   } else {
     t.incidents.unshift({ date:new Date().toISOString().slice(0,10), type:'Warning reduced (good behavior)', pts });
-    toast(`✓ ${memberId} ${pts} Warning Pt`);
+    toast(`✓ ${_nm} ${pts} Warning Pt`);
   }
-  try{ logAction('warning', (pts>=0 ? 'warning +'+pts+' (quick)' : 'warning '+pts+' (forgiven)'), memberId); }catch(_){}
+  try{ logAction('warning', (pts>=0 ? 'warning +'+pts+' (quick)' : 'warning '+pts+' (forgiven)'), _nm); }catch(_){}
   saveTrustState();
   renderTrust();
 }
@@ -16262,7 +16267,8 @@ async function tsCardDrop(e, system){
   let t = TRUST_DATA[tsDragId];
   if(!t){ t = TRUST_DATA[tsDragId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked', system:'player' }; }
   const LABELS = { op:'OPTEAM', player_leader:'PLAYER LEADER', player:'PLAYER' };
-  if(!confirm(`${tsDragId}을(를) ${LABELS[system]}(으)로 이전할까요?\n\n기존 Warning/Trust 점수는 유지됩니다.`)){
+  const _nm = trustName(tsDragId);
+  if(!confirm(`${_nm}을(를) ${LABELS[system]}(으)로 이전할까요?\n\n기존 Warning/Trust 점수는 유지됩니다.`)){
     tsDragId = null; tsDragFrom = null;
     return;
   }
@@ -16279,8 +16285,8 @@ async function tsCardDrop(e, system){
     const am = TEAM_ATTENDANCE.find(x => x.name && x.name.toLowerCase() === tsDragId);
     if(am) am.role = (system === 'op') ? 'op' : 'player';
   }
-  try{ logAction('update', 'moved to '+LABELS[system], tsDragId); }catch(_){}
-  toast(`${tsDragId} → ${LABELS[system]} 이전`);
+  try{ logAction('update', 'moved to '+LABELS[system], _nm); }catch(_){}
+  toast(`${_nm} → ${LABELS[system]} 이전`);
   tsDragId = null; tsDragFrom = null;
   saveTrustState();
   renderTrust();
