@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v228 -->
+<!-- BUILD: v229 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -9671,35 +9671,45 @@ const SHIFTS = {
   flex:   { name:'자율 시프트', range:'유연 근무', startH:null, endH:null }
 };
 
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+// [v229] Local calendar date (NOT UTC). Using toISOString() here caused clock-ins before
+// 07:00 in UTC+7 to be dated to the previous day (UTC midnight = 07:00 local). getFullYear/
+// getMonth/getDate read the device's local date, so the business day is correct worldwide.
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
 async function loadMyAttendance(){
   myAtt.date = todayStr();
   // Supabase 우선
   if(sb && currentUser?.id){
     try{
+      // [v229] Look back across yesterday+today so a night shift that crossed midnight
+      // (clocked in on the previous calendar day, not yet clocked out) is still found and
+      // can be closed — instead of being orphaned, forcing a duplicate clock-in.
+      const _yday = new Date(Date.now() - 86400000);
+      const _ydayStr = _yday.getFullYear()+'-'+String(_yday.getMonth()+1).padStart(2,'0')+'-'+String(_yday.getDate()).padStart(2,'0');
       const {data, error} = await sb.from('attendance')
         .select('*')
         .eq('user_id', currentUser.id)
-        .eq('date', todayStr())
+        .gte('date', _ydayStr)
         .order('clock_in', { ascending:false });
       if(!error && data && data.length){
-        // prefer an OPEN session (clocked in, not out); else the most recent
-        const rec = data.find(r => r.clock_in && !r.clock_out) || data[0];
-        myAtt = {
-          ...myAtt,
-          id: rec.id,
-          date: rec.date,
-          clock_in: rec.clock_in,
-          clock_out: rec.clock_out,
-          break_start: rec.break_start,
-          break_end: rec.break_end,
-          breaks: rec.break_start ? [{
-            start: rec.break_start,
-            end: rec.break_end
-          }] : []
-        };
-        return;
+        // [v229] 1) an OPEN session from ANY recent day (night shift crossing midnight) wins;
+        //        2) otherwise today's record; 3) otherwise treat as a fresh day (reset below).
+        const rec = data.find(r => r.clock_in && !r.clock_out) || data.find(r => r.date === todayStr()) || null;
+        if(rec){
+          myAtt = {
+            ...myAtt,
+            id: rec.id,
+            date: rec.date,
+            clock_in: rec.clock_in,
+            clock_out: rec.clock_out,
+            break_start: rec.break_start,
+            break_end: rec.break_end,
+            breaks: rec.break_start ? [{ start: rec.break_start, end: rec.break_end }] : []
+          };
+          return;
+        }
+        // recent records exist, but none open and none for today → reset for a fresh clock-in
+        myAtt = { id:null, date:todayStr(), clock_in:null, clock_out:null, break_start:null, break_end:null, breaks:[], shift:myAtt.shift };
       }
       if(!error && (!data || !data.length)){
         // 오늘 기록 없음 — 리셋
