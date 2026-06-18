@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v237 -->
+<!-- BUILD: v238 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21594,8 +21594,8 @@ document.addEventListener('keydown', (e) => {
 // INIT
 // 저장된 테마 복원 (설정 → 모양)
 (function(){ try{ const t = sessionStorage.getItem('lucky7_theme'); if(t) applyTheme(t); }catch(_){} })();
-// [v237] on-screen boot diagnostics — ALWAYS shows (temporary debug build) and captures the
-// errors render() normally swallows internally, plus the live build version.
+// [v238] on-screen boot diagnostics — OFF by default, only shows when #debug is in the URL.
+// Captures the errors render() normally swallows internally, plus the live build version.
 function showBootDiag(b){
   try{
     var ex = document.getElementById('boot-diag'); if(ex) ex.remove();
@@ -21638,7 +21638,7 @@ function showBootDiag(b){
     // [v237] Diagnostic boot. Captures the errors render() swallows internally and ALWAYS shows
     // the panel so we can see exactly what's happening (build version, loads, row counts, errors).
     const __t0 = performance.now();
-    const __boot = { build:'v237', role: currentUserRole, loads: [], logs: [] };
+    const __boot = { build:'v238', role: currentUserRole, loads: [], logs: [] };
     // intercept warnings/errors during boot — render()'s internal try/catch hides its sub-errors
     const __ow = console.warn, __oe = console.error;
     function __cap(){ try{ if(__boot.logs.length<40){ __boot.logs.push(Array.prototype.map.call(arguments,function(a){ return (a&&a.message)?a.message:String(a); }).join(' ')); } }catch(_){} }
@@ -21680,7 +21680,9 @@ function showBootDiag(b){
     __boot.totalMs = Math.round(performance.now()-__t0);
     console.warn = __ow; console.error = __oe;   // restore
     console.log('[boot] summary', __boot);
-    showBootDiag(__boot);   // ALWAYS show for this diagnostic build
+    // [v238] diagnostics panel is OFF for everyone by default. To show it for troubleshooting,
+    // add #debug to the end of the URL. Normal staff never see it.
+    if(location.hash.indexOf('debug')>=0 || location.search.indexOf('debug')>=0) showBootDiag(__boot);
   } else {
     showAuthScreen();
   }
