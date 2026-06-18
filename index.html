@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v243 -->
+<!-- BUILD: v244 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18094,6 +18094,7 @@ async function signUp(){
 
 async function signOut(){
   // Supabase 로그아웃
+  try{ localStorage.removeItem('lucky7_cache'); }catch(_){}   // [v244] clear cached dashboard data on logout
   try{ logAction('auth', 'logged out', ''); }catch(_){}
   if(sb){
     try{ await sb.auth.signOut(); }catch(e){ console.warn('Supabase signOut:', e); }
@@ -21769,6 +21770,34 @@ document.addEventListener('keydown', (e) => {
 // INIT
 // 저장된 테마 복원 (설정 → 모양)
 (function(){ try{ const t = sessionStorage.getItem('lucky7_theme'); if(t) applyTheme(t); }catch(_){} })();
+// [v244] instant-load cache: stash the dashboard data in localStorage so the next load can paint
+// it immediately while the (possibly slow) database refreshes in the background. Decouples how
+// fast the app FEELS from how loaded the database is.
+function _cacheSave(){
+  try{
+    const pcs   = (typeof PCS!=='undefined' && Array.isArray(PCS)) ? PCS : [];
+    const staff = (typeof STAFF!=='undefined' && Array.isArray(STAFF)) ? STAFF : [];
+    // don't overwrite a good cache with empty data (e.g. if the DB load failed this time)
+    if(!pcs.length && !staff.length) return;
+    localStorage.setItem('lucky7_cache', JSON.stringify({
+      PCS: pcs, STAFF: staff,
+      ROSTER:  (typeof ROSTER!=='undefined'  && Array.isArray(ROSTER))  ? ROSTER  : [],
+      CLIENTS: (typeof CLIENTS!=='undefined' && Array.isArray(CLIENTS)) ? CLIENTS : [],
+      _t: Date.now()
+    }));
+  }catch(_){}
+}
+function _cacheRestore(){
+  try{
+    const raw = localStorage.getItem('lucky7_cache'); if(!raw) return false;
+    const snap = JSON.parse(raw); if(!snap) return false;
+    if(Array.isArray(snap.PCS))    PCS = snap.PCS;        // let — reassign
+    if(Array.isArray(snap.ROSTER)) ROSTER = snap.ROSTER;  // let — reassign
+    if(Array.isArray(snap.STAFF)){   STAFF.length = 0;   snap.STAFF.forEach(x => STAFF.push(x)); }     // const — mutate in place
+    if(Array.isArray(snap.CLIENTS)){ CLIENTS.length = 0; snap.CLIENTS.forEach(x => CLIENTS.push(x)); } // const — mutate in place
+    return true;
+  }catch(_){ return false; }
+}
 // [v238] on-screen boot diagnostics — OFF by default, only shows when #debug is in the URL.
 // Captures the errors render() normally swallows internally, plus the live build version.
 function showBootDiag(b){
@@ -21813,7 +21842,7 @@ function showBootDiag(b){
     // [v237] Diagnostic boot. Captures the errors render() swallows internally and ALWAYS shows
     // the panel so we can see exactly what's happening (build version, loads, row counts, errors).
     const __t0 = performance.now();
-    const __boot = { build:'v243', role: currentUserRole, loads: [], logs: [] };
+    const __boot = { build:'v244', role: currentUserRole, loads: [], logs: [] };
     // intercept warnings/errors during boot — render()'s internal try/catch hides its sub-errors
     const __ow = console.warn, __oe = console.error;
     function __cap(){ try{ if(__boot.logs.length<40){ __boot.logs.push(Array.prototype.map.call(arguments,function(a){ return (a&&a.message)?a.message:String(a); }).join(' ')); } }catch(_){} }
@@ -21828,6 +21857,9 @@ function showBootDiag(b){
     // paint the shell first so the app feels responsive while data loads
     try{ renderSidebar(); }catch(e){ console.error('renderSidebar:', e&&e.message); }
     try{ routeContent(); }catch(e){ console.error('routeContent:', e&&e.message); }
+    // [v244] paint last session's cached data IMMEDIATELY so the user sees their dashboard now,
+    // instead of staring at an empty shell while a slow/overloaded DB responds. Refreshed below.
+    try{ if(_cacheRestore()){ try{ normalizePCs(); }catch(_){} try{ renderSidebar(); routeContent(); render(); }catch(_){} } }catch(_){}
 
     // load all independent cloud state in parallel (was a sequential Seoul round-trip waterfall)
     await Promise.all([
@@ -21851,6 +21883,7 @@ function showBootDiag(b){
     try{ routeContent(); }catch(e){ console.error('routeContent2:', e&&e.message); }
     try{ render(); }catch(e){ console.error('render:', e&&e.message); }
     try{ selectPC(1); }catch(e){ console.error('selectPC:', e&&e.message); }
+    try{ _cacheSave(); }catch(_){}   // [v244] stash fresh data for an instant paint next load
 
     __boot.totalMs = Math.round(performance.now()-__t0);
     console.warn = __ow; console.error = __oe;   // restore
