@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v244 -->
+<!-- BUILD: v245 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17863,7 +17863,7 @@ function startPresence(){
   // [v130] live day-off sync — colleagues' requests appear without a manual refresh
   if(_offTimer) clearInterval(_offTimer);
   pollOffRequests();
-  _offTimer = setInterval(pollOffRequests, 40*1000);
+  _offTimer = setInterval(pollOffRequests, 120*1000);
   // [v139] auto-delete rejected applicants 1h after rejection (while recruiting is open)
   if(_recruitPurgeTimer) clearInterval(_recruitPurgeTimer);
   _recruitPurgeTimer = setInterval(() => {
@@ -17874,7 +17874,7 @@ function startPresence(){
   }, 60*1000);
   // [v145] live shared Responsibility Board sync
   if(_mtPollTimer) clearInterval(_mtPollTimer);
-  _mtPollTimer = setInterval(pollMTSystem, 30*1000);
+  _mtPollTimer = setInterval(pollMTSystem, 90*1000);
   // [v148] live attendance / staff-status refresh
   if(_attPollTimer) clearInterval(_attPollTimer);
   _attPollTimer = setInterval(() => {
@@ -17887,30 +17887,30 @@ function startPresence(){
   }, 20*1000);
   // [v151] live shared notices sync
   if(_annPollTimer) clearInterval(_annPollTimer);
-  _annPollTimer = setInterval(pollAnnouncements, 45*1000);
+  _annPollTimer = setInterval(pollAnnouncements, 120*1000);
   // [v154] live shared system-log sync
   if(_logPollTimer) clearInterval(_logPollTimer);
   pollLogs();                                          // [v156] immediate load (also covers refresh)
-  _logPollTimer = setInterval(pollLogs, 45*1000);
+  _logPollTimer = setInterval(pollLogs, 120*1000);
   // [v154] live shared clients sync (Client page + PC pool)
   if(_clientPollTimer) clearInterval(_clientPollTimer);
   syncClientStateFromCloud().then(()=>{                // [v156] immediate load on refresh, then repaint
     try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
     try{ const mod=(typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null; if(mod==='clients') renderClients(); }catch(_){}
   });
-  _clientPollTimer = setInterval(pollClientState, 30*1000);  // [v211] 20s→10s so a paid/unpaid change reaches teammates faster
+  _clientPollTimer = setInterval(pollClientState, 90*1000);  // [v211] 20s→10s so a paid/unpaid change reaches teammates faster
   // [v166] live shared Standard-EXP sync
   if(_expPollTimer) clearInterval(_expPollTimer);
   pollExp();
-  _expPollTimer = setInterval(pollExp, 45*1000);
+  _expPollTimer = setInterval(pollExp, 120*1000);
   // [v211] live calendar/schedule sync — re-render the open calendar so another user's
   // day-offs, roster shifts, and contract/due changes appear without a manual refresh.
   if(_calPollTimer) clearInterval(_calPollTimer);
-  _calPollTimer = setInterval(pollCalendarSync, 40*1000);
+  _calPollTimer = setInterval(pollCalendarSync, 120*1000);
   // [v208] live cross-user sync for the remaining shared states (PC / Trust / Settlement / Recruiting / Permissions)
   if(_syncAllTimer) clearInterval(_syncAllTimer);
   pollSyncAll();
-  _syncAllTimer = setInterval(pollSyncAll, 30*1000);
+  _syncAllTimer = setInterval(pollSyncAll, 90*1000);
 }
 let _calPollTimer = null;
 let _syncAllTimer = null; // [v213] FIX: was used in startPresence (read at if(_syncAllTimer)) but never declared — the ReferenceError was killing the entire boot sequence before PCs/render ran, leaving a blank board.
@@ -21842,7 +21842,7 @@ function showBootDiag(b){
     // [v237] Diagnostic boot. Captures the errors render() swallows internally and ALWAYS shows
     // the panel so we can see exactly what's happening (build version, loads, row counts, errors).
     const __t0 = performance.now();
-    const __boot = { build:'v244', role: currentUserRole, loads: [], logs: [] };
+    const __boot = { build:'v245', role: currentUserRole, loads: [], logs: [] };
     // intercept warnings/errors during boot — render()'s internal try/catch hides its sub-errors
     const __ow = console.warn, __oe = console.error;
     function __cap(){ try{ if(__boot.logs.length<40){ __boot.logs.push(Array.prototype.map.call(arguments,function(a){ return (a&&a.message)?a.message:String(a); }).join(' ')); } }catch(_){} }
