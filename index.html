@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v234 -->
+<!-- BUILD: v235 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21610,14 +21610,21 @@ document.addEventListener('keydown', (e) => {
     try{ var _rc = sessionStorage.getItem('lucky7_resume_ch'); if(_rc){ activeChannelId = _rc; sessionStorage.removeItem('lucky7_resume_ch'); } }catch(_){}
     // [v201] CRITICAL: load saved permission matrix + player-leaders on reload too
     // (the reload path doesn't go through finishSignIn, so without this the matrix reverted every refresh)
-    try{ await loadPermState(); }catch(_){}
-    try{ await loadStaffState(); }catch(_){}  // [v217] staff detail tabs (info/interview/eval/photo) — shared via staff_state
-    // [v176] cloud loads ONLY run when logged in — a guest on the login screen must not hit the DB (avoids "permission denied")
+    // [v235] paint the shell right away, then load all cloud state in parallel.
+    // Previously these ran as ~6 sequential Supabase round trips to Seoul — ~1s+ of dead
+    // load time from Indonesia. None depends on another, so they all fire at once now.
     renderSidebar();
     routeContent();
-    try{ await loadStaffPool(); }catch(_){}
-    await loadPCState();
-    try{ await syncExpFromCloud(); reconcilePcExp(); }catch(_){}  // [v204] keep PC Status & Standard EXP in sync from any page
+    await Promise.all([
+      loadPermState().catch(()=>{}),
+      loadStaffState().catch(()=>{}),     // staff detail tabs — staff_state
+      loadStaffPool().catch(()=>{}),
+      loadPCState().catch(()=>{}),
+      syncExpFromCloud().catch(()=>{})    // PC Status & Standard EXP sync
+    ]);
+    try{ reconcilePcExp(); }catch(_){}
+    renderSidebar();
+    routeContent();
     render();
     selectPC(1);
   } else {
