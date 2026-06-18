@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v230 -->
+<!-- BUILD: v231 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -8921,8 +8921,13 @@ async function openApplicant(id){
   if(_recruitLite && sb){
     try{ await syncRecruitsFromCloud(); _recruitSynced = true; _recruitLite = false; _recruitLastSync = Date.now(); _recruitSig = _recruitSigLite(); _recruitCacheSave(); }catch(_){}
   }
+  // [v231] If THIS applicant's attachments are still in the stripped (no image data) state,
+  // pull the full record from the cloud so the spec/CV images load and are viewable right here.
+  let a = APPLICANTS.find(x => x.id === id);
+  if(sb && a && Array.isArray(a.files) && a.files.some(f => f && !f.url && f._lite)){
+    try{ await syncRecruitsFromCloud(); _recruitLite = false; a = APPLICANTS.find(x => x.id === id); }catch(_){}
+  }
   openApplicantId = id;
-  const a = APPLICANTS.find(x => x.id === id);
   if(a && a.unread) { a.unread = 0; renderRecruit(); }
   renderApplicantPanel();
 }
@@ -8988,7 +8993,7 @@ function renderApplicantPanel(){
       const thumb = isImg ? `<img class="ap-file-thumb" src="${f.url}" alt="">` : `<span class="ap-file-ic">📎</span>`;
       return `<div class="ap-file ap-file-clickable" onclick="openApplicantFile('${a.id}', ${i})" title="열기 / Open">${thumb}<span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span>${delBtn}</div>`;
     }
-    return `<div class="ap-file ap-file-clickable" onclick="addFilesToApplicant('${a.id}')" title="재업로드 / Re-upload"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">↻ 클릭해 재업로드 / click to re-upload</span>${delBtn}</div>`;
+    return `<div class="ap-file ap-file-clickable" onclick="addFilesToApplicant('${a.id}')" title="재업로드 / Re-upload"><span class="ap-file-ic">${isImg?'🖼':'📎'}</span><span class="ap-file-name">${f.name}</span>${tagHtml}<span class="ap-file-size">${sizeStr}</span><span class="ap-file-noprev">${_uiLang()==='ko'?'↻ 클릭해 재업로드':_uiLang()==='id'?'↻ Klik untuk unggah ulang':'↻ Click to re-upload'}</span>${delBtn}</div>`;
   }).join('');
   // 지원 시프트 블록 — [v167] always editable so it can be set/changed later
   const shiftBlock = (() => {
@@ -9124,7 +9129,7 @@ function renderApplicantPanel(){
     <div class="ap-panel-body">
       ${rejectBanner}
       ${shiftBlock}
-      <div class="ap-section"><div class="ap-section-title">첨부 파일 / Attachments</div>${fileList || '<div class="ap-file-noprev" style="margin:0 0 6px">첨부 없음 / No attachments yet</div>'}<button class="btn btn-sm" style="margin-top:8px" onclick="addFilesToApplicant('${a.id}')">＋ 파일 추가 / Add file</button></div>
+      <div class="ap-section"><div class="ap-section-title">첨부 파일 / Attachments</div>${fileList || '<div class="ap-file-noprev" style="margin:0 0 6px">첨부 없음 / No attachments yet</div>'}<button class="btn btn-sm" style="margin-top:8px" onclick="addFilesToApplicant('${a.id}')">${_uiLang()==='ko'?'＋ 파일 추가':_uiLang()==='id'?'＋ Tambah file':'＋ Add file'}</button></div>
       ${specBlock}
       ${reportsBlock}
       ${commentsBlock}
