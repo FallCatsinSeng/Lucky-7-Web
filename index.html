@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v241 -->
+<!-- BUILD: v242 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20207,10 +20207,10 @@ function staffAssignments(sid){
   PCS.forEach(p => p.assignments.forEach((a,idx) => { if(a.staff===sid) out.push({pc:p, a, idx}); }));
   return out;
 }
-function staffHoursUsed(sid){ return staffAssignments(sid).reduce((s,x)=>s+x.a.len, 0); }
+function staffHoursUsed(sid){ try{ return staffAssignments(sid).reduce((s,x)=>s+((x&&x.a&&x.a.len)||0), 0); }catch(_){ return 0; } }
 // 휴게 시간은 데이터로만 보관 (페이롤 Step에서 활용). UI에선 일단 shiftLen 전체로 스케줄링.
-function effectiveHours(s){ return s.shiftLen; }
-function staffRemaining(sid){ const s = staffById(sid); return s.shiftLen - staffHoursUsed(sid); }
+function effectiveHours(s){ return (s && s.shiftLen) || 0; }
+function staffRemaining(sid){ const s = staffById(sid); if(!s) return 0; return (s.shiftLen||0) - staffHoursUsed(sid); }
 // 배정 가능 여부: 평일·계약·DAY OFF·휴무 모두 통과해야 함
 function staffAvailable(s, day){ return !s.day_off && staffWorksOn(s, day); }
 function leaderPCs(sid){ return PCS.filter(p => p.leader === sid); }
@@ -21050,25 +21050,32 @@ function buildStaffRows(){
 
 function renderMetrics(){
   try{ normalizePCs(); }catch(_){}
-  const on = PCS.filter(p=>p.status==='online').length;
-  const warn = PCS.filter(p=>p.status==='warning').length;
-  const off = PCS.filter(p=>p.status==='offline').length;
-  const totalAssignments = PCS.reduce((s,p)=>s+p.assignments.length,0);
-  const totalHours = PCS.reduce((s,p)=>s+p.assignments.reduce((t,a)=>t+a.len,0),0);
-  const withLeader = PCS.filter(p=>p.leader).length;
-  const totalRemain = STAFF.reduce((s,st)=>s+Math.max(0,staffRemaining(st.id)),0);
-  const totalCap = STAFF.reduce((s,st)=>s+effectiveHours(st),0);
-  document.getElementById('m-on').textContent = on;
-  document.getElementById('m-assigned').textContent = totalAssignments;
-  document.getElementById('m-assigned-sub').textContent = totalAssignments + ' shifts · ' + totalHours + 'H';
-  document.getElementById('m-leader').textContent = withLeader;
-  document.getElementById('m-leader-sub').textContent = withLeader + ' / ' + PCS.length + ' PC';
-  document.getElementById('m-staff-free').textContent = totalRemain + 'h';
-  document.getElementById('m-staff-free-sub').textContent = totalRemain + ' / ' + totalCap + 'H 잔여';
-  document.getElementById('c-all').textContent = PCS.length;
-  document.getElementById('c-on').textContent = on;
-  document.getElementById('c-warn').textContent = warn;
-  document.getElementById('c-off').textContent = off;
+  const pcs = Array.isArray(PCS) ? PCS : [];
+  const staff = Array.isArray(STAFF) ? STAFF : [];
+  const on   = pcs.filter(p=>p && p.status==='online').length;
+  const warn = pcs.filter(p=>p && p.status==='warning').length;
+  const off  = pcs.filter(p=>p && p.status==='offline').length;
+  const totalAssignments = pcs.reduce((s,p)=>s+((p && Array.isArray(p.assignments)) ? p.assignments.length : 0), 0);
+  const totalHours = pcs.reduce((s,p)=>s+((p && Array.isArray(p.assignments)) ? p.assignments.reduce((t,a)=>t+((a&&a.len)||0),0) : 0), 0);
+  const withLeader = pcs.filter(p=>p && p.leader).length;
+  let totalRemain = 0, totalCap = 0;
+  staff.forEach(function(st){
+    if(!st) return;
+    try{ totalRemain += Math.max(0, staffRemaining(st.id) || 0); }catch(_){}
+    try{ totalCap   += effectiveHours(st) || 0; }catch(_){}
+  });
+  const set = (id,v)=>{ const el = document.getElementById(id); if(el) el.textContent = v; };
+  set('m-on', on);
+  set('m-assigned', totalAssignments);
+  set('m-assigned-sub', totalAssignments + ' shifts · ' + totalHours + 'H');
+  set('m-leader', withLeader);
+  set('m-leader-sub', withLeader + ' / ' + pcs.length + ' PC');
+  set('m-staff-free', totalRemain + 'h');
+  set('m-staff-free-sub', totalRemain + ' / ' + totalCap + 'H 잔여');
+  set('c-all', pcs.length);
+  set('c-on', on);
+  set('c-warn', warn);
+  set('c-off', off);
 }
 
 // ═══════════════════════════════════════════════════
@@ -21793,7 +21800,7 @@ function showBootDiag(b){
     // [v237] Diagnostic boot. Captures the errors render() swallows internally and ALWAYS shows
     // the panel so we can see exactly what's happening (build version, loads, row counts, errors).
     const __t0 = performance.now();
-    const __boot = { build:'v238', role: currentUserRole, loads: [], logs: [] };
+    const __boot = { build:'v242', role: currentUserRole, loads: [], logs: [] };
     // intercept warnings/errors during boot — render()'s internal try/catch hides its sub-errors
     const __ow = console.warn, __oe = console.error;
     function __cap(){ try{ if(__boot.logs.length<40){ __boot.logs.push(Array.prototype.map.call(arguments,function(a){ return (a&&a.message)?a.message:String(a); }).join(' ')); } }catch(_){} }
