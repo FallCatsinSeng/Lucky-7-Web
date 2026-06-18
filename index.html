@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v232 -->
+<!-- BUILD: v233 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -4067,6 +4067,11 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .sf-shift-off .sf-shift-val{color:var(--tx4);font-weight:500;font-style:italic}
 /* [v232] single-row states: don't lock the label to 42px (fits Korean but English "Performance"/"Current Shift" overflowed onto the value) */
 .sf-shift-off .sf-shift-lbl,.sf-shift-custom .sf-shift-lbl{width:auto}
+/* [v233] manual shift assignment control */
+.sf-shift-assign{margin:-8px 0 16px;padding:11px 13px;background:var(--bg-c);border:1px solid var(--br);border-radius:11px}
+.sf-shift-assign-lbl{display:block;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.sf-shift-select{width:100%;box-sizing:border-box;background:var(--bg-h);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:inherit;font-size:12.5px;padding:7px 9px;cursor:pointer}
+.sf-shift-assign-note{font-size:10.5px;color:var(--tx4);margin-top:6px;line-height:1.4}
 
 /* 프로필 사진 (헤더) */
 .sf-detail-av-photo{overflow:hidden;padding:0}
@@ -15770,26 +15775,32 @@ async function openStaffDetail(staffId){
 
       <!-- 현재 시프트 (player) / 근태 요약 (op·admin) -->
       ${m.role === 'player' ? (() => {
-        const sh = matchShift(d.current_shift);
+        const liveSh = matchShift(d.current_shift);
+        const manualKey = (typeof STAFF_PROFILE !== 'undefined' && STAFF_PROFILE[staffId] && STAFF_PROFILE[staffId].manual_shift) || '';
+        const msh = (manualKey && SHIFT_SCHEDULE[manualKey]) ? SHIFT_SCHEDULE[manualKey] : null;
+        const sh = liveSh || msh;          // [v233] live PC-assigned shift wins; else the manual shift
+        const isManual = !liveSh && !!msh;
+        const _shSel = _staffShiftSelector(staffId, manualKey, !!liveSh);
+        let card;
         if(sh){
-          return `<div class="sf-shift" style="--shc:${sh.color}">
+          card = `<div class="sf-shift" style="--shc:${sh.color}">
             <div class="sf-shift-head">
               <span class="sf-shift-badge" style="background:color-mix(in srgb,${sh.color} 16%,transparent);color:${sh.color}">${sh.icon} ${sh.type} ${sh.label}</span>
-              <span class="sf-shift-status" style="color:${d.status==='online'?'var(--gr)':'var(--tx3)'}">${d.status==='online'?'● 근무 중':d.status==='break'?'● 휴식 중':'○ 오프'}</span>
+              <span class="sf-shift-status" style="color:${isManual ? 'var(--ac)' : (d.status==='online'?'var(--gr)':'var(--tx3)')}">${isManual ? '✋ 수동 배정' : (d.status==='online'?'● 근무 중':d.status==='break'?'● 휴식 중':'○ 오프')}</span>
             </div>
             <div class="sf-shift-rows">
               <div class="sf-shift-row"><span class="sf-shift-ic">🕐</span><span class="sf-shift-lbl">근무</span><span class="sf-shift-val">${sh.work}</span></div>
               <div class="sf-shift-row"><span class="sf-shift-ic">☕</span><span class="sf-shift-lbl">휴게</span><span class="sf-shift-val">${sh.brk}</span></div>
               <div class="sf-shift-row"><span class="sf-shift-ic">💰</span><span class="sf-shift-lbl">급여</span><span class="sf-shift-val" style="color:var(--ac-strong);font-weight:700">${sh.salary}</span></div>
-              ${d.current_pc && d.current_pc!=='—' ? `<div class="sf-shift-row"><span class="sf-shift-ic">🖥</span><span class="sf-shift-lbl">PC</span><span class="sf-shift-val" style="color:#5fa3d9;font-weight:700">${d.current_pc}</span></div>` : ''}
+              ${(!isManual && d.current_pc && d.current_pc!=='—') ? `<div class="sf-shift-row"><span class="sf-shift-ic">🖥</span><span class="sf-shift-lbl">PC</span><span class="sf-shift-val" style="color:#5fa3d9;font-weight:700">${d.current_pc}</span></div>` : ''}
             </div>
           </div>`;
+        } else if(d.current_shift){
+          card = `<div class="sf-shift sf-shift-custom"><span class="sf-shift-ic">🗓</span><span class="sf-shift-lbl">현재 시프트</span><span class="sf-shift-val">${d.current_shift}</span></div>`;
+        } else {
+          card = `<div class="sf-shift sf-shift-off"><span class="sf-shift-ic">○</span><span class="sf-shift-lbl">시프트</span><span class="sf-shift-val">오프 / 미배정</span></div>`;
         }
-        if(d.current_shift){
-          // 특수 시프트 (서원 수업 등) — 원본 표시
-          return `<div class="sf-shift sf-shift-custom"><span class="sf-shift-ic">🗓</span><span class="sf-shift-lbl">현재 시프트</span><span class="sf-shift-val">${d.current_shift}</span></div>`;
-        }
-        return `<div class="sf-shift sf-shift-off"><span class="sf-shift-ic">○</span><span class="sf-shift-lbl">시프트</span><span class="sf-shift-val">오프 / 미배정</span></div>`;
+        return card + _shSel;
       })() : attCard(d, m, t)}
 
       <!-- 퍼포먼스 (Player만) -->
@@ -15936,6 +15947,30 @@ function submitSfForm(){
 }
 function _sfCanEdit(){ return currentUserRole === 'admin' || currentUserRole === 'op'; }
 function _sfToday(){ return new Date().toISOString().slice(0,10); }
+
+// ─── [v233] 시프트 수동 배정 (CEO / Manager / HR) — manual shift tag on a player's profile ───
+function _canSetShift(){ return (currentUserRole === 'admin' || currentUserRole === 'op') || (currentUser && currentUser.role === 'hr'); }
+function _staffShiftSelector(staffId, manualKey, hasLive){
+  if(!_canSetShift()) return '';
+  const _csl = _uiLang();
+  const optHtml = Object.keys(SHIFT_SCHEDULE).map(function(k){ const s = SHIFT_SCHEDULE[k]; return `<option value="${k}" ${manualKey===k?'selected':''}>${s.icon} ${s.type} ${s.label} · ${s.work}</option>`; }).join('');
+  const noneLabel = _csl==='ko' ? '— 미배정 / None —' : _csl==='id' ? '— Tidak ada —' : '— None —';
+  const selLabel  = _csl==='ko' ? '시프트 수동 배정' : _csl==='id' ? 'Tetapkan shift manual' : 'Assign shift manually';
+  const liveNote  = hasLive ? (_csl==='ko' ? 'PC 배정 시프트 표시 중 — 수동 설정은 PC 미배정 시 적용돼요' : _csl==='id' ? 'Menampilkan shift dari PC — manual berlaku saat tanpa PC' : 'Showing the PC-assigned shift — your manual pick applies when there is no PC') : '';
+  return `<div class="sf-shift-assign"><label class="sf-shift-assign-lbl">${selLabel}</label><select class="sf-shift-select" onchange="setStaffManualShift('${staffId}', this.value)"><option value="">${noneLabel}</option>${optHtml}</select>${liveNote ? `<div class="sf-shift-assign-note">${liveNote}</div>` : ''}</div>`;
+}
+function setStaffManualShift(staffId, key){
+  if(!_canSetShift()){ toast(_uiLang()==='ko'?'권한이 없습니다':'Not allowed', true); return; }
+  if(typeof STAFF_PROFILE === 'undefined') return;
+  if(!STAFF_PROFILE[staffId]) STAFF_PROFILE[staffId] = {};
+  STAFF_PROFILE[staffId].manual_shift = key || '';
+  try{ saveStaffState(); }catch(_){}
+  const s = (key && SHIFT_SCHEDULE[key]) ? SHIFT_SCHEDULE[key] : null;
+  const lbl = s ? (s.type + ' ' + s.label) : (_uiLang()==='ko'?'미배정':'None');
+  try{ logAction('update', 'set shift → ' + lbl, staffId); }catch(_){}
+  toast('✓ ' + (_uiLang()==='ko'?'시프트 배정됨':_uiLang()==='id'?'Shift ditetapkan':'Shift assigned'));
+  openStaffDetail(staffId);
+}
 
 function openStaffInfoEditor(staffId){
   if(!_sfCanEdit()) return;
