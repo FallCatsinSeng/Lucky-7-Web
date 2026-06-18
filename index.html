@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v229 -->
+<!-- BUILD: v230 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!--
@@ -422,6 +422,14 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
   transition:all .15s var(--ease);
 }
 .att-btn-del:hover{background:var(--re-bg)}
+.att-row-acts{display:inline-flex;gap:6px;align-items:center;justify-content:flex-end}
+.att-btn-edit{
+  font-size:11px;padding:3px 8px;border-radius:5px;
+  background:transparent;border:1px solid var(--ac-bord,rgba(194,160,74,.4));color:var(--ac,#c2a04a);cursor:pointer;
+  font-family:inherit;
+  transition:all .15s var(--ease);
+}
+.att-btn-edit:hover{background:var(--ac-bg,rgba(194,160,74,.12))}
 /* 필터 탭 */
 .att-tab-row{display:flex;gap:6px;margin-bottom:16px}
 .att-tab{
@@ -10279,6 +10287,8 @@ async function renderAttendance(){
   </div>`;
 
   const showAll = isManager;
+  // [v230] CEO/admin + managers (op) + HR can edit & reset attendance rows
+  const _canEditAtt = isManager || (currentUser && currentUser.role === 'hr');
   const rows = filtered.length ? filtered.map(a => {
     const hrs = calcHours(a.clock_in, a.clock_out, a.break_start, a.break_end);
     const init = (a.user_name || '?').slice(0,2).toUpperCase();
@@ -10290,15 +10300,15 @@ async function renderAttendance(){
       <td class="col-break">${a.break_end ? fmtTime(a.break_end) : '—'}</td>
       <td class="col-out">${fmtTime(a.clock_out)}</td>
       <td>${hrs ? `<span class="bdg bs">${hrs}</span>` : `<span class="bdg bi">근무 중</span>`}</td>
-      ${isManager ? `<td><button class="att-btn-del" onclick="attResetRow('${a.id}')" title="이 기록 초기화">↺</button></td>` : ''}
+      ${_canEditAtt ? `<td><div class="att-row-acts"><button class="att-btn-edit" onclick="attEditRow('${a.id}')" title="시간 수정 / Edit times">✎</button>${isManager ? `<button class="att-btn-del" onclick="attResetRow('${a.id}')" title="이 기록 초기화 / Reset">↺</button>` : ''}</div></td>` : ''}
     </tr>`;
-  }).join('') : `<tr><td colspan="${(showAll?1:0)+(isManager?1:0)+6}" class="att-row-empty">기록 없음</td></tr>`;
+  }).join('') : `<tr><td colspan="${(showAll?1:0)+(_canEditAtt?1:0)+6}" class="att-row-empty">기록 없음</td></tr>`;
 
   const table = `<div class="att-tw"><table>
     <thead><tr>
       ${showAll ? `<th>이름</th>` : ''}
       <th>날짜</th><th>출근</th><th>휴식 시작</th><th>휴식 종료</th><th>퇴근</th><th>총 시간</th>
-      ${isManager ? `<th></th>` : ''}
+      ${_canEditAtt ? `<th></th>` : ''}
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
@@ -10421,6 +10431,50 @@ async function attResetRow(id){
     toast('삭제 완료');
     renderAttendance();
   }catch(e){ toast('Error: ' + e.message, true); }
+}
+
+// ─── [v230] 근무 시간 직접 수정 (CEO / Manager / HR) — Edit attendance times ───
+function _attCanEditTimes(){ return (currentUserRole === 'admin' || currentUserRole === 'op') || (currentUser && currentUser.role === 'hr'); }
+function _isoToLocalInput(iso){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d.getTime())) return ''; const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes()); }
+function _localInputToIso(v){ if(!v) return null; const d=new Date(v); return isNaN(d.getTime()) ? null : d.toISOString(); }
+
+async function attEditRow(id){
+  if(!_attCanEditTimes()){ toast('권한이 없습니다 / Not allowed', true); return; }
+  let rec = null;
+  try{ rec = ((window._attExport && window._attExport.rows) || []).find(r => String(r.id) === String(id)); }catch(_){}
+  if(!rec && sb){ try{ const {data} = await sb.from('attendance').select('*').eq('id', id).single(); rec = data; }catch(_){} }
+  if(!rec){ toast('기록을 찾을 수 없어요 / Record not found', true); return; }
+  const _L = _uiLang();
+  const T = (ko,en) => _L==='ko' ? ko : en;
+  openSfForm('✎ ' + T('근무 시간 수정','Edit attendance times') + (rec.user_name ? (' — ' + rec.user_name) : ''), [
+    { k:'clock_in',    label:T('출근 / Clock-in','Clock-in'),          type:'datetime-local', value:_isoToLocalInput(rec.clock_in) },
+    { k:'break_start', label:T('휴식 시작 / Break start','Break start'), type:'datetime-local', value:_isoToLocalInput(rec.break_start) },
+    { k:'break_end',   label:T('휴식 종료 / Break end','Break end'),     type:'datetime-local', value:_isoToLocalInput(rec.break_end) },
+    { k:'clock_out',   label:T('퇴근 / Clock-out','Clock-out'),         type:'datetime-local', value:_isoToLocalInput(rec.clock_out) }
+  ], async vals => {
+    const updates = {
+      clock_in:    _localInputToIso(vals.clock_in),
+      break_start: _localInputToIso(vals.break_start),
+      break_end:   _localInputToIso(vals.break_end),
+      clock_out:   _localInputToIso(vals.clock_out)
+    };
+    if(updates.clock_in && updates.clock_out && new Date(updates.clock_out).getTime() < new Date(updates.clock_in).getTime()){
+      toast(T('퇴근이 출근보다 빠릅니다','Clock-out is before clock-in'), true); return;
+    }
+    if(updates.break_start && updates.break_end && new Date(updates.break_end).getTime() < new Date(updates.break_start).getTime()){
+      toast(T('휴식 종료가 시작보다 빠릅니다','Break end is before break start'), true); return;
+    }
+    // keep the record's business-day date aligned to the (possibly edited) clock-in
+    if(updates.clock_in){ const d=new Date(updates.clock_in); const p=n=>String(n).padStart(2,'0'); updates.date = d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+    if(sb){
+      try{ const { error } = await sb.from('attendance').update(updates).eq('id', id); if(error) throw error; }
+      catch(e){ toast(T('저장 실패','Save failed') + ': ' + (e&&e.message||''), true); return; }
+    }
+    try{ if(myAtt && String(myAtt.id) === String(id)){ myAtt = { ...myAtt, ...updates }; } }catch(_){}
+    try{ logAction('update', 'edited attendance times', rec.user_name || id); }catch(_){}
+    toast('✓ ' + T('근무 시간 수정됨','Attendance times updated'));
+    renderAttendance();
+  });
 }
 
 // ═══════════════════════════════════════════════════
