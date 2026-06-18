@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v236 -->
+<!-- BUILD: v237 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21594,7 +21594,8 @@ document.addEventListener('keydown', (e) => {
 // INIT
 // 저장된 테마 복원 (설정 → 모양)
 (function(){ try{ const t = sessionStorage.getItem('lucky7_theme'); if(t) applyTheme(t); }catch(_){} })();
-// [v236] on-screen boot diagnostics — auto-shows if any load fails or render throws (or with #debug in URL)
+// [v237] on-screen boot diagnostics — ALWAYS shows (temporary debug build) and captures the
+// errors render() normally swallows internally, plus the live build version.
 function showBootDiag(b){
   try{
     var ex = document.getElementById('boot-diag'); if(ex) ex.remove();
@@ -21603,14 +21604,18 @@ function showBootDiag(b){
         + '<span>'+(l.ok?'\u2713':'\u2717')+' '+l.name+'</span>'
         + '<span style="color:'+(l.ok?'#9fcaa0':'#e8908c')+'">'+(l.ok?(l.ms+'ms'):((l.err||'failed').slice(0,70)))+'</span></div>';
     }).join('');
+    var logs = (b.logs&&b.logs.length)
+      ? '<div style="margin-top:8px;border-top:1px solid #3a382f;padding-top:8px;font-weight:700;color:#e8b58c">errors during render:</div>'
+        + '<div style="max-height:170px;overflow:auto">'+b.logs.map(function(m){ return '<div style="color:#e8b58c;padding:1px 0">\u2022 '+String(m).slice(0,150)+'</div>'; }).join('')+'</div>'
+      : '<div style="margin-top:8px;border-top:1px solid #3a382f;padding-top:8px;color:#9fcaa0">no errors captured during render</div>';
     var c = b.counts||{};
     var d = document.createElement('div');
     d.id='boot-diag';
-    d.style.cssText='position:fixed;top:14px;right:14px;z-index:100000;background:#1c1b16;border:1px solid #c2a04a;border-radius:10px;padding:14px 16px;font:12px/1.5 ui-monospace,monospace;color:#e8e6df;max-width:360px;box-shadow:0 8px 30px rgba(0,0,0,.5)';
-    d.innerHTML='<div style="color:#c2a04a;font-weight:700;margin-bottom:8px">Boot diagnostics \u00b7 '+(b.totalMs||0)+'ms \u00b7 role '+(b.role||'?')+'</div>'
+    d.style.cssText='position:fixed;top:14px;right:14px;z-index:100000;background:#1c1b16;border:2px solid #c2a04a;border-radius:10px;padding:14px 16px;font:12px/1.5 ui-monospace,monospace;color:#e8e6df;max-width:440px;box-shadow:0 8px 30px rgba(0,0,0,.6)';
+    d.innerHTML='<div style="color:#c2a04a;font-weight:700;margin-bottom:8px;font-size:13px">BUILD '+(b.build||'?')+' \u00b7 boot '+(b.totalMs||0)+'ms \u00b7 role '+(b.role||'?')+'</div>'
       + rows
-      + '<div style="margin-top:8px;border-top:1px solid #3a382f;padding-top:8px">loaded rows \u2014 PCS '+(c.PCS||0)+' \u00b7 STAFF '+(c.STAFF||0)+' \u00b7 ROSTER '+(c.ROSTER||0)+'</div>'
-      + (b.renderErr?'<div style="color:#e8908c;margin-top:6px">render error: '+String(b.renderErr).slice(0,90)+'</div>':'')
+      + '<div style="margin-top:8px;border-top:1px solid #3a382f;padding-top:8px">rows loaded \u2014 PCS '+(c.PCS||0)+' \u00b7 STAFF '+(c.STAFF||0)+' \u00b7 ROSTER '+(c.ROSTER||0)+'</div>'
+      + logs
       + '<button onclick="this.parentNode.remove()" style="margin-top:10px;background:#c2a04a;color:#1c1b16;border:0;border-radius:6px;padding:5px 12px;font-weight:700;cursor:pointer">Close</button>';
     document.body.appendChild(d);
   }catch(_){}
@@ -21630,19 +21635,24 @@ function showBootDiag(b){
     // [v75 #2] after a language-change reload, stay on the page we were on
     try{ var _rc = sessionStorage.getItem('lucky7_resume_ch'); if(_rc){ activeChannelId = _rc; sessionStorage.removeItem('lucky7_resume_ch'); } }catch(_){}
 
-    // [v236] Instrumented boot. The old silent .catch(()=>{}) hid real query failures and left
-    // the dashboard blank. Now every load is timed and any error is captured + surfaced on screen.
+    // [v237] Diagnostic boot. Captures the errors render() swallows internally and ALWAYS shows
+    // the panel so we can see exactly what's happening (build version, loads, row counts, errors).
     const __t0 = performance.now();
-    const __boot = { role: currentUserRole, loads: [] };
+    const __boot = { build:'v237', role: currentUserRole, loads: [], logs: [] };
+    // intercept warnings/errors during boot — render()'s internal try/catch hides its sub-errors
+    const __ow = console.warn, __oe = console.error;
+    function __cap(){ try{ if(__boot.logs.length<40){ __boot.logs.push(Array.prototype.map.call(arguments,function(a){ return (a&&a.message)?a.message:String(a); }).join(' ')); } }catch(_){} }
+    console.warn = function(){ __cap.apply(null,arguments); return __ow.apply(console,arguments); };
+    console.error = function(){ __cap.apply(null,arguments); return __oe.apply(console,arguments); };
     async function __run(name, fn){
       const t = performance.now();
       try{ await fn(); __boot.loads.push({ name, ms: Math.round(performance.now()-t), ok:true }); }
-      catch(e){ __boot.loads.push({ name, ms: Math.round(performance.now()-t), ok:false, err:(e&&e.message)||String(e) }); console.error('[boot] '+name+' FAILED:', e); }
+      catch(e){ __boot.loads.push({ name, ms: Math.round(performance.now()-t), ok:false, err:(e&&e.message)||String(e) }); }
     }
 
     // paint the shell first so the app feels responsive while data loads
-    try{ renderSidebar(); }catch(e){ console.error('[boot] renderSidebar', e); }
-    try{ routeContent(); }catch(e){ console.error('[boot] routeContent', e); }
+    try{ renderSidebar(); }catch(e){ console.error('renderSidebar:', e&&e.message); }
+    try{ routeContent(); }catch(e){ console.error('routeContent:', e&&e.message); }
 
     // load all independent cloud state in parallel (was a sequential Seoul round-trip waterfall)
     await Promise.all([
@@ -21651,9 +21661,9 @@ function showBootDiag(b){
       __run('staffPool', loadStaffPool),
       __run('pcState', loadPCState),
       __run('exp', syncExpFromCloud),
-      __run('roster', loadRoster)            // [v236] dashboard timeline + shift metrics need this
+      __run('roster', loadRoster)            // dashboard timeline + shift metrics need this
     ]);
-    try{ reconcilePcExp(); }catch(e){ console.error('[boot] reconcilePcExp', e); }
+    try{ reconcilePcExp(); }catch(e){ console.error('reconcilePcExp:', e&&e.message); }
 
     __boot.counts = {
       PCS: (typeof PCS!=='undefined' && PCS) ? PCS.length : 0,
@@ -21662,17 +21672,15 @@ function showBootDiag(b){
     };
 
     // render with full data — each call guarded so one failure can't blank everything
-    try{ renderSidebar(); }catch(e){ console.error('[boot] renderSidebar2', e); }
-    try{ routeContent(); }catch(e){ console.error('[boot] routeContent2', e); }
-    try{ render(); }catch(e){ console.error('[boot] render', e); __boot.renderErr=(e&&e.message)||String(e); }
-    try{ selectPC(1); }catch(e){ console.error('[boot] selectPC', e); }
+    try{ renderSidebar(); }catch(e){ console.error('renderSidebar2:', e&&e.message); }
+    try{ routeContent(); }catch(e){ console.error('routeContent2:', e&&e.message); }
+    try{ render(); }catch(e){ console.error('render:', e&&e.message); }
+    try{ selectPC(1); }catch(e){ console.error('selectPC:', e&&e.message); }
 
     __boot.totalMs = Math.round(performance.now()-__t0);
+    console.warn = __ow; console.error = __oe;   // restore
     console.log('[boot] summary', __boot);
-    // auto-surface the panel if anything failed (or on demand via #debug)
-    const __failed = __boot.loads.some(l=>!l.ok) || !!__boot.renderErr;
-    const __wantDebug = (location.hash.indexOf('debug')>=0 || location.search.indexOf('debug')>=0);
-    if(__failed || __wantDebug) showBootDiag(__boot);
+    showBootDiag(__boot);   // ALWAYS show for this diagnostic build
   } else {
     showAuthScreen();
   }
