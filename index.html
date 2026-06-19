@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v247 -->
+<!-- BUILD: v248 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14881,6 +14881,15 @@ function _srEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/<
 function _srArg(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _srPad(h){ h=((h%24)+24)%24; return (h<10?'0':'')+h+':00'; }
 function _srBooster(){ return (typeof currentUser!=='undefined' && currentUser && currentUser.name) ? currentUser.name : 'Booster'; }
+function _srParseThread(v){ v=String(v||'').trim(); var m=v.match(/channels\/\d+\/(\d+)/); if(m) return m[1]; if(/^\d{10,25}$/.test(v)) return v; return v; }
+function _srThread(){
+  try{
+    if(typeof STAFF_PROFILE==='undefined' || typeof currentUser==='undefined' || !currentUser) return '';
+    var p = STAFF_PROFILE[currentUser.id] || STAFF_PROFILE[currentUser.name] || null;
+    if(!p){ var nm=String(currentUser.name||'').toLowerCase().trim(); for(var k in STAFF_PROFILE){ if(String(k).toLowerCase().trim()===nm){ p=STAFF_PROFILE[k]; break; } } }
+    return _srParseThread(p && p.personal ? p.personal.discord_thread : '');
+  }catch(e){ return ''; }
+}
 function _srClients(){
   var out=[];
   try{
@@ -15143,6 +15152,10 @@ function _srExpRow(prefix){
 }
 function _srBuildHTML(){
   var booster=_srEsc(_srBooster());
+  var _tid=_srThread();
+  var threadLine = _tid
+    ? '<span style="font-size:11.5px;color:var(--gr,#4d9a8a);">✓ reports go to your Discord thread</span>'
+    : '<span style="font-size:11.5px;color:var(--re,#c46a6a);">⚠ no Discord thread set — ask an admin to add it on your staff profile</span>';
   var sh0=_SR_SHIFTS[0];
   var shiftOpts=_SR_SHIFTS.map(function(s,i){ return '<button class="sr-dd-opt'+(i===0?' sel':'')+'" onclick="_srPickShift('+i+')">'+_srEsc(s.name)+'<span class="sr-t2">'+_srEsc(s.time.replace(' → ','–'))+'</span></button>'; }).join('');
   var clients=_srClients();
@@ -15163,7 +15176,7 @@ function _srBuildHTML(){
 
   var checkin=''
   +'<div class="sr-s" id="sr-s-checkin">'
-  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span style="font-size:11.5px;color:var(--tx3,#6c6b66);">signed in — automatic</span></div>'
+  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span>'+threadLine+'</div>'
   +  '<div class="sr-row"><label class="sr-lab">Shift</label><div class="sr-dd" id="sr-dd-shift"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-shift\')"><span><span class="ttl" id="sr-shift-name">'+_srEsc(sh0.name)+'</span><span class="meta" id="sr-shift-time">'+_srEsc(sh0.time)+'</span></span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+shiftOpts+'</div></div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Start playing at</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBumpStart(-1)">−</button><span class="sr-t" id="sr-ci-start">07:00</span><button onclick="_srBumpStart(1)">+</button></span><span class="sr-auto" id="sr-ci-kst">07:00 WIB<br>09:00 KST</span></div><p class="sr-sub" style="margin-top:7px;">You clock in at shift start, but you may log into the client later — set the real start. WIB (Jakarta); client side shows KST.</p></div>'
   +  '<div class="sr-row"><label class="sr-lab">Client · PC</label><div class="sr-pc-grid">'+pcCards+'</div></div>'
@@ -16355,7 +16368,8 @@ function openStaffInfoEditor(staffId){
     { k:'phone',      label:'전화번호 / Phone', value:p.phone },
     { k:'anydesk',    label:'AnyDesk', value:p.anydesk },
     { k:'start_work', label:'입사일 / Start date', type:'date', value:p.start_work },
-    { k:'shift_pattern', label:'시프트 / Shift', value:p.shift_pattern, ph:'12H Day · 10H Night ...' }
+    { k:'shift_pattern', label:'시프트 / Shift', value:p.shift_pattern, ph:'12H Day · 10H Night ...' },
+    { k:'discord_thread', label:'Discord 보고 스레드 / Report thread link', value:p.discord_thread, ph:'https://discord.com/channels/…' }
   ], vals => {
     if(!STAFF_PROFILE[staffId]) STAFF_PROFILE[staffId] = {};
     STAFF_PROFILE[staffId].personal = vals;
