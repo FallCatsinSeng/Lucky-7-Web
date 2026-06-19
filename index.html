@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v248 -->
+<!-- BUILD: v249 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16064,6 +16064,9 @@ async function openStaffDetail(staffId){
       ${infoRow('AnyDesk', pinfo.anydesk, true)}
       ${infoRow('입사일', pinfo.start_work)}
       ${infoRow('시프트', pinfo.shift_pattern)}
+      ${pinfo.discord_thread
+        ? infoRow('Discord 스레드', pinfo.discord_thread, true)
+        : ((currentUserRole==='admin'||currentUserRole==='op') ? `<div class="sf-info-row"><span class="sf-info-lbl">Discord 스레드</span><span class="sf-info-val" style="color:var(--re,#c46a6a)">미설정 — ✎ Edit info 에서 입력</span></div>` : '')}
     </div>
     <div class="sf-cv">
       ${prof.cv ? `<span class="sf-cv-ic">📄</span><span class="sf-cv-name">${prof.cv.name}</span><button class="sf-cv-btn" onclick="toast('CV 열기 — ${prof.cv.name}')">보기</button>` 
