@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v246 -->
+<!-- BUILD: v247 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14874,32 +14874,367 @@ function expMapManager(){
 function mgEdit(g,idx,f,v){ MAP_GROUPS[g][idx][f]=v; saveExpState(); }
 function mgDel(g,idx){ MAP_GROUPS[g].splice(idx,1); saveExpState(); expMapManager(); }
 function mgAdd(g){ MAP_GROUPS[g].push({full:'새 맵',short:''}); saveExpState(); expMapManager(); }
-// === 성과 계산기 (Performance Calculator) — embeds the live calc app from the report server ===
-var CALC_EMBED_URL = 'https://buju-report.onrender.com/calc';
-function _sizeCalcFrame(){
-  var f = document.getElementById('calc-embed-frame');
-  if(!f) return;
-  var top = f.getBoundingClientRect().top;
-  var h = window.innerHeight - top - 8;
-  if(h < 360) h = 360;
-  f.style.height = h + 'px';
+// === SHIFT REPORT (native) — replaces the Performance Calculator embed [v247] ===
+// Live data: clients/PCs from PC Status (PCS → clientById), maps from MAP_GROUPS (TEST excluded),
+// booster from the logged-in account (currentUser). Submit→payroll write + Discord post wired next.
+function _srEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _srArg(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _srPad(h){ h=((h%24)+24)%24; return (h<10?'0':'')+h+':00'; }
+function _srBooster(){ return (typeof currentUser!=='undefined' && currentUser && currentUser.name) ? currentUser.name : 'Booster'; }
+function _srClients(){
+  var out=[];
+  try{
+    if(typeof PCS!=='undefined' && PCS && PCS.length){
+      PCS.forEach(function(p){ (p.clients||[]).forEach(function(cid){
+        var c=(typeof clientById==='function')?clientById(cid):null;
+        if(c) out.push({ pc:p.id, name:c.name });
+      }); });
+    }
+    if(!out.length && typeof CLIENTS!=='undefined' && CLIENTS && CLIENTS.length){
+      CLIENTS.forEach(function(c){ out.push({ pc:(c.pc||c.no||'?'), name:c.name }); });
+    }
+  }catch(e){}
+  return out;
 }
+function _srMapGroups(){
+  var groups=[];
+  try{
+    if(typeof MAP_GROUPS!=='undefined' && MAP_GROUPS){
+      Object.keys(MAP_GROUPS).forEach(function(g){
+        var maps=(MAP_GROUPS[g]||[]).map(function(m){
+          var full=m.full||m.short||'', short=m.short||m.full||'';
+          var excl=String(full).toUpperCase()==='TEST'||String(short).toUpperCase()==='TEST';
+          return { full:full, short:short, excl:excl };
+        });
+        if(maps.length) groups.push({ name:g, maps:maps });
+      });
+    }
+  }catch(e){}
+  return groups;
+}
+
+var _SR_SHIFTS=[
+  {name:'Day · 12h', time:'07:00 → 19:00', s:7, e:19},
+  {name:'Day · 10h', time:'09:00 → 19:00', s:9, e:19},
+  {name:'Day · 8h (1)', time:'09:00 → 17:00', s:9, e:17},
+  {name:'Day · 8h (2)', time:'17:00 → 01:00', s:17, e:25},
+  {name:'Night · 12h', time:'19:00 → 07:00', s:19, e:31},
+  {name:'Night · 10h', time:'21:00 → 07:00', s:21, e:31},
+  {name:'Night · 8h (3)', time:'01:00 → 09:00', s:1, e:9}
+];
+var _srShiftStartH=7, _srShiftEndH=19, _srWinStart=7, _srWinEnd=9, _srPlayStartH=7, _srOnOk=null;
+
+function _srGo(name){
+  ['checkin','update','checkout'].forEach(function(k){
+    var el=document.getElementById('sr-s-'+k); if(el) el.style.display=(k===name)?'':'none';
+    var st=document.getElementById('sr-step-'+k); if(st) st.classList.toggle('on',k===name);
+  });
+  _srCloseDD();
+}
+function _srToast(m){ if(typeof toast==='function'){ try{ toast(m); }catch(e){} } }
+function _srToggleDD(id){ var dd=document.getElementById(id); if(!dd) return; var open=dd.classList.contains('open'); _srCloseDD(); if(!open) dd.classList.add('open'); }
+function _srCloseDD(){ var l=document.querySelectorAll('#sr-app .sr-dd.open'); for(var i=0;i<l.length;i++) l[i].classList.remove('open'); }
+
+function _srPickShift(i){
+  var sh=_SR_SHIFTS[i]; if(!sh) return;
+  _srShiftStartH=sh.s; _srShiftEndH=sh.e; _srPlayStartH=sh.s;
+  var nm=document.getElementById('sr-shift-name'); if(nm) nm.textContent=sh.name;
+  var tm=document.getElementById('sr-shift-time'); if(tm) tm.textContent=sh.time;
+  var lst=document.querySelectorAll('#sr-dd-shift .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel',k===i);
+  _srRenderCIStart(); _srCloseDD();
+}
+function _srRenderCIStart(){
+  var a=document.getElementById('sr-ci-start'); if(a) a.textContent=_srPad(_srPlayStartH);
+  var b=document.getElementById('sr-ci-kst'); if(b) b.innerHTML=_srPad(_srPlayStartH)+' WIB<br>'+_srPad(_srPlayStartH+2)+' KST';
+}
+function _srBumpStart(d){ var n=_srPlayStartH+d; if(n>=0&&n<_srShiftEndH) _srPlayStartH=n; _srRenderCIStart(); }
+function _srPickMap(full){
+  document.querySelectorAll('#sr-app [data-sr-map]').forEach(function(x){ x.textContent=full; });
+  var lst=document.querySelectorAll('#sr-dd-map .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel', lst[k].getAttribute('data-full')===full);
+  _srCloseDD();
+}
+function _srPickPC(pc,name){
+  var lbl='PC'+pc+' · '+name;
+  document.querySelectorAll('#sr-app [data-sr-pc]').forEach(function(x){ x.textContent=lbl; });
+  document.querySelectorAll('#sr-app .sr-pc-card').forEach(function(c){ c.classList.toggle('sel', c.getAttribute('data-pc')===String(pc)&&c.getAttribute('data-name')===name); });
+}
+function _srToggleShot(el){ el.classList.toggle('has'); }
+
+function _srRenderWin(){
+  var w1=document.getElementById('sr-w1'), w2=document.getElementById('sr-w2');
+  if(w1) w1.textContent=_srPad(_srWinStart); if(w2) w2.textContent=_srPad(_srWinEnd);
+  var recs=document.getElementById('sr-recs');
+  if(recs){ recs.innerHTML=''; for(var h=_srWinStart+1; h<=_srWinEnd; h++){ var s=document.createElement('span'); s.className='sr-sc'; s.textContent=_srPad(h); recs.appendChild(s); } }
+  var n=Math.max(0,_srWinEnd-_srWinStart);
+  var note=document.getElementById('sr-splitnote'); if(note) note.textContent=n<=1?'· 1 hour, full gain':(n===2?'· 1h each, gain split 50/50':'· 1h each, gain split evenly');
+  var kst=document.getElementById('sr-up-kst'); if(kst) kst.textContent=_srPad(_srWinStart+2)+' → '+_srPad(_srWinEnd+2);
+  _srCheckEnd();
+}
+function _srBump(which,d){
+  if(which==='s'){ var ns=_srWinStart+d; if(ns>=0&&ns<_srWinEnd) _srWinStart=ns; }
+  else { var ne=_srWinEnd+d; if(ne>_srWinStart&&ne-_srWinStart<=8) _srWinEnd=ne; }
+  _srRenderWin();
+}
+function _srCheckEnd(){
+  var ending=_srWinEnd>=_srShiftEndH;
+  var bar=document.getElementById('sr-endbar'); if(bar) bar.style.display=ending?'':'none';
+  var eh=document.getElementById('sr-endh'); if(eh) eh.textContent=_srPad(_srShiftEndH);
+  var bt=document.getElementById('sr-up-btn-t'); if(bt) bt.textContent=ending?'Check out — end shift':'Submit 2-hour report';
+  var ft=document.getElementById('sr-up-foot'); if(ft) ft.textContent=ending?'This is the last report — it posts your check-out':'Submitting saves the hourly records and rolls to the next window';
+}
+function _srCheckIn(){
+  _srWinStart=_srPlayStartH; _srWinEnd=Math.min(_srPlayStartH+2,_srShiftEndH); _srRenderWin();
+  var st=document.getElementById('sr-step-checkin'); if(st) st.classList.add('done');
+  _srGo('update'); _srToast('Checked in — shift started');
+}
+function _srSubmitUpdate(){ _srReview('update'); }
+function _srReviewCheckout(){ _srReview('checkout'); }
+
+function _srReadScreen(which){
+  var root=document.getElementById('sr-s-'+which); if(!root) return {recs:[]};
+  var exps=root.querySelectorAll('.sr-exp .sr-inp');
+  var adenaEl=root.querySelector('[data-sr-adena]'), potEl=root.querySelector('[data-sr-pot]');
+  var t=root.querySelectorAll('.sr-tbox .sr-t');
+  return {
+    lv: exps[0]?exps[0].value:'', expv: exps[1]?exps[1].value:'',
+    adena: adenaEl?adenaEl.value:'', pot: potEl?potEl.value:'',
+    t1: t[0]?t[0].textContent:'', t2: t[1]?t[1].textContent:'',
+    recs: Array.prototype.map.call(root.querySelectorAll('.sr-split .sr-sc'), function(e){return e.textContent;}),
+    shot: !!(root.querySelector('.sr-drop')&&root.querySelector('.sr-drop').classList.contains('has')),
+    pc: (root.querySelector('[data-sr-pc]')||{}).textContent||'',
+    map: (root.querySelector('[data-sr-map]')||{}).textContent||''
+  };
+}
+function _srRecapHTML(d){
+  var chips=d.recs.map(function(r){return '<span class="sr-sc">'+_srEsc(r)+'</span>';}).join('');
+  var shot=d.shot?'<span class="sr-rv sr-ok">✓ attached</span>':'<span class="sr-rv sr-re">✗ missing</span>';
+  return '<div class="sr-rrow"><span class="sr-rl">Client · PC</span><span class="sr-rv">'+_srEsc(d.pc)+'</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">Map</span><span class="sr-rv">'+_srEsc(d.map)+'</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">Time</span><span class="sr-rv">'+_srEsc(d.t1)+' → '+_srEsc(d.t2)+'</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">Saved as</span><span class="sr-rv sr-chips">'+chips+'</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">EXP</span><span class="sr-rv">Lv '+_srEsc(d.lv)+' · '+_srEsc(d.expv)+'%</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">Adena</span><span class="sr-rv">'+_srEsc(d.adena)+'</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">Red potion</span><span class="sr-rv">'+_srEsc(d.pot)+'</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">Screenshot</span>'+shot+'</div>';
+}
+function _srReview(which){
+  var d=_srReadScreen(which);
+  var ending=(which==='checkout')||(_srWinEnd>=_srShiftEndH);
+  document.getElementById('sr-sheet-title').textContent=ending?'Check out — is this right?':'Submit report — is this right?';
+  document.getElementById('sr-recap').innerHTML=d.shot?_srRecapHTML(d):(_srRecapHTML(d)+'<div class="sr-warn">⚠ Add a screenshot before you submit</div>');
+  var cb=document.getElementById('sr-confirm'); cb.textContent=ending?'Yes, check out':'Yes, submit'; cb.disabled=!d.shot;
+  _srOnOk=ending?_srDoCheckout:_srDoUpdate;
+  document.getElementById('sr-scrim').style.display='';
+  document.getElementById('sr-sheet').style.display='';
+}
+function _srCloseReview(){ var a=document.getElementById('sr-scrim'),b=document.getElementById('sr-sheet'); if(a)a.style.display='none'; if(b)b.style.display='none'; _srOnOk=null; }
+function _srConfirm(){ var f=_srOnOk; _srCloseReview(); if(f) f(); }
+function _srDoUpdate(){
+  if(_srWinEnd>=_srShiftEndH){ _srDoCheckout(); return; }
+  _srToast('Saved · '+_srPad(_srWinStart+1)+' to '+_srPad(_srWinEnd));
+  var len=_srWinEnd-_srWinStart; _srWinStart=_srWinEnd; _srWinEnd=Math.min(_srWinStart+len,_srShiftEndH); _srRenderWin();
+}
+function _srDoCheckout(){
+  var u=document.getElementById('sr-step-update'); if(u) u.classList.add('done');
+  var c=document.getElementById('sr-step-checkout'); if(c) c.classList.add('done');
+  _srGo('checkout'); _srToast('Shift complete — final record posted');
+}
+
+function _srInjectCSS(){
+  if(document.getElementById('sr-style')) return;
+  var s=document.createElement('style'); s.id='sr-style';
+  s.textContent=[
+"#sr-app{max-width:440px;margin:6px auto 34px;}",
+"#sr-app *{box-sizing:border-box;}",
+"#sr-app .sr-card{background:var(--bg-c,#161616);border:1px solid var(--br,#262625);border-radius:18px;padding:18px 18px 20px;}",
+"#sr-app .sr-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}",
+"#sr-app .sr-head h2{font-size:16px;font-weight:600;margin:0;color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-badge{font-size:10.5px;font-weight:600;letter-spacing:.05em;color:var(--ac,#c2a04a);background:var(--ac-bg,rgba(194,160,74,.13));border:1px solid var(--ac-bord,rgba(194,160,74,.4));padding:3px 9px;border-radius:999px;text-transform:uppercase;}",
+"#sr-app .sr-stepper{display:flex;gap:7px;margin-bottom:18px;}",
+"#sr-app .sr-step{flex:1;display:flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--br,#262625);color:var(--tx3,#6c6b66);padding:7px 8px;border-radius:10px;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer;}",
+"#sr-app .sr-step .n{width:17px;height:17px;border-radius:50%;background:var(--bg-a,#232323);color:var(--tx2,#989792);display:grid;place-items:center;font-size:10px;flex:none;}",
+"#sr-app .sr-step.on{border-color:var(--ac-bord,rgba(194,160,74,.4));background:var(--ac-bg,rgba(194,160,74,.13));color:var(--ac-strong,#d4b566);}",
+"#sr-app .sr-step.on .n{background:var(--ac,#c2a04a);color:#1a1407;}",
+"#sr-app .sr-step.done .n{background:var(--gr,#4d9a8a);color:#06231d;}",
+"#sr-app .sr-lab{display:block;font-size:12.5px;color:var(--tx2,#989792);margin:0 0 7px;font-weight:500;}",
+"#sr-app .sr-req{color:var(--re,#c46a6a);font-weight:600;}",
+"#sr-app .sr-row{margin-bottom:15px;}",
+"#sr-app .sr-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:7px;align-items:center;}",
+"#sr-app .sr-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--tx2,#989792);background:var(--bg-a,#232323);padding:5px 10px;border-radius:9px;border:1px solid transparent;}",
+"#sr-app .sr-chip.edit{cursor:pointer;border-color:var(--br2,#33332f);}",
+"#sr-app .sr-chip.edit:hover{border-color:var(--ac-bord,rgba(194,160,74,.4));color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-sub{font-size:11.5px;color:var(--tx3,#6c6b66);margin:0 0 14px;line-height:1.5;}",
+"#sr-app .sr-dd{position:relative;}",
+"#sr-app .sr-dd-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg-i,#1a1a1a);border:1px solid var(--br,#262625);border-radius:11px;padding:11px 13px;color:var(--tx,#e6e5e2);font-family:inherit;font-size:15px;cursor:pointer;text-align:left;}",
+"#sr-app .sr-dd-btn:hover{border-color:var(--br2,#33332f);}",
+"#sr-app .sr-dd.open .sr-dd-btn{border-color:var(--ac-bord,rgba(194,160,74,.4));}",
+"#sr-app .sr-dd-btn .ttl{font-size:14.5px;line-height:1.2;}",
+"#sr-app .sr-dd-btn .meta{font-size:11.5px;color:var(--tx2,#989792);margin-top:2px;}",
+"#sr-app .sr-chev{color:var(--tx2,#989792);transition:transform .2s;}",
+"#sr-app .sr-dd.open .sr-chev{transform:rotate(180deg);}",
+"#sr-app .sr-dd-panel{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:20;background:#1b1b1b;border:1px solid var(--br2,#33332f);border-radius:12px;padding:6px;box-shadow:0 18px 40px -16px rgba(0,0,0,.85);display:none;max-height:280px;overflow:auto;}",
+"#sr-app .sr-dd.open .sr-dd-panel{display:block;}",
+"#sr-app .sr-dd-grp{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3,#6c6b66);padding:7px 10px 3px;}",
+"#sr-app .sr-dd-opt{width:100%;text-align:left;background:transparent;border:none;color:var(--tx,#e6e5e2);font-family:inherit;font-size:13.5px;padding:9px 10px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline;}",
+"#sr-app .sr-dd-opt:hover{background:var(--bg-h,#1c1c1c);}",
+"#sr-app .sr-dd-opt .sr-t2{font-size:11.5px;color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-dd-opt.sel{color:var(--ac-strong,#d4b566);}",
+"#sr-app .sr-dd-opt.sr-excl{color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-dd-opt.sr-excl .sr-t2{color:var(--re,#c46a6a);}",
+"#sr-app .sr-pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;max-height:188px;overflow:auto;}",
+"#sr-app .sr-pc-card{text-align:left;background:var(--bg-i,#1a1a1a);border:1px solid var(--br,#262625);border-radius:11px;padding:10px 12px;cursor:pointer;font-family:inherit;}",
+"#sr-app .sr-pc-card:hover{border-color:var(--br2,#33332f);}",
+"#sr-app .sr-pc-card .sr-pc-n{display:block;font-size:11px;color:var(--tx3,#6c6b66);letter-spacing:.04em;}",
+"#sr-app .sr-pc-card .sr-pc-nm{display:block;font-size:14px;color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-pc-card.sel{border-color:var(--ac-bord,rgba(194,160,74,.4));background:var(--ac-bg,rgba(194,160,74,.13));}",
+"#sr-app .sr-pc-card.sel .sr-pc-n{color:var(--ac,#c2a04a);}",
+"#sr-app .sr-pc-card.sel .sr-pc-nm{color:var(--ac-strong,#d4b566);font-weight:600;}",
+"#sr-app .sr-empty{grid-column:1/-1;color:var(--tx3,#6c6b66);font-size:12.5px;padding:14px;text-align:center;border:1px dashed var(--br2,#33332f);border-radius:11px;}",
+"#sr-app .sr-tbox{display:flex;align-items:center;gap:10px;background:var(--bg-i,#1a1a1a);border:1px solid var(--br,#262625);border-radius:11px;padding:9px 13px;}",
+"#sr-app .sr-tbox .sr-t{font-size:22px;font-weight:600;color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-tbox .sr-arr{color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-tbox .sr-auto{margin-left:auto;font-size:11px;color:var(--tx3,#6c6b66);text-align:right;line-height:1.35;}",
+"#sr-app .sr-tstep{display:inline-flex;align-items:center;gap:6px;}",
+"#sr-app .sr-tstep button{width:23px;height:23px;border-radius:7px;border:1px solid var(--br2,#33332f);background:var(--bg-a,#232323);color:var(--tx2,#989792);font-family:inherit;font-size:16px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;}",
+"#sr-app .sr-tstep button:hover{border-color:var(--ac-bord,rgba(194,160,74,.4));color:var(--ac-strong,#d4b566);}",
+"#sr-app .sr-split{display:flex;align-items:center;gap:7px;margin:9px 0 0;flex-wrap:wrap;}",
+"#sr-app .sr-split .sr-cap{font-size:11.5px;color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-sc{font-size:11.5px;color:var(--ac-strong,#d4b566);background:var(--ac-bg,rgba(194,160,74,.13));border:1px solid var(--ac-bord,rgba(194,160,74,.4));padding:3px 9px;border-radius:7px;font-weight:500;}",
+"#sr-app .sr-exp{display:flex;align-items:center;gap:10px;}",
+"#sr-app .sr-exp .sr-u{font-size:13px;color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-inp{background:var(--bg-i,#1a1a1a);border:1px solid var(--br,#262625);border-radius:10px;padding:9px 11px;color:var(--tx,#e6e5e2);font-size:16px;font-family:inherit;outline:none;width:100%;}",
+"#sr-app .sr-inp:focus{border-color:var(--ac,#c2a04a);box-shadow:0 0 0 3px var(--ac-bg,rgba(194,160,74,.13));}",
+"#sr-app .sr-inp.sr-lv{width:66px;text-align:center;}",
+"#sr-app .sr-drop{border:1.5px dashed var(--br2,#33332f);border-radius:12px;padding:16px;text-align:center;color:var(--tx2,#989792);cursor:pointer;font-size:13px;}",
+"#sr-app .sr-drop:hover{border-color:var(--ac-bord,rgba(194,160,74,.4));}",
+"#sr-app .sr-drop.has{border-style:solid;border-color:var(--ac-bord,rgba(194,160,74,.4));background:var(--ac-bg,rgba(194,160,74,.13));color:var(--ac-strong,#d4b566);}",
+"#sr-app .sr-drop .done{display:none;}",
+"#sr-app .sr-drop.has .done{display:block;}",
+"#sr-app .sr-drop.has .idle{display:none;}",
+"#sr-app .sr-btn{width:100%;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px;}",
+"#sr-app .sr-btn-primary{background:var(--ac,#c2a04a);color:#1a1407;}",
+"#sr-app .sr-btn-primary:hover{filter:brightness(1.06);}",
+"#sr-app .sr-btn-out{background:var(--bg-a,#232323);color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-foot{font-size:11.5px;color:var(--tx3,#6c6b66);margin-top:12px;text-align:center;line-height:1.5;}",
+"#sr-app .sr-endbar{display:flex;align-items:center;gap:8px;background:var(--ac-bg,rgba(194,160,74,.13));border:1px solid var(--ac-bord,rgba(194,160,74,.4));color:var(--ac-strong,#d4b566);border-radius:10px;padding:9px 12px;font-size:12.5px;margin:2px 0 12px;}",
+"#sr-scrim{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:4000;}",
+"#sr-sheet{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:440px;z-index:4001;background:#191919;border:1px solid var(--br2,#33332f);border-bottom:none;border-radius:18px 18px 0 0;padding:20px;box-shadow:0 -22px 54px -22px rgba(0,0,0,.85);}",
+"#sr-sheet .sr-sh-h{display:flex;align-items:center;justify-content:space-between;gap:10px;}",
+"#sr-sheet .sr-sh-h span{font-size:16px;font-weight:600;color:var(--tx,#e6e5e2);}",
+"#sr-sheet .sr-sh-x{background:var(--bg-a,#232323);border:none;color:var(--tx2,#989792);width:28px;height:28px;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit;flex:none;}",
+"#sr-sheet .sr-sh-sub{font-size:12.5px;color:var(--tx2,#989792);margin:5px 0 14px;line-height:1.5;}",
+"#sr-sheet .sr-rrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 1px;border-bottom:1px solid var(--br,#262625);}",
+"#sr-sheet .sr-rrow:last-child{border-bottom:none;}",
+"#sr-sheet .sr-rl{font-size:13px;color:var(--tx2,#989792);flex:none;}",
+"#sr-sheet .sr-rv{font-size:16px;font-weight:600;color:var(--tx,#e6e5e2);text-align:right;}",
+"#sr-sheet .sr-rv.sr-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}",
+"#sr-sheet .sr-rv.sr-ok{color:var(--gr,#4d9a8a);}",
+"#sr-sheet .sr-rv.sr-re{color:var(--re,#c46a6a);}",
+"#sr-sheet .sr-warn{display:flex;align-items:center;gap:8px;background:rgba(196,106,106,.12);border:1px solid rgba(196,106,106,.4);color:var(--re,#c46a6a);border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:12px;font-weight:500;}",
+"#sr-sheet .sr-sh-btns{display:flex;gap:10px;margin-top:18px;}",
+"#sr-sheet .sr-sh-btns .sr-btn{margin-top:0;flex:1;}",
+"#sr-app .sr-btn:disabled,#sr-sheet .sr-btn:disabled{opacity:.45;cursor:not-allowed;filter:none;}"
+].join("\n");
+  document.head.appendChild(s);
+}
+
+function _srExpRow(prefix){
+  return '<div class="sr-row"><label class="sr-lab">'+prefix+' EXP</label><div class="sr-exp"><span class="sr-u">Lv</span><input class="sr-inp sr-lv" value="" inputmode="numeric" placeholder="35"><input class="sr-inp" value="" inputmode="decimal" placeholder="0.00"><span class="sr-u">%</span></div></div>';
+}
+function _srBuildHTML(){
+  var booster=_srEsc(_srBooster());
+  var sh0=_SR_SHIFTS[0];
+  var shiftOpts=_SR_SHIFTS.map(function(s,i){ return '<button class="sr-dd-opt'+(i===0?' sel':'')+'" onclick="_srPickShift('+i+')">'+_srEsc(s.name)+'<span class="sr-t2">'+_srEsc(s.time.replace(' → ','–'))+'</span></button>'; }).join('');
+  var clients=_srClients();
+  var firstPC = clients.length?('PC'+clients[0].pc+' · '+clients[0].name):'—';
+  var pcCards = clients.length ? clients.map(function(c,i){ return '<button class="sr-pc-card'+(i===0?' sel':'')+'" data-pc="'+_srEsc(String(c.pc))+'" data-name="'+_srEsc(c.name)+'" onclick="_srPickPC(\''+_srArg(String(c.pc))+'\',\''+_srArg(c.name)+'\')"><span class="sr-pc-n">PC'+_srEsc(String(c.pc))+'</span><span class="sr-pc-nm">'+_srEsc(c.name)+'</span></button>'; }).join('') : '<div class="sr-empty">No clients yet — add them in PC Status</div>';
+  var groups=_srMapGroups(), firstMap='';
+  groups.forEach(function(g){ g.maps.forEach(function(m){ if(!firstMap && !m.excl) firstMap=m.full; }); });
+  if(!firstMap && groups.length && groups[0].maps.length) firstMap=groups[0].maps[0].full;
+  var mapOpts='';
+  groups.forEach(function(g){
+    mapOpts+='<div class="sr-dd-grp">'+_srEsc(g.name)+'</div>';
+    g.maps.forEach(function(m){
+      mapOpts+='<button class="sr-dd-opt'+(m.full===firstMap?' sel':'')+(m.excl?' sr-excl':'')+'" data-full="'+_srEsc(m.full)+'" onclick="_srPickMap(\''+_srArg(m.full)+'\')">'+_srEsc(m.short||m.full)+(m.excl?'<span class="sr-t2">excluded</span>':'')+'</button>';
+    });
+  });
+  if(!mapOpts) mapOpts='<div class="sr-empty">No maps yet — add them in Map Info</div>';
+  var firstMapLabel = firstMap || '—';
+
+  var checkin=''
+  +'<div class="sr-s" id="sr-s-checkin">'
+  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span style="font-size:11.5px;color:var(--tx3,#6c6b66);">signed in — automatic</span></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Shift</label><div class="sr-dd" id="sr-dd-shift"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-shift\')"><span><span class="ttl" id="sr-shift-name">'+_srEsc(sh0.name)+'</span><span class="meta" id="sr-shift-time">'+_srEsc(sh0.time)+'</span></span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+shiftOpts+'</div></div></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Start playing at</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBumpStart(-1)">−</button><span class="sr-t" id="sr-ci-start">07:00</span><button onclick="_srBumpStart(1)">+</button></span><span class="sr-auto" id="sr-ci-kst">07:00 WIB<br>09:00 KST</span></div><p class="sr-sub" style="margin-top:7px;">You clock in at shift start, but you may log into the client later — set the real start. WIB (Jakarta); client side shows KST.</p></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Client · PC</label><div class="sr-pc-grid">'+pcCards+'</div></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Map</label><div class="sr-dd" id="sr-dd-map"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-map\')"><span class="ttl" data-sr-map>'+_srEsc(firstMapLabel)+'</span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+mapOpts+'</div></div></div>'
+  +  _srExpRow('Start')
+  +  '<div class="sr-row"><label class="sr-lab">Start Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Red potion</label><input class="sr-inp" data-sr-pot value="" inputmode="numeric" placeholder="0"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Screenshot</label><div class="sr-drop" onclick="_srToggleShot(this)"><span class="idle">🖼 Tap or paste proof image</span><span class="done">✓ proof.png attached</span></div></div>'
+  +  '<button class="sr-btn sr-btn-primary" onclick="_srCheckIn()">▶ Check in — start shift</button>'
+  +  '<p class="sr-foot">PC, map &amp; name stay set for the shift · screenshots come with each update</p>'
+  +'</div>';
+
+  var update=''
+  +'<div class="sr-s" id="sr-s-update" style="display:none;">'
+  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">📍 <span data-sr-map>'+_srEsc(firstMapLabel)+'</span></span></div>'
+  +  '<p class="sr-sub">Name automatic · tap PC or map to change</p>'
+  +  '<div class="sr-row"><label class="sr-lab">Time covered</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBump(\'s\',-1)">−</button><span class="sr-t" id="sr-w1">07:00</span><button onclick="_srBump(\'s\',1)">+</button></span><span class="sr-arr">→</span><span class="sr-tstep"><button onclick="_srBump(\'e\',-1)">−</button><span class="sr-t" id="sr-w2">09:00</span><button onclick="_srBump(\'e\',1)">+</button></span><span class="sr-auto">auto<br>editable</span></div><div class="sr-split"><span class="sr-cap">saved as</span><span id="sr-recs" style="display:flex;gap:7px;"></span><span class="sr-cap" id="sr-splitnote">· 1h each, gain split 50/50</span></div><p class="sr-sub" style="margin:7px 0 0;">Client sees <b id="sr-up-kst">09:00 → 11:00</b> KST</p></div>'
+  +  _srExpRow('')
+  +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Red potion</label><input class="sr-inp" data-sr-pot value="" inputmode="numeric" placeholder="0"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" onclick="_srToggleShot(this)"><span class="idle">🖼 Tap or paste proof image</span><span class="done">✓ proof.png attached</span></div></div>'
+  +  '<div class="sr-endbar" id="sr-endbar" style="display:none;">🚩 Shift ends at <b id="sr-endh">19:00</b> — submitting checks you out</div>'
+  +  '<button class="sr-btn sr-btn-primary" onclick="_srSubmitUpdate()"><span id="sr-up-btn-t">Submit 2-hour report</span></button>'
+  +  '<p class="sr-foot" id="sr-up-foot">Submitting saves the hourly records and rolls to the next window</p>'
+  +'</div>';
+
+  var checkout=''
+  +'<div class="sr-s" id="sr-s-checkout" style="display:none;">'
+  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span><span class="sr-chip">📍 <span data-sr-map>'+_srEsc(firstMapLabel)+'</span></span></div>'
+  +  '<p class="sr-sub">Final report — captures whatever hours are left in the shift</p>'
+  +  '<div class="sr-row"><label class="sr-lab">Final stretch</label><div class="sr-tbox">🕐 <span class="sr-t">18:00</span><span class="sr-arr">→</span><span class="sr-t">19:00</span><span class="sr-auto">shift end<br>tap to adjust</span></div><div class="sr-split"><span class="sr-cap">saved as</span><span class="sr-sc">19:00</span><span class="sr-cap">· 1 hour left → full gain, no split</span></div></div>'
+  +  _srExpRow('')
+  +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Red potion</label><input class="sr-inp" data-sr-pot value="" inputmode="numeric" placeholder="0"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" onclick="_srToggleShot(this)"><span class="idle">🖼 Tap or paste proof image</span><span class="done">✓ proof.png attached</span></div></div>'
+  +  '<button class="sr-btn sr-btn-primary" onclick="_srReviewCheckout()">🏁 Check out — end shift</button>'
+  +  '<p class="sr-foot">Ends the shift and posts the final record</p>'
+  +'</div>';
+
+  var sheet=''
+  +'<div id="sr-scrim" style="display:none;" onclick="_srCloseReview()"></div>'
+  +'<div id="sr-sheet" style="display:none;" role="dialog" aria-modal="true">'
+  +  '<div class="sr-sh-h"><span id="sr-sheet-title">Is this right?</span><button class="sr-sh-x" onclick="_srCloseReview()">✕</button></div>'
+  +  '<p class="sr-sh-sub">Check your numbers first. Tap "Go back" if anything is wrong.</p>'
+  +  '<div id="sr-recap"></div>'
+  +  '<div class="sr-sh-btns"><button class="sr-btn sr-btn-out" onclick="_srCloseReview()">← Go back &amp; fix</button><button class="sr-btn sr-btn-primary" id="sr-confirm" onclick="_srConfirm()">Yes, submit</button></div>'
+  +'</div>';
+
+  return '<div id="sr-app"><div class="sr-card">'
+    + '<div class="sr-head"><h2>Shift report</h2><span class="sr-badge">Live</span></div>'
+    + '<div class="sr-stepper">'
+    +   '<button class="sr-step on" id="sr-step-checkin" onclick="_srGo(\'checkin\')"><span class="n">1</span>Check in</button>'
+    +   '<button class="sr-step" id="sr-step-update" onclick="_srGo(\'update\')"><span class="n">2</span>Update</button>'
+    +   '<button class="sr-step" id="sr-step-checkout" onclick="_srGo(\'checkout\')"><span class="n">3</span>Check out</button>'
+    + '</div>'
+    + checkin + update + checkout
+    + '</div></div>' + sheet;
+}
+
 function renderCalcEmbed(){
-  var otherView = document.getElementById('ch-other');
-  if(!otherView) return;
-  otherView.innerHTML = '<div style="width:100%;height:100%;">'
-    + '<iframe id="calc-embed-frame" src="' + CALC_EMBED_URL + '" '
-    + 'style="width:100%;height:600px;border:0;display:block;background:var(--bg);" '
-    + 'allow="clipboard-write" referrerpolicy="no-referrer-when-downgrade" '
-    + 'title="Performance Calculator"></iframe>'
-    + '</div>';
-  requestAnimationFrame(_sizeCalcFrame);
-  setTimeout(_sizeCalcFrame, 200);
-  if(!window._calcFrameResizeBound){
-    window._calcFrameResizeBound = true;
-    window.addEventListener('resize', _sizeCalcFrame);
-  }
+  var otherView=document.getElementById('ch-other'); if(!otherView) return;
+  _srInjectCSS();
+  otherView.innerHTML=_srBuildHTML();
+  _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=9;
+  _srRenderCIStart(); _srRenderWin(); _srGo('checkin');
+  if(!window._srDocClickBound){ window._srDocClickBound=true; document.addEventListener('click', function(e){ if(!e.target.closest('.sr-dd')) _srCloseDD(); }); }
 }
+
 
 function renderExpStandard(){
   const otherView=document.getElementById('ch-other'); if(!otherView) return;
