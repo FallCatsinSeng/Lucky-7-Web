@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v254 -->
+<!-- BUILD: v255 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14973,24 +14973,19 @@ function _srSyncWin(){ _srWinStart=_srPlayStartH; _srWinEnd=Math.min(_srPlayStar
 function _srRenderWin(){
   var w1=document.getElementById('sr-w1'), w2=document.getElementById('sr-w2');
   if(w1) w1.textContent=_srPad(_srWinStart); if(w2) w2.textContent=_srPad(_srWinEnd);
-  var recs=document.getElementById('sr-recs');
-  if(recs){ recs.innerHTML=''; for(var h=_srWinStart+1; h<=_srWinEnd; h++){ var s=document.createElement('span'); s.className='sr-sc'; s.textContent=_srPad(h); recs.appendChild(s); } }
-  var n=Math.max(0,_srWinEnd-_srWinStart);
-  var note=document.getElementById('sr-splitnote'); if(note) note.textContent=n<=1?'· 1 hour, full gain':(n===2?'· 1h each, gain split 50/50':'· 1h each, gain split evenly');
   var kst=document.getElementById('sr-up-kst'); if(kst) kst.textContent=_srPad(_srWinStart+2)+' → '+_srPad(_srWinEnd+2);
   _srCheckEnd();
 }
 function _srBump(which,d){
-  if(which==='s'){ var ns=_srWinStart+d; if(ns>=0&&ns<_srWinEnd) _srWinStart=ns; }
-  else { var ne=_srWinEnd+d; if(ne>_srWinStart&&ne-_srWinStart<=8) _srWinEnd=ne; }
+  var ns=_srWinStart+d; if(ns>=0&&ns<_srShiftEndH){ _srWinStart=ns; _srWinEnd=ns+1; }
   _srRenderWin();
 }
 function _srCheckEnd(){
   var ending=_srWinEnd>=_srShiftEndH;
   var bar=document.getElementById('sr-endbar'); if(bar) bar.style.display=ending?'':'none';
   var eh=document.getElementById('sr-endh'); if(eh) eh.textContent=_srPad(_srShiftEndH);
-  var bt=document.getElementById('sr-up-btn-t'); if(bt) bt.textContent=ending?'Check out — end shift':'Submit 2-hour report';
-  var ft=document.getElementById('sr-up-foot'); if(ft) ft.textContent=ending?'This is the last report — it posts your check-out':'Submitting saves the hourly records and rolls to the next window';
+  var bt=document.getElementById('sr-up-btn-t'); if(bt) bt.textContent=ending?'Check out — end shift':'Submit hour';
+  var ft=document.getElementById('sr-up-foot'); if(ft) ft.textContent=ending?'This is the last hour — it posts your check-out':'Submitting saves this hour and rolls to the next';
 }
 var _srSession=null;
 var _srShots={checkin:null,update:null,checkout:null};
@@ -15089,7 +15084,6 @@ function _srRecapHTML(d,calc){
   return '<div class="sr-rrow"><span class="sr-rl">Client · PC</span><span class="sr-rv">'+_srEsc(d.pc)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Map</span><span class="sr-rv">'+_srEsc(d.map)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Time</span><span class="sr-rv">'+_srEsc(d.t1)+' → '+_srEsc(d.t2)+'</span></div>'
-    +'<div class="sr-rrow"><span class="sr-rl">Saved as</span><span class="sr-rv sr-chips">'+chips+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">EXP</span><span class="sr-rv">'+expLine+'</span></div>'
     +gainLine
     +'<div class="sr-rrow"><span class="sr-rl">Adena</span><span class="sr-rv">'+_srEsc(d.adena)+'</span></div>'
@@ -15217,7 +15211,7 @@ async function _srFinishSubmit(kind,screen){
     _srGo('checkout'); _srToast('Shift complete — final record posted');
   } else {
     _srToast('Saved · '+_srKST(_srWinStart)+'–'+_srKST(_srWinEnd)+' KST');
-    var len=_srWinEnd-_srWinStart; _srWinStart=_srWinEnd; _srWinEnd=Math.min(_srWinStart+len,_srShiftEndH); _srRenderWin();
+    _srWinStart=_srWinEnd; _srWinEnd=Math.min(_srWinStart+1,_srShiftEndH); _srRenderWin();
     _srSetShot('update',null);
     var li=document.querySelector('#sr-s-update .sr-exp-live'); if(li) li.value='';
     var ad=document.querySelector('#sr-s-update [data-sr-adena]'); if(ad) ad.value='';
@@ -15405,14 +15399,14 @@ function _srBuildHTML(){
   +'<div class="sr-s" id="sr-s-update" style="display:none;">'
   +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">📍 <span data-sr-map>'+_srEsc(firstMapLabel)+'</span></span></div>'
   +  '<p class="sr-sub">Name automatic · tap PC or map to change</p>'
-  +  '<div class="sr-row"><label class="sr-lab">Time covered</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBump(\'s\',-1)">−</button><span class="sr-t" id="sr-w1">07:00</span><button onclick="_srBump(\'s\',1)">+</button></span><span class="sr-arr">→</span><span class="sr-tstep"><button onclick="_srBump(\'e\',-1)">−</button><span class="sr-t" id="sr-w2">09:00</span><button onclick="_srBump(\'e\',1)">+</button></span><span class="sr-auto">auto<br>editable</span></div><div class="sr-split"><span class="sr-cap">saved as</span><span id="sr-recs" style="display:flex;gap:7px;"></span><span class="sr-cap" id="sr-splitnote">· 1h each, gain split 50/50</span></div><p class="sr-sub" style="margin:7px 0 0;">Client sees <b id="sr-up-kst">09:00 → 11:00</b> KST</p></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Hour reported</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBump(\'s\',-1)">−</button><span class="sr-t" id="sr-w1">07:00</span><button onclick="_srBump(\'s\',1)">+</button></span><span class="sr-arr">→</span><span class="sr-t" id="sr-w2">08:00</span><span class="sr-auto">1 hour<br>auto-rolls</span></div><p class="sr-sub" style="margin:7px 0 0;">Client sees <b id="sr-up-kst">09:00 → 10:00</b> KST</p></div>'
   +  _srExpRow('','live','update')
   +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" id="sr-drop-update" onclick="document.getElementById(\'sr-file-update\').click()"><input type="file" id="sr-file-update" accept="image/*" style="display:none" onchange="_srFile(event,\'update\')"><span class="idle">🖼 Tap to upload — or paste (Ctrl+V)</span><span class="done">✓ screenshot attached</span><div class="sr-shot-prev" id="sr-prevshot-update"></div></div></div>'
   +  '<div class="sr-endbar" id="sr-endbar" style="display:none;">🚩 Shift ends at <b id="sr-endh">19:00</b> — submitting checks you out</div>'
-  +  '<button class="sr-btn sr-btn-primary" onclick="_srSubmitUpdate()"><span id="sr-up-btn-t">Submit 2-hour report</span></button>'
-  +  '<p class="sr-foot" id="sr-up-foot">Submitting saves the hourly records and rolls to the next window</p>'
+  +  '<button class="sr-btn sr-btn-primary" onclick="_srSubmitUpdate()"><span id="sr-up-btn-t">Submit hour</span></button>'
+  +  '<p class="sr-foot" id="sr-up-foot">Submitting saves this hour and rolls to the next</p>'
   +'</div>';
 
   var checkout=''
