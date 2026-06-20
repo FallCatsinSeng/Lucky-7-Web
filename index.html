@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v250 -->
+<!-- BUILD: v252 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14991,7 +14991,67 @@ function _srCheckEnd(){
   var bt=document.getElementById('sr-up-btn-t'); if(bt) bt.textContent=ending?'Check out — end shift':'Submit 2-hour report';
   var ft=document.getElementById('sr-up-foot'); if(ft) ft.textContent=ending?'This is the last report — it posts your check-out':'Submitting saves the hourly records and rolls to the next window';
 }
+var _srSession=null;
+var _srShots={checkin:null,update:null,checkout:null};
+var _SR_TYPO_MAX=25;
+function _srApplyExp(prevLv,prevExp,raw){
+  raw=String(raw==null?'':raw).trim();
+  if(raw==='') return {valid:false,error:'Enter the current EXP %'};
+  var neg=raw.charAt(0)==='-';
+  var val=parseFloat(raw.replace(/[^0-9.]/g,''));
+  if(isNaN(val)) return {valid:false,error:'EXP must be a number'};
+  if(val>100) return {valid:false,error:"EXP can't be over 100%"};
+  var pL=Number(prevLv)||0, pE=Number(prevExp)||0, lv,exp,gain,leveledUp=false,isDeath=false;
+  if(neg){ isDeath=true; lv=pL; exp=pE-val; gain=-val; if(exp<0)exp=0; }
+  else if(val>=pE){ lv=pL; exp=val; gain=val-pE; }
+  else { lv=pL+1; exp=val; gain=(100-pE)+val; leveledUp=true; }
+  return {valid:true,lv:lv,exp:exp,gain:gain,leveledUp:leveledUp,isDeath:isDeath,typo:(!isDeath&&gain>_SR_TYPO_MAX)};
+}
+function _srPrev(){ return _srSession ? _srSession.prev : null; }
+function _srExpPreview(screen){
+  var el=document.getElementById('sr-prev-'+screen);
+  var inp=document.querySelector('#sr-s-'+screen+' .sr-exp-live');
+  if(!el||!inp) return;
+  var prev=_srPrev();
+  if(!prev){ el.className='sr-exp-prev'; el.textContent='\u2192 check in first'; return; }
+  var raw=inp.value.trim();
+  if(raw===''){ el.className='sr-exp-prev'; el.textContent='\u2192 was Lv '+prev.lv+' @ '+(Number(prev.exp).toFixed(2))+'%'; return; }
+  var r=_srApplyExp(prev.lv,prev.exp,raw);
+  if(!r.valid){ el.className='sr-exp-prev sr-bad'; el.textContent='\u26a0 '+r.error; return; }
+  if(r.typo){ el.className='sr-exp-prev sr-bad'; el.textContent='\u26a0 jumps '+r.gain.toFixed(1)+'% \u2014 looks like a typo'; return; }
+  var tag = r.isDeath ? ' (exp lost)' : (r.leveledUp ? '  \u00b7  LEVEL UP \u2191' : '');
+  el.className='sr-exp-prev sr-good';
+  el.textContent='\u2192 Lv '+r.lv+' @ '+r.exp.toFixed(2)+'%  \u00b7  '+(r.gain>=0?'+':'')+r.gain.toFixed(2)+'% gain'+tag;
+}
+function _srSetShot(screen,file){
+  _srShots[screen]=file||null;
+  var d=document.getElementById('sr-drop-'+screen); var prev=document.getElementById('sr-prevshot-'+screen);
+  if(file){ if(d)d.classList.add('has'); if(prev){ var url=URL.createObjectURL(file); prev.innerHTML='<img src="'+url+'" alt="proof">'; } }
+  else { if(d)d.classList.remove('has'); if(prev) prev.innerHTML=''; }
+}
+function _srFile(ev,screen){ var f=ev.target.files&&ev.target.files[0]; if(f) _srSetShot(screen,f); }
+function _srCurScreen(){ var s=['checkin','update','checkout']; for(var i=0;i<s.length;i++){ var el=document.getElementById('sr-s-'+s[i]); if(el&&el.style.display!=='none') return s[i]; } return null; }
+function _srBindPaste(){
+  if(window._srPasteBound) return; window._srPasteBound=true;
+  document.addEventListener('paste', function(e){
+    if(!document.getElementById('sr-app')) return;
+    var sc=_srCurScreen(); if(!sc) return;
+    var items=(e.clipboardData||{}).items||[];
+    for(var i=0;i<items.length;i++){ if(items[i].type&&items[i].type.indexOf('image')===0){ var f=items[i].getAsFile(); if(f){ _srSetShot(sc,f); _srToast('Screenshot pasted'); e.preventDefault(); } return; } }
+  });
+}
 function _srCheckIn(){
+  var root=document.getElementById('sr-s-checkin');
+  var exps=root.querySelectorAll('.sr-exp .sr-inp');
+  var lv=parseFloat(exps[0]?exps[0].value:''), exp=parseFloat(exps[1]?exps[1].value:'');
+  var adenaEl=root.querySelector('[data-sr-adena]'); var adena=parseFloat(adenaEl?adenaEl.value:'')||0;
+  if(isNaN(lv)||isNaN(exp)){ _srToast('Enter your starting Lv and EXP'); return; }
+  if(exp>100){ _srToast('EXP can\'t be over 100%'); return; }
+  if(!_srShots.checkin){ _srToast('Add a screenshot to check in'); return; }
+  _srSession={ booster:_srBooster(), threadId:_srThread(),
+    pc:(root.querySelector('[data-sr-pc]')||document.querySelector('#sr-s-update [data-sr-pc]')||{}).textContent||'',
+    map:(root.querySelector('[data-sr-map]')||{}).textContent||'',
+    startLv:lv, startExp:exp, startAdena:adena, prev:{ lv:lv, exp:exp, adena:adena } };
   _srWinStart=_srPlayStartH; _srWinEnd=Math.min(_srPlayStartH+2,_srShiftEndH); _srRenderWin();
   var st=document.getElementById('sr-step-checkin'); if(st) st.classList.add('done');
   _srGo('update'); _srToast('Checked in — shift started');
@@ -15001,37 +15061,46 @@ function _srReviewCheckout(){ _srReview('checkout'); }
 
 function _srReadScreen(which){
   var root=document.getElementById('sr-s-'+which); if(!root) return {recs:[]};
-  var exps=root.querySelectorAll('.sr-exp .sr-inp');
-  var adenaEl=root.querySelector('[data-sr-adena]'), potEl=root.querySelector('[data-sr-pot]');
-  var t=root.querySelectorAll('.sr-tbox .sr-t');
-  return {
-    lv: exps[0]?exps[0].value:'', expv: exps[1]?exps[1].value:'',
-    adena: adenaEl?adenaEl.value:'', pot: potEl?potEl.value:'',
-    t1: t[0]?t[0].textContent:'', t2: t[1]?t[1].textContent:'',
+  var adenaEl=root.querySelector('[data-sr-adena]');
+  var tt=root.querySelectorAll('.sr-tbox .sr-t');
+  var live=root.querySelector('.sr-exp-live');
+  var o={ adena: adenaEl?adenaEl.value:'',
+    t1: tt[0]?tt[0].textContent:'', t2: tt[1]?tt[1].textContent:'',
     recs: Array.prototype.map.call(root.querySelectorAll('.sr-split .sr-sc'), function(e){return e.textContent;}),
-    shot: !!(root.querySelector('.sr-drop')&&root.querySelector('.sr-drop').classList.contains('has')),
+    shot: !!_srShots[which],
     pc: (root.querySelector('[data-sr-pc]')||{}).textContent||'',
-    map: (root.querySelector('[data-sr-map]')||{}).textContent||''
-  };
+    map: (root.querySelector('[data-sr-map]')||{}).textContent||'' };
+  if(live){ o.expRaw=live.value; } else { var exps=root.querySelectorAll('.sr-exp .sr-inp'); o.lv=exps[0]?exps[0].value:''; o.expv=exps[1]?exps[1].value:''; }
+  return o;
 }
-function _srRecapHTML(d){
+function _srRecapHTML(d,calc){
   var chips=d.recs.map(function(r){return '<span class="sr-sc">'+_srEsc(r)+'</span>';}).join('');
   var shot=d.shot?'<span class="sr-rv sr-ok">✓ attached</span>':'<span class="sr-rv sr-re">✗ missing</span>';
+  var expLine = calc ? ('Lv '+calc.lv+' @ '+calc.exp.toFixed(2)+'%'+(calc.leveledUp?' ↑':'')) : ('Lv '+_srEsc(d.lv)+' · '+_srEsc(d.expv)+'%');
+  var gainLine = calc ? ('<div class="sr-rrow"><span class="sr-rl">Gain</span><span class="sr-rv '+(calc.typo?'sr-re':(calc.gain<0?'':'sr-ok'))+'">'+(calc.gain>=0?'+':'')+calc.gain.toFixed(2)+'%'+(calc.isDeath?' (lost)':'')+'</span></div>') : '';
   return '<div class="sr-rrow"><span class="sr-rl">Client · PC</span><span class="sr-rv">'+_srEsc(d.pc)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Map</span><span class="sr-rv">'+_srEsc(d.map)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Time</span><span class="sr-rv">'+_srEsc(d.t1)+' → '+_srEsc(d.t2)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Saved as</span><span class="sr-rv sr-chips">'+chips+'</span></div>'
-    +'<div class="sr-rrow"><span class="sr-rl">EXP</span><span class="sr-rv">Lv '+_srEsc(d.lv)+' · '+_srEsc(d.expv)+'%</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">EXP</span><span class="sr-rv">'+expLine+'</span></div>'
+    +gainLine
     +'<div class="sr-rrow"><span class="sr-rl">Adena</span><span class="sr-rv">'+_srEsc(d.adena)+'</span></div>'
-    +'<div class="sr-rrow"><span class="sr-rl">Red potion</span><span class="sr-rv">'+_srEsc(d.pot)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Screenshot</span>'+shot+'</div>';
 }
 function _srReview(which){
   var d=_srReadScreen(which);
   var ending=(which==='checkout')||(_srWinEnd>=_srShiftEndH);
+  var prev=_srPrev();
+  var calc = (d.expRaw!=null && prev) ? _srApplyExp(prev.lv,prev.exp,d.expRaw) : null;
   document.getElementById('sr-sheet-title').textContent=ending?'Check out — is this right?':'Submit report — is this right?';
-  document.getElementById('sr-recap').innerHTML=d.shot?_srRecapHTML(d):(_srRecapHTML(d)+'<div class="sr-warn">⚠ Add a screenshot before you submit</div>');
-  var cb=document.getElementById('sr-confirm'); cb.textContent=ending?'Yes, check out':'Yes, submit'; cb.disabled=!d.shot;
+  var warn='', block=false;
+  if(calc && !calc.valid){ warn+='<div class="sr-warn">⚠ '+_srEsc(calc.error)+'</div>'; block=true; }
+  else if(calc && calc.typo){ warn+='<div class="sr-warn">⚠ This jumps '+calc.gain.toFixed(1)+'% in one report — that usually means a typo. Double-check the EXP. If it really is right, confirm below.</div>'; }
+  if(!d.shot){ warn+='<div class="sr-warn">⚠ Add a screenshot before you submit</div>'; block=true; }
+  var ovr = (calc&&calc.typo&&d.shot&&!block) ? '<label class="sr-ovr"><input type="checkbox" onchange="document.getElementById(\'sr-confirm\').disabled=!this.checked"> I\'ve double-checked — the EXP is correct</label>' : '';
+  document.getElementById('sr-recap').innerHTML=_srRecapHTML(d,calc)+warn+ovr;
+  var cb=document.getElementById('sr-confirm'); cb.textContent=ending?'Yes, check out':'Yes, submit';
+  cb.disabled = block || (calc&&calc.typo);
   _srOnOk=ending?_srDoCheckout:_srDoUpdate;
   document.getElementById('sr-scrim').style.display='';
   document.getElementById('sr-sheet').style.display='';
@@ -15039,9 +15108,15 @@ function _srReview(which){
 function _srCloseReview(){ var a=document.getElementById('sr-scrim'),b=document.getElementById('sr-sheet'); if(a)a.style.display='none'; if(b)b.style.display='none'; _srOnOk=null; }
 function _srConfirm(){ var f=_srOnOk; _srCloseReview(); if(f) f(); }
 function _srDoUpdate(){
+  var d=_srReadScreen('update'); var prev=_srPrev();
+  if(prev && d.expRaw!=null){ var r=_srApplyExp(prev.lv,prev.exp,d.expRaw); if(r.valid){ _srSession.prev={ lv:r.lv, exp:r.exp, adena:(parseFloat(d.adena)||prev.adena) }; } }
   if(_srWinEnd>=_srShiftEndH){ _srDoCheckout(); return; }
   _srToast('Saved · '+_srPad(_srWinStart+1)+' to '+_srPad(_srWinEnd));
   var len=_srWinEnd-_srWinStart; _srWinStart=_srWinEnd; _srWinEnd=Math.min(_srWinStart+len,_srShiftEndH); _srRenderWin();
+  _srSetShot('update',null);
+  var li=document.querySelector('#sr-s-update .sr-exp-live'); if(li) li.value='';
+  var ad=document.querySelector('#sr-s-update [data-sr-adena]'); if(ad) ad.value='';
+  _srExpPreview('update');
 }
 function _srDoCheckout(){
   var u=document.getElementById('sr-step-update'); if(u) u.classList.add('done');
@@ -15162,12 +15237,25 @@ function _srInjectCSS(){
 "#sr-app .sr-tbl tr:last-child td{border-bottom:none;}",
 "#sr-app .sr-tbl td.sr-ok{color:var(--gr,#4d9a8a);font-weight:600;}",
 "#sr-app .sr-tbl td.sr-re{color:var(--re,#c46a6a);font-weight:600;}",
+"#sr-app .sr-exp-prev{font-size:12px;color:var(--tx3,#6c6b66);margin-top:7px;}",
+"#sr-app .sr-exp-prev.sr-good{color:var(--gr,#4d9a8a);}",
+"#sr-app .sr-exp-prev.sr-bad{color:var(--re,#c46a6a);font-weight:500;}",
+"#sr-app .sr-exp-live{flex:1;}",
+"#sr-app .sr-shot-prev{margin-top:10px;}",
+"#sr-app .sr-shot-prev img{max-width:100%;max-height:170px;border-radius:9px;border:1px solid var(--br2,#33332f);display:block;}",
+"#sr-sheet .sr-ovr{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--tx2,#989792);margin-top:14px;cursor:pointer;}",
+"#sr-sheet .sr-ovr input{width:16px;height:16px;flex:none;}",
 "#sr-app .sr-btn:disabled,#sr-sheet .sr-btn:disabled{opacity:.45;cursor:not-allowed;filter:none;}"
 ].join("\n");
   document.head.appendChild(s);
 }
 
-function _srExpRow(prefix){
+function _srExpRow(prefix,mode,screen){
+  if(mode==='live'){
+    return '<div class="sr-row"><label class="sr-lab">EXP now <span style="color:var(--tx3,#6c6b66);font-weight:400">· type the % on your bar — use − if it dropped</span></label>'
+      +'<div class="sr-exp"><input class="sr-inp sr-exp-live" value="" inputmode="text" placeholder="0.00" oninput="_srExpPreview(\''+screen+'\')"><span class="sr-u">%</span></div>'
+      +'<div class="sr-exp-prev" id="sr-prev-'+screen+'">→ enter your EXP</div></div>';
+  }
   return '<div class="sr-row"><label class="sr-lab">'+prefix+' EXP</label><div class="sr-exp"><span class="sr-u">Lv</span><input class="sr-inp sr-lv" value="" inputmode="numeric" placeholder="35"><input class="sr-inp" value="" inputmode="decimal" placeholder="0.00"><span class="sr-u">%</span></div></div>';
 }
 function _srBuildHTML(){
@@ -15203,9 +15291,8 @@ function _srBuildHTML(){
   +  '<div class="sr-row"><label class="sr-lab">Map</label><div class="sr-dd" id="sr-dd-map"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-map\')"><span class="ttl" data-sr-map>'+_srEsc(firstMapLabel)+'</span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+mapOpts+'</div></div></div>'
   +  _srExpRow('Start')
   +  '<div class="sr-row"><label class="sr-lab">Start Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
-  +  '<div class="sr-row"><label class="sr-lab">Red potion</label><input class="sr-inp" data-sr-pot value="" inputmode="numeric" placeholder="0"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
-  +  '<div class="sr-row"><label class="sr-lab">Screenshot</label><div class="sr-drop" onclick="_srToggleShot(this)"><span class="idle">🖼 Tap or paste proof image</span><span class="done">✓ proof.png attached</span></div></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Screenshot</label><div class="sr-drop" id="sr-drop-checkin" onclick="document.getElementById(\'sr-file-checkin\').click()"><input type="file" id="sr-file-checkin" accept="image/*" style="display:none" onchange="_srFile(event,\'checkin\')"><span class="idle">🖼 Tap to upload — or paste (Ctrl+V)</span><span class="done">✓ screenshot attached</span><div class="sr-shot-prev" id="sr-prevshot-checkin"></div></div></div>'
   +  '<button class="sr-btn sr-btn-primary" onclick="_srCheckIn()">▶ Check in — start shift</button>'
   +  '<p class="sr-foot">PC, map &amp; name stay set for the shift · screenshots come with each update</p>'
   +'</div>';
@@ -15215,11 +15302,10 @@ function _srBuildHTML(){
   +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">📍 <span data-sr-map>'+_srEsc(firstMapLabel)+'</span></span></div>'
   +  '<p class="sr-sub">Name automatic · tap PC or map to change</p>'
   +  '<div class="sr-row"><label class="sr-lab">Time covered</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBump(\'s\',-1)">−</button><span class="sr-t" id="sr-w1">07:00</span><button onclick="_srBump(\'s\',1)">+</button></span><span class="sr-arr">→</span><span class="sr-tstep"><button onclick="_srBump(\'e\',-1)">−</button><span class="sr-t" id="sr-w2">09:00</span><button onclick="_srBump(\'e\',1)">+</button></span><span class="sr-auto">auto<br>editable</span></div><div class="sr-split"><span class="sr-cap">saved as</span><span id="sr-recs" style="display:flex;gap:7px;"></span><span class="sr-cap" id="sr-splitnote">· 1h each, gain split 50/50</span></div><p class="sr-sub" style="margin:7px 0 0;">Client sees <b id="sr-up-kst">09:00 → 11:00</b> KST</p></div>'
-  +  _srExpRow('')
+  +  _srExpRow('','live','update')
   +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
-  +  '<div class="sr-row"><label class="sr-lab">Red potion</label><input class="sr-inp" data-sr-pot value="" inputmode="numeric" placeholder="0"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
-  +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" onclick="_srToggleShot(this)"><span class="idle">🖼 Tap or paste proof image</span><span class="done">✓ proof.png attached</span></div></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" id="sr-drop-update" onclick="document.getElementById(\'sr-file-update\').click()"><input type="file" id="sr-file-update" accept="image/*" style="display:none" onchange="_srFile(event,\'update\')"><span class="idle">🖼 Tap to upload — or paste (Ctrl+V)</span><span class="done">✓ screenshot attached</span><div class="sr-shot-prev" id="sr-prevshot-update"></div></div></div>'
   +  '<div class="sr-endbar" id="sr-endbar" style="display:none;">🚩 Shift ends at <b id="sr-endh">19:00</b> — submitting checks you out</div>'
   +  '<button class="sr-btn sr-btn-primary" onclick="_srSubmitUpdate()"><span id="sr-up-btn-t">Submit 2-hour report</span></button>'
   +  '<p class="sr-foot" id="sr-up-foot">Submitting saves the hourly records and rolls to the next window</p>'
@@ -15230,11 +15316,10 @@ function _srBuildHTML(){
   +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span><span class="sr-chip">📍 <span data-sr-map>'+_srEsc(firstMapLabel)+'</span></span></div>'
   +  '<p class="sr-sub">Final report — captures whatever hours are left in the shift</p>'
   +  '<div class="sr-row"><label class="sr-lab">Final stretch</label><div class="sr-tbox">🕐 <span class="sr-t">18:00</span><span class="sr-arr">→</span><span class="sr-t">19:00</span><span class="sr-auto">shift end<br>tap to adjust</span></div><div class="sr-split"><span class="sr-cap">saved as</span><span class="sr-sc">19:00</span><span class="sr-cap">· 1 hour left → full gain, no split</span></div></div>'
-  +  _srExpRow('')
+  +  _srExpRow('','live','checkout')
   +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
-  +  '<div class="sr-row"><label class="sr-lab">Red potion</label><input class="sr-inp" data-sr-pot value="" inputmode="numeric" placeholder="0"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
-  +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" onclick="_srToggleShot(this)"><span class="idle">🖼 Tap or paste proof image</span><span class="done">✓ proof.png attached</span></div></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" id="sr-drop-checkout" onclick="document.getElementById(\'sr-file-checkout\').click()"><input type="file" id="sr-file-checkout" accept="image/*" style="display:none" onchange="_srFile(event,\'checkout\')"><span class="idle">🖼 Tap to upload — or paste (Ctrl+V)</span><span class="done">✓ screenshot attached</span><div class="sr-shot-prev" id="sr-prevshot-checkout"></div></div></div>'
   +  '<button class="sr-btn sr-btn-primary" onclick="_srReviewCheckout()">🏁 Check out — end shift</button>'
   +  '<p class="sr-foot">Ends the shift and posts the final record</p>'
   +'</div>';
@@ -15268,6 +15353,7 @@ function renderCalcEmbed(){
   otherView.innerHTML=_srBuildHTML();
   _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=9;
   _srRenderCIStart(); _srRenderWin(); _srGo('checkin');
+  _srSession=null; _srShots={checkin:null,update:null,checkout:null}; _srBindPaste();
   if(!window._srDocClickBound){ window._srDocClickBound=true; document.addEventListener('click', function(e){ if(!e.target.closest('.sr-dd')) _srCloseDD(); }); }
 }
 function _srTryForm(){ window._srForceForm=true; renderCalcEmbed(); }
