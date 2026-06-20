@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v252 -->
+<!-- BUILD: v253 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15040,21 +15040,28 @@ function _srBindPaste(){
     for(var i=0;i<items.length;i++){ if(items[i].type&&items[i].type.indexOf('image')===0){ var f=items[i].getAsFile(); if(f){ _srSetShot(sc,f); _srToast('Screenshot pasted'); e.preventDefault(); } return; } }
   });
 }
-function _srCheckIn(){
+async function _srCheckIn(){
+  if(_srBusy) return;
   var root=document.getElementById('sr-s-checkin');
   var exps=root.querySelectorAll('.sr-exp .sr-inp');
   var lv=parseFloat(exps[0]?exps[0].value:''), exp=parseFloat(exps[1]?exps[1].value:'');
   var adenaEl=root.querySelector('[data-sr-adena]'); var adena=parseFloat(adenaEl?adenaEl.value:'')||0;
-  if(isNaN(lv)||isNaN(exp)){ _srToast('Enter your starting Lv and EXP'); return; }
-  if(exp>100){ _srToast('EXP can\'t be over 100%'); return; }
-  if(!_srShots.checkin){ _srToast('Add a screenshot to check in'); return; }
+  var sel=_srSel();
+  if(!sel.name){ _srToast("Pick a client first"); return; }
+  if(isNaN(lv)||isNaN(exp)){ _srToast("Enter your starting Lv and EXP"); return; }
+  if(exp>100){ _srToast("EXP can't be over 100%"); return; }
+  if(!_srShots.checkin){ _srToast("Add a screenshot to check in"); return; }
   _srSession={ booster:_srBooster(), threadId:_srThread(),
-    pc:(root.querySelector('[data-sr-pc]')||document.querySelector('#sr-s-update [data-sr-pc]')||{}).textContent||'',
-    map:(root.querySelector('[data-sr-map]')||{}).textContent||'',
+    client:sel.name, pc:sel.pc, map:sel.map,
     startLv:lv, startExp:exp, startAdena:adena, prev:{ lv:lv, exp:exp, adena:adena } };
+  var btn=root.querySelector('.sr-btn-primary'); var old=btn?btn.textContent:'';
+  if(btn){ btn.disabled=true; btn.textContent='Checking in\u2026'; }
+  var ok=await _srSubmitReport('checkin','checkin');
+  if(btn){ btn.disabled=false; btn.textContent=old; }
+  if(!ok){ _srSession=null; return; }
   _srWinStart=_srPlayStartH; _srWinEnd=Math.min(_srPlayStartH+2,_srShiftEndH); _srRenderWin();
   var st=document.getElementById('sr-step-checkin'); if(st) st.classList.add('done');
-  _srGo('update'); _srToast('Checked in — shift started');
+  _srGo('update'); _srToast('Checked in \u2014 shift started');
 }
 function _srSubmitUpdate(){ _srReview('update'); }
 function _srReviewCheckout(){ _srReview('checkout'); }
@@ -15101,28 +15108,124 @@ function _srReview(which){
   document.getElementById('sr-recap').innerHTML=_srRecapHTML(d,calc)+warn+ovr;
   var cb=document.getElementById('sr-confirm'); cb.textContent=ending?'Yes, check out':'Yes, submit';
   cb.disabled = block || (calc&&calc.typo);
-  _srOnOk=ending?_srDoCheckout:_srDoUpdate;
+  _srOnOk=(function(end,scr){ return function(){ return _srFinishSubmit(end?'checkout':'update', scr); }; })(ending, which);
   document.getElementById('sr-scrim').style.display='';
   document.getElementById('sr-sheet').style.display='';
 }
 function _srCloseReview(){ var a=document.getElementById('sr-scrim'),b=document.getElementById('sr-sheet'); if(a)a.style.display='none'; if(b)b.style.display='none'; _srOnOk=null; }
-function _srConfirm(){ var f=_srOnOk; _srCloseReview(); if(f) f(); }
-function _srDoUpdate(){
-  var d=_srReadScreen('update'); var prev=_srPrev();
-  if(prev && d.expRaw!=null){ var r=_srApplyExp(prev.lv,prev.exp,d.expRaw); if(r.valid){ _srSession.prev={ lv:r.lv, exp:r.exp, adena:(parseFloat(d.adena)||prev.adena) }; } }
-  if(_srWinEnd>=_srShiftEndH){ _srDoCheckout(); return; }
-  _srToast('Saved · '+_srPad(_srWinStart+1)+' to '+_srPad(_srWinEnd));
-  var len=_srWinEnd-_srWinStart; _srWinStart=_srWinEnd; _srWinEnd=Math.min(_srWinStart+len,_srShiftEndH); _srRenderWin();
-  _srSetShot('update',null);
-  var li=document.querySelector('#sr-s-update .sr-exp-live'); if(li) li.value='';
-  var ad=document.querySelector('#sr-s-update [data-sr-adena]'); if(ad) ad.value='';
-  _srExpPreview('update');
+async function _srConfirm(){
+  if(_srBusy) return;
+  var cb=document.getElementById('sr-confirm'); var old=cb?cb.textContent:'';
+  if(cb){ cb.disabled=true; cb.textContent='Submitting\u2026'; }
+  var f=_srOnOk; var ok=false;
+  try{ ok = f ? await f() : false; }catch(e){ ok=false; }
+  if(ok){ _srCloseReview(); }
+  else if(cb){ cb.disabled=false; cb.textContent=old; }
 }
-function _srDoCheckout(){
-  var u=document.getElementById('sr-step-update'); if(u) u.classList.add('done');
-  var c=document.getElementById('sr-step-checkout'); if(c) c.classList.add('done');
-  _srGo('checkout'); _srToast('Shift complete — final record posted');
+// ───────── shift report: save to payroll + post Discord card ─────────
+var _SR_SERVER='https://buju-report.onrender.com';   // report server (Render). If the host ever moves, change ONLY this line.
+var _srBusy=false;
+function _srKST(h){ return _srPad(h+2); }
+function _srTodayWIB(){ return new Date(Date.now()+7*3600*1000).toISOString().slice(0,10); }
+function _srSel(){
+  var pcEl=document.querySelector('#sr-app .sr-pc-card.sel');
+  var mapEl=document.querySelector('#sr-dd-map .sr-dd-opt.sel');
+  return { pc:pcEl?pcEl.getAttribute('data-pc'):'', name:pcEl?pcEl.getAttribute('data-name'):'', map:mapEl?mapEl.getAttribute('data-full'):'' };
 }
+function _srNote(screen){ var el=document.querySelector('#sr-s-'+screen+' [data-sr-note]'); return el?el.value:''; }
+function _srCalcClient(clients,name){ var cn=String(name||'').trim(); return (clients||[]).find(function(c){return String(c.name||'').trim()===cn;})||null; }
+async function _srGetCalc(key){ var r=await fetch(_SR_SERVER+'/api/calc-data/'+key); var j=await r.json().catch(function(){return {};}); return Array.isArray(j.value)?j.value:[]; }
+async function _srPutCalc(key,arr){ var r=await fetch(_SR_SERVER+'/api/calc-data/'+key,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:arr})}); return r.ok; }
+async function _srPostCard(type,fields,shot){ var fd=new FormData(); fd.append('type',type); fd.append('fields',JSON.stringify(fields)); if(shot) fd.append('screenshot',shot,(shot.name||'screenshot.png')); var r=await fetch(_SR_SERVER+'/api/report',{method:'POST',body:fd}); return r.ok; }
+function _srFields(name,pc,gear,ps,pe,map,prevLv,prevExp,lv,exp,prevAde,ade,note,date){
+  var no=gear.no;
+  return { clientNo:no, nickname:name, clientNoLabel:(no!=null?no+' ':'')+(name||''),
+    pc:pc, lv:lv, class:gear.classJob||'', threadId:(_srSession?_srSession.threadId:_srThread()),
+    weapon:(gear.weapon!=null&&gear.weapon!=='')?('+'+gear.weapon):'', armor:(gear.armor!=null&&gear.armor!=='')?('+'+gear.armor):'', ac:(gear.ac!=null&&gear.ac!=='')?gear.ac:'',
+    playStart:ps, playEnd:pe, map:map, exp:exp, prevExp:prevExp, prevLv:prevLv,
+    adena:ade, prevAdena:prevAde, potion:0, drop:0, dead:0, note:note||'', date:date };
+}
+// kind: 'checkin' | 'update' | 'checkout'  ·  screen = the screen holding the data
+async function _srSubmitReport(kind,screen){
+  if(_srBusy) return false;
+  var shot=_srShots[screen];
+  if(!shot){ _srToast("Add a screenshot first"); return false; }
+  var sess=_srSession;
+  if(kind!=='checkin' && !sess){ _srToast("Check in first"); return false; }
+  _srBusy=true;
+  try{
+    var sel=_srSel();
+    var name = (kind==='checkin') ? sel.name : sess.client;
+    var pc   = (kind==='checkin') ? sel.pc   : sess.pc;
+    var mapFull = (kind==='checkin') ? sel.map : sess.map;
+    var date=_srTodayWIB();
+    var reports, clients;
+    try{ reports=await _srGetCalc('reports'); clients=await _srGetCalc('clients'); }
+    catch(e){ _srToast("Can't reach the report server — try again"); return false; }
+    var cc=_srCalcClient(clients,name)||{};
+    var gear={ no:(cc.no!=null?cc.no:pc), weapon:cc.sword, armor:cc.armor, ac:cc.ac, classJob:cc.job };
+    var base=Date.now(), newRecs=[], cardFields, cardType;
+    function mkRec(o){
+      var r={ id:'rpt-'+(base+newRecs.length), createdAt:base+newRecs.length,
+        booster:(sess?sess.booster:_srBooster()), client:name, no:gear.no, pc:pc,
+        threadId:(sess?sess.threadId:_srThread()), weapon:gear.weapon, armor:gear.armor, ac:gear.ac, classJob:gear.classJob,
+        date:date, map:mapFull, dead:0, potion:0, drop:0, note:'' };
+      for(var k in o) r[k]=o[k]; return r;
+    }
+    if(kind==='checkin'){
+      var sLv=sess.startLv, sExp=sess.startExp, sAde=sess.startAdena, nt=_srNote('checkin');
+      newRecs.push(mkRec({ tag:'checkin', start:_srKST(_srPlayStartH), end:_srKST(_srShiftEndH),
+        lvBefore:sLv, expBefore:sExp, lvAfter:sLv, expAfter:sExp, adena:sAde, prevAdena:sAde, note:nt }));
+      cardType='checkin';
+      cardFields=_srFields(name,pc,gear,_srKST(_srPlayStartH),_srKST(_srShiftEndH),mapFull,sLv,sExp,sLv,sExp,sAde,sAde,nt,date);
+    } else {
+      var prev=sess.prev, d=_srReadScreen(screen);
+      var calc=_srApplyExp(prev.lv,prev.exp,d.expRaw);
+      if(!calc.valid){ _srToast(calc.error); return false; }
+      var endAde=parseFloat(d.adena); if(isNaN(endAde)) endAde=prev.adena;
+      var nt2=_srNote(screen);
+      var ws=_srWinStart, we=(kind==='checkout'&&screen==='checkout')?_srShiftEndH:_srWinEnd, N=Math.max(1,we-ws);
+      var startVal=prev.lv*100+prev.exp, endVal=calc.lv*100+calc.exp;
+      for(var k=1;k<=N;k++){
+        var vB=startVal+(endVal-startVal)*((k-1)/N), vA=startVal+(endVal-startVal)*(k/N);
+        var lvB=Math.floor(vB/100), eB=vB-lvB*100, lvA=Math.floor(vA/100), eA=vA-lvA*100;
+        var aB=prev.adena+(endAde-prev.adena)*((k-1)/N), aA=prev.adena+(endAde-prev.adena)*(k/N);
+        newRecs.push(mkRec({ tag:((kind==='checkout'&&k===N)?'checkout':'status'), start:_srKST(ws+k-1), end:_srKST(ws+k),
+          lvBefore:lvB, expBefore:Number(eB.toFixed(2)), lvAfter:lvA, expAfter:Number(eA.toFixed(2)),
+          adena:Math.round(aA), prevAdena:Math.round(aB), note:(k===N?nt2:'') }));
+      }
+      cardType=(kind==='checkout')?'checkout':'hourly';
+      cardFields=_srFields(name,pc,gear,_srKST(ws),_srKST(we),mapFull,prev.lv,prev.exp,calc.lv,calc.exp,prev.adena,Math.round(endAde),nt2,date);
+      _srSubmitReport._next={ lv:calc.lv, exp:calc.exp, adena:Math.round(endAde) };
+    }
+    var saved=false;
+    try{ saved=await _srPutCalc('reports', reports.concat(newRecs)); }catch(e){}
+    if(!saved){ _srToast("Save failed — not recorded, try again"); return false; }
+    try{ await _srPostCard(cardType,cardFields,shot); }catch(e){}   // card is best-effort; payroll is already saved
+    return true;
+  } finally { _srBusy=false; }
+}
+async function _srFinishSubmit(kind,screen){
+  var ok=await _srSubmitReport(kind,screen);
+  if(!ok) return false;
+  if(_srSubmitReport._next && _srSession){ _srSession.prev=_srSubmitReport._next; _srSubmitReport._next=null; }
+  if(kind==='checkout'){
+    _srSession=null;   // shift done — blocks further submits until a fresh check-in
+    var u=document.getElementById('sr-step-update'); if(u) u.classList.add('done');
+    var c=document.getElementById('sr-step-checkout'); if(c) c.classList.add('done');
+    _srGo('checkout'); _srToast('Shift complete — final record posted');
+  } else {
+    _srToast('Saved · '+_srKST(_srWinStart)+'–'+_srKST(_srWinEnd)+' KST');
+    var len=_srWinEnd-_srWinStart; _srWinStart=_srWinEnd; _srWinEnd=Math.min(_srWinStart+len,_srShiftEndH); _srRenderWin();
+    _srSetShot('update',null);
+    var li=document.querySelector('#sr-s-update .sr-exp-live'); if(li) li.value='';
+    var ad=document.querySelector('#sr-s-update [data-sr-adena]'); if(ad) ad.value='';
+    var nt=document.querySelector('#sr-s-update [data-sr-note]'); if(nt) nt.value='';
+    _srExpPreview('update');
+  }
+  return true;
+}
+
 
 function _srInjectCSS(){
   if(document.getElementById('sr-style')) return;
