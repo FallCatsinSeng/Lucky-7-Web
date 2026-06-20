@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v249 -->
+<!-- BUILD: v250 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15142,6 +15142,26 @@ function _srInjectCSS(){
 "#sr-sheet .sr-warn{display:flex;align-items:center;gap:8px;background:rgba(196,106,106,.12);border:1px solid rgba(196,106,106,.4);color:var(--re,#c46a6a);border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:12px;font-weight:500;}",
 "#sr-sheet .sr-sh-btns{display:flex;gap:10px;margin-top:18px;}",
 "#sr-sheet .sr-sh-btns .sr-btn{margin-top:0;flex:1;}",
+"#sr-app .sr-admin-load{color:var(--tx2,#989792);font-size:13px;padding:24px;text-align:center;}",
+"#sr-app .sr-sec-lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3,#6c6b66);margin:0 0 10px;}",
+"#sr-app .sr-live-wrap{display:flex;flex-direction:column;gap:9px;}",
+"#sr-app .sr-live-card{background:var(--bg-i,#1a1a1a);border:1px solid var(--br,#262625);border-radius:12px;padding:12px 14px;}",
+"#sr-app .sr-live-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}",
+"#sr-app .sr-live-name{font-size:15px;font-weight:600;color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-live-ago{font-size:11.5px;color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-live-meta{font-size:12px;color:var(--tx2,#989792);margin:5px 0 9px;}",
+"#sr-app .sr-live-perf{display:flex;align-items:baseline;gap:9px;}",
+"#sr-app .sr-live-pct{font-size:20px;font-weight:700;color:var(--ac-strong,#d4b566);}",
+"#sr-app .sr-live-pct.sr-ok{color:var(--gr,#4d9a8a);}",
+"#sr-app .sr-live-pct.sr-re{color:var(--re,#c46a6a);}",
+"#sr-app .sr-live-sub{font-size:11.5px;color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-tbl{width:100%;border-collapse:collapse;font-size:13px;}",
+"#sr-app .sr-tbl th{text-align:left;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3,#6c6b66);font-weight:600;padding:0 8px 8px;border-bottom:1px solid var(--br,#262625);}",
+"#sr-app .sr-tbl th:not(:first-child),#sr-app .sr-tbl td:not(:first-child){text-align:right;}",
+"#sr-app .sr-tbl td{padding:9px 8px;border-bottom:1px solid var(--br,#262625);color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-tbl tr:last-child td{border-bottom:none;}",
+"#sr-app .sr-tbl td.sr-ok{color:var(--gr,#4d9a8a);font-weight:600;}",
+"#sr-app .sr-tbl td.sr-re{color:var(--re,#c46a6a);font-weight:600;}",
 "#sr-app .sr-btn:disabled,#sr-sheet .sr-btn:disabled{opacity:.45;cursor:not-allowed;filter:none;}"
 ].join("\n");
   document.head.appendChild(s);
@@ -15228,7 +15248,7 @@ function _srBuildHTML(){
   +  '<div class="sr-sh-btns"><button class="sr-btn sr-btn-out" onclick="_srCloseReview()">← Go back &amp; fix</button><button class="sr-btn sr-btn-primary" id="sr-confirm" onclick="_srConfirm()">Yes, submit</button></div>'
   +'</div>';
 
-  return '<div id="sr-app"><div class="sr-card">'
+  return '<div id="sr-app">' + (window._srForceForm ? '<button class="sr-btn sr-btn-out" style="max-width:440px;margin:0 auto 14px;display:block" onclick="_srBackToAdmin()">\u2190 Back to admin view</button>' : '') + '<div class="sr-card">'
     + '<div class="sr-head"><h2>Shift report</h2><span class="sr-badge">Live</span></div>'
     + '<div class="sr-stepper">'
     +   '<button class="sr-step on" id="sr-step-checkin" onclick="_srGo(\'checkin\')"><span class="n">1</span>Check in</button>'
@@ -15242,10 +15262,98 @@ function _srBuildHTML(){
 function renderCalcEmbed(){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
   _srInjectCSS();
+  var role = (typeof currentUserRole!=='undefined') ? currentUserRole : 'player';
+  var adminRole = (role==='admin' || role==='op' || (typeof currentUser!=='undefined' && currentUser && currentUser.role==='hr'));
+  if(adminRole && !window._srForceForm){ renderShiftAdmin(); return; }
   otherView.innerHTML=_srBuildHTML();
   _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=9;
   _srRenderCIStart(); _srRenderWin(); _srGo('checkin');
   if(!window._srDocClickBound){ window._srDocClickBound=true; document.addEventListener('click', function(e){ if(!e.target.closest('.sr-dd')) _srCloseDD(); }); }
+}
+function _srTryForm(){ window._srForceForm=true; renderCalcEmbed(); }
+function _srBackToAdmin(){ window._srForceForm=false; renderCalcEmbed(); }
+
+async function renderShiftAdmin(){
+  var otherView=document.getElementById('ch-other'); if(!otherView) return;
+  _srInjectCSS();
+  var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
+  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+  var normName=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)\.?\s+/,'').trim().split(/\s+/)[0]||''; };
+  var gainedPct=function(r){ return (Number(r.lvAfter)-Number(r.lvBefore))*100+(Number(r.expAfter)-Number(r.expBefore)); };
+  var reportMs=function(r){ if(!r) return null; if(typeof r.createdAt==='number'&&r.createdAt>1e12) return r.createdAt; var m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; };
+  var isTestMap=function(r){ return String(r.map||'').toUpperCase()==='TEST'; };
+  var zoneKey=function(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0)return'orc'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; };
+  var findMap=function(clients,r){ var cn=String(r.client||'').trim(); var c=null,i; for(i=0;i<clients.length;i++){ if(String(clients[i].name||'').trim()===cn){c=clients[i];break;} } if(!c){ for(i=0;i<clients.length;i++){ if(String(clients[i].pc)===String(r.pc)){c=clients[i];break;} } } if(!c||!c.maps) return null; var z=zoneKey(r.map); var lv=Number(r.lvAfter!=null?r.lvAfter:r.lv); var cand=c.maps.filter(function(m){return zoneKey(m.en||m.ko)===z;}); if(!cand.length) return null; var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; };
+  var _ord={checkin:0,status:1,checkout:2};
+  var agoTxt=function(ms){ if(!ms) return '—'; var s=Math.max(0,Date.now()-ms), m=Math.floor(s/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; var h=Math.floor(m/60); return h+'h '+(m%60)+'m ago'; };
+  var pctCls=function(pct,quota){ if(!(quota>0)) return ''; return pct>=100?'sr-ok':(pct>=70?'':'sr-re'); };
+
+  otherView.innerHTML='<div id="sr-app"><div class="sr-card"><div class="sr-head"><h2>Shift report · Admin</h2><span class="sr-badge">Live</span></div><div class="sr-admin-load">⟳ loading shift data…</div></div></div>';
+
+  try{
+    var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
+    var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr});
+    var rows=await res.json().catch(function(){return [];});
+    var byKey={}; if(Array.isArray(rows)) rows.forEach(function(r){ byKey[r.key]=(r.value!==undefined?r.value:r.data); });
+    var reports=Array.isArray(byKey.reports)?byKey.reports:[];
+    var clients=Array.isArray(byKey.clients)?byKey.clients:[];
+
+    var groups={};
+    reports.forEach(function(r){ var k=normName(r.booster); if(!k) return; if(!groups[k]) groups[k]={name:r.booster, rs:[]}; groups[k].rs.push(r); });
+
+    var today=new Date().toISOString().slice(0,10);
+    var liveCards=[], todayRows=[];
+
+    Object.keys(groups).forEach(function(k){
+      var g=groups[k];
+      var allRs=g.rs.slice().sort(function(a,b){ return ((reportMs(a)||0)-(reportMs(b)||0)) || ((_ord[a.tag]!=null?_ord[a.tag]:1)-(_ord[b.tag]!=null?_ord[b.tag]:1)); });
+      var isDup={}, DUP=10*60*1000, i,j;
+      for(i=0;i<allRs.length;i++){ var r=allRs[i]; if(isTestMap(r))continue; for(j=i-1;j>=0;j--){ var p=allRs[j]; if(((reportMs(r)||0)-(reportMs(p)||0))>DUP)break; if(isDup[p.id])continue; if(String(p.client||'').trim()===String(r.client||'').trim()&&(p.tag||'')===(r.tag||'')&&Number(p.lvAfter)===Number(r.lvAfter)&&Number(p.expAfter)===Number(r.expAfter)){ isDup[r.id]=true; break; } } }
+      var segGain={}; (function(){ var prev=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0;return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r);return;} if(prev&&prev.client!==r.client)prev=null; if(r.tag==='checkin'){segGain[r.id]=null;prev=r;return;} if(prev){ var cur=(Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0); var pv=(Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0); var gg=cur-pv; if(gg<0)gg=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0); segGain[r.id]=gg; } else { segGain[r.id]=gainedPct(r); } prev=r; }); })();
+
+      var latest=allRs[allRs.length-1];
+      var latestMs=reportMs(latest);
+      var onShift=latest&&(latest.tag==='checkin'||latest.tag==='status'||!latest.tag)&&latestMs&&(Date.now()-latestMs<16*3600*1000);
+
+      var ci=null;
+      for(i=allRs.length-1;i>=0;i--){ if(allRs[i].tag==='checkin'){ci=allRs[i];break;} if(allRs[i].tag==='checkout'){break;} }
+
+      var sGain=0,sQuota=0,sHours=0;
+      if(ci){ var ciMs=reportMs(ci); allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); sHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)sQuota+=Number(mo.target); } }); }
+      var sPct=sQuota>0?(sGain/sQuota*100):0;
+
+      var tGain=0,tQuota=0,tHours=0;
+      allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout'||!r.tag)&&String(r.date||'').slice(0,10)===today){ tGain+=(segGain[r.id]||0); tHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)tQuota+=Number(mo.target); } });
+      var tPct=tQuota>0?(tGain/tQuota*100):0;
+
+      if(onShift) liveCards.push({name:g.name,pc:latest.pc,client:latest.client,map:latest.map,lastMs:latestMs,pct:sPct,gain:sGain,hours:sHours,quota:sQuota});
+      if(tHours>0) todayRows.push({name:g.name,gain:tGain,hours:tHours,pct:tPct,quota:tQuota});
+    });
+
+    liveCards.sort(function(a,b){return (b.lastMs||0)-(a.lastMs||0);});
+    todayRows.sort(function(a,b){return b.pct-a.pct;});
+
+    var liveHTML = liveCards.length ? liveCards.map(function(c){
+      return '<div class="sr-live-card"><div class="sr-live-top"><span class="sr-live-name">'+_srEsc(c.name)+'</span><span class="sr-live-ago">'+agoTxt(c.lastMs)+'</span></div>'
+        +'<div class="sr-live-meta">🖥 PC'+_srEsc(c.pc)+' · '+_srEsc(c.client)+'  ·  📍 '+_srEsc(c.map)+'</div>'
+        +'<div class="sr-live-perf"><span class="sr-live-pct '+pctCls(c.pct,c.quota)+'">'+(c.quota>0?c.pct.toFixed(0)+'%':'—')+'</span><span class="sr-live-sub">'+c.gain.toFixed(1)+'% gain · '+c.hours+'h this shift</span></div></div>';
+    }).join('') : '<div class="sr-empty">No one is on shift right now.</div>';
+
+    var todayHTML = todayRows.length ? ('<table class="sr-tbl"><thead><tr><th>Booster</th><th>Gain</th><th>Hrs</th><th>Perf</th></tr></thead><tbody>'
+      + todayRows.map(function(r){ return '<tr><td>'+_srEsc(r.name)+'</td><td>'+r.gain.toFixed(1)+'%</td><td>'+r.hours+'</td><td class="'+pctCls(r.pct,r.quota)+'">'+(r.quota>0?r.pct.toFixed(0)+'%':'—')+'</td></tr>'; }).join('')
+      + '</tbody></table>') : '<div class="sr-empty">No reports logged today yet.</div>';
+
+    otherView.innerHTML='<div id="sr-app"><div class="sr-card">'
+      +'<div class="sr-head"><h2>Shift report · Admin</h2><span class="sr-badge">Live</span></div>'
+      +'<button class="sr-btn sr-btn-out" style="margin-bottom:18px" onclick="_srTryForm()">▶ Try the report form (test)</button>'
+      +'<div class="sr-sec-lbl">On shift now</div><div class="sr-live-wrap">'+liveHTML+'</div>'
+      +'<div class="sr-sec-lbl" style="margin-top:22px">Today</div>'+todayHTML
+      +'</div></div>';
+  }catch(e){
+    otherView.innerHTML='<div id="sr-app"><div class="sr-card"><div class="sr-head"><h2>Shift report · Admin</h2></div>'
+      +'<button class="sr-btn sr-btn-out" style="margin-bottom:18px" onclick="_srTryForm()">▶ Try the report form (test)</button>'
+      +'<div class="sr-empty">Couldn\'t load shift data right now.</div></div></div>';
+  }
 }
 
 
