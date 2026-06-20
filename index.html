@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v255 -->
+<!-- BUILD: v256 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10340,7 +10340,11 @@ async function renderAttendance(){
   let statusBoard = '';
   if(isManager){
     const team = await loadTeamMembers();
-    const todayRows = historyData.filter(a => a.date === todayIso);
+    const _ydayIso = (function(){ var y=new Date(Date.now()-86400000); return y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0'); })();
+    // [v256] Include yesterday's STILL-OPEN sessions (night shifts crossing midnight, e.g. shift2 17:00-01:00)
+    // so workers stay on the board at 00:00 instead of resetting to absent. Matches loadMyAttendance (v229).
+    // A forgotten open session lingers at most ~1 day before it ages out of the yesterday window.
+    const todayRows = historyData.filter(a => a.date === todayIso || (a.date === _ydayIso && a.clock_in && !a.clock_out));
     const byUser = {};                          // unlimited clock-in → keep the open session
     todayRows.forEach(r => {
       const cur = byUser[r.user_id];
@@ -13859,24 +13863,27 @@ async function renderOverview(){
   await loadTasks();
   await loadRoster();
   const team = await loadTeamMembers();
-  const todayIso = todayStr();   // [v171] UTC date — matches how attendance is stored, so day-change doesn't drop open sessions
+  const todayIso = todayStr();
+  const _ydayIso = (function(){ var y=new Date(Date.now()-86400000); return y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0'); })();
   const today = new Date(); today.setHours(0,0,0,0);
   const myId = (currentUser?.name || 'MT').toLowerCase().replace(/\s+/g,'');
   const isManager = currentUserRole === 'admin' || currentUserRole === 'op';
 
   // ── 데이터: 실시간 팀 현황 (오늘 출퇴근 기반) ──
-  // [v172] mirror the Attendance page exactly: TODAY only (UTC date, same as storage).
-  // Yesterday's still-open sessions are NOT counted as working (they're stale/forgot-to-clock-out),
-  // so this matches the Attendance "Live Staff Status" board one-to-one.
+  // [v256] Today's rows + yesterday's still-open sessions (night shifts crossing midnight) count as
+  // working — matches loadMyAttendance and the Attendance "Live Staff Status" board, so the day-change
+  // no longer resets everyone to off/absent.
   const attTotal = team.length;
   let onlineN = 0, breakN = 0, dayoffN = 0, offN = 0;  // working now / on break / clocked out / absent
   if(sb){
     try{
       const { data } = await sb.from('attendance')
-        .select('user_id, clock_in, clock_out, break_start, break_end').eq('date', todayIso);
+        .select('user_id, date, clock_in, clock_out, break_start, break_end').gte('date', _ydayIso);
       if(data){
+        // [v256] today's rows + yesterday's still-open (overnight) — matches the Attendance board
+        const rel = data.filter(r => r.date === todayIso || (r.date === _ydayIso && r.clock_in && !r.clock_out));
         const byUser = {};
-        data.forEach(r => {                                  // unlimited clock-in → keep the open session
+        rel.forEach(r => {                                  // unlimited clock-in → keep the open session
           const cur = byUser[r.user_id];
           const open = r.clock_in && !r.clock_out;
           if(!cur || (open && !(cur.clock_in && !cur.clock_out))) byUser[r.user_id] = r;
@@ -16019,17 +16026,23 @@ let _staffAttCache = null, _staffAttFetching = false;
 function _staffAttBgRefresh(){
   if(_staffAttFetching || !sb) return;
   _staffAttFetching = true;
-  sb.from('attendance').select('user_id, clock_in, clock_out, break_start, break_end').eq('date', todayStr())
+  var _tIso = todayStr();
+  var _yIso = (function(){ var y=new Date(Date.now()-86400000); return y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0'); })();
+  sb.from('attendance').select('user_id, date, clock_in, clock_out, break_start, break_end').gte('date', _yIso)
     .then(function(res){
       _staffAttFetching = false;
       const data = res && res.data; if(!data) return;
+      // [v256] today + yesterday's still-open (overnight) so status dots don't reset at midnight
+      var rel = data.filter(function(r){ return r.date===_tIso || (r.date===_yIso && r.clock_in && !r.clock_out); });
+      var byU = {};
+      rel.forEach(function(r){ var cur=byU[r.user_id]; var open=r.clock_in && !r.clock_out; if(!cur || (open && !(cur.clock_in && !cur.clock_out))) byU[r.user_id]=r; });
       const m = {};
-      data.forEach(function(r){
-        let st = 'offline';
+      Object.keys(byU).forEach(function(uid){
+        var r=byU[uid]; let st = 'offline';
         if(r.clock_out) st = 'done';
         else if(r.break_start && !r.break_end) st = 'break';
         else if(r.clock_in) st = 'online';
-        m[r.user_id] = st;
+        m[uid] = st;
       });
       const changed = JSON.stringify(m) !== JSON.stringify(_staffAttCache || {});
       _staffAttCache = m;
