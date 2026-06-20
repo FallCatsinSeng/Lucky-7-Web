@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v253 -->
+<!-- BUILD: v254 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14931,7 +14931,7 @@ var _SR_SHIFTS=[
   {name:'Night · 10h', time:'21:00 → 07:00', s:21, e:31},
   {name:'Night · 8h (3)', time:'01:00 → 09:00', s:1, e:9}
 ];
-var _srShiftStartH=7, _srShiftEndH=19, _srWinStart=7, _srWinEnd=9, _srPlayStartH=7, _srOnOk=null;
+var _srShiftStartH=7, _srShiftEndH=19, _srWinStart=7, _srWinEnd=8, _srPlayStartH=7, _srOnOk=null;
 
 function _srGo(name){
   ['checkin','update','checkout'].forEach(function(k){
@@ -14950,13 +14950,13 @@ function _srPickShift(i){
   var nm=document.getElementById('sr-shift-name'); if(nm) nm.textContent=sh.name;
   var tm=document.getElementById('sr-shift-time'); if(tm) tm.textContent=sh.time;
   var lst=document.querySelectorAll('#sr-dd-shift .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel',k===i);
-  _srRenderCIStart(); _srCloseDD();
+  _srRenderCIStart(); _srSyncWin(); _srCloseDD();
 }
 function _srRenderCIStart(){
   var a=document.getElementById('sr-ci-start'); if(a) a.textContent=_srPad(_srPlayStartH);
   var b=document.getElementById('sr-ci-kst'); if(b) b.innerHTML=_srPad(_srPlayStartH)+' WIB<br>'+_srPad(_srPlayStartH+2)+' KST';
 }
-function _srBumpStart(d){ var n=_srPlayStartH+d; if(n>=0&&n<_srShiftEndH) _srPlayStartH=n; _srRenderCIStart(); }
+function _srBumpStart(d){ var n=_srPlayStartH+d; if(n>=0&&n<_srShiftEndH) _srPlayStartH=n; _srRenderCIStart(); _srSyncWin(); }
 function _srPickMap(full){
   document.querySelectorAll('#sr-app [data-sr-map]').forEach(function(x){ x.textContent=full; });
   var lst=document.querySelectorAll('#sr-dd-map .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel', lst[k].getAttribute('data-full')===full);
@@ -14969,6 +14969,7 @@ function _srPickPC(pc,name){
 }
 function _srToggleShot(el){ el.classList.toggle('has'); }
 
+function _srSyncWin(){ _srWinStart=_srPlayStartH; _srWinEnd=Math.min(_srPlayStartH+1,_srShiftEndH); _srRenderWin(); }
 function _srRenderWin(){
   var w1=document.getElementById('sr-w1'), w2=document.getElementById('sr-w2');
   if(w1) w1.textContent=_srPad(_srWinStart); if(w2) w2.textContent=_srPad(_srWinEnd);
@@ -15059,7 +15060,7 @@ async function _srCheckIn(){
   var ok=await _srSubmitReport('checkin','checkin');
   if(btn){ btn.disabled=false; btn.textContent=old; }
   if(!ok){ _srSession=null; return; }
-  _srWinStart=_srPlayStartH; _srWinEnd=Math.min(_srPlayStartH+2,_srShiftEndH); _srRenderWin();
+  _srSyncWin();
   var st=document.getElementById('sr-step-checkin'); if(st) st.classList.add('done');
   _srGo('update'); _srToast('Checked in \u2014 shift started');
 }
