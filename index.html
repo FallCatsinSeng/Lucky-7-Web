@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v258 -->
+<!-- BUILD: v260 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15463,6 +15463,31 @@ function renderCalcEmbed(){
 }
 function _srTryForm(){ window._srForceForm=true; renderCalcEmbed(); }
 function _srBackToAdmin(){ window._srForceForm=false; renderCalcEmbed(); }
+// [v260] Drill-down: render a booster's individual reports for the selected day, and toggle the row open/closed.
+function _srDetailHTML(reps){
+  if(!reps||!reps.length) return '<div style="padding:8px 4px;color:var(--tx3);font-size:12px">No individual reports.</div>';
+  return '<div style="padding:4px 0 8px">'+reps.map(function(r){
+    var t=(r.start||'')+(r.end?' \u2192 '+r.end:'');
+    var tag = r.tag==='checkout'?'check-out':(r.tag==='checkin'?'check-in':'hourly');
+    var tagCol = r.tag==='checkin'?'var(--gr)':(r.tag==='checkout'?'var(--ac)':'var(--tx3)');
+    var gain = (r.gain==null) ? '' : (r.gain>=0?'+':'')+Number(r.gain).toFixed(2)+'%';
+    var op = r.dup ? 'opacity:.45;' : '';
+    return '<div style="display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;padding:5px 9px;margin:3px 0;border-left:2px solid var(--br2);font-size:12px;'+op+'">'
+      +'<span style="color:var(--tx);font-weight:600;min-width:108px">'+_srEsc(t||'\u2014')+'</span>'
+      +'<span style="color:var(--tx2);flex:1;min-width:130px">'+_srEsc(r.map||'\u2014')+'</span>'
+      +'<span style="color:'+tagCol+';font-size:10.5px;letter-spacing:.04em;text-transform:uppercase">'+tag+(r.dup?' \u00B7 dup':'')+'</span>'
+      +(gain?'<span style="color:var(--ac);font-weight:600;min-width:56px;text-align:right">'+gain+'</span>':'<span style="min-width:56px"></span>')
+      +'<span style="color:var(--tx3);font-size:11px">Lv'+(r.lv!=null?_srEsc(String(r.lv)):'?')+(r.exp!=null?' \u00B7 '+Number(r.exp).toFixed(1)+'%':'')+'</span>'
+      +'</div>';
+  }).join('')+'</div>';
+}
+function _srToggleDetail(ix){
+  var d=document.getElementById('srd-'+ix), c=document.getElementById('srchev-'+ix);
+  if(!d) return;
+  var open = d.style.display!=='none';
+  d.style.display = open?'none':'table-row';
+  if(c) c.textContent = open?'\u25B8':'\u25BE';
+}
 
 async function renderShiftAdmin(){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
@@ -15518,12 +15543,24 @@ async function renderShiftAdmin(){
       if(ci){ var ciMs=reportMs(ci); allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); sHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)sQuota+=Number(mo.target); } }); }
       var sPct=sQuota>0?(sGain/sQuota*100):0;
 
-      var tGain=0,tQuota=0,tHours=0;
-      allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout'||!r.tag)&&String(r.date||'').slice(0,10)===selDate){ tGain+=(segGain[r.id]||0); tHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)tQuota+=Number(mo.target); } });
+      // [v259] Anchor each report to its shift's CHECK-IN date (same as payroll's shiftDateOf), so a night
+      // shift (e.g. 19:00 check-in -> 07:00 next-day check-out) counts as ONE day under the day it started
+      // instead of splitting across midnight. Day shifts are unaffected (check-in date == report date).
+      var shiftDateMap={}; (function(){ var curCi=null; allRs.forEach(function(r){ if(isTestMap(r))return; if(r.tag==='checkin'){curCi=r;return;} if(curCi&&curCi.client!==r.client)curCi=null; shiftDateMap[r.id]=curCi?curCi.date:r.date; if(r.tag==='checkout')curCi=null; }); })();
+      var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
+      var tGain=0,tQuota=0,tHours=0, tReports=[];
+      allRs.forEach(function(r){ if(isTestMap(r))return; if(shiftDateOf(r)!==selDate)return;
+        if(r.tag==='checkin'){ tReports.push({start:r.start,end:r.end,map:r.map,tag:'checkin',gain:null,lv:r.lvAfter,exp:r.expAfter,dup:false}); return; }
+        if(r.tag==='status'||r.tag==='checkout'||!r.tag){
+          var g=(segGain[r.id]||0), dup=!!isDup[r.id];
+          if(!dup){ tGain+=g; tHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)tQuota+=Number(mo.target); }
+          tReports.push({start:r.start,end:r.end,map:r.map,tag:(r.tag||'status'),gain:g,lv:r.lvAfter,exp:r.expAfter,dup:dup});
+        }
+      });
       var tPct=tQuota>0?(tGain/tQuota*100):0;
 
       if(onShift) liveCards.push({name:g.name,pc:latest.pc,client:latest.client,map:latest.map,lastMs:latestMs,pct:sPct,gain:sGain,hours:sHours,quota:sQuota});
-      if(tHours>0) dayRows.push({name:g.name,gain:tGain,hours:tHours,pct:tPct,quota:tQuota});
+      if(tHours>0) dayRows.push({name:g.name,gain:tGain,hours:tHours,pct:tPct,quota:tQuota,reports:tReports});
     });
 
     liveCards.sort(function(a,b){return (b.lastMs||0)-(a.lastMs||0);});
@@ -15536,7 +15573,8 @@ async function renderShiftAdmin(){
     }).join('') : '<div class="sr-empty">No one is on shift right now.</div>';
 
     var todayHTML = dayRows.length ? ('<table class="sr-tbl"><thead><tr><th>Booster</th><th>Gain</th><th>Hrs</th><th>Perf</th></tr></thead><tbody>'
-      + dayRows.map(function(r){ return '<tr><td>'+_srEsc(r.name)+'</td><td>'+r.gain.toFixed(1)+'%</td><td>'+r.hours+'</td><td class="'+pctCls(r.pct,r.quota)+'">'+(r.quota>0?r.pct.toFixed(0)+'%':'—')+'</td></tr>'; }).join('')
+      + dayRows.map(function(r,ix){ return '<tr style="cursor:pointer" onclick="_srToggleDetail('+ix+')"><td>'+_srEsc(r.name)+' <span style="color:var(--tx3);font-size:10px" id="srchev-'+ix+'">\u25B8</span></td><td>'+r.gain.toFixed(1)+'%</td><td>'+r.hours+'</td><td class="'+pctCls(r.pct,r.quota)+'">'+(r.quota>0?r.pct.toFixed(0)+'%':'\u2014')+'</td></tr>'
+        +'<tr id="srd-'+ix+'" style="display:none"><td colspan="4" style="padding-top:0">'+_srDetailHTML(r.reports)+'</td></tr>'; }).join('')
       + '</tbody></table>') : '<div class="sr-empty">'+(dayOff===0?'No reports logged today yet.':'No reports on this day.')+'</div>';
 
     var _abtn='background:var(--bg-i);border:1px solid var(--br);color:var(--tx);width:32px;height:32px;border-radius:8px;font-size:13px;line-height:1;';
