@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v266 -->
+<!-- BUILD: v267 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15136,10 +15136,8 @@ async function _srConfirm(){
   if(_srBusy) return;
   var cb=document.getElementById('sr-confirm'); var old=cb?cb.textContent:'';
   if(cb){ cb.disabled=true; cb.textContent='Submitting\u2026'; }
-  var slow=setTimeout(function(){ if(cb) cb.textContent='Waking the server\u2026 up to 1 min'; }, 4000);
   var f=_srOnOk; var ok=false;
   try{ ok = f ? await f() : false; }catch(e){ ok=false; }
-  clearTimeout(slow);
   if(ok){ _srCloseReview(); }
   else if(cb){ cb.disabled=false; cb.textContent=old; }
 }
@@ -15193,7 +15191,7 @@ async function _srSubmitReport(kind,screen){
     var mapFull = (kind==='checkin') ? sel.map : sess.map;
     var date=_srTodayWIB();
     var reports, clients;
-    try{ reports=await _srGetCalc('reports'); clients=await _srGetCalc('clients'); }
+    try{ var _both=await Promise.all([_srGetCalc('reports'), _srGetCalc('clients')]); reports=_both[0]; clients=_both[1]; }
     catch(e){ _srToast("Can't reach the report server — try again"); return false; }
     var cc=_srCalcClient(clients,name)||{};
     var gear={ no:(cc.no!=null?cc.no:pc), weapon:cc.sword, armor:cc.armor, ac:cc.ac, classJob:cc.job };
@@ -15234,7 +15232,9 @@ async function _srSubmitReport(kind,screen){
     var saved=false;
     try{ saved=await _srPutCalc('reports', reports.concat(newRecs)); }catch(e){}
     if(!saved){ _srToast("Save failed — not recorded, try again"); return false; }
-    try{ await _srPostCard(cardType,cardFields,shot); }catch(e){}   // card is best-effort; payroll is already saved
+    // Discord card is best-effort AND the slow part (screenshot upload) — fire it in the background so the
+    // booster isn't kept waiting; the report is already saved. Quietly warn only if the card itself fails.
+    _srPostCard(cardType,cardFields,shot).then(function(ok){ if(!ok) _srToast('Saved \u2014 but the Discord card didn\'t post'); }).catch(function(){ _srToast('Saved \u2014 but the Discord card didn\'t post'); });
     return true;
   } finally { _srBusy=false; }
 }
@@ -15246,7 +15246,7 @@ async function _srFinishSubmit(kind,screen){
     _srSession=null; _srClearSession();   // shift done — blocks further submits until a fresh check-in
     var u=document.getElementById('sr-step-update'); if(u) u.classList.add('done');
     var c=document.getElementById('sr-step-checkout'); if(c) c.classList.add('done');
-    _srGo('checkout'); _srToast('Shift complete — final record posted');
+    _srGo('checkout'); _srToast('Shift complete — record saved');
   } else {
     _srToast('Saved · '+_srKST(_srWinStart)+'–'+_srKST(_srWinEnd)+' KST');
     _srWinStart=_srWinEnd; _srWinEnd=Math.min(_srWinStart+1,_srShiftEndH); _srRenderWin();
