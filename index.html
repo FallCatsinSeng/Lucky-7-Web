@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v260 -->
+<!-- BUILD: v261 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15463,18 +15463,39 @@ function renderCalcEmbed(){
 }
 function _srTryForm(){ window._srForceForm=true; renderCalcEmbed(); }
 function _srBackToAdmin(){ window._srForceForm=false; renderCalcEmbed(); }
-// [v260] Drill-down: render a booster's individual reports for the selected day, and toggle the row open/closed.
+// [v261] Convert an "HH:MM" string by a whole-hour offset (for WIB<->KST display). Wraps at 24h.
+function _srShiftT(hhmm, delta){
+  if(!hhmm) return '';
+  var m=/^(\d{1,2}):(\d{2})$/.exec(String(hhmm).trim());
+  if(!m) return hhmm;
+  var h=((parseInt(m[1],10)+delta)%24+24)%24;
+  return (h<10?'0':'')+h+':'+m[2];
+}
+// [v261] Drill-down: render a booster's individual reports for the day. Single-moment rows (calc hourly,
+// stored in WIB device-clock) collapse to one time; ranged rows (typed shift windows, KST) keep the range.
+// Every row shows both WIB (booster's clock) and KST (Korea), converted with the fixed 2h offset.
 function _srDetailHTML(reps){
   if(!reps||!reps.length) return '<div style="padding:8px 4px;color:var(--tx3);font-size:12px">No individual reports.</div>';
   return '<div style="padding:4px 0 8px">'+reps.map(function(r){
-    var t=(r.start||'')+(r.end?' \u2192 '+r.end:'');
+    var single = !!(r.start && r.end && r.start===r.end);
+    var wibLine, kstLine;
+    if(single){            // calc hourly: stored value is booster's PC clock (WIB); KST = +2h
+      wibLine=_srEsc(r.start); kstLine=_srEsc(_srShiftT(r.start,2));
+    } else if(r.start||r.end){ // typed window (check-in/out): stored in KST; WIB = -2h
+      kstLine=_srEsc((r.start||'')+(r.end?' \u2192 '+r.end:''));
+      wibLine=_srEsc(_srShiftT(r.start,-2)+(r.end?' \u2192 '+_srShiftT(r.end,-2):''));
+    } else { wibLine='\u2014'; kstLine='\u2014'; }
+    var timeHTML='<span style="display:inline-block;min-width:120px;line-height:1.5">'
+      +'<span style="color:var(--tx);font-weight:600">'+wibLine+'</span> <span style="color:var(--tx3);font-size:9.5px">WIB</span><br>'
+      +'<span style="color:var(--tx2)">'+kstLine+'</span> <span style="color:var(--tx3);font-size:9.5px">KST</span>'
+      +'</span>';
     var tag = r.tag==='checkout'?'check-out':(r.tag==='checkin'?'check-in':'hourly');
     var tagCol = r.tag==='checkin'?'var(--gr)':(r.tag==='checkout'?'var(--ac)':'var(--tx3)');
     var gain = (r.gain==null) ? '' : (r.gain>=0?'+':'')+Number(r.gain).toFixed(2)+'%';
     var op = r.dup ? 'opacity:.45;' : '';
-    return '<div style="display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;padding:5px 9px;margin:3px 0;border-left:2px solid var(--br2);font-size:12px;'+op+'">'
-      +'<span style="color:var(--tx);font-weight:600;min-width:108px">'+_srEsc(t||'\u2014')+'</span>'
-      +'<span style="color:var(--tx2);flex:1;min-width:130px">'+_srEsc(r.map||'\u2014')+'</span>'
+    return '<div style="display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:6px 9px;margin:3px 0;border-left:2px solid var(--br2);font-size:12px;'+op+'">'
+      +timeHTML
+      +'<span style="color:var(--tx2);flex:1;min-width:120px">'+_srEsc(r.map||'\u2014')+'</span>'
       +'<span style="color:'+tagCol+';font-size:10.5px;letter-spacing:.04em;text-transform:uppercase">'+tag+(r.dup?' \u00B7 dup':'')+'</span>'
       +(gain?'<span style="color:var(--ac);font-weight:600;min-width:56px;text-align:right">'+gain+'</span>':'<span style="min-width:56px"></span>')
       +'<span style="color:var(--tx3);font-size:11px">Lv'+(r.lv!=null?_srEsc(String(r.lv)):'?')+(r.exp!=null?' \u00B7 '+Number(r.exp).toFixed(1)+'%':'')+'</span>'
