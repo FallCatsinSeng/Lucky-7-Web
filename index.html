@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v263 -->
+<!-- BUILD: v264 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15079,7 +15079,7 @@ async function _srCheckIn(){
   var ok=await _srSubmitReport('checkin','checkin');
   if(btn){ btn.disabled=false; btn.textContent=old; }
   if(!ok){ _srSession=null; return; }
-  _srSyncWin();
+  _srSyncWin(); _srSaveSession();
   var st=document.getElementById('sr-step-checkin'); if(st) st.classList.add('done');
   _srGo('update'); _srToast('Checked in \u2014 shift started');
 }
@@ -15229,7 +15229,7 @@ async function _srFinishSubmit(kind,screen){
   if(!ok) return false;
   if(_srSubmitReport._next && _srSession){ _srSession.prev=_srSubmitReport._next; _srSubmitReport._next=null; }
   if(kind==='checkout'){
-    _srSession=null;   // shift done — blocks further submits until a fresh check-in
+    _srSession=null; _srClearSession();   // shift done — blocks further submits until a fresh check-in
     var u=document.getElementById('sr-step-update'); if(u) u.classList.add('done');
     var c=document.getElementById('sr-step-checkout'); if(c) c.classList.add('done');
     _srGo('checkout'); _srToast('Shift complete — final record posted');
@@ -15240,7 +15240,7 @@ async function _srFinishSubmit(kind,screen){
     var li=document.querySelector('#sr-s-update .sr-exp-live'); if(li) li.value='';
     var ad=document.querySelector('#sr-s-update [data-sr-adena]'); if(ad) ad.value='';
     var nt=document.querySelector('#sr-s-update [data-sr-note]'); if(nt) nt.value='';
-    _srExpPreview('update');
+    _srExpPreview('update'); _srSaveSession();
   }
   return true;
 }
@@ -15466,6 +15466,40 @@ function _srBuildHTML(){
     + '</div></div>' + sheet;
 }
 
+// [v264] Persist the active check-in so an in-progress shift survives leaving the page AND a full
+// reload (mobile browsers often discard a backgrounded tab). Screenshots are NOT persisted — each hour
+// needs a fresh one anyway. Cleared on check-out, or auto-expires after 18h (longer than any shift).
+function _srSessionKey(){ try{ return 'sr_sess_'+((typeof currentUser!=='undefined'&&currentUser&&currentUser.id)||_srBooster()||'x'); }catch(_){ return 'sr_sess_x'; } }
+function _srSaveSession(){
+  try{
+    if(!_srSession){ localStorage.removeItem(_srSessionKey()); return; }
+    localStorage.setItem(_srSessionKey(), JSON.stringify({ s:_srSession, w:[_srShiftStartH,_srShiftEndH,_srPlayStartH,_srWinStart,_srWinEnd], t:Date.now() }));
+  }catch(_){}
+}
+function _srClearSession(){ try{ localStorage.removeItem(_srSessionKey()); }catch(_){} }
+function _srLoadSession(){
+  try{
+    var raw=localStorage.getItem(_srSessionKey()); if(!raw) return false;
+    var b=JSON.parse(raw); if(!b||!b.s||!b.s.client) return false;
+    if(!b.t || (Date.now()-b.t) > 18*3600*1000){ _srClearSession(); return false; }     // stale (> 18h)
+    if(b.s.booster && b.s.booster!==_srBooster()){ return false; }                        // different user on this device
+    _srSession=b.s;
+    if(Array.isArray(b.w)&&b.w.length>=5){ _srShiftStartH=b.w[0]; _srShiftEndH=b.w[1]; _srPlayStartH=b.w[2]; _srWinStart=b.w[3]; _srWinEnd=b.w[4]; }
+    return true;
+  }catch(_){ return false; }
+}
+// [v264] Re-enter the update screen after navigation/reload, restoring the in-progress shift from _srSession.
+function _srResumeUpdate(){
+  var s=_srSession; if(!s) return;
+  var pcLbl=(s.pc!=null&&String(s.pc)!=='?'&&String(s.pc)!=='')?('PC'+s.pc):'PC?';
+  document.querySelectorAll('#sr-app [data-sr-pc]').forEach(function(x){ x.textContent=pcLbl+' \u00b7 '+s.client; });
+  document.querySelectorAll('#sr-app [data-sr-map]').forEach(function(x){ x.textContent=s.map||''; });
+  document.querySelectorAll('#sr-app .sr-pc-card').forEach(function(c){ c.classList.toggle('sel', c.getAttribute('data-name')===s.client && String(c.getAttribute('data-pc'))===String(s.pc)); });
+  _srShots={checkin:null,update:null,checkout:null};
+  var st=document.getElementById('sr-step-checkin'); if(st) st.classList.add('done');
+  _srGo('update');
+  try{ _srExpPreview('update'); }catch(_){}
+}
 function renderCalcEmbed(){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
   _srInjectCSS();
@@ -15473,9 +15507,12 @@ function renderCalcEmbed(){
   var adminRole = (role==='admin' || role==='op' || (typeof currentUser!=='undefined' && currentUser && currentUser.role==='hr'));
   if(adminRole && !window._srForceForm){ window._srAdminDay=0; renderShiftAdmin(); return; }
   otherView.innerHTML=_srBuildHTML();
-  _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=8;
-  _srRenderCIStart(); _srRenderWin(); _srGo('checkin');
-  _srSession=null; _srShots={checkin:null,update:null,checkout:null}; _srBindPaste();
+  var _resume = (!!_srSession && !!_srSession.client) || _srLoadSession();   // [v264] resume an active shift across navigation/reload
+  if(!_resume){ _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=8; }
+  _srRenderCIStart(); _srRenderWin();
+  if(_resume){ _srResumeUpdate(); }
+  else { _srGo('checkin'); _srSession=null; _srShots={checkin:null,update:null,checkout:null}; }
+  _srBindPaste();
   if(!window._srDocClickBound){ window._srDocClickBound=true; document.addEventListener('click', function(e){ if(!e.target.closest('.sr-dd')) _srCloseDD(); }); }
 }
 function _srTryForm(){ window._srForceForm=true; renderCalcEmbed(); }
