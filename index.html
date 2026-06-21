@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v264 -->
+<!-- BUILD: v265 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15500,6 +15500,49 @@ function _srResumeUpdate(){
   _srGo('update');
   try{ _srExpPreview('update'); }catch(_){}
 }
+// [v265] Fallback resume: if there's no local session (shift checked in before this feature, a different
+// device, or cleared storage), rebuild the in-progress shift from the booster's own cloud reports — find
+// their latest check-in with no check-out after it, and restore client/PC/map/window + last Lv·EXP·adena.
+async function _srRecoverFromReports(){
+  try{
+    if(_srSession) return false;
+    var reports = await _srGetCalc('reports');
+    if(_srSession) return false;                         // user checked in while we were fetching
+    if(!Array.isArray(reports) || !reports.length) return false;
+    var me=_srBooster();
+    var mine=reports.filter(function(r){ return r && r.booster===me; }).sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); });
+    if(!mine.length) return false;
+    var ci=null, ciIdx=-1;
+    for(var i=mine.length-1;i>=0;i--){ if(mine[i].tag==='checkin'){ ci=mine[i]; ciIdx=i; break; } }
+    if(!ci) return false;
+    for(var j=ciIdx+1;j<mine.length;j++){ if(mine[j].tag==='checkout') return false; }   // shift already checked out
+    if(ci.createdAt && (Date.now()-ci.createdAt) > 18*3600*1000) return false;            // older than any shift
+    var last=mine[mine.length-1];
+    function ph(t){ var m=/^(\d{1,2}):/.exec(String(t||'').trim()); return m?parseInt(m[1],10):NaN; }
+    var pK=ph(ci.start), eK=ph(ci.end);
+    var pW=isNaN(pK)?7:(((pK-2)%24)+24)%24;
+    var eW=isNaN(eK)?19:(((eK-2)%24)+24)%24;
+    var shiftEnd=(eW<=pW)?eW+24:eW;
+    var hoursDone=mine.filter(function(r){ return (r.createdAt>ci.createdAt)&&(r.tag==='status'||r.tag==='checkout'); }).length;
+    _srPlayStartH=pW; _srShiftStartH=pW; _srShiftEndH=shiftEnd;
+    _srWinStart=Math.max(pW, Math.min(pW+hoursDone, shiftEnd-1));
+    _srWinEnd=Math.min(_srWinStart+1, shiftEnd);
+    _srSession={ booster:me, threadId:_srThread(), client:ci.client, pc:ci.pc, map:ci.map,
+      startLv:ci.lvAfter, startExp:ci.expAfter, startAdena:ci.adena,
+      prev:{ lv:(last.lvAfter!=null?last.lvAfter:ci.lvAfter), exp:(last.expAfter!=null?last.expAfter:ci.expAfter), adena:(last.adena!=null?last.adena:ci.adena) } };
+    return true;
+  }catch(_){ return false; }
+}
+async function _srTryRecover(){
+  try{
+    if(_srSession) return;
+    var ok=await _srRecoverFromReports();
+    if(!ok || !_srSession) return;
+    if(!document.getElementById('sr-s-update')){ _srSession=null; return; }   // user navigated away mid-fetch
+    _srSaveSession(); _srRenderWin(); _srResumeUpdate();
+    _srToast('Resumed your shift');
+  }catch(_){}
+}
 function renderCalcEmbed(){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
   _srInjectCSS();
@@ -15511,7 +15554,7 @@ function renderCalcEmbed(){
   if(!_resume){ _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=8; }
   _srRenderCIStart(); _srRenderWin();
   if(_resume){ _srResumeUpdate(); }
-  else { _srGo('checkin'); _srSession=null; _srShots={checkin:null,update:null,checkout:null}; }
+  else { _srGo('checkin'); _srSession=null; _srShots={checkin:null,update:null,checkout:null}; _srTryRecover(); }
   _srBindPaste();
   if(!window._srDocClickBound){ window._srDocClickBound=true; document.addEventListener('click', function(e){ if(!e.target.closest('.sr-dd')) _srCloseDD(); }); }
 }
