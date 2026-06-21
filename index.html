@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v262 -->
+<!-- BUILD: v263 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14910,6 +14910,12 @@ function _srClients(){
       CLIENTS.forEach(function(c){ out.push({ pc:(c.pc||c.no||'?'), name:c.name }); });
     }
   }catch(e){}
+  // [v263] tag cards that share the same PC + name (e.g. one client on two PCs with no PC assigned today)
+  // so each shows a distinct (1)/(2) marker and is an independent, clickable card.
+  try{
+    var _cnt={}; out.forEach(function(c){ var k=String(c.pc)+'|'+c.name; _cnt[k]=(_cnt[k]||0)+1; });
+    var _seq={}; out.forEach(function(c){ var k=String(c.pc)+'|'+c.name; if(_cnt[k]>1){ _seq[k]=(_seq[k]||0)+1; c.dup=_seq[k]; } });
+  }catch(e){}
   return out;
 }
 function _srMapGroups(){
@@ -14973,6 +14979,17 @@ function _srPickPC(pc,name){
   var lbl='PC'+pc+' · '+name;
   document.querySelectorAll('#sr-app [data-sr-pc]').forEach(function(x){ x.textContent=lbl; });
   document.querySelectorAll('#sr-app .sr-pc-card').forEach(function(c){ c.classList.toggle('sel', c.getAttribute('data-pc')===String(pc)&&c.getAttribute('data-name')===name); });
+}
+// [v263] Per-card selection by index — fixes two cards that share the same client name + PC (e.g. one
+// client on two PCs, or no PC assigned today) all highlighting together. Selects only the clicked card.
+function _srPickCard(idx){
+  document.querySelectorAll('#sr-app .sr-pc-card').forEach(function(c){ c.classList.toggle('sel', c.getAttribute('data-idx')===String(idx)); });
+  var sel=document.querySelector('#sr-app .sr-pc-card.sel');
+  if(sel){
+    var pc=sel.getAttribute('data-pc'), name=sel.getAttribute('data-name');
+    var pcLbl=(pc&&pc!=='?'&&pc!=='')?('PC'+pc):'PC?';
+    document.querySelectorAll('#sr-app [data-sr-pc]').forEach(function(x){ x.textContent=pcLbl+' · '+name; });
+  }
 }
 function _srToggleShot(el){ el.classList.toggle('has'); }
 
@@ -15373,7 +15390,7 @@ function _srBuildHTML(){
   var shiftOpts=_SR_SHIFTS.map(function(s,i){ return '<button class="sr-dd-opt'+(i===0?' sel':'')+'" onclick="_srPickShift('+i+')">'+_srEsc(s.name)+'<span class="sr-t2">'+_srEsc(s.time.replace(' → ','–'))+'</span></button>'; }).join('');
   var clients=_srClients();
   var firstPC = clients.length?('PC'+clients[0].pc+' · '+clients[0].name):'—';
-  var pcCards = clients.length ? clients.map(function(c,i){ return '<button class="sr-pc-card'+(i===0?' sel':'')+'" data-pc="'+_srEsc(String(c.pc))+'" data-name="'+_srEsc(c.name)+'" onclick="_srPickPC(\''+_srArg(String(c.pc))+'\',\''+_srArg(c.name)+'\')"><span class="sr-pc-n">PC'+_srEsc(String(c.pc))+'</span><span class="sr-pc-nm">'+_srEsc(c.name)+'</span></button>'; }).join('') : '<div class="sr-empty">No clients yet — add them in PC Status</div>';
+  var pcCards = clients.length ? clients.map(function(c,i){ var _pcl=(c.pc!=null&&String(c.pc)!=='?'&&String(c.pc)!=='')?('PC'+_srEsc(String(c.pc))):'PC?'; var _nm=_srEsc(c.name)+(c.dup?(' <span style="color:var(--tx3,#6c6b66);font-weight:400">('+c.dup+')</span>'):''); return '<button class="sr-pc-card'+(i===0?' sel':'')+'" data-idx="'+i+'" data-pc="'+_srEsc(String(c.pc))+'" data-name="'+_srEsc(c.name)+'" onclick="_srPickCard('+i+')"><span class="sr-pc-n">'+_pcl+'</span><span class="sr-pc-nm">'+_nm+'</span></button>'; }).join('') : '<div class="sr-empty">No clients yet — add them in PC Status</div>';
   var groups=_srMapGroups(), firstMap='';
   groups.forEach(function(g){ g.maps.forEach(function(m){ if(!firstMap && !m.excl) firstMap=m.full; }); });
   if(!firstMap && groups.length && groups[0].maps.length) firstMap=groups[0].maps[0].full;
