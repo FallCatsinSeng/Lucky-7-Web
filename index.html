@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v267 -->
+<!-- BUILD: v268 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15167,6 +15167,9 @@ async function _srFetchRetry(url, opts){
 // reports array with just the new record — silent data loss. The caller catches and shows an error.
 async function _srGetCalc(key){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key); if(!r.ok) throw new Error('GET '+key+' '+r.status); var j=await r.json(); return Array.isArray(j.value)?j.value:[]; }
 async function _srPutCalc(key,arr){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:arr})}); return r.ok; }
+// [v268] Append new items server-side — sends only the NEW records (small body, no size limit) instead of
+// re-uploading the whole reports array. Faster, and avoids the Express 100KB body cap that was blocking saves.
+async function _srAppendCalc(key,items){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key+'/append',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})}); return {ok:r.ok, status:r.status}; }
 async function _srPostCard(type,fields,shot){ var fd=new FormData(); fd.append('type',type); fd.append('fields',JSON.stringify(fields)); if(shot) fd.append('screenshot',shot,(shot.name||'screenshot.png')); var r=await fetch(_SR_SERVER+'/api/report',{method:'POST',body:fd}); return r.ok; }
 function _srFields(name,pc,gear,ps,pe,map,prevLv,prevExp,lv,exp,prevAde,ade,note,date){
   var no=gear.no;
@@ -15190,8 +15193,8 @@ async function _srSubmitReport(kind,screen){
     var pc   = (kind==='checkin') ? sel.pc   : sess.pc;
     var mapFull = (kind==='checkin') ? sel.map : sess.map;
     var date=_srTodayWIB();
-    var reports, clients;
-    try{ var _both=await Promise.all([_srGetCalc('reports'), _srGetCalc('clients')]); reports=_both[0]; clients=_both[1]; }
+    var clients;
+    try{ clients=await _srGetCalc('clients'); }
     catch(e){ _srToast("Can't reach the report server — try again"); return false; }
     var cc=_srCalcClient(clients,name)||{};
     var gear={ no:(cc.no!=null?cc.no:pc), weapon:cc.sword, armor:cc.armor, ac:cc.ac, classJob:cc.job };
@@ -15229,9 +15232,9 @@ async function _srSubmitReport(kind,screen){
       cardFields=_srFields(name,pc,gear,_srKST(ws),_srKST(we),mapFull,prev.lv,prev.exp,calc.lv,calc.exp,prev.adena,Math.round(endAde),nt2,date);
       _srSubmitReport._next={ lv:calc.lv, exp:calc.exp, adena:Math.round(endAde) };
     }
-    var saved=false;
-    try{ saved=await _srPutCalc('reports', reports.concat(newRecs)); }catch(e){}
-    if(!saved){ _srToast("Save failed — not recorded, try again"); return false; }
+    var saved=false, _st=0;
+    try{ var _ap=await _srAppendCalc('reports', newRecs); saved=_ap.ok; _st=_ap.status; }catch(e){}
+    if(!saved){ _srToast("Save failed ("+(_st||'no response')+") — try again"); return false; }
     // Discord card is best-effort AND the slow part (screenshot upload) — fire it in the background so the
     // booster isn't kept waiting; the report is already saved. Quietly warn only if the card itself fails.
     _srPostCard(cardType,cardFields,shot).then(function(ok){ if(!ok) _srToast('Saved \u2014 but the Discord card didn\'t post'); }).catch(function(){ _srToast('Saved \u2014 but the Discord card didn\'t post'); });
