@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v256 -->
+<!-- BUILD: v257 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15454,9 +15454,9 @@ function renderCalcEmbed(){
   _srInjectCSS();
   var role = (typeof currentUserRole!=='undefined') ? currentUserRole : 'player';
   var adminRole = (role==='admin' || role==='op' || (typeof currentUser!=='undefined' && currentUser && currentUser.role==='hr'));
-  if(adminRole && !window._srForceForm){ renderShiftAdmin(); return; }
+  if(adminRole && !window._srForceForm){ window._srAdminDay=0; renderShiftAdmin(); return; }
   otherView.innerHTML=_srBuildHTML();
-  _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=9;
+  _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=8;
   _srRenderCIStart(); _srRenderWin(); _srGo('checkin');
   _srSession=null; _srShots={checkin:null,update:null,checkout:null}; _srBindPaste();
   if(!window._srDocClickBound){ window._srDocClickBound=true; document.addEventListener('click', function(e){ if(!e.target.closest('.sr-dd')) _srCloseDD(); }); }
@@ -15492,8 +15492,11 @@ async function renderShiftAdmin(){
     var groups={};
     reports.forEach(function(r){ var k=normName(r.booster); if(!k) return; if(!groups[k]) groups[k]={name:r.booster, rs:[]}; groups[k].rs.push(r); });
 
-    var today=new Date().toISOString().slice(0,10);
-    var liveCards=[], todayRows=[];
+    var dayOff=Math.max(0, window._srAdminDay||0);
+    var _wibDate=function(off){ return new Date(Date.now()+7*3600*1000-(off||0)*86400000).toISOString().slice(0,10); };
+    var _dayLbl=function(off){ if(off===0)return 'Today'; if(off===1)return 'Yesterday'; var d=new Date(Date.now()+7*3600*1000-off*86400000); return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+', '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]+' '+d.getUTCDate(); };
+    var selDate=_wibDate(dayOff);  // [v257] WIB date for the chosen day (reports are stamped WIB)
+    var liveCards=[], dayRows=[];
 
     Object.keys(groups).forEach(function(k){
       var g=groups[k];
@@ -15514,15 +15517,15 @@ async function renderShiftAdmin(){
       var sPct=sQuota>0?(sGain/sQuota*100):0;
 
       var tGain=0,tQuota=0,tHours=0;
-      allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout'||!r.tag)&&String(r.date||'').slice(0,10)===today){ tGain+=(segGain[r.id]||0); tHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)tQuota+=Number(mo.target); } });
+      allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout'||!r.tag)&&String(r.date||'').slice(0,10)===selDate){ tGain+=(segGain[r.id]||0); tHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)tQuota+=Number(mo.target); } });
       var tPct=tQuota>0?(tGain/tQuota*100):0;
 
       if(onShift) liveCards.push({name:g.name,pc:latest.pc,client:latest.client,map:latest.map,lastMs:latestMs,pct:sPct,gain:sGain,hours:sHours,quota:sQuota});
-      if(tHours>0) todayRows.push({name:g.name,gain:tGain,hours:tHours,pct:tPct,quota:tQuota});
+      if(tHours>0) dayRows.push({name:g.name,gain:tGain,hours:tHours,pct:tPct,quota:tQuota});
     });
 
     liveCards.sort(function(a,b){return (b.lastMs||0)-(a.lastMs||0);});
-    todayRows.sort(function(a,b){return b.pct-a.pct;});
+    dayRows.sort(function(a,b){return b.pct-a.pct;});
 
     var liveHTML = liveCards.length ? liveCards.map(function(c){
       return '<div class="sr-live-card"><div class="sr-live-top"><span class="sr-live-name">'+_srEsc(c.name)+'</span><span class="sr-live-ago">'+agoTxt(c.lastMs)+'</span></div>'
@@ -15530,15 +15533,22 @@ async function renderShiftAdmin(){
         +'<div class="sr-live-perf"><span class="sr-live-pct '+pctCls(c.pct,c.quota)+'">'+(c.quota>0?c.pct.toFixed(0)+'%':'—')+'</span><span class="sr-live-sub">'+c.gain.toFixed(1)+'% gain · '+c.hours+'h this shift</span></div></div>';
     }).join('') : '<div class="sr-empty">No one is on shift right now.</div>';
 
-    var todayHTML = todayRows.length ? ('<table class="sr-tbl"><thead><tr><th>Booster</th><th>Gain</th><th>Hrs</th><th>Perf</th></tr></thead><tbody>'
-      + todayRows.map(function(r){ return '<tr><td>'+_srEsc(r.name)+'</td><td>'+r.gain.toFixed(1)+'%</td><td>'+r.hours+'</td><td class="'+pctCls(r.pct,r.quota)+'">'+(r.quota>0?r.pct.toFixed(0)+'%':'—')+'</td></tr>'; }).join('')
-      + '</tbody></table>') : '<div class="sr-empty">No reports logged today yet.</div>';
+    var todayHTML = dayRows.length ? ('<table class="sr-tbl"><thead><tr><th>Booster</th><th>Gain</th><th>Hrs</th><th>Perf</th></tr></thead><tbody>'
+      + dayRows.map(function(r){ return '<tr><td>'+_srEsc(r.name)+'</td><td>'+r.gain.toFixed(1)+'%</td><td>'+r.hours+'</td><td class="'+pctCls(r.pct,r.quota)+'">'+(r.quota>0?r.pct.toFixed(0)+'%':'—')+'</td></tr>'; }).join('')
+      + '</tbody></table>') : '<div class="sr-empty">'+(dayOff===0?'No reports logged today yet.':'No reports on this day.')+'</div>';
 
+    var _abtn='background:var(--bg-i);border:1px solid var(--br);color:var(--tx);width:32px;height:32px;border-radius:8px;font-size:13px;line-height:1;';
+    var _dn='<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">'
+      +'<button onclick="window._srAdminDay=(window._srAdminDay||0)+1;renderShiftAdmin()" style="'+_abtn+'cursor:pointer">◀</button>'
+      +'<span style="font-weight:600;color:var(--tx);min-width:132px;text-align:center;font-size:14px">'+_dayLbl(dayOff)+'</span>'
+      +'<button onclick="if((window._srAdminDay||0)>0){window._srAdminDay=(window._srAdminDay||0)-1;renderShiftAdmin()}" style="'+_abtn+'cursor:'+(dayOff===0?'default':'pointer')+';opacity:'+(dayOff===0?'0.35':'1')+'">▶</button>'
+      +'</div>';
+    var _live=(dayOff===0)?('<div class="sr-sec-lbl">On shift now</div><div class="sr-live-wrap">'+liveHTML+'</div>'):'';
     otherView.innerHTML='<div id="sr-app"><div class="sr-card">'
       +'<div class="sr-head"><h2>Shift report · Admin</h2><span class="sr-badge">Live</span></div>'
-      +'<button class="sr-btn sr-btn-out" style="margin-bottom:18px" onclick="_srTryForm()">▶ Try the report form (test)</button>'
-      +'<div class="sr-sec-lbl">On shift now</div><div class="sr-live-wrap">'+liveHTML+'</div>'
-      +'<div class="sr-sec-lbl" style="margin-top:22px">Today</div>'+todayHTML
+      +'<button class="sr-btn sr-btn-out" style="margin-bottom:14px" onclick="_srTryForm()">▶ Try the report form (test)</button>'
+      +_dn+_live
+      +'<div class="sr-sec-lbl"'+(_live?' style="margin-top:22px"':'')+'>'+_dayLbl(dayOff)+'</div>'+todayHTML
       +'</div></div>';
   }catch(e){
     otherView.innerHTML='<div id="sr-app"><div class="sr-card"><div class="sr-head"><h2>Shift report · Admin</h2></div>'
