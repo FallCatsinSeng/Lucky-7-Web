@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v277 -->
+<!-- BUILD: v278 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7615,7 +7615,9 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 .tl-cl-meta{font-size:10px;color:var(--tx3);white-space:nowrap;display:flex;align-items:center;gap:3px}
 .tl-cl-days{display:inline-flex;align-items:center;gap:2px}
 .tl-cl-off{color:var(--re);font-weight:700}
-.tl-bar.client{background:color-mix(in srgb,var(--ac) 22%,var(--bg-c));border-color:color-mix(in srgb,var(--ac) 50%,transparent);cursor:default}
+.tl-bar.client{background:color-mix(in srgb,var(--ac) 22%,var(--bg-c));border-color:color-mix(in srgb,var(--ac) 50%,transparent);cursor:grab}
+.tl-bar.client:active{cursor:grabbing}
+.tl-bar.client.dragging{opacity:.95;z-index:10}
 .tl-bar.client .tl-bar-edge{background:var(--ac)}
 .tl-bar.tl-bar-dim{opacity:.4}
 .tl-cl-noset{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--tx4);font-style:italic}
@@ -22110,13 +22112,16 @@ function clientTimelineSectionHTML(){
     let bars;
     if(c.startH!=null && c.endH!=null && hrs){
       const {wrapped, segs} = assignmentToSegs({start:c.startH, len:hrs});
-      bars = segs.map(seg => {
+      bars = segs.map((seg, si) => {
         const left = (seg.dispStart/span*100).toFixed(3);
         const w    = (seg.len/span*100).toFixed(3);
-        return `<div class="tl-bar client${wrapped?' wrapped':''}${offToday?' tl-bar-dim':''}" style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px">
+        const isLast = si === segs.length-1;
+        const resizeH = isLast ? `<div class="bar-resize" onmousedown="clientBarMouseDown(event,'${c.id}','resize')"></div>` : '';
+        return `<div class="tl-bar client${wrapped?' wrapped':''}${offToday?' tl-bar-dim':''}" data-cid="${c.id}" style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px" onmousedown="clientBarMouseDown(event,'${c.id}','move')">
           <span class="tl-bar-edge"></span>
           <div class="b-time">${fmtAmPm(c.startH)} – ${fmtAmPm(c.endH)}</div>
           <div class="b-sub">★ ${c.name} · ${hrs}h</div>
+          ${resizeH}
         </div>`;
       }).join('');
     } else {
@@ -22140,6 +22145,76 @@ function clientTimelineSectionHTML(){
     <div class="tl-track tl-sect-r"><span class="tl-sect-hint">예약 시간대 · 플레이어와 분리</span></div>
   </div>`;
   return head + rowsHTML;
+}
+
+// ── [v278] client timeline bar — drag to move / drag right edge to resize (mirrors staff bars) ──
+let dragClientBar = null;
+function clientBarMouseDown(e, clientId, mode){
+  if(e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  mode = mode || 'move';
+  const barEl = e.target.closest('.tl-bar');
+  if(!barEl) return;
+  const trackRect = barEl.parentElement.getBoundingClientRect();
+  const hourW = trackRect.width / tlSpan;
+  const c = clientById(clientId);
+  if(!c || c.startH==null || c.endH==null) return;
+  dragClientBar = { clientId, mode, startX:e.clientX, origStartH:c.startH, origLen:clientHours(c), hourW };
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
+  document.addEventListener('mousemove', onClientBarMove);
+  document.addEventListener('mouseup', onClientBarUp);
+  document.querySelectorAll(`.tl-bar.client[data-cid="${clientId}"]`).forEach(el => el.classList.add('dragging'));
+}
+function onClientBarMove(e){
+  if(!dragClientBar) return;
+  const hourDelta = Math.round((e.clientX - dragClientBar.startX) / dragClientBar.hourW);
+  const c = clientById(dragClientBar.clientId);
+  if(!c) return;
+  let changed = false;
+  if(dragClientBar.mode === 'move'){
+    const newStart = ((dragClientBar.origStartH + hourDelta) % 24 + 24) % 24;
+    if(newStart !== c.startH){
+      c.startH = newStart;
+      c.endH   = (newStart + dragClientBar.origLen) % 24;   // keep duration constant while moving
+      c.hours  = clientHours(c);
+      changed = true;
+    }
+  } else {
+    const newLen = Math.max(1, Math.min(24, dragClientBar.origLen + hourDelta));
+    if(newLen !== clientHours(c)){
+      c.endH  = (c.startH + newLen) % 24;
+      c.hours = clientHours(c);
+      changed = true;
+    }
+  }
+  if(changed){
+    renderTimeline();
+    document.querySelectorAll(`.tl-bar.client[data-cid="${dragClientBar.clientId}"]`).forEach(el => el.classList.add('dragging'));
+  }
+}
+function onClientBarUp(){
+  document.removeEventListener('mousemove', onClientBarMove);
+  document.removeEventListener('mouseup', onClientBarUp);
+  document.body.style.userSelect = '';
+  document.body.style.cursor = '';
+  if(dragClientBar){
+    const c = clientById(dragClientBar.clientId);
+    if(c){
+      if(dragClientBar.mode === 'move' && c.startH !== dragClientBar.origStartH){
+        toast(`${c.name} ${pad2(dragClientBar.origStartH)}:00 → ${pad2(c.startH)}:00`);
+      } else if(dragClientBar.mode === 'resize'){
+        const newLen = clientHours(c);
+        if(newLen !== dragClientBar.origLen) toast(`${c.name} ${dragClientBar.origLen}h → ${newLen}h`);
+      }
+    }
+  }
+  document.querySelectorAll('.tl-bar.client.dragging').forEach(el => el.classList.remove('dragging'));
+  dragClientBar = null;
+  saveClientState();   // persist schedule change
+  renderPCs();         // refresh the PC-card slot summary
+  renderTimeline();    // final repaint
 }
 
 function renderMetrics(){
