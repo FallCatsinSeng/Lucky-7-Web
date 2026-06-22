@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v269 -->
+<!-- BUILD: v270 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15244,6 +15244,7 @@ async function _srSubmitReport(kind,screen){
     if(!saved){ _srToast("Save failed ("+(_st||'no response')+") — try again"); return false; }
     // Post the Discord card and WAIT for it (with retries) so it can't be lost if the booster navigates or
     // reloads right after. The report is already saved above, so a card failure only warns — it never blocks.
+    cardFields.postId = (newRecs[0] && newRecs[0].id) ? newRecs[0].id : ('post-'+base);   // [v270] idempotency key — server ignores a repeat with the same id so a retry can't double-post
     var posted=false;
     try{ posted=await _srPostCard(cardType,cardFields,shot); }catch(e){}
     if(!posted) _srToast('Saved \u2014 but the Discord card didn\'t post (data is safe)');
