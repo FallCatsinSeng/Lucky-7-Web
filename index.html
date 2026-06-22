@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v270 -->
+<!-- BUILD: v271 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15172,9 +15172,11 @@ async function _srPutCalc(key,arr){ var r=await _srFetchRetry(_SR_SERVER+'/api/c
 async function _srAppendCalc(key,items){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key+'/append',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})}); return {ok:r.ok, status:r.status}; }
 async function _srPostCard(type,fields,shot){
   function mk(){ var fd=new FormData(); fd.append('type',type); fd.append('fields',JSON.stringify(fields)); if(shot) fd.append('screenshot',shot,(shot.name||'screenshot.png')); return fd; }
-  for(var i=0;i<4;i++){
-    try{ var r=await fetch(_SR_SERVER+'/api/report',{method:'POST',body:mk()}); if(r.ok||r.status<500) return r.ok; }catch(e){}
-    if(i<3) await new Promise(function(res){ setTimeout(res, Math.min(2000*(i+1),8000)); });
+  // The server now posts synchronously with its own retry-after handling and returns the real result, so we
+  // only retry when we couldn't reach the server at all (network error). The postId keeps retries idempotent.
+  for(var i=0;i<3;i++){
+    try{ var r=await fetch(_SR_SERVER+'/api/report',{method:'POST',body:mk()}); return r.ok; }catch(e){}
+    if(i<2) await new Promise(function(res){ setTimeout(res, 1500); });
   }
   return false;
 }
