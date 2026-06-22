@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v278 -->
+<!-- BUILD: v279 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2870,6 +2870,18 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-board{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:8px}
 .lb-board-3{grid-template-columns:repeat(3,1fr)}
 @media (max-width:1000px){.lb-board-3{grid-template-columns:1fr}}
+/* [v279] 4-col board (OP / LEADER / PLAYER / RESIGN) */
+.lb-board-4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:1180px){.lb-board-4{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:720px){.lb-board-4{grid-template-columns:1fr}}
+/* [v279] RESIGN column — muted, set apart from the active team */
+.lb-col-resign{opacity:.92;background:color-mix(in srgb,var(--re,#c46a6a) 4%,var(--bg-c))}
+.lb-col-resign.ts-sec-over{border-color:var(--re,#c46a6a);box-shadow:0 0 0 2px color-mix(in srgb,var(--re,#c46a6a) 35%,transparent)}
+.lb-kcard-resign::before{background:var(--re,#c46a6a);opacity:.6}
+.lb-kcard-resign .lb-name{color:var(--tx2,#bdbcb7)}
+.lb-kcard-resign:hover{border-color:color-mix(in srgb,var(--re,#c46a6a) 45%,var(--br));background:color-mix(in srgb,var(--re,#c46a6a) 5%,var(--bg))}
+.lb-kactions .lb-act-react{width:28px;height:28px;border-radius:7px;border:1px solid color-mix(in srgb,var(--gr) 32%,transparent);background:var(--gr-bg);cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;transition:all .14s var(--ease)}
+.lb-kactions .lb-act-react:hover{background:var(--gr);transform:translateY(-1px);box-shadow:0 2px 8px color-mix(in srgb,var(--gr) 35%,transparent)}
 .lb-col{background:var(--bg-c);border:1px solid var(--br);border-radius:13px;display:flex;flex-direction:column;overflow:hidden}
 .lb-col.ts-sec-over{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-bord)}
 .lb-col-head{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--br);border-top:3px solid var(--col-c)}
@@ -17105,10 +17117,16 @@ async function renderTrust(){
   enriched.forEach(m => { if(m && m.id) TRUST_NAME_BY_ID[m.id] = m.name || m.id; });
 
   const sortFn = (a,b) => (b.trust_pts - a.trust_pts) || (a.warn_pts - b.warn_pts);
-  const opMembers = enriched.filter(m => m.system === 'op').sort(sortFn);
-  const leaderMembers = enriched.filter(m => m.system === 'player' && m.leader).sort(sortFn);
-  const playerMembers = enriched.filter(m => m.system === 'player' && !m.leader).sort(sortFn);
+  // [v279] resigned staff are split out into their own RESIGN board (records kept, no score adjust)
+  const _isResigned = m => (typeof _staffResigned === 'function') && _staffResigned(m.id);
+  const resignedMembers = enriched.filter(_isResigned)
+    .sort((a,b) => String((STAFF_DETAILS[b.id]||{}).resigned_at || '').localeCompare(String((STAFF_DETAILS[a.id]||{}).resigned_at || '')));
+  const activeEnriched = enriched.filter(m => !_isResigned(m));
+  const opMembers = activeEnriched.filter(m => m.system === 'op').sort(sortFn);
+  const leaderMembers = activeEnriched.filter(m => m.system === 'player' && m.leader).sort(sortFn);
+  const playerMembers = activeEnriched.filter(m => m.system === 'player' && !m.leader).sort(sortFn);
 
+  // summary stats reflect the ACTIVE team only (resigned excluded)
   const all = [...opMembers, ...leaderMembers, ...playerMembers];
   const totalTP = all.reduce((s,m) => s + m.trust_pts, 0);
   const totalWP = all.reduce((s,m) => s + m.warn_pts, 0);
@@ -17224,6 +17242,61 @@ async function renderTrust(){
     </div>`;
   };
 
+  // ── [v279] 퇴사 카드 — 점수 조정 없음, 재활성화(↩)만. 드래그로 이 보드에 놓으면 퇴사 처리 ──
+  const resignRow = (m, i) => {
+    const rank = RANKS[m.rank] || RANKS.unranked;
+    const det = STAFF_DETAILS[m.id] || {};
+    const rdate = det.resigned_at || '—';
+    const isKo = _uiLang() === 'ko';
+    return `<div class="lb-kcard lb-kcard-resign"
+      draggable="true"
+      ondragstart="tsCardDragStart(event, '${m.id}', 'resign')"
+      ondragend="tsCardDragEnd(event)"
+      data-mid="${m.id}" data-system="resign"
+      onclick="openStaffDetail('${m.id}')">
+      <div class="lb-kcard-main">
+        <span class="lb-krank">${i+1}</span>
+        <div class="lb-kcard-id">
+          <div class="lb-name-row">
+            <span class="lb-name">${m.name}</span>
+            <span class="lb-tier" style="color:var(--re,#c46a6a)">${isKo?'퇴사':'Resigned'}</span>
+          </div>
+          <div class="lb-kcard-sub">
+            <span class="lb-rankchip" style="background:${rank.bg};color:${rank.color};border:1px solid color-mix(in srgb, ${rank.color} 30%, transparent)">${m.system==='player' ? (rank.icon+' '+rank.label) : roleTitle(m.db_role||m.role)}</span>
+            <span class="lb-kstat">📅<b>${rdate}</b></span>
+          </div>
+        </div>
+        ${canGrant ? `<div class="lb-kactions">
+          <button class="lb-act-react" onclick="event.stopPropagation();_toggleResigned('${m.id}')" title="${isKo?'재활성화 — 활성 팀으로 복귀':'Reactivate — restore to active team'}"><span class="lb-act-ic">↩</span></button>
+        </div>` : ''}
+      </div>
+    </div>`;
+  };
+
+  const buildResignSection = (members) => {
+    const isKo = _uiLang() === 'ko';
+    return `<div class="lb-col lb-col-resign" data-system="resign"
+        ondragover="tsCardDragOver(event, 'resign')"
+        ondragleave="tsCardDragLeave(event)"
+        ondrop="tsCardDrop(event, 'resign')">
+      <div class="lb-col-head" style="--col-c:#c46a6a">
+        <div class="lb-col-head-l">
+          <span class="lb-col-name">⊘ ${isKo?'퇴사':'RESIGN'}</span>
+          <span class="lb-col-cnt" style="background:rgba(196,106,106,.16);color:var(--re,#c46a6a)">${members.length}</span>
+        </div>
+        <div class="lb-col-head-r">
+          <span class="lb-col-stat" style="font-size:10px">${isKo?'기록 보존':'records kept'}</span>
+        </div>
+      </div>
+      <div class="lb-col-body">
+        ${members.length
+          ? members.map((m,i) => resignRow(m, i)).join('')
+          : `<div class="lb-col-empty">${canChangeRank() ? (isKo?'여기로 드래그하면 퇴사':'drag here to resign') : (isKo?'퇴사자 없음':'no resigned staff')}</div>`
+        }
+      </div>
+    </div>`;
+  };
+
   otherView.innerHTML = `<div class="ts-page-wrap">
     <div class="ts-top">
       <div class="ts-top-l">
@@ -17272,10 +17345,11 @@ async function renderTrust(){
       </div>
     </div>
 
-    <div class="lb-board lb-board-3">
+    <div class="lb-board lb-board-4">
       ${buildSection('op', opMembers, { icon:'⚙️', label:'OPTEAM', desc:'운영 평가', color:'#c2a04a', bg:'rgba(194,160,74,.14)' })}
       ${buildSection('player_leader', leaderMembers, { icon:'🎖', label:'PLAYER LEADER', desc:'리더 평가', color:'#5fa3d9', bg:'rgba(95,163,217,.14)' })}
       ${buildSection('player', playerMembers, { icon:'🎮', label:'PLAYER', desc:'게임 평가', color:'#3aa05a', bg:'rgba(58,160,90,.14)' })}
+      ${buildResignSection(resignedMembers)}
     </div>
   </div>`;
 }
@@ -17347,6 +17421,35 @@ async function tsCardDrop(e, system){
   e.currentTarget.classList.remove('ts-sec-over');
   if(!canChangeRank()){ toast(_uiLang()==='ko'?'랭크 변경 권한 없음':'No permission to change rank', true); tsDragId=null; tsDragFrom=null; return; }
   if(!tsDragId || tsDragFrom === system) return;
+  const _nm0 = trustName(tsDragId);
+
+  // [v279] dropping onto the RESIGN board → mark resigned (records kept). _toggleResigned has its own confirm.
+  if(system === 'resign'){
+    const id = tsDragId; tsDragId = null; tsDragFrom = null;
+    if(typeof _toggleResigned === 'function' && !_staffResigned(id)) _toggleResigned(id).then(() => renderTrust());
+    return;
+  }
+  // [v279] dragging OUT of the RESIGN board into a system → reactivate, then continue the move
+  if(tsDragFrom === 'resign'){
+    if(_staffResigned(tsDragId)){
+      if(!confirm(`${_nm0}${_uiLang()==='ko'?'을(를) 재활성화하고 '+(({op:'OPTEAM',player_leader:'PLAYER LEADER',player:'PLAYER'})[system])+'(으)로 이동할까요?':' — reactivate and move to '+(({op:'OPTEAM',player_leader:'PLAYER LEADER',player:'PLAYER'})[system])+'?'}`)){
+        tsDragId = null; tsDragFrom = null; return;
+      }
+      STAFF_DETAILS[tsDragId] = STAFF_DETAILS[tsDragId] || {};
+      STAFF_DETAILS[tsDragId].resigned = false;
+      try{ if(typeof saveStaffState==='function') saveStaffState(); }catch(_){}
+      try{ logAction('update', 'reactivated staff (drag)', _nm0); }catch(_){}
+    }
+    let t2 = TRUST_DATA[tsDragId] || (TRUST_DATA[tsDragId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked', system:'player' });
+    if(system === 'player_leader'){ t2.system='player'; if(typeof PLAYER_LEADERS!=='undefined'){ PLAYER_LEADERS.add(tsDragId); savePermState(); } }
+    else { t2.system = system; if(typeof PLAYER_LEADERS!=='undefined'){ PLAYER_LEADERS.delete(tsDragId); savePermState(); } }
+    if(typeof TEAM_ATTENDANCE!=='undefined'){ const am=TEAM_ATTENDANCE.find(x=>x.name&&x.name.toLowerCase()===tsDragId); if(am) am.role=(system==='op')?'op':'player'; }
+    toast(`${_nm0} → ${({op:'OPTEAM',player_leader:'PLAYER LEADER',player:'PLAYER'})[system]} (${_uiLang()==='ko'?'재활성화':'reactivated'})`);
+    tsDragId = null; tsDragFrom = null;
+    saveTrustState(); renderTrust();
+    return;
+  }
+
   let t = TRUST_DATA[tsDragId];
   if(!t){ t = TRUST_DATA[tsDragId] = { warn_pts:0, trust_pts:0, protected_until:null, incidents:[], trust_earned:[], rank:'unranked', system:'player' }; }
   const LABELS = { op:'OPTEAM', player_leader:'PLAYER LEADER', player:'PLAYER' };
