@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v268 -->
+<!-- BUILD: v269 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15170,7 +15170,14 @@ async function _srPutCalc(key,arr){ var r=await _srFetchRetry(_SR_SERVER+'/api/c
 // [v268] Append new items server-side — sends only the NEW records (small body, no size limit) instead of
 // re-uploading the whole reports array. Faster, and avoids the Express 100KB body cap that was blocking saves.
 async function _srAppendCalc(key,items){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key+'/append',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})}); return {ok:r.ok, status:r.status}; }
-async function _srPostCard(type,fields,shot){ var fd=new FormData(); fd.append('type',type); fd.append('fields',JSON.stringify(fields)); if(shot) fd.append('screenshot',shot,(shot.name||'screenshot.png')); var r=await fetch(_SR_SERVER+'/api/report',{method:'POST',body:fd}); return r.ok; }
+async function _srPostCard(type,fields,shot){
+  function mk(){ var fd=new FormData(); fd.append('type',type); fd.append('fields',JSON.stringify(fields)); if(shot) fd.append('screenshot',shot,(shot.name||'screenshot.png')); return fd; }
+  for(var i=0;i<4;i++){
+    try{ var r=await fetch(_SR_SERVER+'/api/report',{method:'POST',body:mk()}); if(r.ok||r.status<500) return r.ok; }catch(e){}
+    if(i<3) await new Promise(function(res){ setTimeout(res, Math.min(2000*(i+1),8000)); });
+  }
+  return false;
+}
 function _srFields(name,pc,gear,ps,pe,map,prevLv,prevExp,lv,exp,prevAde,ade,note,date){
   var no=gear.no;
   return { clientNo:no, nickname:name, clientNoLabel:(no!=null?no+' ':'')+(name||''),
@@ -15235,9 +15242,11 @@ async function _srSubmitReport(kind,screen){
     var saved=false, _st=0;
     try{ var _ap=await _srAppendCalc('reports', newRecs); saved=_ap.ok; _st=_ap.status; }catch(e){}
     if(!saved){ _srToast("Save failed ("+(_st||'no response')+") — try again"); return false; }
-    // Discord card is best-effort AND the slow part (screenshot upload) — fire it in the background so the
-    // booster isn't kept waiting; the report is already saved. Quietly warn only if the card itself fails.
-    _srPostCard(cardType,cardFields,shot).then(function(ok){ if(!ok) _srToast('Saved \u2014 but the Discord card didn\'t post'); }).catch(function(){ _srToast('Saved \u2014 but the Discord card didn\'t post'); });
+    // Post the Discord card and WAIT for it (with retries) so it can't be lost if the booster navigates or
+    // reloads right after. The report is already saved above, so a card failure only warns — it never blocks.
+    var posted=false;
+    try{ posted=await _srPostCard(cardType,cardFields,shot); }catch(e){}
+    if(!posted) _srToast('Saved \u2014 but the Discord card didn\'t post (data is safe)');
     return true;
   } finally { _srBusy=false; }
 }
