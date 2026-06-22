@@ -21536,7 +21536,7 @@ function staffChipHTML(s){
     <div class="s-chip-top">
       <div class="s-chip-av" style="${avatarBg(s.name, initials(s.name), rc)}" title="${rankLabel(s.position)}${s.position_secondary?' · '+rankLabel(s.position_secondary):''} · 주${s.work_days}일">${initials(s.name)}</div>
       <div class="s-chip-info">
-        <div class="s-chip-nm">${s.name}${s.is_new?'<span class="s-chip-new" title="신입 — 7일 보호 기간">🆕</span>':''}</div>
+        <div class="s-chip-nm">${s.full_name||s.name}${s.is_new?'<span class="s-chip-new" title="신입 — 7일 보호 기간">🆕</span>':''}</div>
         <div class="s-chip-meta">
           <span class="pos-tag" style="background:${rc}33;color:${rc}">${rankLabel(s.position)}${s.position_secondary?` · ${rankLabel(s.position_secondary)}`:''}</span>
           <span class="wd-tag" title="${s.work_days===6?'월~토':s.work_days===5?'월~금':s.work_days+'일/주'}">주${s.work_days}일</span>
