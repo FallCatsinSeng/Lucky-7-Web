@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v291 -->
+<!-- BUILD: v292 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15856,11 +15856,13 @@ async function renderShiftAdmin(){
     var _live=(dayOff===0)?('<div class="sr-sec-lbl">On shift now</div><div class="sr-live-wrap">'+liveHTML+'</div>'+_resetLink):'';
     otherView.innerHTML='<div id="sr-app"><div class="sr-card">'
       +'<div class="sr-head"><h2>Shift report</h2><span class="sr-badge">Live</span></div>'
+      +'<button class="sr-btn sr-btn-out" style="margin-bottom:14px" onclick="_srTryForm()">ADMIN</button>'
       +_dn+_live
       +'<div class="sr-sec-lbl"'+(_live?' style="margin-top:22px"':'')+'>'+_dayLbl(dayOff)+'</div>'+todayHTML
       +'</div></div>';
   }catch(e){
     otherView.innerHTML='<div id="sr-app"><div class="sr-card"><div class="sr-head"><h2>Shift report</h2></div>'
+      +'<button class="sr-btn sr-btn-out" style="margin-bottom:18px" onclick="_srTryForm()">ADMIN</button>'
       +'<div class="sr-empty">Couldn\'t load shift data right now.</div></div></div>';
   }
 }
