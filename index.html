@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v285 -->
+<!-- BUILD: v286 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2896,7 +2896,10 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-col-head-r{display:flex;align-items:center;gap:11px}
 .lb-col-stat{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--tx3);font-weight:600}
 .lb-col-stat b{font-size:13px;font-weight:800}
-.lb-col-body{padding:7px;display:flex;flex-direction:column;gap:5px;min-height:100px}
+.lb-col-body{padding:7px;display:flex;flex-direction:column;gap:5px;min-height:100px;max-height:min(620px,72vh);overflow-y:auto;overscroll-behavior:contain}
+.lb-col-body::-webkit-scrollbar{width:7px}
+.lb-col-body::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--br) 80%,transparent);border-radius:4px}
+.lb-col-body::-webkit-scrollbar-thumb:hover{background:var(--tx3)}
 .lb-col-empty{font-size:10.5px;color:var(--tx4);text-align:center;padding:24px 0;font-style:italic;border:1px dashed var(--br);border-radius:9px}
 
 /* 시프트 시간 배지 (이름 옆) */
