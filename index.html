@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v286 -->
+<!-- BUILD: v287 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2628,6 +2628,12 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .cld-char-label{font-weight:700;color:var(--tx);width:54px;flex-shrink:0}
 .cld-char-spec{flex:1;color:var(--tx2);font-size:11.5px}
 .cld-char-pc{font-size:11px;font-weight:700;color:#5fa3d9;flex-shrink:0}
+/* [v287] editable character card inside the Client tab detail panel */
+.cld-char-edit{background:var(--bg-c);border:1px solid var(--br);border-radius:11px;padding:10px 11px;margin-bottom:9px}
+.cld-char-edit-hd{display:flex;align-items:center;gap:9px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--br)}
+.cld-char-edit-nm{font-weight:800;color:var(--tx);font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cld-char-edit-pc{font-size:11px;font-weight:700;color:#5fa3d9;flex-shrink:0}
+.cld-char-edit .c-chip-form{padding:0;margin:0;background:none;border:none}
 .cld-contract{background:var(--bg-c);border:1px solid var(--br);border-radius:11px;padding:12px 14px}
 .cld-contract-note{font-size:11.5px;color:var(--tx3);margin-top:8px;padding-top:8px;border-top:1px solid var(--br)}
 .cld-comms{display:flex;flex-direction:column;gap:7px}
@@ -7950,6 +7956,15 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
     </button>
     <div class="sb-r-body">
       <div class="pool-row" id="pool-row">
+        <div class="pool pool-client">
+          <div class="pool-head">
+            <div class="tt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>클라이언트 풀</div>
+            <div class="ct" id="client-stat">— / —</div>
+            <button class="client-add-btn" onclick="addClient()" title="새 클라이언트 추가">+ 추가</button>
+          </div>
+          <div class="pool-hint">PC 카드의 <b>클라이언트 슬롯</b>으로 드래그</div>
+          <div class="client-chips" id="client-pool"></div>
+        </div>
         <div class="pool pool-staff">
           <div class="pool-head">
             <div class="tt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-6A3.5 3.5 0 0 0 3 18.5V20"/><circle cx="9.5" cy="8" r="3.2"/></svg>직원 풀</div>
@@ -7973,15 +7988,6 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
           </div>
           <div class="pool-hint">잔여 칸 = <b>플레이어 배정</b> · 우측 <b>👑 Leader</b> = 리더 배정</div>
           <div class="staff-chips" id="staff-pool"></div>
-        </div>
-        <div class="pool pool-client">
-          <div class="pool-head">
-            <div class="tt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>클라이언트 풀</div>
-            <div class="ct" id="client-stat">— / —</div>
-            <button class="client-add-btn" onclick="addClient()" title="새 클라이언트 추가">+ 추가</button>
-          </div>
-          <div class="pool-hint">PC 카드의 <b>클라이언트 슬롯</b>으로 드래그</div>
-          <div class="client-chips" id="client-pool"></div>
         </div>
       </div>
     </div>
@@ -8105,16 +8111,15 @@ const CHANNEL_TREE = {
       channels:[
         { id:'overview',    name:'종합 현황',  icon:'dashboard', module:'overview', kind:'view' },
         { id:'announcement',name:'공지사항',   icon:'megaphone', module:'announce', kind:'view' },
-        { id:'pc-status',   name:'PC 현황',    icon:'monitor',   kind:'view', module:'pc-hub' },
         { id:'attendance',  name:'출퇴근',     icon:'clock',     module:'attendance', kind:'view' }
       ]
     },
     {
       id:'op-team', name:'운영', catIcon:'flag', perms:['admin','op'],
       channels:[
+        { id:'pc-status',   name:'PC 현황',    icon:'monitor',   kind:'view', module:'pc-hub' },
         { id:'op-daily-board',name:'일일 업무',  icon:'check',    module:'tasks', kind:'view', unread:2 },
         { id:'op-schedule',   name:'스케줄',     icon:'calendar', module:'roster', kind:'view' },
-        { id:'op-clients',    name:'클라이언트', icon:'briefcase',module:'clients', kind:'view', perms:['admin','op'] },
         { id:'op-accounts',     name:'계정 관리',   icon:'lock',   module:'accounts',     kind:'view', perms:['admin','op'] },
         { id:'op-account-perf', name:'계정 성과',   icon:'trend',  module:'account-perf', kind:'view', perms:['admin','op'] },
         { id:'op-analytics',    name:'운영 리포트', icon:'target', module:'analytics',    kind:'view', perms:['admin','op'] },
@@ -8138,6 +8143,7 @@ const CHANNEL_TREE = {
         { id:'op-recruit',    name:'채용',          icon:'target',      kind:'view', module:'recruit' },
         { id:'op-onboarding', name:'온보딩',        icon:'graduation',  module:'onboarding', kind:'view' },
         { id:'op-hr',         name:'직원 목록',     icon:'user',        module:'staff', kind:'view' },
+        { id:'op-clients',    name:'클라이언트', icon:'briefcase',module:'clients', kind:'view', perms:['admin','op'] },
         { id:'op-trust',      name:'점수판',         icon:'shieldcheck', module:'trust', kind:'view' }
       ]
     },
@@ -21101,17 +21107,25 @@ function openClientDetail(cid){
     </div>`;
   }).join('');
 
+  // [v287] WORK CHARACTERS are now editable inline in the Client tab (same fields as the
+  // PC-status pool editor). Name is hidden — it equals the account name (edit it up top).
+  const _clEditable = (currentUserRole === 'admin' || currentUserRole === 'op');
   const charRows = chars.map(ch => {
     const pc = pcs.find(p => (p.clients||[]).includes(ch.id));
-    const _setR = `${ch.armor_set}${ch.armor_set_max?'~'+ch.armor_set_max:''}`;
-    const _csl = _uiLang();
-    const _charSpec = _csl==='ko' ? `${ch.weapon}검 ${_setR}셋 · ${ch.hours||'?'}H`
-                    : _csl==='id' ? `+${ch.weapon} sjt · ${_setR} set · ${ch.hours||'?'}H`
-                    :               `+${ch.weapon} wpn · ${_setR} set · ${ch.hours||'?'}H`;
-    return `<div class="cld-char">
-      <span class="cld-char-label">${ch.label}</span>
-      <span class="cld-char-spec">${_charSpec}</span>
-      <span class="cld-char-pc">${pc?'🖥 PC-'+String(pc.id).padStart(2,'0'):'미배정'}</span>
+    const isOff = ch.active === false;
+    const pcTxt = pc ? '🖥 PC-'+String(pc.id).padStart(2,'0') : (_uiLang()==='ko'?'미배정':'Unassigned');
+    if(!_clEditable){
+      const _setR = `${ch.armor_set}${ch.armor_set_max?'~'+ch.armor_set_max:''}`;
+      const _spec = `${ch.weapon}검 ${_setR}셋${ch.level!=null?' · Lv'+ch.level:''} · ${ch.hours||'?'}H`;
+      return `<div class="cld-char"><span class="cld-char-label">${ch.label}</span><span class="cld-char-spec">${_spec}</span><span class="cld-char-pc">${pcTxt}</span></div>`;
+    }
+    return `<div class="cld-char-edit" data-cid="${ch.id}">
+      <div class="cld-char-edit-hd">
+        <span class="cld-char-edit-nm">${ch.label || LINEAGE_CLASSES[ch.char_class] || (_uiLang()==='ko'?'캐릭터':'Character')}</span>
+        <button class="c-chip-onoff ${isOff?'off':'on'}" onclick="toggleClientActive('${ch.id}')" title="${isOff?'OFF — 본인 플레이 중':'ON — 정상 가동'}">${isOff?'OFF':'ON'}</button>
+        <span class="cld-char-edit-pc">${pcTxt}</span>
+      </div>
+      ${clientEditForm(ch, {hideName:true})}
     </div>`;
   }).join('');
 
@@ -21179,6 +21193,7 @@ function openClientDetail(cid){
       <div class="cld-block">
         <div class="cld-block-h">🖥 작업 캐릭터</div>
         <div class="cld-chars">${charRows || '<div class="cld-empty">캐릭터 없음</div>'}</div>
+        ${_clEditable ? `<button class="btn btn-sm" style="margin-top:10px" onclick="addClientCharToAccount('${c.id}')">＋ ${_uiLang()==='ko'?'캐릭터 추가':'Add character'}</button>` : ''}
       </div>
 
       ${canSeeMoney ? `<div class="cld-block">
@@ -21209,10 +21224,47 @@ function openClientDetail(cid){
     </div>
   </div>`;
   requestAnimationFrame(() => panel.classList.add('open'));
+  _clientPanelOpen = c.id;   // [v287] remember which client panel is open for live refresh
+}
+// [v287] Client-tab panel live-refresh + context-safe re-render of all client UIs.
+// The pool/PC renderers assume their DOM exists; calling them on the Client tab would throw,
+// so guard each. _refreshClientPanel rebuilds the open panel while preserving scroll.
+let _clientPanelOpen = null;
+function _refreshClientPanel(){
+  if(!_clientPanelOpen) return;
+  const panel = document.getElementById('client-detail-panel');
+  if(!panel || !panel.classList.contains('open')) return;
+  const body = panel.querySelector('.ap-panel-body');
+  const st = body ? body.scrollTop : 0;
+  try{ openClientDetail(_clientPanelOpen); }catch(_){}
+  const nb = document.getElementById('client-detail-panel');
+  const nbody = nb ? nb.querySelector('.ap-panel-body') : null;
+  if(nbody) nbody.scrollTop = st;
+}
+function _syncClientUI(){
+  try{ if(document.getElementById('pc-grid')){ renderPCs(); if(typeof renderTimeline==='function') renderTimeline(); } }catch(_){}
+  try{ if(document.getElementById('pool-cats')){ renderPools(); } }catch(_){}
+  _refreshClientPanel();
+}
+// [v287] add a new work-character to THIS client account (linked by name, the app's convention)
+function addClientCharToAccount(accountId){
+  const acc = CLIENT_ACCOUNTS.find(x => x.id === accountId);
+  if(!acc) return;
+  const nextId = 'c_' + Date.now().toString(36);
+  CLIENTS.push({
+    id: nextId, name: acc.name, label: '', game: 'lineage',
+    char_class: 'knight', server: 'tbd', weapon: 6, armor_set: 4, armor_set_max: null,
+    level: null, hours: null, days: [1,2,3,4,5,6], startH: null, endH: null, schedule_note: ''
+  });
+  try{ logAction('create', 'added client character', acc.name); }catch(_){}
+  saveClientState(true);
+  toast(_uiLang()==='ko'?'캐릭터 추가됨 — 정보 입력':'Character added — fill in details');
+  _syncClientUI();
 }
 function closeClientDetail(){
   const panel = document.getElementById('client-detail-panel');
   if(panel){ panel.classList.remove('open'); }
+  _clientPanelOpen = null;
 }
 function markClientPaid(cid){
   const c = CLIENT_ACCOUNTS.find(x => x.id === cid);
@@ -21401,24 +21453,21 @@ function toggleClientDay(cid, day){
   if(i >= 0) c.days.splice(i,1); else c.days.push(day);
   c.days.sort((a,b)=>a-b);
   saveClientState();
-  renderPCs(); renderTimeline();
-  if(document.getElementById('client-pool')) renderPools();
+  _syncClientUI();
 }
 function setClientDayPreset(cid, preset){
   const c = clientById(cid); if(!c) return;
   const map = { 'mon-sat':[1,2,3,4,5,6], 'tue-sat':[2,3,4,5,6], 'mon-fri':[1,2,3,4,5], 'daily':[0,1,2,3,4,5,6] };
   c.days = (map[preset]||[]).slice();
   saveClientState();
-  renderPCs(); renderTimeline();
-  if(document.getElementById('client-pool')) renderPools();
+  _syncClientUI();
 }
 function setClientTime(cid, field, val){
   const c = clientById(cid); if(!c) return;
   c[field] = (val==='' || val==null) ? null : +val;
   if(c.startH!=null && c.endH!=null) c.hours = clientHours(c);   // keep legacy hours field in sync
   saveClientState();
-  renderPCs(); renderTimeline();
-  if(document.getElementById('client-pool')) renderPools();
+  _syncClientUI();
 }
 const pcOfClient = cid => PCS.find(p => (p.clients||[]).includes(cid));
 const pad2 = n => String(n).padStart(2,'0');
@@ -21985,7 +22034,7 @@ function clientChipHTML(c){
     </div>
     <div class="c-chip-info">
       <b>${wpn}</b><span class="sep">·</span>
-      <b>${set}</b><span class="sep">·</span>
+      <b>${set}</b>${c.level!=null?`<span class="sep">·</span><b>Lv${c.level}</b>`:''}<span class="sep">·</span>
       <span>${server}</span>
       ${c.schedule_note ? `<span class="sep">·</span><em>${c.schedule_note}</em>` : ''}
       ${isOff ? `<span class="sep">·</span><em style="color:var(--re);font-weight:700">본인 플레이 중</em>` : ''}
@@ -22001,11 +22050,12 @@ function toggleClientActive(cid){
   c.active = c.active === false ? true : false; // 토글
   const newState = c.active === false ? 'OFF (본인 플레이 중)' : 'ON (정상 가동)';
   toast(`${c.name} → ${newState}`);
-  render();
+  _syncClientUI();
 }
 
-function clientEditForm(c){
-  const opts = (dict, sel) => Object.entries(dict).map(([k,v])=>
+function clientEditForm(c, opts){
+  const opts_ = opts || {};
+  const o = (dict, sel) => Object.entries(dict).map(([k,v])=>
     `<option value="${k}" ${sel===k?'selected':''}>${v}</option>`).join('');
   const numOpts = (arr, sel) => arr.map(n=>
     `<option value="${n}" ${sel===n?'selected':''}>${n}</option>`).join('');
@@ -22013,10 +22063,10 @@ function clientEditForm(c){
     `<option value="${s}" ${c.armor_set_max===s?'selected':''}>${s}</option>`).join('');
 
   return `<div class="c-chip-form" onclick="event.stopPropagation()" ondragstart="event.preventDefault();event.stopPropagation()">
-    <div class="c-form-row">
+    ${opts_.hideName ? '' : `<div class="c-form-row">
       <label>이름</label>
       <input type="text" class="grow" value="${(c.name||'').replace(/"/g,'&quot;')}" oninput="setClientField('${c.id}','name',this.value)">
-    </div>
+    </div>`}
     <div class="c-form-row">
       <label>캐릭</label>
       <input type="text" class="grow" value="${(c.label||'').replace(/"/g,'&quot;')}" placeholder="예: 기사, 하이브리드 법사" oninput="setClientField('${c.id}','label',this.value)">
@@ -22024,13 +22074,13 @@ function clientEditForm(c){
     <div class="c-form-row">
       <label>직업</label>
       <select class="grow" onchange="setClientField('${c.id}','char_class',this.value)">
-        <option value="">— 선택 —</option>${opts(LINEAGE_CLASSES, c.char_class)}
+        <option value="">— 선택 —</option>${o(LINEAGE_CLASSES, c.char_class)}
       </select>
     </div>
     <div class="c-form-row">
       <label>서버</label>
       <select class="grow" onchange="setClientField('${c.id}','server',this.value)">
-        <option value="">— 선택 —</option>${opts(LINEAGE_SERVERS, c.server)}
+        <option value="">— 선택 —</option>${o(LINEAGE_SERVERS, c.server)}
       </select>
     </div>
     <div class="c-form-row">
@@ -22050,6 +22100,11 @@ function clientEditForm(c){
         <option value="">단일</option>${setMaxOpts}
       </select>
       <span class="suffix">셋</span>
+    </div>
+    <div class="c-form-row">
+      <label>레벨</label>
+      <input type="number" class="num" min="1" max="99" placeholder="Lv" value="${c.level==null?'':c.level}" onchange="setClientField('${c.id}','level',this.value===''?null:+this.value)">
+      <span class="suffix">Lv</span>
     </div>
     <div class="c-form-sched">
       <div class="c-form-row">
@@ -22488,6 +22543,7 @@ function addClient(){
     weapon: 6,
     armor_set: 4,
     armor_set_max: null,
+    level: null,           // [v287] character level (shown in Client tab + pool)
     hours: null,
     days: [1,2,3,4,5,6],   // [v277] service days (1=Mon..6=Sat, 0=Sun). default Mon–Sat
     startH: null,          // [v277] service start hour (0-23)
