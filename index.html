@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v282 -->
+<!-- BUILD: v283 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21046,6 +21046,26 @@ function removeClientComm(cid, idx){
   saveClientState();
   openClientDetail(cid);
 }
+// [v283] rename a client account from the detail header. The account is linked to its
+// PC-pool character(s) BY NAME (clientChars/clientPCs/workload all match on name), so we
+// must rename the matching CLIENTS pool entries too — otherwise the chars/PCs/workload
+// detach. PC slot assignments survive because they reference the character id, not name.
+function setClientAccountName(cid, value){
+  if(currentUserRole !== 'admin' && currentUserRole !== 'op'){ toast(_uiLang()==='ko'?'권한 없음':'No permission', true); return; }
+  const c = CLIENT_ACCOUNTS.find(x => x.id === cid);
+  if(!c) return;
+  const nm = String(value==null?'':value).trim();
+  if(!nm){ toast(_uiLang()==='ko'?'이름을 입력하세요':'Enter a name', true); openClientDetail(cid); return; }
+  if(nm === c.name) return;
+  const old = c.name;
+  if(typeof CLIENTS !== 'undefined'){ CLIENTS.forEach(p => { if(p && p.name === old) p.name = nm; }); }
+  c.name = nm;
+  try{ logAction('update', 'renamed client ' + old + ' → ' + nm, nm); }catch(_){}
+  saveClientState(true);                 // persist account + pool rename together
+  openClientDetail(cid);                 // refresh the panel header + avatar initial
+  try{ renderClients(); }catch(_){}       // refresh the card list
+  try{ if(typeof render === 'function' && typeof PCS !== 'undefined') render(); }catch(_){}  // pool char name changed → repaint PC status
+}
 function openClientDetail(cid){
   const c = CLIENT_ACCOUNTS.find(x => x.id === cid);
   if(!c) return;
@@ -21102,7 +21122,7 @@ function openClientDetail(cid){
       <div class="ap-panel-head-l">
         <div class="cld-av" style="background:${pay.bg};color:${pay.color}">${c.name.slice(0,1)}</div>
         <div>
-          <div class="ap-panel-name">${c.name}</div>
+          <input class="ap-panel-name" value="${(c.name||'').replace(/"/g,'&quot;')}" placeholder="Name" title="${_uiLang()==='ko'?'고객 이름 — 클릭해서 수정':'Client name — click to edit'}" onchange="setClientAccountName('${c.id}',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
           <div class="ap-panel-meta">${canSeeMoney ? `<span class="cl-pay-badge" style="background:${pay.bg};color:${pay.color}">${pay.icon} ${pay.label}</span> · ` : ''}${c.discord} · 가입 ${c.joined}</div>
         </div>
       </div>
