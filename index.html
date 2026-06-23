@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v287 -->
+<!-- BUILD: v288 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2633,6 +2633,9 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .cld-char-edit-hd{display:flex;align-items:center;gap:9px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--br)}
 .cld-char-edit-nm{font-weight:800;color:var(--tx);font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cld-char-edit-pc{font-size:11px;font-weight:700;color:#5fa3d9;flex-shrink:0}
+/* [v288] split-character-into-own-client button */
+.cld-char-split{font-size:10.5px;font-weight:700;color:var(--ac,#c2a04a);background:color-mix(in srgb,var(--ac,#c2a04a) 12%,transparent);border:1px solid color-mix(in srgb,var(--ac,#c2a04a) 36%,transparent);border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;flex-shrink:0;transition:all .14s var(--ease)}
+.cld-char-split:hover{background:var(--ac,#c2a04a);color:#15140f}
 .cld-char-edit .c-chip-form{padding:0;margin:0;background:none;border:none}
 .cld-contract{background:var(--bg-c);border:1px solid var(--br);border-radius:11px;padding:12px 14px}
 .cld-contract-note{font-size:11.5px;color:var(--tx3);margin-top:8px;padding-top:8px;border-top:1px solid var(--br)}
@@ -21122,6 +21125,7 @@ function openClientDetail(cid){
     return `<div class="cld-char-edit" data-cid="${ch.id}">
       <div class="cld-char-edit-hd">
         <span class="cld-char-edit-nm">${ch.label || LINEAGE_CLASSES[ch.char_class] || (_uiLang()==='ko'?'캐릭터':'Character')}</span>
+        ${chars.length > 1 ? `<button class="cld-char-split" onclick="splitClientChar('${ch.id}')" title="${_uiLang()==='ko'?'이 캐릭터를 별도 클라이언트로 분리':'Split this character into its own client'}">⤴ ${_uiLang()==='ko'?'분리':'Separate'}</button>` : ''}
         <button class="c-chip-onoff ${isOff?'off':'on'}" onclick="toggleClientActive('${ch.id}')" title="${isOff?'OFF — 본인 플레이 중':'ON — 정상 가동'}">${isOff?'OFF':'ON'}</button>
         <span class="cld-char-edit-pc">${pcTxt}</span>
       </div>
@@ -21260,6 +21264,46 @@ function addClientCharToAccount(accountId){
   saveClientState(true);
   toast(_uiLang()==='ko'?'캐릭터 추가됨 — 정보 입력':'Character added — fill in details');
   _syncClientUI();
+}
+// [v288] Split one character out of a multi-character client into its OWN client account.
+// Use case: a customer pays for 2 game accounts that run on 2 PCs simultaneously, but you
+// want to track/assign each account as its own client. Characters link to an account BY NAME,
+// so the split renames this character to a new unique name and creates a matching account.
+// Money fields start empty on the new client (so revenue isn't double-counted) — set them after.
+function splitClientChar(charId){
+  if(currentUserRole !== 'admin' && currentUserRole !== 'op'){ toast(_uiLang()==='ko'?'권한 없음':'No permission', true); return; }
+  const ch = clientById(charId);
+  if(!ch) return;
+  const isKo = _uiLang() === 'ko';
+  const siblings = CLIENTS.filter(x => x.name === ch.name);
+  if(siblings.length <= 1){ toast(isKo?'이 클라이언트는 캐릭터가 하나뿐이라 분리할 수 없어요':'This client has only one character — nothing to split', true); return; }
+  const parent = CLIENT_ACCOUNTS.find(a => a.name === ch.name);
+  const def = ch.label || (ch.name + '2');
+  const input = prompt(isKo?'분리될 새 클라이언트 이름 (고유해야 함):':'New client name for the split-off (must be unique):', def);
+  if(input == null) return;
+  const nm = input.trim();
+  if(!nm){ toast(isKo?'이름을 입력하세요':'Enter a name', true); return; }
+  if(nm === ch.name || CLIENT_ACCOUNTS.some(a => a.name === nm) || CLIENTS.some(x => x.name === nm)){
+    toast(isKo?'이미 같은 이름이 있어요 — 다른 이름을 쓰세요':'That name is already used — pick another', true); return;
+  }
+  const iso = new Date().toISOString().slice(0,10);
+  CLIENT_ACCOUNTS.push({
+    id: 'ca_' + Date.now().toString(36),
+    name: nm,
+    discord: (parent && parent.discord) || '',
+    joined: (parent && parent.joined) || iso,
+    work: { start: (parent && parent.work && parent.work.start != null) ? parent.work.start : 9,
+            end:   (parent && parent.work && parent.work.end   != null) ? parent.work.end   : 19 },
+    payment: { status:'unpaid', monthly:0, due_day: (parent && parent.payment && parent.payment.due_day) || 1, last_paid:null, invoices:[] },
+    contract: { start: (parent && parent.contract && parent.contract.start) || iso, end: (parent && parent.contract && parent.contract.end) || '', monthly_fee:0, note: (parent && parent.contract && parent.contract.note) || '' },
+    comms: []
+  });
+  ch.name = nm;   // relink this character to the new account
+  try{ logAction('update', 'split client character → ' + nm, nm); }catch(_){}
+  saveClientState(true);
+  toast(`${nm} ${isKo?'— 별도 클라이언트로 분리됨 (결제·계약 금액은 새로 입력)':'— split into its own client (set its payment/contract amounts)'}`);
+  _syncClientUI();
+  if(parent) { _clientPanelOpen = parent.id; _refreshClientPanel(); }
 }
 function closeClientDetail(){
   const panel = document.getElementById('client-detail-panel');
