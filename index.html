@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v293 -->
+<!-- BUILD: v294 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15797,7 +15797,7 @@ async function renderShiftAdmin(){
       var allRs=g.rs.slice().sort(function(a,b){ return ((reportMs(a)||0)-(reportMs(b)||0)) || ((_ord[a.tag]!=null?_ord[a.tag]:1)-(_ord[b.tag]!=null?_ord[b.tag]:1)); });
       var isDup={}, DUP=10*60*1000, i,j;
       for(i=0;i<allRs.length;i++){ var r=allRs[i]; if(isTestMap(r))continue; for(j=i-1;j>=0;j--){ var p=allRs[j]; if(((reportMs(r)||0)-(reportMs(p)||0))>DUP)break; if(isDup[p.id])continue; if(String(p.client||'').trim()===String(r.client||'').trim()&&(p.tag||'')===(r.tag||'')&&Number(p.lvAfter)===Number(r.lvAfter)&&Number(p.expAfter)===Number(r.expAfter)){ isDup[r.id]=true; break; } } }
-      var segGain={}; (function(){ var prev=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0;return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r);return;} if(prev&&prev.client!==r.client)prev=null; if(r.tag==='checkin'){segGain[r.id]=null;prev=r;return;} if(prev){ var _x=((Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0))-((Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0)); if(_x<0)_x=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0); var _own=gainedPct(r); segGain[r.id]=(_x>_own*2+30)?_own:_x; } else { segGain[r.id]=gainedPct(r); } prev=r; }); })();
+      var segGain={}, segLv={}; (function(){ var prev=null, lastLv=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0; segLv[r.id]=(lastLv!=null?lastLv:(Number(r.lvAfter)||0)); return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r); segLv[r.id]=(Number(r.lvAfter)||0); return;} if(prev&&prev.client!==r.client){prev=null;lastLv=null;} if(r.tag==='checkin'){segGain[r.id]=null; lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; prev=r; return;} if(prev){ var _x=((Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0))-((Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0)); if(_x<0)_x=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0); var _own=gainedPct(r); if(_x>_own*2+30){ segGain[r.id]=_own; segLv[r.id]=(lastLv!=null?lastLv:(Number(r.lvAfter)||0)); /* [v294] LV not supported by EXP gained → keep last consistent level */ } else { segGain[r.id]=_x; lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; } } else { segGain[r.id]=gainedPct(r); lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; } prev=r; }); })();
 
       var latest=allRs[allRs.length-1];
       var latestMs=reportMs(latest);
@@ -15819,11 +15819,11 @@ async function renderShiftAdmin(){
       var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
       var tGain=0,tQuota=0,tHours=0, tReports=[];
       allRs.forEach(function(r){ if(isTestMap(r))return; if(shiftDateOf(r)!==selDate)return;
-        if(r.tag==='checkin'){ tReports.push({start:r.start,end:r.end,map:r.map,tag:'checkin',gain:null,lv:r.lvAfter,exp:r.expAfter,dup:false}); return; }
+        if(r.tag==='checkin'){ tReports.push({start:r.start,end:r.end,map:r.map,tag:'checkin',gain:null,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:false}); return; }
         if(r.tag==='status'||r.tag==='checkout'||!r.tag){
           var g=(segGain[r.id]||0), dup=!!isDup[r.id];
           if(!dup){ tGain+=g; tHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)tQuota+=Number(mo.target); }
-          tReports.push({start:r.start,end:r.end,map:r.map,tag:(r.tag||'status'),gain:g,lv:r.lvAfter,exp:r.expAfter,dup:dup});
+          tReports.push({start:r.start,end:r.end,map:r.map,tag:(r.tag||'status'),gain:g,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:dup});
         }
       });
       var tPct=tQuota>0?(tGain/tQuota*100):0;
