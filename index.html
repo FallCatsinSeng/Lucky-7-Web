@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v283 -->
+<!-- BUILD: v284 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2873,13 +2873,15 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-board{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:8px}
 .lb-board-3{grid-template-columns:repeat(3,1fr)}
 @media (max-width:1000px){.lb-board-3{grid-template-columns:1fr}}
-/* [v279] 4-col board (OP / LEADER / PLAYER / RESIGN) */
-.lb-board-4{grid-template-columns:repeat(4,1fr)}
-@media (max-width:1180px){.lb-board-4{grid-template-columns:repeat(2,1fr)}}
-@media (max-width:720px){.lb-board-4{grid-template-columns:1fr}}
-/* [v279] RESIGN column — muted, set apart from the active team */
-.lb-col-resign{opacity:.92;background:color-mix(in srgb,var(--re,#c46a6a) 4%,var(--bg-c))}
-.lb-col-resign.ts-sec-over{border-color:var(--re,#c46a6a);box-shadow:0 0 0 2px color-mix(in srgb,var(--re,#c46a6a) 35%,transparent)}
+/* [v284] RESIGN moved to a full-width strip below the board (was a cramped 4th column) */
+.lb-resign-strip{margin-top:14px;background:color-mix(in srgb,var(--re,#c46a6a) 4%,var(--bg-c));border:1px solid color-mix(in srgb,var(--re,#c46a6a) 22%,var(--br));border-radius:13px;padding:11px 13px 13px;transition:border-color .14s,box-shadow .14s}
+.lb-resign-strip.ts-sec-over{border-color:var(--re,#c46a6a);box-shadow:0 0 0 2px color-mix(in srgb,var(--re,#c46a6a) 35%,transparent)}
+.lb-resign-head{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.lb-resign-title{font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--re,#c46a6a)}
+.lb-resign-note{font-size:10px;color:var(--tx3);margin-left:auto}
+.lb-resign-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:7px}
+@media (max-width:560px){.lb-resign-grid{grid-template-columns:1fr}}
+/* [v279] resigned card accent + reactivate button */
 .lb-kcard-resign::before{background:var(--re,#c46a6a);opacity:.6}
 .lb-kcard-resign .lb-name{color:var(--tx2,#bdbcb7)}
 .lb-kcard-resign:hover{border-color:color-mix(in srgb,var(--re,#c46a6a) 45%,var(--br));background:color-mix(in srgb,var(--re,#c46a6a) 5%,var(--bg))}
@@ -2909,10 +2911,10 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-kcard-main{position:relative;z-index:1;display:flex;align-items:center;gap:9px;padding:7px 11px 7px 14px}
 .lb-krank{font-size:12px;font-weight:800;color:var(--tx3);min-width:18px;text-align:center;flex-shrink:0}
 .lb-kcard-id{flex:1;min-width:0}
-.lb-name-row{display:flex;align-items:center;gap:6px}
+.lb-name-row{display:flex;align-items:center;gap:6px;min-width:0}
 .lb-kstatus-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.lb-kcard-id .lb-name{font-size:13px;font-weight:700;color:var(--tx);letter-spacing:-.01em}
-.lb-kcard-id .lb-tier{font-size:9.5px;font-weight:700}
+.lb-kcard-id .lb-name{flex:1 1 auto;font-size:13px;font-weight:700;color:var(--tx);letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lb-kcard-id .lb-tier{font-size:9.5px;font-weight:700;flex-shrink:0}
 .lb-kcard-sub{display:flex;align-items:center;gap:8px;margin-top:2px}
 .lb-rankchip{font-size:9px;font-weight:700;padding:1px 7px;border-radius:5px;flex-shrink:0;white-space:nowrap;line-height:1.5}
 .lb-kstat{font-size:10px;color:var(--tx3);font-weight:500;display:flex;align-items:center;gap:3px}
@@ -17289,25 +17291,24 @@ async function renderTrust(){
     </div>`;
   };
 
-  const buildResignSection = (members) => {
+  // [v284] RESIGN is a full-width strip BELOW the board, not a 4th equal column.
+  // A 4th column squeezed the 3 active columns until card content overlapped; the resign
+  // list is usually short, so a horizontal strip reads cleaner and frees the main board.
+  const buildResignStrip = (members) => {
     const isKo = _uiLang() === 'ko';
-    return `<div class="lb-col lb-col-resign" data-system="resign"
+    return `<div class="lb-resign-strip" data-system="resign"
         ondragover="tsCardDragOver(event, 'resign')"
         ondragleave="tsCardDragLeave(event)"
         ondrop="tsCardDrop(event, 'resign')">
-      <div class="lb-col-head" style="--col-c:#c46a6a">
-        <div class="lb-col-head-l">
-          <span class="lb-col-name">⊘ ${isKo?'퇴사':'RESIGN'}</span>
-          <span class="lb-col-cnt" style="background:rgba(196,106,106,.16);color:var(--re,#c46a6a)">${members.length}</span>
-        </div>
-        <div class="lb-col-head-r">
-          <span class="lb-col-stat" style="font-size:10px">${isKo?'기록 보존':'records kept'}</span>
-        </div>
+      <div class="lb-resign-head">
+        <span class="lb-resign-title">⊘ ${isKo?'퇴사':'RESIGN'}</span>
+        <span class="lb-col-cnt" style="background:rgba(196,106,106,.16);color:var(--re,#c46a6a)">${members.length}</span>
+        <span class="lb-resign-note">${isKo?'기록 보존 · 점수 미반영':'records kept · excluded from scores'}</span>
       </div>
-      <div class="lb-col-body">
+      <div class="lb-resign-grid">
         ${members.length
           ? members.map((m,i) => resignRow(m, i)).join('')
-          : `<div class="lb-col-empty">${canChangeRank() ? (isKo?'여기로 드래그하면 퇴사':'drag here to resign') : (isKo?'퇴사자 없음':'no resigned staff')}</div>`
+          : `<div class="lb-col-empty" style="grid-column:1/-1">${canChangeRank() ? (isKo?'여기로 카드를 드래그하면 퇴사 처리':'drag a card here to mark as resigned') : (isKo?'퇴사자 없음':'no resigned staff')}</div>`
         }
       </div>
     </div>`;
@@ -17361,12 +17362,12 @@ async function renderTrust(){
       </div>
     </div>
 
-    <div class="lb-board lb-board-4">
+    <div class="lb-board lb-board-3">
       ${buildSection('op', opMembers, { icon:'⚙️', label:'OPTEAM', desc:'운영 평가', color:'#c2a04a', bg:'rgba(194,160,74,.14)' })}
       ${buildSection('player_leader', leaderMembers, { icon:'🎖', label:'PLAYER LEADER', desc:'리더 평가', color:'#5fa3d9', bg:'rgba(95,163,217,.14)' })}
       ${buildSection('player', playerMembers, { icon:'🎮', label:'PLAYER', desc:'게임 평가', color:'#3aa05a', bg:'rgba(58,160,90,.14)' })}
-      ${buildResignSection(resignedMembers)}
     </div>
+    ${(resignedMembers.length > 0 || canChangeRank()) ? buildResignStrip(resignedMembers) : ''}
   </div>`;
 }
 
