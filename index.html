@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v279 -->
+<!-- BUILD: v280 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10114,8 +10114,8 @@ async function exportAttendance(fmt){
   const data = ex.rows || [];
   const view = ex.view || 'all';
   if(!data.length){ toast('내보낼 출퇴근 기록이 없어요 / No records to export', true); return; }
-  const viewLabel = view==='weekly' ? 'this-week' : view==='monthly' ? 'this-month' : 'all';
-  const periodLabel = view==='weekly' ? 'This Week' : view==='monthly' ? 'This Month' : 'All Records';
+  const viewLabel = view==='today' ? 'today' : view==='weekly' ? 'this-week' : view==='monthly' ? 'this-month' : 'all';
+  const periodLabel = view==='today' ? 'Today' : view==='weekly' ? 'This Week' : view==='monthly' ? 'This Month' : 'All Records';
   const stamp = new Date().toISOString().slice(0,10);
 
   // ── JSON ──
@@ -10339,7 +10339,9 @@ async function renderAttendance(){
 
   // 필터
   let filtered = historyData;
-  if(attView === 'weekly'){
+  if(attView === 'today'){
+    filtered = historyData.filter(a => a.date === todayIso);
+  } else if(attView === 'weekly'){
     const wk = new Date();
     wk.setDate(wk.getDate() - (wk.getDay() + 6) % 7); // 월요일
     const wkIso = wk.toISOString().slice(0,10);
@@ -10357,7 +10359,7 @@ async function renderAttendance(){
   // Settlement, staff, players and other roles don't see the export buttons.
   const _canExportAtt = (currentUserRole === 'admin') || (currentUser && currentUser.role === 'hr');
   const tabRow = `<div class="att-tab-row" style="align-items:center">
-    ${[['weekly','이번 주'],['monthly','이번 달'],['yearly','전체']].map(([v,lbl]) => 
+    ${[['today','오늘'],['weekly','이번 주'],['monthly','이번 달'],['yearly','전체']].map(([v,lbl]) => 
       `<button class="att-tab ${attView===v?'on':''}" onclick="window.attCurrentView='${v}';renderAttendance()">${lbl}</button>`
     ).join('')}
     ${_canExportAtt ? `<div style="margin-left:auto;display:flex;gap:6px">
