@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v292 -->
+<!-- BUILD: v293 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15797,7 +15797,7 @@ async function renderShiftAdmin(){
       var allRs=g.rs.slice().sort(function(a,b){ return ((reportMs(a)||0)-(reportMs(b)||0)) || ((_ord[a.tag]!=null?_ord[a.tag]:1)-(_ord[b.tag]!=null?_ord[b.tag]:1)); });
       var isDup={}, DUP=10*60*1000, i,j;
       for(i=0;i<allRs.length;i++){ var r=allRs[i]; if(isTestMap(r))continue; for(j=i-1;j>=0;j--){ var p=allRs[j]; if(((reportMs(r)||0)-(reportMs(p)||0))>DUP)break; if(isDup[p.id])continue; if(String(p.client||'').trim()===String(r.client||'').trim()&&(p.tag||'')===(r.tag||'')&&Number(p.lvAfter)===Number(r.lvAfter)&&Number(p.expAfter)===Number(r.expAfter)){ isDup[r.id]=true; break; } } }
-      var segGain={}; (function(){ var prev=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0;return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r);return;} if(prev&&prev.client!==r.client)prev=null; if(r.tag==='checkin'){segGain[r.id]=null;prev=r;return;} if(prev){ var _dLv=(Number(r.lvAfter)||0)-(Number(prev.lvAfter)||0); var _dE=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0); var gg; if(Math.abs(_dLv)>MAX_LV_JUMP){ gg=_dE; } else { gg=_dLv*100+_dE; if(gg<0)gg=_dE; } segGain[r.id]=gg; } else { segGain[r.id]=gainedPct(r); } prev=r; }); })();
+      var segGain={}; (function(){ var prev=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0;return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r);return;} if(prev&&prev.client!==r.client)prev=null; if(r.tag==='checkin'){segGain[r.id]=null;prev=r;return;} if(prev){ var _x=((Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0))-((Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0)); if(_x<0)_x=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0); var _own=gainedPct(r); segGain[r.id]=(_x>_own*2+30)?_own:_x; } else { segGain[r.id]=gainedPct(r); } prev=r; }); })();
 
       var latest=allRs[allRs.length-1];
       var latestMs=reportMs(latest);
@@ -17858,7 +17858,8 @@ async function renderMyPerformance(){
   const workHoursOf = (s) => { if(s && s.workHours) return Number(s.workHours); const m=String(s&&s.shift||'').match(/(\d+)\s*h/i); return m?Number(m[1]):12; };
   const breaksFor = (wh) => Number(wh)===8 ? [[900,960],[1380,1440],[420,480]] : [[900,960],[300,360]];
   const sessionHours = (r, breaks) => { if(!r || r.start==null || r.end==null || String(r.start).trim()==='' || String(r.end).trim()==='') return 0; const S=toMin(r.start), E=toMin(r.end); if(!isFinite(S)||!isFinite(E)) return 0; let span=E-S; if(span<=0)span+=1440; const BR=breaks||[[900,960],[300,360]]; let brk=0; for(const pair of BR){ brk+=ovMin(S,S+span,pair[0],pair[1])+ovMin(S,S+span,pair[0]+1440,pair[1]+1440); } const eff=span-brk; return eff>0?eff/60:0; };
-  const gainedPct = (r) => (Number(r.lvAfter)-Number(r.lvBefore))*100 + (Number(r.expAfter)-Number(r.expBefore));
+  const MAX_LV_JUMP = 20; // [v293] see renderShiftAdmin — bad LV data (typo) can't blow up gains
+  const gainedPct = (r) => { const dLv=(Number(r.lvAfter)||0)-(Number(r.lvBefore)||0); const dExp=(Number(r.expAfter)||0)-(Number(r.expBefore)||0); return Math.abs(dLv)>MAX_LV_JUMP ? dExp : dLv*100+dExp; };
   const reportMs = (r) => { if(!r) return null; if(typeof r.createdAt==='number' && r.createdAt>1e12) return r.createdAt; const m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; };
   const zoneKey = (s) => { s=(s||'').toLowerCase(); if(s.includes('orc')) return 'orc'; if(s.includes('ant')) return 'ant'; if(s.includes('dragon')) return 'dragon'; if(s.includes('blessed')||s.includes('ats')) return 'ats'; if(s.includes('gludio')||s.includes('giran')||s.includes('desert')||s.includes('dessert')) return 'dgg'; return s; };
   const findMap = (clients, r) => { const cn=String(r.client||'').trim(); const c=clients.find(x=>String(x.name||'').trim()===cn) || clients.find(x=>String(x.pc)===String(r.pc)); if(!c||!c.maps) return null; const z=zoneKey(r.map); const lv=Number(r.lvAfter!=null?r.lvAfter:r.lv); const cand=c.maps.filter(m=>zoneKey(m.en||m.ko)===z); if(!cand.length) return null; const wild=cand.find(m=>m.level==null||m.level===''); if(wild) return wild; const leveled=cand.filter(m=>isFinite(Number(m.level))).sort((a,b)=>Number(a.level)-Number(b.level)); if(!leveled.length) return null; const below=leveled.filter(m=>Number(m.level)<=lv); return below.length ? below[below.length-1] : leveled[0]; };
@@ -17903,10 +17904,10 @@ async function renderMyPerformance(){
         if(prev && prev.client!==r.client) prev=null;
         if(r.tag==='checkin'){ segGain[r.id]=null; segAde[r.id]=0; prev=r; continue; }
         if(prev){
-          const cur=(Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0);
-          const pv =(Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0);
-          let g=cur-pv; if(g<0) g=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0);
-          segGain[r.id]=g;
+          let x=((Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0))-((Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0));
+          if(x<0) x=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0);
+          const own=gainedPct(r);
+          segGain[r.id]=(x > own*2+30) ? own : x;   // [v293] cross-report inflated by LV mismatch → use report's own gain
           let ag=(Number(r.adena)||0)-(Number(prev.adena)||0); if(ag<0) ag=0; segAde[r.id]=ag;
         } else {
           segGain[r.id]=gainedPct(r);
