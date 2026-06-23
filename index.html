@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v281 -->
+<!-- BUILD: v282 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2563,6 +2563,9 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .cl-sum-warn .cl-sum-val{color:var(--re)}
 .cl-board{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:11px}
 .cl-card{background:var(--bg-c);border:1px solid var(--br);border-radius:12px;padding:14px;cursor:pointer;transition:all .15s var(--ease)}
+/* [v282] client card drag-to-reorder states */
+.cl-card.cl-dragging{opacity:.4;cursor:grabbing}
+.cl-card.cl-drop-target{border-color:var(--ac,#c2a04a);box-shadow:0 0 0 2px color-mix(in srgb,var(--ac,#c2a04a) 32%,transparent)}
 .cl-card:hover{border-color:var(--ac-bord);transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,.1)}
 .cl-card-paid{border-left:3px solid #3aa05a}
 .cl-card-unpaid{border-left:3px solid #e0a83a}
@@ -5912,6 +5915,10 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 }
 .ap-panel-head-l{display:flex;align-items:center;gap:12px;min-width:0}
 .ap-panel-name{font-size:18px;font-weight:700;color:var(--tx);letter-spacing:-.01em}
+/* [v282] editable applicant name — looks like the heading, hints edit on hover/focus */
+input.ap-panel-name{background:transparent;border:none;border-bottom:1px dashed transparent;outline:none;padding:1px 3px;margin:-1px -3px;width:100%;max-width:260px;font-family:inherit;border-radius:5px;transition:border-color .15s,background .15s}
+input.ap-panel-name:hover{border-bottom-color:var(--br,#555)}
+input.ap-panel-name:focus{border-bottom-color:var(--ac,#c2a04a);background:var(--bg-h,rgba(255,255,255,.05))}
 .ap-panel-meta{font-size:11px;color:var(--tx3);margin-top:3px}
 .ap-panel-close{
   background:transparent;border:1px solid var(--br);color:var(--tx3);
@@ -9033,6 +9040,13 @@ function setApplicantInfo(id, field, value){
   const a = APPLICANTS.find(x => x.id === id);
   if(!a) return;
   if(field === 'age'){ const n = parseInt(String(value).replace(/[^0-9]/g,''),10); a.age = isNaN(n) ? '' : n; }
+  else if(field === 'name'){
+    // [v282] name is editable from the panel header (HR typo fixes). Keep avatar initials in sync.
+    const nm = String(value==null?'':value).trim();
+    if(!nm){ toast(_uiLang()==='ko'?'이름을 입력하세요':'Enter a name', true); renderApplicantPanel(); return; }
+    a.name = nm;
+    a.short = nm.replace(/\s+/g,' ').trim().slice(0,2).toUpperCase();
+  }
   else a[field] = value;
   try{ logAction('update', 'edited applicant info (' + field + ')', a.name); }catch(_){}
   saveRecruits();
@@ -9178,7 +9192,7 @@ function renderApplicantPanel(){
       <div class="ap-panel-head-l">
         <span class="ap-av lg" style="background:${avatarColor(a.short)}">${a.short}</span>
         <div>
-          <div class="ap-panel-name">${a.name}</div>
+          <input class="ap-panel-name" value="${_esc(a.name)}" placeholder="Name" title="${_uiLang()==='ko'?'이름 — 클릭해서 수정':'Name — click to edit'}" onchange="setApplicantInfo('${a.id}','name',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
           <div class="ap-panel-meta" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
             <input style="${_mst};width:98px" value="${_esc(a.origin)}" placeholder="Hometown" title="Hometown" onchange="setApplicantInfo('${a.id}','origin',this.value)">
             <span style="opacity:.45">·</span>
@@ -20863,7 +20877,7 @@ async function renderClients(){
     // 결제상태 좌측 바 (ADMIN만)
     const statusClass = canSeeMoney ? ` cl-card-${c.payment.status}` : '';
 
-    return `<div class="cl-card${statusClass}" ${canOpenDetail ? `onclick="openClientDetail('${c.id}')"` : 'style="cursor:default"'}>
+    return `<div class="cl-card${statusClass}" data-cid="${c.id}" ${canOpenDetail ? `draggable="true" ondragstart="clDragStart(event,'${c.id}')" ondragend="clDragEnd(event)" ondragover="clDragOver(event)" ondragleave="clDragLeave(event)" ondrop="clDrop(event,'${c.id}')" onclick="clCardClick(event,'${c.id}')"` : 'style="cursor:default"'}>
       <div class="cl-card-top">
         <div class="cl-card-mini-clock">${clientClockSVG(w.start, w.end, 58, {pad:7, thick:6, color:clockColor})}</div>
         <div class="cl-card-id">
@@ -20888,9 +20902,60 @@ async function renderClients(){
     <div class="ph">클라이언트</div>
     <div class="psub">${canSeeMoney ? '고객 관리 · 작업 시간대 · 결제 · 계약' : canOpenDetail ? '고객 운영 · 작업 시간대 · PC 배정' : '고객 현황 · 작업 시간대 · PC 배정'}</div>
     ${summary}
-    ${canOpenDetail ? `<div class="cl-actions" style="margin:14px 0 2px"><button class="client-add-btn" onclick="addClientAccount()" title="${_uiLang()==='ko'?'새 클라이언트 추가':'Add new client'}">+ ${_uiLang()==='ko'?'클라이언트 추가':'Add client'}</button></div>` : ''}
+    ${canOpenDetail ? `<div class="cl-actions" style="margin:14px 0 2px;display:flex;align-items:center;gap:10px"><button class="client-add-btn" onclick="addClientAccount()" title="${_uiLang()==='ko'?'새 클라이언트 추가':'Add new client'}">+ ${_uiLang()==='ko'?'클라이언트 추가':'Add client'}</button><span style="font-size:11px;color:var(--tx3)">⠿ ${_uiLang()==='ko'?'카드를 드래그해 순서 변경':'drag cards to reorder'}</span></div>` : ''}
     <div class="cl-board">${cards}</div>
   </div>`;
+}
+
+// ── [v282] Client card drag-to-reorder (CLIENT_ACCOUNTS array order = display order) ──
+let _clDragId = null, _clJustDragged = 0;
+function clCardClick(e, id){
+  // suppress the click that fires right after a drag so we don't open the detail by accident
+  if(Date.now() - _clJustDragged < 250){ return; }
+  if(typeof openClientDetail === 'function') openClientDetail(id);
+}
+function clDragStart(e, id){
+  _clDragId = id;
+  try{ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); }catch(_){}
+  const card = e.currentTarget; if(card) card.classList.add('cl-dragging');
+}
+function clDragOver(e){
+  if(!_clDragId) return;
+  e.preventDefault();
+  try{ e.dataTransfer.dropEffect = 'move'; }catch(_){}
+  const card = e.currentTarget;
+  if(card && !card.classList.contains('cl-dragging')) card.classList.add('cl-drop-target');
+}
+function clDragLeave(e){
+  const card = e.currentTarget; if(card) card.classList.remove('cl-drop-target');
+}
+function clDragEnd(e){
+  _clJustDragged = Date.now();
+  document.querySelectorAll('.cl-card.cl-dragging,.cl-card.cl-drop-target').forEach(el => el.classList.remove('cl-dragging','cl-drop-target'));
+  _clDragId = null;
+}
+function clDrop(e, targetId){
+  e.preventDefault();
+  e.stopPropagation();
+  _clJustDragged = Date.now();
+  const fromId = _clDragId;
+  const card = e.currentTarget; if(card) card.classList.remove('cl-drop-target');
+  if(!fromId || fromId === targetId){ clDragEnd(e); return; }
+  const arr = CLIENT_ACCOUNTS;
+  const fromIdx = arr.findIndex(c => c.id === fromId);
+  if(fromIdx < 0){ clDragEnd(e); return; }
+  // decide insert position from cursor: above or below the target card's midpoint
+  let after = false;
+  if(card){ const r = card.getBoundingClientRect(); after = (e.clientY - r.top) > r.height / 2; }
+  const [moved] = arr.splice(fromIdx, 1);
+  let toIdx = arr.findIndex(c => c.id === targetId);
+  if(toIdx < 0) toIdx = arr.length;        // target vanished → append
+  if(after) toIdx += 1;
+  arr.splice(toIdx, 0, moved);
+  _clDragId = null;
+  try{ logAction('update', 'reordered clients', moved.name); }catch(_){}
+  saveClientState(true);                    // persist new order to Supabase
+  renderClients();
 }
 
 function addClientAccount(){
