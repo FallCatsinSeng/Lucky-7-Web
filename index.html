@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v288 -->
+<!-- BUILD: v289 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15470,6 +15470,11 @@ function _srInjectCSS(){
 "#sr-app .sr-live-pct.sr-ok{color:var(--gr,#4d9a8a);}",
 "#sr-app .sr-live-pct.sr-re{color:var(--re,#c46a6a);}",
 "#sr-app .sr-live-sub{font-size:11.5px;color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-live-rt{display:flex;align-items:center;gap:7px;flex-shrink:0;}",
+"#sr-app .sr-live-x{width:22px;height:22px;border-radius:6px;border:1px solid var(--br,#2c2c2b);background:transparent;color:var(--tx3,#6c6b66);font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .14s ease;padding:0;}",
+"#sr-app .sr-live-x:hover{background:var(--re,#c46a6a);border-color:var(--re,#c46a6a);color:#fff;}",
+"#sr-app .sr-hidden-reset{margin-top:8px;font-size:11px;color:var(--tx3,#6c6b66);cursor:pointer;text-align:center;padding:5px;border:1px dashed var(--br,#2c2c2b);border-radius:8px;}",
+"#sr-app .sr-hidden-reset:hover{color:var(--tx2,#989792);border-color:var(--tx3,#6c6b66);}",
 "#sr-app .sr-tbl{width:100%;border-collapse:collapse;font-size:13px;}",
 "#sr-app .sr-tbl th{text-align:left;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3,#6c6b66);font-weight:600;padding:0 8px 8px;border-bottom:1px solid var(--br,#262625);}",
 "#sr-app .sr-tbl th:not(:first-child),#sr-app .sr-tbl td:not(:first-child){text-align:right;}",
@@ -15725,6 +15730,22 @@ function _srToggleDetail(ix){
   if(c) c.textContent = open?'\u25B8':'\u25BE';
 }
 
+// [v289] Admin can "close" (dismiss) a stale "On shift now" card. On-shift status is DERIVED
+// (latest report within 2h), so there's no flag to delete — instead we remember a dismissal
+// keyed by name→report-timestamp. The card stays hidden UNTIL the person files a NEWER report
+// (then they're genuinely back on shift and reappear on their own). Saved per-admin in localStorage.
+var _srDismissed = (function(){ try{ return JSON.parse(localStorage.getItem('l7_sr_dismissed')||'{}') || {}; }catch(_){ return {}; } })();
+function _srSaveDismissed(){ try{ localStorage.setItem('l7_sr_dismissed', JSON.stringify(_srDismissed)); }catch(_){} }
+function _srIsDismissed(name, lastMs){ var d=_srDismissed[name]; return d!=null && d >= (lastMs||0); }
+function _srDismissOnShift(el){
+  if(!el) return;
+  var nm = el.getAttribute('data-nm'), ms = +el.getAttribute('data-ms')||0;
+  if(nm==null) return;
+  _srDismissed[nm] = ms;
+  _srSaveDismissed();
+  try{ renderShiftAdmin(); }catch(_){}
+}
+function _srResetDismissed(){ _srDismissed = {}; _srSaveDismissed(); try{ renderShiftAdmin(); }catch(_){} }
 async function renderShiftAdmin(){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
   _srInjectCSS();
@@ -15757,7 +15778,7 @@ async function renderShiftAdmin(){
     var _wibDate=function(off){ return new Date(Date.now()+7*3600*1000-(off||0)*86400000).toISOString().slice(0,10); };
     var _dayLbl=function(off){ if(off===0)return 'Today'; if(off===1)return 'Yesterday'; var d=new Date(Date.now()+7*3600*1000-off*86400000); return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+', '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]+' '+d.getUTCDate(); };
     var selDate=_wibDate(dayOff);  // [v257] WIB date for the chosen day (reports are stamped WIB)
-    var liveCards=[], dayRows=[];
+    var liveCards=[], dayRows=[], _srHidden=0;
 
     Object.keys(groups).forEach(function(k){
       var g=groups[k];
@@ -15795,7 +15816,7 @@ async function renderShiftAdmin(){
       });
       var tPct=tQuota>0?(tGain/tQuota*100):0;
 
-      if(onShift) liveCards.push({name:g.name,pc:latest.pc,client:latest.client,map:latest.map,lastMs:latestMs,pct:sPct,gain:sGain,hours:sHours,quota:sQuota});
+      if(onShift){ if(_srIsDismissed(g.name, latestMs)){ _srHidden++; } else { liveCards.push({name:g.name,pc:latest.pc,client:latest.client,map:latest.map,lastMs:latestMs,pct:sPct,gain:sGain,hours:sHours,quota:sQuota}); } }
       if(tHours>0) dayRows.push({name:g.name,gain:tGain,hours:tHours,pct:tPct,quota:tQuota,reports:tReports});
     });
 
@@ -15803,7 +15824,7 @@ async function renderShiftAdmin(){
     dayRows.sort(function(a,b){return b.pct-a.pct;});
 
     var liveHTML = liveCards.length ? liveCards.map(function(c){
-      return '<div class="sr-live-card"><div class="sr-live-top"><span class="sr-live-name">'+_srEsc(c.name)+'</span><span class="sr-live-ago">'+agoTxt(c.lastMs)+'</span></div>'
+      return '<div class="sr-live-card"><div class="sr-live-top"><span class="sr-live-name">'+_srEsc(c.name)+'</span><span class="sr-live-rt"><span class="sr-live-ago">'+agoTxt(c.lastMs)+'</span><button class="sr-live-x" data-nm="'+_srEsc(c.name)+'" data-ms="'+(c.lastMs||0)+'" onclick="_srDismissOnShift(this)" title="Close — remove from On shift now">\u2715</button></span></div>'
         +'<div class="sr-live-meta">🖥 PC'+_srEsc(c.pc)+' · '+_srEsc(c.client)+'  ·  📍 '+_srEsc(c.map)+'</div>'
         +'<div class="sr-live-perf"><span class="sr-live-pct '+pctCls(c.pct,c.quota)+'">'+(c.quota>0?c.pct.toFixed(0)+'%':'—')+'</span><span class="sr-live-sub">'+c.gain.toFixed(1)+'% gain · '+c.hours+'h this shift</span></div></div>';
     }).join('') : '<div class="sr-empty">No one is on shift right now.</div>';
@@ -15819,7 +15840,8 @@ async function renderShiftAdmin(){
       +'<span style="font-weight:600;color:var(--tx);min-width:132px;text-align:center;font-size:14px">'+_dayLbl(dayOff)+'</span>'
       +'<button onclick="if((window._srAdminDay||0)>0){window._srAdminDay=(window._srAdminDay||0)-1;renderShiftAdmin()}" style="'+_abtn+'cursor:'+(dayOff===0?'default':'pointer')+';opacity:'+(dayOff===0?'0.35':'1')+'">▶</button>'
       +'</div>';
-    var _live=(dayOff===0)?('<div class="sr-sec-lbl">On shift now</div><div class="sr-live-wrap">'+liveHTML+'</div>'):'';
+    var _resetLink = (_srHidden>0) ? '<div class="sr-hidden-reset" onclick="_srResetDismissed()" title="Show the cards you closed">'+_srHidden+' hidden · show all</div>' : '';
+    var _live=(dayOff===0)?('<div class="sr-sec-lbl">On shift now</div><div class="sr-live-wrap">'+liveHTML+'</div>'+_resetLink):'';
     otherView.innerHTML='<div id="sr-app"><div class="sr-card">'
       +'<div class="sr-head"><h2>Shift report · Admin</h2><span class="sr-badge">Live</span></div>'
       +'<button class="sr-btn sr-btn-out" style="margin-bottom:14px" onclick="_srTryForm()">▶ Try the report form (test)</button>'
