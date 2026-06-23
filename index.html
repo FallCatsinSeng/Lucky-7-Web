@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v294 -->
+<!-- BUILD: v295 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21296,7 +21296,7 @@ function addClientCharToAccount(accountId){
   CLIENTS.push({
     id: nextId, name: acc.name, label: '', game: 'lineage',
     char_class: 'knight', server: 'tbd', weapon: 6, armor_set: 4, armor_set_max: null,
-    level: null, hours: null, days: [1,2,3,4,5,6], startH: null, endH: null, schedule_note: ''
+    level: null, ac: null, hours: null, days: [1,2,3,4,5,6], startH: null, endH: null, schedule_note: ''
   });
   try{ logAction('create', 'added client character', acc.name); }catch(_){}
   saveClientState(true);
@@ -22188,6 +22188,11 @@ function clientEditForm(c, opts){
       <input type="number" class="num" min="1" max="99" placeholder="Lv" value="${c.level==null?'':c.level}" onchange="setClientField('${c.id}','level',this.value===''?null:+this.value)">
       <span class="suffix">Lv</span>
     </div>
+    <div class="c-form-row">
+      <label>AC</label>
+      <input type="number" class="num" step="1" placeholder="AC" value="${c.ac==null?'':c.ac}" onchange="setClientField('${c.id}','ac',this.value===''?null:+this.value)">
+      <span class="suffix">AC</span>
+    </div>
     <div class="c-form-sched">
       <div class="c-form-row">
         <label>요일</label>
@@ -22625,7 +22630,7 @@ function addClient(){
     weapon: 6,
     armor_set: 4,
     armor_set_max: null,
-    level: null,           // [v287] character level (shown in Client tab + pool)
+    level: null, ac: null,  // [v287] level, [v295] AC (armor class)
     hours: null,
     days: [1,2,3,4,5,6],   // [v277] service days (1=Mon..6=Sat, 0=Sun). default Mon–Sat
     startH: null,          // [v277] service start hour (0-23)
