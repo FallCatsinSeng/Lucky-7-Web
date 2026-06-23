@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v280 -->
+<!-- BUILD: v281 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20143,7 +20143,10 @@ function routeContent(){
     const isManager = currentUserRole === 'admin' || currentUserRole === 'op';
     pcView.classList.toggle('readonly-mode', !isManager);
     // 현재 role 반영해 허브 재렌더 — player 컨트롤(추가/✕/드래그) 즉시 숨김 (초기 진입 시 role 미반영 버그 수정)
-    if(typeof render === 'function' && typeof PCS !== 'undefined' && PCS.length){ try{ render(); }catch(err){ console.error('PC hub render error:', err); } }
+    // [v281] render even when PCS is empty — show honest 0s + empty grid instead of frozen
+    // placeholders. A slow/failed load no longer leaves the page stuck; once a clean load
+    // finishes it repopulates. Safe: savePCState() refuses to persist an empty array.
+    if(typeof render === 'function'){ try{ render(); }catch(err){ console.error('PC hub render error:', err); } }
     // 배지 텍스트 동적 변경
     const badge = pcView.querySelector('.pcs-admin-badge');
     if(badge){
@@ -21207,19 +21210,37 @@ const MAX_SLOTS = 8;
 const MAX_CLIENTS_PER_PC = 3;
 
 // ── [v111] PC persistence — whole PCS array stored as one JSON row in pc_state ──
+// [v281] CRITICAL: never mark _pcLoaded on a FAILED load. If the load errors/throws,
+// PCS stays [] and we must keep saves BLOCKED — otherwise a render-time save would
+// overwrite the real pc_state row in Supabase with an empty array (data-loss spiral).
 let _pcLoaded = false, _pcSaveTimer = null;
 async function loadPCState(){
-  if(!sb){ _pcLoaded = true; return; }
+  if(!sb){ _pcLoaded = true; return; }   // dev/no-backend: allow local-only edits
   try{
     const { data, error } = await sb.from('pc_state').select('data').eq('id','default').maybeSingle();
-    if(error){ console.warn('pc_state load failed:', error.message); toast('PC load error: ' + error.message, true); }
-    else if(data && Array.isArray(data.data)){ PCS = data.data; try{ normalizePCs(); }catch(_){} }
-  }catch(e){ console.warn('pc_state load error:', e && e.message); toast('PC load error: ' + (e&&e.message), true); }
-  _pcLoaded = true;
+    if(error){
+      console.warn('pc_state load failed:', error.message);
+      toast('PC load error: ' + error.message + ' — saves paused to protect data', true);
+      return;   // do NOT set _pcLoaded → saves blocked until a clean load
+    }
+    if(data && Array.isArray(data.data)){ PCS = data.data; try{ normalizePCs(); }catch(_){} }
+    _pcLoaded = true;   // success — including a legit empty / no-row result
+  }catch(e){
+    console.warn('pc_state load error:', e && e.message);
+    toast('PC load error: ' + (e&&e.message) + ' — saves paused to protect data', true);
+    return;   // network throw → not loaded → saves blocked
+  }
 }
-function savePCState(){
+function savePCState(allowEmpty){
   try{ pauseSync(); }catch(_){}
   if(!_pcLoaded || !sb) return;
+  // [v281] GUARD: refuse to persist an empty PCS over existing data unless this is an
+  // explicit delete-to-zero (allowEmpty === true). A transient failed/slow load leaves
+  // PCS=[], and without this guard a render or realtime push would wipe the real row.
+  if((!Array.isArray(PCS) || PCS.length === 0) && allowEmpty !== true){
+    console.warn('savePCState: refusing to write empty PCS (guard) — likely a failed load, not a real change');
+    return;
+  }
   clearTimeout(_pcSaveTimer);
   _pcSaveTimer = setTimeout(async () => {
     try{
@@ -21358,8 +21379,8 @@ function toast(m, isErr){
 // [v212] SELF-HEAL: guarantee every PC has the arrays the renderers loop over.
 // A single PC missing .assignments was crashing the entire PC-grid / timeline /
 // metrics render (silently swallowed by try/catch -> blank board, dash-only stats).
-// This mutates PCS in place; savePCState() at the end of render() then re-saves the
-// healed data back to Supabase so the bad row is permanently fixed.
+// This mutates PCS in place; the guarded savePCState() in render() persists the healed
+// data back to Supabase (it now refuses to write empty, so healing never causes data loss).
 function normalizePCs(){
   if(!Array.isArray(PCS)){ PCS = []; return; }
   PCS.forEach(p => {
@@ -21386,6 +21407,9 @@ function render(){
   try{ loadStaffPool().then(()=>{ try{ renderPCs(); if(document.getElementById('staff-pool')) renderPools(); }catch(_){} }); }catch(_){}
   try{ renderTimeline(); }catch(e){ console.warn('renderTimeline failed:', e); }
   try{ renderMetrics(); }catch(e){ console.warn('renderMetrics failed:', e); }
+  // [v281] savePCState() is now SAFE to call here: it refuses to write an empty PCS
+  // (the old data-loss bug) and is blocked entirely until a clean load sets _pcLoaded.
+  // Kept here so the many mutators that persist only via render() still save. Debounced.
   savePCState();
 }
 
@@ -22621,7 +22645,7 @@ function deletePC(id){
     }
   }catch(_){}
   try{ logAction('delete', 'deleted PC', 'PC-'+pad2(id)); }catch(_){}
-  savePCState();
+  savePCState(true);   // [v281] explicit delete-to-zero is the one case allowed to persist empty
   toast('PC-'+pad2(id)+' 삭제됨 / deleted');
   render();
 }
