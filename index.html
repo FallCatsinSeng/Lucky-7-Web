@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v284 -->
+<!-- BUILD: v285 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2896,14 +2896,14 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-col-head-r{display:flex;align-items:center;gap:11px}
 .lb-col-stat{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--tx3);font-weight:600}
 .lb-col-stat b{font-size:13px;font-weight:800}
-.lb-col-body{padding:7px;display:flex;flex-direction:column;gap:5px;min-height:100px;max-height:640px;overflow-y:auto}
+.lb-col-body{padding:7px;display:flex;flex-direction:column;gap:5px;min-height:100px}
 .lb-col-empty{font-size:10.5px;color:var(--tx4);text-align:center;padding:24px 0;font-style:italic;border:1px dashed var(--br);border-radius:9px}
 
 /* 시프트 시간 배지 (이름 옆) */
 .shift-hbadge{font-size:12px;font-weight:800;padding:1px 7px;border-radius:6px;flex-shrink:0;line-height:1.4;font-variant-numeric:tabular-nums;min-width:20px;text-align:center}
 
 /* 점수판 칸반 카드 — 컴팩트 */
-.lb-kcard{position:relative;overflow:hidden;background:var(--bg);border:1px solid var(--br);border-radius:9px;cursor:pointer;transition:border-color .14s var(--ease),box-shadow .2s var(--ease),background .14s var(--ease)}
+.lb-kcard{flex-shrink:0;position:relative;overflow:hidden;background:var(--bg);border:1px solid var(--br);border-radius:9px;cursor:pointer;transition:border-color .14s var(--ease),box-shadow .2s var(--ease),background .14s var(--ease)}
 .lb-kcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c);opacity:.9}
 .lb-kcard-empty::before{opacity:.35}
 .lb-kcard:hover{border-color:color-mix(in srgb,var(--c) 50%,var(--br));background:color-mix(in srgb,var(--c) 4%,var(--bg));box-shadow:0 3px 14px var(--glow)}
