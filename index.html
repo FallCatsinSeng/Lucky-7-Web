@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v289 -->
+<!-- BUILD: v290 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8118,15 +8118,17 @@ const CHANNEL_TREE = {
       ]
     },
     {
-      id:'op-team', name:'운영', catIcon:'flag', perms:['admin','op'],
+      // [v290] Category open to all so PC 현황 (matrix-allowed for staff/leader/player) shows here.
+      // Every OTHER channel is explicitly admin/op-locked so nothing else leaks to non-admin roles.
+      id:'op-team', name:'운영', catIcon:'flag', perms:['all'],
       channels:[
         { id:'pc-status',   name:'PC 현황',    icon:'monitor',   kind:'view', module:'pc-hub' },
-        { id:'op-daily-board',name:'일일 업무',  icon:'check',    module:'tasks', kind:'view', unread:2 },
-        { id:'op-schedule',   name:'스케줄',     icon:'calendar', module:'roster', kind:'view' },
+        { id:'op-daily-board',name:'일일 업무',  icon:'check',    module:'tasks', kind:'view', unread:2, perms:['admin','op'] },
+        { id:'op-schedule',   name:'스케줄',     icon:'calendar', module:'roster', kind:'view', perms:['admin','op'] },
         { id:'op-accounts',     name:'계정 관리',   icon:'lock',   module:'accounts',     kind:'view', perms:['admin','op'] },
         { id:'op-account-perf', name:'계정 성과',   icon:'trend',  module:'account-perf', kind:'view', perms:['admin','op'] },
         { id:'op-analytics',    name:'운영 리포트', icon:'target', module:'analytics',    kind:'view', perms:['admin','op'] },
-        { id:'op-weekly-kpi', name:'주간 KPI',   icon:'target',   kind:'view' }
+        { id:'op-weekly-kpi', name:'주간 KPI',   icon:'target',   kind:'view', perms:['admin','op'] }
       ]
     },
     {
@@ -20045,6 +20047,9 @@ function visibleTree(){
         ...cat,
         channels: cat.channels.filter(ch => ch.kind === 'divider' || (canSee(ch.perms) && matrixAllows(ch.id)))
       }))
+      // [v290] hide a category header if the role ends up with no visible channels in it
+      // (e.g. 운영 is open to all for PC 현황, but a role with PC 현황 disabled shows nothing there)
+      .filter(cat => cat.channels.some(ch => ch.kind !== 'divider'))
   };
 }
 
