@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v299 -->
+<!-- BUILD: v300 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8241,7 +8241,7 @@ async function syncRecruitsFromCloud(){
       APPLICANTS.length = 0;
       arr.forEach(a => APPLICANTS.push(a));
       // [v161] seed/refresh the tiny board row so future cold opens are fast (fire-and-forget)
-      try{ sb.from('recruit_state').upsert({ id: RECRUIT_BOARD_ID, data: _recruitStripped(), updated_at: new Date().toISOString() }); }catch(_){}
+      try{ _dbUpsert('recruit_state', RECRUIT_BOARD_ID, _recruitStripped()); }catch(_){}
     } else { console.warn('recruit_state load:', error.message); }
   }catch(e){ console.warn('recruit_state load:', e && e.message); }
 }
@@ -8257,16 +8257,69 @@ async function loadRecruitBoard(){
   }catch(e){ console.warn('recruit board load:', e && e.message); }
   return false;
 }
+// [v300] ---- shared DB write helper: kills redundant writes + backs off when the DB is struggling ----
+// Two load problems this solves:
+//   1. Render/poll-triggered saves re-upsert identical JSON many times a minute (e.g. renderClients
+//      -> saveClientState on every render). We skip a write whose data is byte-identical to the last
+//      one that actually landed, so no-op writes never reach the server.
+//   2. When the DB times out (statement timeout 57014 / lock contention / too many connections), the
+//      app used to keep firing writes and pile onto a struggling instance. We now pause ALL writes for
+//      a short, exponentially-growing window and let the next debounced save retry once it clears.
+var _dbSig = {};          // table:id -> JSON signature of the last write that succeeded
+var _dbBackoffUntil = 0;  // epoch ms; while now < this, writes are deferred
+var _dbBackoffMs = 0;     // current backoff length, doubles on repeated failure (cap 60s)
+var _dbStat = { sent:0, skipped:0, deferred:0, failed:0 };   // [v300] visibility into write reduction
+// open the browser console on the deployed site and type  _dbStats()  to confirm the fix is working:
+// "skipped" should climb fast (redundant no-op writes that never hit the DB); "sent" stays low.
+window._dbStats = function(){
+  var t = _dbStat.sent + _dbStat.skipped + _dbStat.deferred;
+  var pct = t ? Math.round(_dbStat.skipped / t * 100) : 0;
+  var backoff = (Date.now() < _dbBackoffUntil) ? ((_dbBackoffUntil - Date.now())/1000).toFixed(1)+'s left' : 'none';
+  console.log('[db writes] sent:%d  skipped(no-op):%d  deferred(backoff):%d  failed:%d  | %d%% skipped | backoff: %s',
+    _dbStat.sent, _dbStat.skipped, _dbStat.deferred, _dbStat.failed, pct, backoff);
+  return _dbStat;
+};
+async function _dbUpsert(table, id, data, onConflict){
+  var key = table + ':' + id;
+  var sig; try{ sig = JSON.stringify(data); }catch(_){ sig = null; }
+  // --- everything before the first await runs synchronously, so fire-and-forget callers skip too ---
+  if(sig != null && _dbSig[key] === sig){ _dbStat.skipped++; return { error:null, skipped:true }; }  // unchanged -> don't write
+  if(Date.now() < _dbBackoffUntil){                                              // DB is cooling down
+    if(sig != null && _dbSig[key] !== '__dirty__') _dbSig[key] = '__dirty__';   // force a retry next time
+    _dbStat.deferred++;
+    return { error:null, deferred:true };
+  }
+  var row = { id:id, data:data, updated_at:new Date().toISOString() };
+  var res;
+  try{
+    res = await (onConflict ? sb.from(table).upsert(row, { onConflict:onConflict }) : sb.from(table).upsert(row));
+  }catch(e){ res = { error:(e || { message:'upsert threw' }) }; }
+  if(res && res.error){
+    _dbStat.failed++;
+    var msg = String((res.error && (res.error.message || res.error.code)) || '');
+    if(/timeout|57014|terminat|too many|connection|deadlock|503|unavailable/i.test(msg)){
+      _dbBackoffMs = Math.min((_dbBackoffMs || 5000) * 2, 60000);   // 5s -> 10s -> 20s ... cap 60s
+      _dbBackoffUntil = Date.now() + _dbBackoffMs;
+      console.warn('[db] backing off ' + _dbBackoffMs + 'ms after: ' + msg);
+    }
+    return res;
+  }
+  _dbStat.sent++;
+  if(sig != null) _dbSig[key] = sig;   // remember what landed so we can skip identical future writes
+  _dbBackoffMs = 0; _dbBackoffUntil = 0;   // recovered
+  return res;
+}
+
 async function saveRecruits(){
   try{ pauseSync(); }catch(_){}
   if(!sb) return;
   if(_recruitLite) return;   // [v161] CRITICAL: never overwrite the real cloud copy with stripped/cache data
   try{
-    const { error } = await sb.from('recruit_state').upsert({ id:'default', data: APPLICANTS, updated_at: new Date().toISOString() });
+    const { error } = await _dbUpsert('recruit_state', 'default', APPLICANTS);
     if(error){ console.warn('recruit_state save:', error.message); toast('Applicant save FAILED: ' + error.message, true); }
     else {
       try{ _recruitCacheSave(); }catch(_){}   // [v160] keep the instant-open cache fresh
-      try{ sb.from('recruit_state').upsert({ id: RECRUIT_BOARD_ID, data: _recruitStripped(), updated_at: new Date().toISOString() }); }catch(_){}  // [v161] refresh board row
+      try{ _dbUpsert('recruit_state', RECRUIT_BOARD_ID, _recruitStripped()); }catch(_){}  // [v161] refresh board row
     }
   }catch(e){ console.warn('recruit_state save:', e && e.message); }
 }
@@ -10907,7 +10960,7 @@ async function saveOffRequests(){
   try{ sessionStorage.setItem(OFF_REQ_KEY, JSON.stringify(OFF_REQUESTS)); }catch(e){}
   if(sb){
     try{
-      const { error } = await sb.from('off_state').upsert({ id:'default', data: OFF_REQUESTS, updated_at: new Date().toISOString() });
+      const { error } = await _dbUpsert('off_state', 'default', OFF_REQUESTS);
       if(error){ console.warn('off_state save:', error.message); toast('Day-off save FAILED: ' + error.message, true); }
       _offSig = JSON.stringify((OFF_REQUESTS||[]).map(r => [r.id, r.status]).sort());  // keep poll baseline in sync
     }catch(e){ console.warn('off_state save:', e && e.message); }
@@ -11194,7 +11247,7 @@ function saveCalEvents(){
 async function pushCalTeam(arr){
   if(!sb || calScope !== 'team') return;
   try{
-    const { error } = await sb.from('calendar_state').upsert({ id:'team', data: arr, updated_at: new Date().toISOString() });
+    const { error } = await _dbUpsert('calendar_state', 'team', arr);
     if(error){ console.warn('calendar_state save:', error.message); toast('Calendar save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('calendar_state save:', e && e.message); }
 }
@@ -12031,7 +12084,7 @@ async function saveMTToCloud(){
   if(!sb) return;
   _mtSaving = true;
   try{
-    const { error } = await sb.from('mt_state').upsert({ id:'default', data:{ inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE }, updated_at:new Date().toISOString() });
+    const { error } = await _dbUpsert('mt_state', 'default', { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE });
     if(error){ console.warn('mt_state save:', error.message); toast('Board save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('mt_state save:', e && e.message); }
   finally{ setTimeout(() => { _mtSaving = false; }, 400); }
@@ -14219,7 +14272,7 @@ function saveTrustState(){
   clearTimeout(_trustSaveTimer);
   _trustSaveTimer = setTimeout(async () => {
     try{
-      const { error } = await sb.from('trust_state').upsert({ id:'default', data: TRUST_DATA, updated_at: new Date().toISOString() });
+      const { error } = await _dbUpsert('trust_state', 'default', TRUST_DATA);
       if(error){ console.warn('trust_state save failed:', error.message); toast('Trust save FAILED: ' + error.message, true); }
     }catch(e){ console.warn('trust_state save error:', e && e.message); }
   }, 600);
@@ -14494,7 +14547,7 @@ function saveSettlementState(immediate){
   clearTimeout(_settlementSaveTimer);
   const doSave = async () => {
     try{
-      const { error } = await sb.from('settlement_state').upsert({ id:'default', data:{ manual: MANUAL_PAYROLL, sheet: PAYROLL_SHEET }, updated_at: new Date().toISOString() });
+      const { error } = await _dbUpsert('settlement_state', 'default', { manual: MANUAL_PAYROLL, sheet: PAYROLL_SHEET });
       if(error){ console.warn('settlement_state save:', error.message); toast('Settlement save FAILED: ' + error.message, true); }
     }catch(e){ console.warn('settlement_state save:', e && e.message); }
     finally{ setTimeout(() => { _settlementSaving = false; }, 300); }
@@ -14840,7 +14893,7 @@ function saveExpState(){
   clearTimeout(_expSaveTimer);
   _expSaveTimer = setTimeout(async function(){
     try{
-      const { error } = await sb.from('exp_state').upsert({ id:'default', data:{ pcs: STANDARD_EXP, maps: (typeof MAP_GROUPS!=='undefined'?MAP_GROUPS:{}) }, updated_at: new Date().toISOString() });
+      const { error } = await _dbUpsert('exp_state', 'default', { pcs: STANDARD_EXP, maps: (typeof MAP_GROUPS!=='undefined'?MAP_GROUPS:{}) });
       if(error){ console.warn('exp_state save:', error.message); toast('EXP save FAILED: ' + error.message, true); }
     }catch(e){ console.warn('exp_state save:', e && e.message); }
     finally{ setTimeout(function(){ _expSaving = false; }, 300); }
@@ -16981,7 +17034,7 @@ async function saveStaffState(){
   try{ localStorage.setItem(_STAFF_STATE_KEY, JSON.stringify(payload)); }catch(_){}
   if(!sb) return;
   try{
-    const { error } = await sb.from('staff_state').upsert({ id:'default', data:payload, updated_at:new Date().toISOString() });
+    const { error } = await _dbUpsert('staff_state', 'default', payload);
     if(error){ console.warn('staff_state save:', error.message); toast('Staff info save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('staff_state save:', e && e.message); }
 }
@@ -18054,7 +18107,7 @@ async function saveAnnouncements(){
   if(!sb) return;
   _annSaving = true;
   try{
-    const { error } = await sb.from('announce_state').upsert({ id:'default', data:ANNOUNCEMENTS, updated_at:new Date().toISOString() });
+    const { error } = await _dbUpsert('announce_state', 'default', ANNOUNCEMENTS);
     if(error){ console.warn('announce_state save:', error.message); toast('Notice save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('announce_state save:', e && e.message); }
   finally{ setTimeout(() => { _annSaving = false; }, 400); }
@@ -18496,7 +18549,7 @@ async function flushLogs(){
     if(merged.length > LOG_CAP) merged = merged.slice(0, LOG_CAP);
     LOG_DATA = merged;
     _logSig = JSON.stringify(LOG_DATA);
-    const { error } = await sb.from('log_state').upsert({ id:'default', data: LOG_DATA, updated_at: new Date().toISOString() });
+    const { error } = await _dbUpsert('log_state', 'default', LOG_DATA);
     if(error){ console.warn('log_state save:', error.message); }
   }catch(e){ console.warn('log_state save:', e && e.message); }
   finally{ setTimeout(() => { _logSaving = false; }, 300); }
@@ -19578,7 +19631,7 @@ async function savePermState(){
   try{ localStorage.setItem('lucky7_perm_state', JSON.stringify(payload)); }catch(_){}
   if(!sb) return;
   try{
-    const { error } = await sb.from('perm_state').upsert({ id:'default', data:payload, updated_at:new Date().toISOString() });
+    const { error } = await _dbUpsert('perm_state', 'default', payload);
     if(error){ console.warn('perm_state save (Supabase):', error.message); }
   }catch(e){ console.warn('perm_state save:', e && e.message); }
 }
@@ -20717,7 +20770,7 @@ function saveClientState(immediate){
   clearTimeout(_clientSaveTimer);
   const doSave = async () => {
     try{
-      const { error } = await sb.from('client_state').upsert({ id:'default', data:{ accounts: CLIENT_ACCOUNTS, pool: CLIENTS }, updated_at: new Date().toISOString() });
+      const { error } = await _dbUpsert('client_state', 'default', { accounts: CLIENT_ACCOUNTS, pool: CLIENTS });
       if(error){ console.warn('client_state save:', error.message); toast('Client save FAILED: ' + error.message, true); }
     }catch(e){ console.warn('client_state save:', e && e.message); }
     finally{ setTimeout(() => { _clientSaving = false; }, 300); }
@@ -21550,7 +21603,7 @@ function savePCState(allowEmpty){
   clearTimeout(_pcSaveTimer);
   _pcSaveTimer = setTimeout(async () => {
     try{
-      const { error } = await sb.from('pc_state').upsert({ id:'default', data: PCS, updated_at: new Date().toISOString() });
+      const { error } = await _dbUpsert('pc_state', 'default', PCS);
       if(error){ console.warn('pc_state save failed:', error.message); toast('PC save FAILED: ' + error.message, true); }
     }catch(e){ console.warn('pc_state save error:', e && e.message); toast('PC save error: ' + (e&&e.message), true); }
   }, 400);
