@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v298 -->
+<!-- BUILD: v299 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15272,6 +15272,49 @@ async function _srPutCalc(key,arr){ var r=await _srFetchRetry(_SR_SERVER+'/api/c
 // [v268] Append new items server-side — sends only the NEW records (small body, no size limit) instead of
 // re-uploading the whole reports array. Faster, and avoids the Express 100KB body cap that was blocking saves.
 async function _srAppendCalc(key,items){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key+'/append',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})}); return {ok:r.ok, status:r.status}; }
+// [v299] Push ERP character gear into the REPORT system's client list, so the bot's report shows
+// Class/Weapon/Armor/AC (it reads job/sword/armor/ac from that list, not the ERP editor's store).
+// SAFE BY DESIGN: it fetches the current list, fills ONLY the gear fields on each matching client
+// (matched by name), and leaves maps / no / pc / everything else untouched. If it can't reach the
+// server it aborts without writing — it never pushes a blank list.
+var _SR_CLASS_EN={knight:'Knight',mage:'Magician',wizard:'Magician',lord:'Royal',prince:'Royal',royal:'Royal',fairy:'Elf',elf:'Elf',darkelf:'Dark Elf',warrior:'Warrior',illusionist:'Illusionist',dragonknight:'Dragon Knight'};
+function _srClassEN(code){ var k=String(code||'').toLowerCase().trim(); if(_SR_CLASS_EN[k]) return _SR_CLASS_EN[k]; return code?(String(code).charAt(0).toUpperCase()+String(code).slice(1)):''; }
+var _srGearSyncTimer=null;
+function _srScheduleGearSync(){ clearTimeout(_srGearSyncTimer); _srGearSyncTimer=setTimeout(function(){ _srSyncGearToReport(); }, 2500); }
+async function _srSyncGearToReport(){
+  try{
+    if(typeof CLIENTS==='undefined' || !CLIENTS || !CLIENTS.length) return;
+    var gearBy={};
+    CLIENTS.forEach(function(c){
+      var nm=String(c.name||'').trim(); if(!nm) return;
+      gearBy[nm]={
+        job:_srClassEN(c.char_class),
+        sword:(c.weapon!=null&&c.weapon!=='')?c.weapon:'',
+        armor:(c.armor_set!=null&&c.armor_set!=='')?c.armor_set:'',
+        ac:(c.ac!=null&&c.ac!=='')?c.ac:''
+      };
+    });
+    var rc;
+    try{ rc=await _srGetCalc('clients'); }catch(e){ return; }   // can't reach server — abort, never push blind
+    if(!Array.isArray(rc)) return;
+    var seen={};
+    rc.forEach(function(e){
+      var nm=String(e.name||'').trim(); if(!nm||!gearBy[nm]) return;
+      var g=gearBy[nm];
+      if(g.job!=='')   e.job=g.job;     // only fill gear fields; maps / no / pc stay exactly as they were
+      if(g.sword!=='') e.sword=g.sword;
+      if(g.armor!=='') e.armor=g.armor;
+      if(g.ac!=='')    e.ac=g.ac;
+      seen[nm]=true;
+    });
+    Object.keys(gearBy).forEach(function(nm){
+      if(seen[nm]) return;
+      var g=gearBy[nm];
+      rc.push({ name:nm, job:g.job, sword:g.sword, armor:g.armor, ac:g.ac });   // new client — gear only, maps added later via Manage Maps
+    });
+    await _srPutCalc('clients', rc);
+  }catch(e){}
+}
 async function _srPostCard(type,fields,shot){
   function mk(){ var fd=new FormData(); fd.append('type',type); fd.append('fields',JSON.stringify(fields)); if(shot) fd.append('screenshot',shot,(shot.name||'screenshot.png')); return fd; }
   // The server now posts synchronously with its own retry-after handling and returns the real result, so we
@@ -20923,6 +20966,8 @@ async function renderClients(){
   if(!otherView) return;
   // [v154] pull shared clients on first open
   if(sb && !_clientSynced){ await syncClientStateFromCloud(); }
+  // [v299] keep the report system's client gear in step with the ERP whenever an admin opens this page
+  if(typeof _srScheduleGearSync==='function'){ var _r=(typeof currentUserRole!=='undefined')?currentUserRole:''; if(_r==='admin'||_r==='op'){ _srScheduleGearSync(); } }
   // [v179] mirror any named pool clients into the Client page so both views stay in sync
   if(syncClientBridge()) saveClientState(true);
   // 권한 — PLAYER/STAFF는 접근 불가, 돈/계약은 ADMIN만, OP는 운영 정보만
@@ -22736,6 +22781,8 @@ function setClientField(cid, field, val){
     }
   }
   saveClientState();   // [v154] debounced — persists pool field edits
+  // [v299] push gear edits into the report system's client list so the bot's report shows them
+  if(field==='char_class'||field==='weapon'||field==='armor_set'||field==='ac'||field==='name'||field==='label'){ if(typeof _srScheduleGearSync==='function') _srScheduleGearSync(); }
 }
 function unassignStaff(pcId, idx){
   const p = PCS.find(x=>x.id===pcId);
