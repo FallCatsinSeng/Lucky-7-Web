@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v296 -->
+<!-- BUILD: v298 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15285,7 +15285,7 @@ async function _srPostCard(type,fields,shot){
 function _srFields(name,pc,gear,ps,pe,map,prevLv,prevExp,lv,exp,prevAde,ade,note,date){
   var no=gear.no;
   return { clientNo:no, nickname:name, clientNoLabel:(no!=null?no+' ':'')+(name||''),
-    pc:pc, lv:lv, class:gear.classJob||'', threadId:(_srSession?_srSession.threadId:_srThread()),
+    pc:pc, lv:lv, class:gear.classJob||'', threadId:((_srSession&&_srSession.threadId)?_srSession.threadId:_srThread()),
     weapon:(gear.weapon!=null&&gear.weapon!=='')?('+'+gear.weapon):'', armor:(gear.armor!=null&&gear.armor!=='')?('+'+gear.armor):'', ac:(gear.ac!=null&&gear.ac!=='')?gear.ac:'',
     playStart:ps, playEnd:pe, map:map, exp:exp, prevExp:prevExp, prevLv:prevLv,
     adena:ade, prevAdena:prevAde, potion:0, drop:0, dead:0, note:note||'', date:date };
@@ -15313,7 +15313,7 @@ async function _srSubmitReport(kind,screen){
     function mkRec(o){
       var r={ id:'rpt-'+(base+newRecs.length), createdAt:base+newRecs.length,
         booster:(sess?sess.booster:_srBooster()), client:name, no:gear.no, pc:pc,
-        threadId:(sess?sess.threadId:_srThread()), weapon:gear.weapon, armor:gear.armor, ac:gear.ac, classJob:gear.classJob,
+        threadId:((sess&&sess.threadId)?sess.threadId:_srThread()), weapon:gear.weapon, armor:gear.armor, ac:gear.ac, classJob:gear.classJob,
         date:date, map:mapFull, dead:0, potion:0, drop:0, note:'' };
       for(var k in o) r[k]=o[k]; return r;
     }
@@ -15761,8 +15761,11 @@ function _srDismissOnShift(el){
   try{ renderShiftAdmin(); }catch(_){}
 }
 function _srResetDismissed(){ _srDismissed = {}; _srSaveDismissed(); try{ renderShiftAdmin(); }catch(_){} }
-async function renderShiftAdmin(){
+async function renderShiftAdmin(silent){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
+  // [v298] silent = background refresh: keep the current view + scroll, no loading flash, no error wipe
+  var _srKeepTop = silent ? (otherView.scrollTop||0) : 0;
+  var _srKeepWin = silent ? (window.scrollY||document.documentElement.scrollTop||0) : 0;
   _srInjectCSS();
   var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
   var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
@@ -15786,7 +15789,7 @@ async function renderShiftAdmin(){
   var agoTxt=function(ms){ if(!ms) return '—'; var s=Math.max(0,Date.now()-ms), m=Math.floor(s/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; var h=Math.floor(m/60); return h+'h '+(m%60)+'m ago'; };
   var pctCls=function(pct,quota){ if(!(quota>0)) return ''; return pct>=100?'sr-ok':(pct>=70?'':'sr-re'); };
 
-  otherView.innerHTML='<div id="sr-app"><div class="sr-card"><div class="sr-head"><h2>Shift report</h2><span class="sr-badge">Live</span></div><div class="sr-admin-load">⟳ loading shift data…</div></div></div>';
+  if(!silent) otherView.innerHTML='<div id="sr-app"><div class="sr-card"><div class="sr-head"><h2>Shift report</h2><span class="sr-badge">Live</span></div><div class="sr-admin-load">⟳ loading shift data…</div></div></div>';
 
   try{
     var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
@@ -15873,7 +15876,9 @@ async function renderShiftAdmin(){
       +_dn+_live
       +'<div class="sr-sec-lbl"'+(_live?' style="margin-top:22px"':'')+'>'+_dayLbl(dayOff)+'</div>'+todayHTML
       +'</div></div>';
+    if(silent){ try{ otherView.scrollTop=_srKeepTop; window.scrollTo(0,_srKeepWin); }catch(_){} }
   }catch(e){
+    if(silent) return;   // [v298] background refresh failed — keep the current view, don't flash an error
     otherView.innerHTML='<div id="sr-app"><div class="sr-card"><div class="sr-head"><h2>Shift report</h2></div>'
       +'<button class="sr-btn sr-btn-out" style="margin-bottom:18px" onclick="_srTryForm()">ADMIN</button>'
       +'<div class="sr-empty">Couldn\'t load shift data right now.</div></div></div>';
@@ -18974,6 +18979,21 @@ async function pollSyncAll(){
     () => { try{ renderSidebar(); }catch(_){} if(mod() === 'perms'){ try{ renderPerms(); }catch(_){} } });
 }
 
+// [v298] Live Shift-report refresh — silently re-pull the admin dashboard so new booster reports
+// appear without a hard refresh. Never fires while a booster is filling the form (would wipe input)
+// or while any field is focused. Silent mode keeps scroll and shows no loading flash.
+async function pollShiftView(){
+  if(!currentUser) return;
+  var ch=(typeof findChannelById==='function')?findChannelById(activeChannelId):null;
+  var mod=ch?ch.module:null;
+  if(mod!=='calc-embed') return;
+  var ae=document.activeElement;
+  if(ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable)) return;
+  var role=(typeof currentUserRole!=='undefined')?currentUserRole:'player';
+  var adminRole=(role==='admin'||role==='op'||(currentUser&&currentUser.role==='hr'));
+  if(!(adminRole && !window._srForceForm)) return;   // booster / form view — never auto-refresh
+  try{ await renderShiftAdmin(true); }catch(_){}
+}
 function startPresence(){
   if(_presenceTimer) clearInterval(_presenceTimer);
   pingPresence();                                      // render immediately
@@ -19029,14 +19049,19 @@ function startPresence(){
   if(_syncAllTimer) clearInterval(_syncAllTimer);
   pollSyncAll();
   _syncAllTimer = setInterval(pollSyncAll, 90*1000);
+  // [v298] live Shift-report dashboard refresh (admin view only; silent, so no flash and never wipes the form)
+  if(_shiftPollTimer) clearInterval(_shiftPollTimer);
+  pollShiftView();
+  _shiftPollTimer = setInterval(pollShiftView, 60*1000);
 }
 let _calPollTimer = null;
 let _syncAllTimer = null; // [v213] FIX: was used in startPresence (read at if(_syncAllTimer)) but never declared — the ReferenceError was killing the entire boot sequence before PCs/render ran, leaving a blank board.
+let _shiftPollTimer = null; // [v298] live Shift-report dashboard refresh timer
 // [v243] stop every poll timer — called when the tab is hidden so background tabs stop querying Supabase
 function stopPolling(){
-  [_presenceTimer,_offTimer,_recruitPurgeTimer,_mtPollTimer,_attPollTimer,_annPollTimer,_logPollTimer,_clientPollTimer,_expPollTimer,_calPollTimer,_syncAllTimer]
+  [_presenceTimer,_offTimer,_recruitPurgeTimer,_mtPollTimer,_attPollTimer,_annPollTimer,_logPollTimer,_clientPollTimer,_expPollTimer,_calPollTimer,_syncAllTimer,_shiftPollTimer]
     .forEach(t => { if(t) clearInterval(t); });
-  _presenceTimer=_offTimer=_recruitPurgeTimer=_mtPollTimer=_attPollTimer=_annPollTimer=_logPollTimer=_clientPollTimer=_expPollTimer=_calPollTimer=_syncAllTimer=null;
+  _presenceTimer=_offTimer=_recruitPurgeTimer=_mtPollTimer=_attPollTimer=_annPollTimer=_logPollTimer=_clientPollTimer=_expPollTimer=_calPollTimer=_syncAllTimer=_shiftPollTimer=null;
 }
 async function pollCalendarSync(){
   if(!currentUser) return;
