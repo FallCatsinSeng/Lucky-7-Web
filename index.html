@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v301 -->
+<!-- BUILD: v302 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15294,20 +15294,38 @@ function _srRecapHTML(d,calc){
     +'<div class="sr-rrow"><span class="sr-rl">Adena</span><span class="sr-rv">'+_srEsc(d.adena)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Screenshot</span>'+shot+'</div>';
 }
+// [v302] Flag an implausible one-hour adena jump (almost always a mistyped extra digit). Non-blocking:
+// the booster can confirm past it if the number really is right. Tuned so normal play never trips it —
+// only a 1M+ absolute jump, or a 6x+ jump from a meaningful base (e.g. 112,676 → 1,123,674), warns.
+function _srAdenaTypo(prevAde, endAde){
+  var p=Number(prevAde)||0, e=Number(endAde)||0, gain=e-p;
+  if(gain<=0) return false;
+  if(gain>=1000000) return true;
+  if(p>=5000 && e>=p*6) return true;
+  return false;
+}
+function _srNum(n){ n=Math.round(Number(n)||0); return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 function _srReview(which){
   var d=_srReadScreen(which);
   var ending=(which==='checkout')||(_srWinEnd>=_srShiftEndH);
   var prev=_srPrev();
   var calc = (d.expRaw!=null && prev) ? _srApplyExp(prev.lv,prev.exp,d.expRaw) : null;
+  var endAdeR=parseFloat(d.adena); if(isNaN(endAdeR)) endAdeR=(prev?prev.adena:0);
+  var adenaTypo = !!(prev && _srAdenaTypo(prev.adena, endAdeR));   // [v302] suspicious adena jump
   document.getElementById('sr-sheet-title').textContent=ending?'Check out — is this right?':'Submit report — is this right?';
   var warn='', block=false;
   if(calc && !calc.valid){ warn+='<div class="sr-warn">⚠ '+_srEsc(calc.error)+'</div>'; block=true; }
   else if(calc && calc.typo){ warn+='<div class="sr-warn">⚠ This jumps '+calc.gain.toFixed(1)+'% in one report — that usually means a typo. Double-check the EXP. If it really is right, confirm below.</div>'; }
+  if(adenaTypo){ warn+='<div class="sr-warn">⚠ Adena jumps '+_srNum(prev.adena)+' → '+_srNum(endAdeR)+' (+'+_srNum(endAdeR-prev.adena)+') in one hour — that usually means a mistyped digit. Double-check it. If it really is right, confirm below.</div>'; }
   if(!d.shot){ warn+='<div class="sr-warn">⚠ Add a screenshot before you submit</div>'; block=true; }
-  var ovr = (calc&&calc.typo&&d.shot&&!block) ? '<label class="sr-ovr"><input type="checkbox" onchange="document.getElementById(\'sr-confirm\').disabled=!this.checked"> I\'ve double-checked — the EXP is correct</label>' : '';
+  var expTypo=!!(calc&&calc.typo), needConfirm=expTypo||adenaTypo;
+  var ovrLabel = (expTypo&&adenaTypo) ? "I've double-checked — the EXP and adena are correct"
+               : expTypo ? "I've double-checked — the EXP is correct"
+               : "I've double-checked — the adena is correct";
+  var ovr = (needConfirm&&d.shot&&!block) ? '<label class="sr-ovr"><input type="checkbox" onchange="document.getElementById(\'sr-confirm\').disabled=!this.checked"> '+ovrLabel+'</label>' : '';
   document.getElementById('sr-recap').innerHTML=_srRecapHTML(d,calc)+warn+ovr;
   var cb=document.getElementById('sr-confirm'); cb.textContent=ending?'Yes, check out':'Yes, submit';
-  cb.disabled = block || (calc&&calc.typo);
+  cb.disabled = block || needConfirm;
   _srOnOk=(function(end,scr){ return function(){ return _srFinishSubmit(end?'checkout':'update', scr); }; })(ending, which);
   document.getElementById('sr-scrim').style.display='';
   document.getElementById('sr-sheet').style.display='';
@@ -15431,6 +15449,28 @@ async function _srSubmitReport(kind,screen){
     catch(e){ _srToast("Can't reach the report server — try again"); return false; }
     var cc=_srCalcClient(clients,name)||{};
     var gear={ no:(cc.no!=null?cc.no:pc), weapon:cc.sword, armor:cc.armor, ac:cc.ac, classJob:cc.job };
+    // [v302] Read gear STRAIGHT from the ERP client. This form runs inside the ERP, so CLIENTS is already
+    // loaded. The previous path depended on a background sync into the report-server 'clients' list that only
+    // ran when an admin opened the Clients page and matched by exact name — which is why Class/Weapon/Armor/AC
+    // kept showing "-". Here we find the actual character on THIS pc (so the same client name on two PCs can
+    // carry different gear), fall back to any name match, then overlay whatever the editor has set.
+    try{
+      var _erpC=null, _nmT=String(name||'').trim();
+      if(typeof PCS!=='undefined' && PCS && typeof clientById==='function'){
+        var _pp=PCS.find(function(p){ return String(p.id)===String(pc); });
+        if(_pp && _pp.clients){ for(var _i=0;_i<_pp.clients.length;_i++){ var _cd=clientById(_pp.clients[_i]); if(_cd && String(_cd.name||'').trim()===_nmT){ _erpC=_cd; break; } } }
+      }
+      if(!_erpC && typeof CLIENTS!=='undefined' && CLIENTS){
+        _erpC = CLIENTS.find(function(x){ return String(x.name||'').trim()===_nmT && (x.char_class||x.weapon!=null||x.armor_set!=null||x.ac!=null); })
+             || CLIENTS.find(function(x){ return String(x.name||'').trim()===_nmT; }) || null;
+      }
+      if(_erpC){
+        if(_erpC.char_class)                                gear.classJob=_srClassEN(_erpC.char_class);
+        if(_erpC.weapon!=null && _erpC.weapon!=='')         gear.weapon=_erpC.weapon;
+        if(_erpC.armor_set!=null && _erpC.armor_set!=='')   gear.armor=_erpC.armor_set;
+        if(_erpC.ac!=null && _erpC.ac!=='')                 gear.ac=_erpC.ac;
+      }
+    }catch(e){}
     var base=Date.now(), newRecs=[], cardFields, cardType;
     function mkRec(o){
       var r={ id:'rpt-'+(base+newRecs.length), createdAt:base+newRecs.length,
