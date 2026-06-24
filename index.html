@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v300 -->
+<!-- BUILD: v301 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15100,12 +15100,14 @@ var _SR_SHIFTS=[
   {name:'Night · 8h (3)', time:'01:00 → 09:00', s:1, e:9}
 ];
 var _srShiftStartH=7, _srShiftEndH=19, _srWinStart=7, _srWinEnd=8, _srPlayStartH=7, _srOnOk=null;
+var _srCoStart=18, _srCoEnd=19;   // [v301] editable checkout "final stretch" window (WIB hours)
 
 function _srGo(name){
   ['checkin','update','checkout'].forEach(function(k){
     var el=document.getElementById('sr-s-'+k); if(el) el.style.display=(k===name)?'':'none';
     var st=document.getElementById('sr-step-'+k); if(st) st.classList.toggle('on',k===name);
   });
+  if(name==='checkout') _srSyncCheckout();   // [v301] seed the editable final-stretch window from where the updates left off
   _srCloseDD();
 }
 function _srToast(m){ if(typeof toast==='function'){ try{ toast(m); }catch(e){} } }
@@ -15158,6 +15160,30 @@ function _srRenderWin(){
 function _srBump(which,d){
   var ns=_srWinStart+d; if(ns>=0&&ns<_srShiftEndH){ _srWinStart=ns; _srWinEnd=ns+1; }
   _srRenderWin();
+}
+// [v301] ---- editable checkout "final stretch" ----
+// The final report covers whatever hours are left between where the hourly updates stopped
+// (_srWinStart) and the shift end (_srShiftEndH). Boosters can now nudge BOTH ends with −/+,
+// e.g. the shift ran long, they logged in late, or several hours are being submitted at once.
+function _srSyncCheckout(){
+  _srCoStart=_srWinStart; _srCoEnd=_srShiftEndH;
+  if(_srCoEnd<=_srCoStart){ _srCoStart=_srCoEnd-1; }   // updates already reached the end → default to a 1-hour stretch
+  if(_srCoStart<0){ _srCoStart=0; if(_srCoEnd<=0) _srCoEnd=1; }
+  _srRenderCheckout();
+}
+function _srRenderCheckout(){
+  var a=document.getElementById('sr-co-s'), b=document.getElementById('sr-co-e');
+  if(a) a.textContent=_srPad(_srCoStart);
+  if(b) b.textContent=_srPad(_srCoEnd);
+  var k=document.getElementById('sr-co-kst'); if(k) k.innerHTML=_srKST(_srCoStart)+' \u2192 '+_srKST(_srCoEnd)+'<br>KST';
+  var n=Math.max(1,_srCoEnd-_srCoStart);
+  var nEl=document.getElementById('sr-co-n'); if(nEl) nEl.textContent=n+' hr'+(n>1?'s':'');
+  var cap=document.getElementById('sr-co-cap'); if(cap) cap.textContent = (n>1) ? ('\u00b7 gain split evenly across '+n+' hours') : '\u00b7 full gain, no split';
+}
+function _srBumpCo(which,d){
+  if(which==='s'){ var ns=_srCoStart+d; if(ns>=0 && ns<_srCoEnd) _srCoStart=ns; }
+  else { var ne=_srCoEnd+d; if(ne>_srCoStart && ne<=_srCoStart+12) _srCoEnd=ne; }   // cap a final stretch at 12h
+  _srRenderCheckout();
 }
 function _srCheckEnd(){
   var ending=_srWinEnd>=_srShiftEndH;
@@ -15425,7 +15451,8 @@ async function _srSubmitReport(kind,screen){
       if(!calc.valid){ _srToast(calc.error); return false; }
       var endAde=parseFloat(d.adena); if(isNaN(endAde)) endAde=prev.adena;
       var nt2=_srNote(screen);
-      var ws=_srWinStart, we=(kind==='checkout'&&screen==='checkout')?_srShiftEndH:_srWinEnd, N=Math.max(1,we-ws);
+      var _co=(kind==='checkout'&&screen==='checkout');   // [v301] dedicated final-report screen uses the editable window
+      var ws=_co?_srCoStart:_srWinStart, we=_co?_srCoEnd:_srWinEnd, N=Math.max(1,we-ws);
       var startVal=prev.lv*100+prev.exp, endVal=calc.lv*100+calc.exp;
       for(var k=1;k<=N;k++){
         var vB=startVal+(endVal-startVal)*((k-1)/N), vA=startVal+(endVal-startVal)*(k/N);
@@ -15671,7 +15698,7 @@ function _srBuildHTML(){
   +'<div class="sr-s" id="sr-s-checkout" style="display:none;">'
   +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span><span class="sr-chip">📍 <span data-sr-map>'+_srEsc(firstMapLabel)+'</span></span></div>'
   +  '<p class="sr-sub">Final report — captures whatever hours are left in the shift</p>'
-  +  '<div class="sr-row"><label class="sr-lab">Final stretch</label><div class="sr-tbox">🕐 <span class="sr-t">18:00</span><span class="sr-arr">→</span><span class="sr-t">19:00</span><span class="sr-auto">shift end<br>tap to adjust</span></div><div class="sr-split"><span class="sr-cap">saved as</span><span class="sr-sc">19:00</span><span class="sr-cap">· 1 hour left → full gain, no split</span></div></div>'
+  +  '<div class="sr-row"><label class="sr-lab">Final stretch</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBumpCo(\'s\',-1)">−</button><span class="sr-t" id="sr-co-s">18:00</span><button onclick="_srBumpCo(\'s\',1)">+</button></span><span class="sr-arr">→</span><span class="sr-tstep"><button onclick="_srBumpCo(\'e\',-1)">−</button><span class="sr-t" id="sr-co-e">19:00</span><button onclick="_srBumpCo(\'e\',1)">+</button></span><span class="sr-auto" id="sr-co-kst">20:00 → 21:00<br>KST</span></div><div class="sr-split"><span class="sr-sc" id="sr-co-n">1 hr</span><span class="sr-cap" id="sr-co-cap">· full gain, no split</span></div></div>'
   +  _srExpRow('','live','checkout')
   +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
