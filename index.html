@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v302 -->
+<!-- BUILD: v303 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8374,6 +8374,12 @@ function _recruitBgRefresh(){
 }
 
 let openApplicantId = null;
+// [v303] guards so editing an applicant's fields doesn't wipe what you're typing:
+//  _apEditing      — true while a field edit is updating the board, so renderRecruit() leaves the open panel alone
+//  _recruitDirtyUntil — grace window during which the live poll won't replace APPLICANTS with the server copy
+//                     (covers a slow/retried save so it can't revert your edit mid-entry)
+let _apEditing = false;
+let _recruitDirtyUntil = 0;
 let recruitStageFilter = 'all';
 let recruitSpecFilter = 'all';
 let recruitViewMode = 'kanban';
@@ -9047,8 +9053,9 @@ async function renderRecruit(){
     ${rejectHTML}
   </div>`;
   document.getElementById('ch-other').innerHTML = html;
-  // 후보 상세 패널이 열려있다면 갱신
-  if(openApplicantId) renderApplicantPanel();
+  // 후보 상세 패널이 열려있다면 갱신 — but NOT while a field edit is in flight, or we'd destroy the
+  // input the user is typing in (and any half-typed value in a sibling field). [v303]
+  if(openApplicantId && !_apEditing) renderApplicantPanel();
 }
 
 function setRecruitFilter(kind, val){
@@ -9100,9 +9107,11 @@ function setApplicantSpec(id, field, value){
   else if(field === 'down' || field === 'up'){ if(!a.pc_spec.wifi) a.pc_spec.wifi = {}; const n = parseFloat(String(value).replace(/[^0-9.]/g,'')); a.pc_spec.wifi[field] = isNaN(n) ? '' : n; }
   else if(field === 'status'){ a.spec_status = value; }
   try{ logAction('update', 'edited PC spec', a.name); }catch(_){}
+  _recruitDirtyUntil = Date.now() + 20000;   // [v303] hold the poll off this record while the save settles
   saveRecruits();
-  renderApplicantPanel();
-  renderRecruit();
+  // [v303] Do NOT rebuild the panel — the inputs already show what you typed, and a rebuild kills the
+  // field you just left. Only refresh the board (status/name badges), with the panel left untouched.
+  _apEditing = true; try{ renderRecruit(); }catch(_){} _apEditing = false;
 }
 // [v206] edit hometown / age / source from the applicant panel header
 function setApplicantInfo(id, field, value){
@@ -9118,9 +9127,10 @@ function setApplicantInfo(id, field, value){
   }
   else a[field] = value;
   try{ logAction('update', 'edited applicant info (' + field + ')', a.name); }catch(_){}
+  _recruitDirtyUntil = Date.now() + 20000;   // [v303] hold the poll off while the save settles
   saveRecruits();
-  renderApplicantPanel();
-  renderRecruit();
+  // [v303] board only — don't rebuild the panel mid-typing (would wipe the field you just left)
+  _apEditing = true; try{ renderRecruit(); }catch(_){} _apEditing = false;
 }
 function setApplicantShift(id, shift){
   const a = APPLICANTS.find(x => x.id === id);
@@ -9128,9 +9138,9 @@ function setApplicantShift(id, shift){
   a.applied_shift = shift || '';
   const lbl = shift && APPLY_SHIFTS[shift] ? (APPLY_SHIFTS[shift].group + ' ' + APPLY_SHIFTS[shift].name) : '(cleared)';
   try{ logAction('update', 'set applied shift → ' + lbl, a.name); }catch(_){}
+  _recruitDirtyUntil = Date.now() + 20000;   // [v303]
   saveRecruits();
-  renderApplicantPanel();
-  renderRecruit();
+  _apEditing = true; try{ renderRecruit(); }catch(_){} _apEditing = false;
 }
 function renderApplicantPanel(){
   const a = APPLICANTS.find(x => x.id === openApplicantId);
@@ -19102,7 +19112,7 @@ function _syncBusyUI(){
   if(document.querySelector('.dragging, .ts-dragging, .sf-dragging, .tl-bar.dragging, .ap-dragging')) return true;          // mid-drag
   return false;
 }
-async function _pullShared(table, applyFn, rerenderFn){
+async function _pullShared(table, applyFn, rerenderFn, skipIf){
   if(!sb || !currentUser) return;
   try{
     const { data, error } = await sb.from(table).select('data').eq('id','default').maybeSingle();
@@ -19112,6 +19122,7 @@ async function _pullShared(table, applyFn, rerenderFn){
     if(!(table in _pullSig)){ _pullSig[table] = sig; return; }  // first sight = baseline (boot already loaded current data)
     if(Date.now() < _syncPausedUntil) return;           // we just saved — let it settle, retry next tick
     if(_syncBusyUI()) return;                            // user is mid-edit — retry next tick (don't update sig)
+    if(skipIf && skipIf()) return;                       // [v303] per-table hold (e.g. a recruit edit still settling) — retry next tick without advancing the sig
     _pullSig[table] = sig;
     try{ applyFn(data.data); }catch(_){}
     try{ rerenderFn(); }catch(_){}
@@ -19135,7 +19146,8 @@ async function pollSyncAll(){
   // Recruiting (applicants + their specs/info edits)
   await _pullShared('recruit_state',
     d => { if(Array.isArray(d)){ APPLICANTS.length = 0; d.forEach(a => APPLICANTS.push(a)); } },
-    () => { if(mod() === 'recruit'){ try{ renderRecruit(); }catch(_){} } if(typeof openApplicantId !== 'undefined' && openApplicantId){ try{ renderApplicantPanel(); }catch(_){} } });
+    () => { if(mod() === 'recruit'){ try{ renderRecruit(); }catch(_){} } if(typeof openApplicantId !== 'undefined' && openApplicantId){ try{ renderApplicantPanel(); }catch(_){} } },
+    () => Date.now() < _recruitDirtyUntil);   // [v303] don't clobber an applicant edit that's still saving
   // Permissions matrix + player-leaders + capabilities (drives sidebar visibility live)
   await _pullShared('perm_state',
     d => { if(typeof _applyPermPayload === 'function') _applyPermPayload(d); },
