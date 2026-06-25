@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v307 -->
+<!-- BUILD: v308 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v307';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v308';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15768,7 +15768,29 @@ function _srInjectCSS(){
 "#sr-app .sr-shot-prev img{max-width:100%;max-height:170px;border-radius:9px;border:1px solid var(--br2,#33332f);display:block;}",
 "#sr-sheet .sr-ovr{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--tx2,#989792);margin-top:14px;cursor:pointer;}",
 "#sr-sheet .sr-ovr input{width:16px;height:16px;flex:none;}",
-"#sr-app .sr-btn:disabled,#sr-sheet .sr-btn:disabled{opacity:.45;cursor:not-allowed;filter:none;}"
+"#sr-app .sr-btn:disabled,#sr-sheet .sr-btn:disabled{opacity:.45;cursor:not-allowed;filter:none;}",
+"#sr-app .sr-rec-card{margin-top:16px;}",
+"#sr-app .sr-badge-lock{background:var(--bg-i,#202020);color:var(--tx3,#6c6b66);border:1px solid var(--br,#2c2c2b);font-size:9.5px;padding:3px 8px;border-radius:6px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;}",
+"#sr-app .sr-rec-sub{font-size:11.5px;color:var(--tx3,#6c6b66);margin:-6px 0 14px;line-height:1.4;}",
+"#sr-app .sr-rec-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:11px;-webkit-overflow-scrolling:touch;}",
+"#sr-app .sr-rec-tabs::-webkit-scrollbar{height:5px;}",
+"#sr-app .sr-rec-tabs::-webkit-scrollbar-thumb{background:var(--br2,#33332f);border-radius:3px;}",
+"#sr-app .sr-rec-tab{flex:0 0 auto;display:flex;align-items:center;gap:6px;background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);color:var(--tx2,#989792);font-size:12px;font-weight:600;padding:6px 11px;border-radius:9px;cursor:pointer;white-space:nowrap;transition:all .14s ease;}",
+"#sr-app .sr-rec-tab:hover{border-color:var(--tx3,#6c6b66);color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-rec-tab.on{background:var(--ac,#c9963a);border-color:var(--ac,#c9963a);color:#1a1a1a;}",
+"#sr-app .sr-rec-tn{font-size:10px;font-weight:700;opacity:.65;}",
+"#sr-app .sr-rec-tab.on .sr-rec-tn{opacity:.85;}",
+"#sr-app .sr-rec-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}",
+"#sr-app .sr-rec-cnt{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3,#6c6b66);font-weight:600;}",
+"#sr-app .sr-rec-csv{background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);color:var(--tx2,#989792);font-size:11px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer;transition:all .14s ease;}",
+"#sr-app .sr-rec-csv:hover{border-color:var(--tx3,#6c6b66);color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-rec-tbl{width:100%;border-collapse:collapse;font-size:13px;}",
+"#sr-app .sr-rec-tbl th{text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3,#6c6b66);font-weight:600;padding:0 7px 8px;border-bottom:1px solid var(--br,#262625);}",
+"#sr-app .sr-rec-tbl th:not(:first-child),#sr-app .sr-rec-tbl td:not(:first-child){text-align:right;}",
+"#sr-app .sr-rec-tbl td{padding:8px 7px;border-bottom:1px solid var(--br,#1f1f1e);color:var(--tx2,#bdbcb8);font-variant-numeric:tabular-nums;}",
+"#sr-app .sr-rec-tbl tr:last-child td{border-bottom:none;}",
+"#sr-app .sr-rec-nm{color:var(--tx,#e6e5e2)!important;font-weight:600;}",
+"#sr-app .sr-rec-ph{color:var(--ac,#c9963a)!important;font-weight:700;}"
 ].join("\n");
   document.head.appendChild(s);
 }
@@ -16069,7 +16091,7 @@ async function renderShiftAdmin(silent){
     var _wibDate=function(off){ return new Date(Date.now()+7*3600*1000-(off||0)*86400000).toISOString().slice(0,10); };
     var _dayLbl=function(off){ if(off===0)return 'Today'; if(off===1)return 'Yesterday'; var d=new Date(Date.now()+7*3600*1000-off*86400000); return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()]+', '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]+' '+d.getUTCDate(); };
     var selDate=_wibDate(dayOff);  // [v257] WIB date for the chosen day (reports are stamped WIB)
-    var liveCards=[], dayRows=[], _srHidden=0;
+    var liveCards=[], dayRows=[], _srHidden=0, recAgg={};  // [v308] recAgg: per-(staff,date) daily log
 
     Object.keys(groups).forEach(function(k){
       var g=groups[k];
@@ -16096,6 +16118,19 @@ async function renderShiftAdmin(silent){
       // instead of splitting across midnight. Day shifts are unaffected (check-in date == report date).
       var shiftDateMap={}; (function(){ var curCi=null; allRs.forEach(function(r){ if(isTestMap(r))return; if(r.tag==='checkin'){curCi=r;return;} if(curCi&&curCi.client!==r.client)curCi=null; shiftDateMap[r.id]=curCi?curCi.date:r.date; if(r.tag==='checkout')curCi=null; }); })();
       var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
+      // [v308] Records & Stats: accumulate this booster's productive reports per shift-date (ALL days,
+      // not just selDate). Reuses the same segGain/dup/shiftDate logic the day view already computed.
+      allRs.forEach(function(r){
+        if(isTestMap(r)) return;
+        if(!(r.tag==='status'||r.tag==='checkout'||!r.tag)) return;   // check-ins add no hours/gain
+        if(isDup[r.id]) return;
+        var _rd=shiftDateOf(r); if(!_rd) return;
+        if(!recAgg[g.name]) recAgg[g.name]={};
+        if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0};
+        var _ra=recAgg[g.name][_rd];
+        _ra.hours+=1; _ra.gain+=(segGain[r.id]||0);
+        var _rmo=findMap(clients,r); if(_rmo&&Number(_rmo.target)>0) _ra.quota+=Number(_rmo.target);
+      });
       var tGain=0,tQuota=0,tHours=0, tReports=[];
       allRs.forEach(function(r){ if(isTestMap(r))return; if(shiftDateOf(r)!==selDate)return;
         if(r.tag==='checkin'){ tReports.push({start:r.start,end:r.end,map:r.map,tag:'checkin',gain:null,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:false}); return; }
@@ -16133,12 +16168,40 @@ async function renderShiftAdmin(silent){
       +'</div>';
     var _resetLink = (_srHidden>0) ? '<div class="sr-hidden-reset" onclick="_srResetDismissed()" title="Show the cards you closed">'+_srHidden+' hidden · show all</div>' : '';
     var _live=(dayOff===0)?('<div class="sr-sec-lbl">On shift now</div><div class="sr-live-wrap">'+liveHTML+'</div>'+_resetLink):'';
+
+    // [v308] Records & Stats card — CEO/Manager only. Daily log of every staff × date, reusing the gains above.
+    var _grr=((currentUser&&currentUser.role)||'').toLowerCase();
+    var _canRec=(currentUserRole==='admin')||_grr==='ceo'||_grr==='manager';
+    var _recCard='';
+    if(_canRec){
+      var recRows=[];
+      Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; recRows.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,perH:(a.hours>0?a.gain/a.hours:0)}); }); });
+      recRows.sort(function(a,b){ if(a.date!==b.date) return a.date<b.date?1:-1; return a.name<b.name?-1:(a.name>b.name?1:0); });   // newest date first, then name A→Z
+      window._srRecData=recRows;
+      var _rcS={}; recRows.forEach(function(r){ if(!_rcS[r.key])_rcS[r.key]={name:r.name,n:0}; _rcS[r.key].n++; });
+      var _rcK=Object.keys(_rcS).sort(function(a,b){ return _rcS[b].n-_rcS[a].n; });
+      var _curF=window._srRecFilter||'';
+      var _tab=function(key,label,n,active){ return '<button class="sr-rec-tab'+(active?' on':'')+'" data-staff="'+_srEsc(key)+'" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))">'+_srEsc(label)+(n!=null?'<span class="sr-rec-tn">'+n+'</span>':'')+'</button>'; };
+      var _tabs=_tab('','All',recRows.length,_curF==='');
+      _rcK.forEach(function(k){ _tabs+=_tab(k,_rcS[k].name,_rcS[k].n,_curF===k); });
+      var _trs=recRows.map(function(r){ return '<tr class="sr-rec-row" data-staff="'+_srEsc(r.key)+'"'+((_curF&&_curF!==r.key)?' style="display:none"':'')+'><td class="sr-rec-nm">'+_srEsc(r.name)+'</td><td>'+_srEsc(r.date)+'</td><td>'+r.hours.toFixed(2)+'h</td><td>'+r.gain.toFixed(1)+'%</td><td class="sr-rec-ph">'+r.perH.toFixed(2)+'</td></tr>'; }).join('');
+      var _shown=_curF?recRows.filter(function(r){return r.key===_curF;}).length:recRows.length;
+      var _tbl=recRows.length?('<table class="sr-rec-tbl"><thead><tr><th>Staff</th><th>Date</th><th>Hrs</th><th>Gain</th><th>EXP/h</th></tr></thead><tbody>'+_trs+'</tbody></table>'):'<div class="sr-empty">No records logged yet.</div>';
+      _recCard='<div class="sr-card sr-rec-card">'
+        +'<div class="sr-head"><h2>Records &amp; Stats</h2><span class="sr-badge sr-badge-lock">CEO · Manager</span></div>'
+        +'<div class="sr-rec-sub">All staff daily logs in one place — hours and actual EXP/h, by date.</div>'
+        +'<div class="sr-rec-tabs">'+_tabs+'</div>'
+        +'<div class="sr-rec-bar"><span class="sr-rec-cnt" id="sr-rec-cnt">Daily log · '+_shown+'</span><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button></div>'
+        +_tbl
+        +'</div>';
+    }
+
     otherView.innerHTML='<div id="sr-app"><div class="sr-card">'
       +'<div class="sr-head"><h2>Shift report</h2><span class="sr-badge">Live</span></div>'
       +'<button class="sr-btn sr-btn-out" style="margin-bottom:14px" onclick="_srTryForm()">ADMIN</button>'
       +_dn+_live
       +'<div class="sr-sec-lbl"'+(_live?' style="margin-top:22px"':'')+'>'+_dayLbl(dayOff)+'</div>'+todayHTML
-      +'</div></div>';
+      +'</div>'+_recCard+'</div>';
     if(silent){ try{ otherView.scrollTop=_srKeepTop; window.scrollTo(0,_srKeepWin); }catch(_){} }
   }catch(e){
     if(silent) return;   // [v298] background refresh failed — keep the current view, don't flash an error
@@ -16148,6 +16211,28 @@ async function renderShiftAdmin(silent){
   }
 }
 
+
+// [v308] Records & Stats — per-staff filter + CSV export (CEO/Manager view inside the Calculator page)
+function _srRecFilterBy(key){
+  key=key||''; window._srRecFilter=key;
+  var rows=document.querySelectorAll('#sr-app .sr-rec-row'), shown=0, i;
+  for(i=0;i<rows.length;i++){ var m=(!key)||rows[i].getAttribute('data-staff')===key; rows[i].style.display=m?'':'none'; if(m)shown++; }
+  var tabs=document.querySelectorAll('#sr-app .sr-rec-tab');
+  for(i=0;i<tabs.length;i++){ if((tabs[i].getAttribute('data-staff')||'')===key) tabs[i].classList.add('on'); else tabs[i].classList.remove('on'); }
+  var c=document.getElementById('sr-rec-cnt'); if(c) c.textContent='Daily log · '+shown;
+}
+function _srRecCSV(){
+  var rows=(window._srRecData||[]).slice(); if(!rows.length){ try{toast('No records to export',true);}catch(_){ } return; }
+  var f=window._srRecFilter||''; if(f) rows=rows.filter(function(r){return r.key===f;});
+  var body=rows.map(function(r){ return '"'+String(r.name).replace(/"/g,'""')+'",'+r.date+','+r.hours.toFixed(2)+','+r.gain.toFixed(1)+','+r.perH.toFixed(2); }).join('\n');
+  var csv='Staff,Date,Hours,Gain %,EXP per hour\n'+body;
+  try{
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url; a.download='lucky7-records-'+(f||'all')+'-'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ try{URL.revokeObjectURL(url);}catch(_){ } },1500);
+  }catch(e){ try{toast('Export failed',true);}catch(_){ } }
+}
 
 function renderExpStandard(){
   const otherView=document.getElementById('ch-other'); if(!otherView) return;
