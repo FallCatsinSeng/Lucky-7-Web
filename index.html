@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v312 -->
+<!-- BUILD: v313 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8316,7 +8316,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v312';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v313';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15773,14 +15773,18 @@ function _srInjectCSS(){
 "#sr-app .sr-rec-card{margin-top:16px;}",
 "#sr-app .sr-badge-lock{background:var(--bg-i,#202020);color:var(--tx3,#6c6b66);border:1px solid var(--br,#2c2c2b);font-size:9.5px;padding:3px 8px;border-radius:6px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;}",
 "#sr-app .sr-rec-sub{font-size:11.5px;color:var(--tx3,#6c6b66);margin:-6px 0 14px;line-height:1.4;}",
-"#sr-app .sr-rec-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:11px;-webkit-overflow-scrolling:touch;}",
+"#sr-app .sr-rec-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;align-items:stretch;-webkit-overflow-scrolling:touch;}",
 "#sr-app .sr-rec-tabs::-webkit-scrollbar{height:5px;}",
 "#sr-app .sr-rec-tabs::-webkit-scrollbar-thumb{background:var(--br2,#33332f);border-radius:3px;}",
-"#sr-app .sr-rec-tab{flex:0 0 auto;display:flex;align-items:center;gap:6px;background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);color:var(--tx2,#989792);font-size:12px;font-weight:600;padding:6px 11px;border-radius:9px;cursor:pointer;white-space:nowrap;transition:all .14s ease;}",
-"#sr-app .sr-rec-tab:hover{border-color:var(--tx3,#6c6b66);color:var(--tx,#e6e5e2);}",
-"#sr-app .sr-rec-tab.on{background:var(--ac,#c9963a);border-color:var(--ac,#c9963a);color:#1a1a1a;}",
-"#sr-app .sr-rec-tn{font-size:10px;font-weight:700;opacity:.65;}",
-"#sr-app .sr-rec-tab.on .sr-rec-tn{opacity:.85;}",
+"#sr-app .sr-rec-tab{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);border-radius:13px;padding:10px 12px 9px;min-width:68px;cursor:pointer;transition:all .14s ease;}",
+"#sr-app .sr-rec-tab:hover{border-color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-rec-tab.on{border-color:var(--ac,#c9963a);background:rgba(201,150,58,.10);}",
+"#sr-app .sr-rec-av{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;letter-spacing:.3px;flex:none;}",
+"#sr-app .sr-rec-tnm2{font-size:11px;font-weight:600;color:var(--tx,#e6e5e2);max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+"#sr-app .sr-rec-tperf{font-size:11px;font-weight:700;}",
+"#sr-app .sr-rec-allbig{width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-rec-tn{font-size:11px;font-weight:700;color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-rec-tab.on .sr-rec-tn{color:var(--ac,#c9963a);}",
 "#sr-app .sr-rec-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}",
 "#sr-app .sr-rec-cnt{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3,#6c6b66);font-weight:600;}",
 "#sr-app .sr-rec-csv{background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);color:var(--tx2,#989792);font-size:11px;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer;transition:all .14s ease;}",
@@ -16266,20 +16270,33 @@ function _srRecCardHTML(data){
   var daily=data.daily||[], sessions=data.sessions||[];
   window._srRecAll=data;
   var esc=_srEsc;
-  var st={}; daily.forEach(function(r){ if(!st[r.key])st[r.key]={name:r.name,n:0,gain:0,quota:0}; st[r.key].n++; st[r.key].gain+=r.gain; st[r.key].quota+=r.quota; });
-  var keys=Object.keys(st).sort(function(a,b){ var pa=st[a].quota>0?st[a].gain/st[a].quota:-1, pb=st[b].quota>0?st[b].gain/st[b].quota:-1; if(pb!==pa) return pb-pa; return st[b].n-st[a].n; });
-  var curF=window._srRecFilter||''; if(curF && !st[curF]){ curF=''; window._srRecFilter=''; }
+  // --- full player universe: everyone with records + the whole roster (so non-reporting players show too) ---
+  var nmKey=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; };
+  var universe={};
+  daily.forEach(function(r){ if(!universe[r.key])universe[r.key]={name:r.name,recs:0,gain:0,quota:0,hasRec:false}; var u=universe[r.key]; u.recs++; u.gain+=r.gain; u.quota+=r.quota; u.hasRec=true; });
+  try{ if(typeof _teamCache!=='undefined' && Array.isArray(_teamCache)){ _teamCache.forEach(function(m){ if(!m||m.role!=='player') return; var k=nmKey(m.name); if(!k) return; if(!universe[k]) universe[k]={name:m.name,recs:0,gain:0,quota:0,hasRec:false}; else if(m.name) universe[k].name=m.name; }); } }catch(_){}
+  var keys=Object.keys(universe).sort(function(a,b){ var ua=universe[a],ub=universe[b]; var pa=ua.quota>0?ua.gain/ua.quota:(ua.hasRec?-1:-2); var pb=ub.quota>0?ub.gain/ub.quota:(ub.hasRec?-1:-2); if(pb!==pa) return pb-pa; return String(ua.name).localeCompare(String(ub.name)); });
+  var curF=window._srRecFilter||''; if(curF && !universe[curF]){ curF=''; window._srRecFilter=''; }
   var krMode=!!window._srRecKR;
   var dcls=function(v){ return v>0?'sr-ok':(v<0?'sr-re':''); };
-  // --- per-staff filter tabs (perf% badge like Railway) ---
-  var tab=function(key,label,sub,active){ return '<button class="sr-rec-tab'+(active?' on':'')+'" data-staff="'+esc(key)+'" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))"><span>'+esc(label)+'</span>'+(sub!=null?'<span class="sr-rec-tn">'+sub+'</span>':'')+'</button>'; };
-  var tabs=tab('','All',daily.length,curF==='');
-  keys.forEach(function(k){ var p=st[k].quota>0?(st[k].gain/st[k].quota*100):null; tabs+=tab(k,st[k].name,(p!=null?Math.round(p)+'%':'—'),curF===k); });
+  var nameOf=function(k,fb){ return (universe[k]&&universe[k].name)||fb; };
+  // --- avatar tabs: All + every player (colored initials · name · perf%) ---
+  var _avPal=['#7c5cbf','#c9963a','#4d9a8a','#4a7fc2','#c46a6a','#b5588f','#6a9a4d','#c2803a','#3aa8a8','#c25c8a','#5c6cbf','#9a9a4d'];
+  var avColor=function(k){ var h=0,i; for(i=0;i<k.length;i++){ h=(h*31+k.charCodeAt(i))>>>0; } return _avPal[h%_avPal.length]; };
+  var avInit=function(n){ var s=String(n||'').replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/i,'').trim(); var w=s.split(/\s+/)[0]||s; return (w.slice(0,2)||'?').toUpperCase(); };
+  var perfCol=function(p){ if(p==null) return 'var(--tx3,#6c6b66)'; return p>=100?'var(--gr,#4d9a8a)':'var(--re,#c46a6a)'; };
+  var tabs='<button class="sr-rec-tab sr-rec-tab-all'+(curF===''?' on':'')+'" data-staff="" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))"><span class="sr-rec-allbig">All</span><span class="sr-rec-tn">'+keys.length+'</span></button>'
+    + keys.map(function(k){ var u=universe[k]; var p=u.quota>0?(u.gain/u.quota*100):null;
+      return '<button class="sr-rec-tab'+(curF===k?' on':'')+'" data-staff="'+esc(k)+'" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))">'
+        +'<span class="sr-rec-av" style="background:'+avColor(k)+'">'+esc(avInit(u.name))+'</span>'
+        +'<span class="sr-rec-tnm2">'+esc(u.name)+'</span>'
+        +'<span class="sr-rec-tperf" style="color:'+perfCol(p)+'">'+(p!=null?Math.round(p)+'%':'—')+'</span></button>';
+    }).join('');
   // --- DAILY LOG (Staff/Date/Hrs/Actual-h/Target-h/Diff/Perf%/Result) ---
   var dfil=curF?daily.filter(function(r){return r.key===curF;}):daily;
   var dres=function(r){ if(r.perf==null) return '<span class="sr-rb sr-rb-no">No std</span>'; if(r.perf>=100) return '<span class="sr-rb sr-rb-ok">Pass</span>'; return '<span class="sr-rb sr-rb-un">Under</span>'; };
   var drows=dfil.map(function(r){ var diff=r.perH-r.targetH; return '<tr>'
-    +'<td class="sr-rec-nm">'+esc(r.name)+'</td><td>'+esc(r.date)+'</td><td>'+r.hours.toFixed(2)+'h</td>'
+    +'<td class="sr-rec-nm">'+esc(nameOf(r.key,r.name))+'</td><td>'+esc(r.date)+'</td><td>'+r.hours.toFixed(2)+'h</td>'
     +'<td class="sr-rec-ph">'+r.perH.toFixed(2)+'</td>'
     +'<td>'+(r.targetH>0?r.targetH.toFixed(2):'<span class="sr-mut">—</span>')+'</td>'
     +'<td class="'+(r.perf!=null?dcls(diff):'')+'">'+(r.perf!=null?((diff>=0?'+':'')+diff.toFixed(2)):'<span class="sr-mut">—</span>')+'</td>'
@@ -16305,7 +16322,7 @@ function _srRecCardHTML(data){
             var tgt=(s.target!=null)?('+'+s.target.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
             var hasDiff=(s.tag!=='checkin'&&s.target!=null); var dv=hasDiff?(s.gain-s.target):0;
             var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
-            return '<tr><td class="sr-rec-nm">'+esc(s.name)+'</td>'
+            return '<tr><td class="sr-rec-nm">'+esc(nameOf(s.key,s.name))+'</td>'
               +'<td class="sr-sl-t">'+(krMode?'<b>KR</b> ':'')+fmtT(s.ms)+'</td>'
               +'<td>'+tagB(s.tag)+'</td><td>'+esc(s.client)+'</td>'
               +'<td>'+esc(String(s.pc==null?'':s.pc))+'</td><td>'+esc(String(s.lv==null?'':s.lv))+'</td>'
@@ -16337,6 +16354,7 @@ async function renderRecords(silent){
   var _keepTop = silent ? (otherView.scrollTop||0) : 0;
   var _keepWin = silent ? (window.scrollY||document.documentElement.scrollTop||0) : 0;
   if(!silent && !otherView.querySelector('.sr-rec-card')) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>Records &amp; Stats</h2><span class="sr-badge">Live</span></div><div class="sr-admin-load">⟳ loading records…</div></div></div>';
+  if(!silent){ try{ if(typeof loadTeamMembers==='function') await loadTeamMembers(); }catch(_){} }   // [v313] roster → show every player as a tab
   var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
   var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
   try{
