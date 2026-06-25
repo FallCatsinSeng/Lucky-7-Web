@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v313 -->
+<!-- BUILD: v314 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8316,7 +8316,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v313';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v314';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15819,7 +15819,14 @@ function _srInjectCSS(){
 "#sr-app .sr-sl-tbl tr:last-child td{border-bottom:none;}",
 "#sr-app .sr-sl-tbl td.sr-num{text-align:right;white-space:nowrap;}",
 "#sr-app .sr-sl-t{color:var(--tx3,#6c6b66);white-space:nowrap;}",
-"#sr-app .sr-sl-t b{color:var(--ac,#c9963a);font-size:9px;margin-right:1px;}"
+"#sr-app .sr-sl-t b{color:var(--ac,#c9963a);font-size:9px;margin-right:1px;}",
+"#sr-app .sr-rec-av{position:relative;}",
+"#sr-app .sr-rec-flag{position:absolute;top:-4px;right:-4px;min-width:15px;height:15px;border-radius:8px;background:var(--re,#c46a6a);color:#fff;font-size:10px;font-weight:800;line-height:15px;text-align:center;border:2px solid var(--bg-c,#161616);padding:0 2px;}",
+"#sr-app .sr-rb-jump{background:rgba(196,106,106,.18);color:var(--re,#c46a6a);}",
+"#sr-app .sr-sl-flag td{background:rgba(196,106,106,.07);}",
+"#sr-app .sr-jump{color:var(--re,#c46a6a);font-weight:800;white-space:nowrap;}",
+"#sr-app .sr-rec-warn{background:rgba(196,106,106,.10);border:1px solid rgba(196,106,106,.30);border-radius:11px;padding:11px 14px;margin-bottom:13px;font-size:12.5px;line-height:1.5;color:var(--tx2,#bdbcb8);}",
+"#sr-app .sr-rec-warn b{color:var(--tx,#e6e5e2);}"
 ].join("\n");
   document.head.appendChild(s);
 }
@@ -16241,6 +16248,12 @@ function _srRecCompute(reports, clients){
     var segGain={}; (function(){ var prev=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0; return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r); return;} if(prev&&prev.client!==r.client){prev=null;} if(r.tag==='checkin'){segGain[r.id]=null; prev=r; return;} if(prev){ var _x=((Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0))-((Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0)); if(_x<0)_x=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0); var _own=gainedPct(r); segGain[r.id]=(_x>_own*2+30)?_own:_x; } else { segGain[r.id]=gainedPct(r); } prev=r; }); })();
     var shiftDateMap={}; (function(){ var curCi=null; allRs.forEach(function(r){ if(isTestMap(r))return; if(r.tag==='checkin'){curCi=r;return;} if(curCi&&curCi.client!==r.client)curCi=null; shiftDateMap[r.id]=curCi?curCi.date:r.date; if(r.tag==='checkout')curCi=null; }); })();
     var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
+    // [v314] EXP-jump detection: an hourly report can't realistically gain a large % of a level. Flag any
+    // report whose gain is a big outlier vs this booster's OWN typical hourly gain (or huge in absolute) —
+    // these are almost always typos / EXP-readout glitches that inflate the totals.
+    var _g=[]; allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id]||r.tag==='checkin')return; var gg=segGain[r.id]; if(gg!=null&&gg>0)_g.push(gg); });
+    var _med=0; if(_g.length){ var _gs=_g.slice().sort(function(a,b){return a-b;}); _med=_gs[Math.floor(_gs.length/2)]; }
+    var _jThr=Math.max(5, 6*Math.max(_med,0.3));   // flag if a single hour gained > 6x the usual, with a 5% floor
     allRs.forEach(function(r){
       if(isTestMap(r)) return;
       var _rd=shiftDateOf(r);
@@ -16249,18 +16262,21 @@ function _srRecCompute(reports, clients){
       var _tgt=(_rmo&&Number(_rmo.target)>0)?Number(_rmo.target):null;
       var _dup=!!isDup[r.id];
       var _gain=(_tag==='checkin')?null:(_dup?0:(segGain[r.id]||0));
-      sessions.push({ name:g.name, key:normName(g.name), date:_rd, ms:reportMs(r), tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, dup:_dup });
+      var _flag=(_gain!=null)&&(_gain>80 || _gain>_jThr);
+      sessions.push({ name:g.name, key:normName(g.name), date:_rd, ms:reportMs(r), tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, dup:_dup, flag:_flag });
       if(_tag!=='checkin' && !_dup && _rd){
         if(!recAgg[g.name]) recAgg[g.name]={};
-        if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0};
+        if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0,flags:0,cleanGain:0};
         var _ra=recAgg[g.name][_rd];
         _ra.hours+=1; _ra.gain+=(_gain||0);
+        if(!_flag) _ra.cleanGain+=(_gain||0);   // [v314] gain with jumps removed
         if(_tgt) _ra.quota+=_tgt;
+        if(_flag) _ra.flags++;
       }
     });
   });
   var daily=[];
-  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; var perH=(a.hours>0?a.gain/a.hours:0); var targetH=(a.hours>0&&a.quota>0?a.quota/a.hours:0); var perf=(a.quota>0?(a.gain/a.quota*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,quota:a.quota,perH:perH,targetH:targetH,perf:perf}); }); });
+  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; var perH=(a.hours>0?a.gain/a.hours:0); var targetH=(a.hours>0&&a.quota>0?a.quota/a.hours:0); var perf=(a.quota>0?(a.gain/a.quota*100):null); var cleanPerf=(a.quota>0?((a.cleanGain||0)/a.quota*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,quota:a.quota,perH:perH,targetH:targetH,perf:perf,flags:(a.flags||0),cleanGain:(a.cleanGain||0),cleanPerf:cleanPerf}); }); });
   daily.sort(function(a,b){ if(a.date!==b.date) return a.date<b.date?1:-1; return a.name<b.name?-1:(a.name>b.name?1:0); });
   sessions.sort(function(a,b){ return (b.ms||0)-(a.ms||0); });
   return { daily:daily, sessions:sessions };
@@ -16273,8 +16289,8 @@ function _srRecCardHTML(data){
   // --- full player universe: everyone with records + the whole roster (so non-reporting players show too) ---
   var nmKey=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; };
   var universe={};
-  daily.forEach(function(r){ if(!universe[r.key])universe[r.key]={name:r.name,recs:0,gain:0,quota:0,hasRec:false}; var u=universe[r.key]; u.recs++; u.gain+=r.gain; u.quota+=r.quota; u.hasRec=true; });
-  try{ if(typeof _teamCache!=='undefined' && Array.isArray(_teamCache)){ _teamCache.forEach(function(m){ if(!m||m.role!=='player') return; var k=nmKey(m.name); if(!k) return; if(!universe[k]) universe[k]={name:m.name,recs:0,gain:0,quota:0,hasRec:false}; else if(m.name) universe[k].name=m.name; }); } }catch(_){}
+  daily.forEach(function(r){ if(!universe[r.key])universe[r.key]={name:r.name,recs:0,gain:0,quota:0,hasRec:false,flags:0,cleanGain:0}; var u=universe[r.key]; u.recs++; u.gain+=r.gain; u.quota+=r.quota; u.hasRec=true; u.flags+=(r.flags||0); u.cleanGain+=(r.cleanGain||0); });
+  try{ if(typeof _teamCache!=='undefined' && Array.isArray(_teamCache)){ _teamCache.forEach(function(m){ if(!m||m.role!=='player') return; var k=nmKey(m.name); if(!k) return; if(!universe[k]) universe[k]={name:m.name,recs:0,gain:0,quota:0,hasRec:false,flags:0}; else if(m.name) universe[k].name=m.name; }); } }catch(_){}
   var keys=Object.keys(universe).sort(function(a,b){ var ua=universe[a],ub=universe[b]; var pa=ua.quota>0?ua.gain/ua.quota:(ua.hasRec?-1:-2); var pb=ub.quota>0?ub.gain/ub.quota:(ub.hasRec?-1:-2); if(pb!==pa) return pb-pa; return String(ua.name).localeCompare(String(ub.name)); });
   var curF=window._srRecFilter||''; if(curF && !universe[curF]){ curF=''; window._srRecFilter=''; }
   var krMode=!!window._srRecKR;
@@ -16288,13 +16304,13 @@ function _srRecCardHTML(data){
   var tabs='<button class="sr-rec-tab sr-rec-tab-all'+(curF===''?' on':'')+'" data-staff="" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))"><span class="sr-rec-allbig">All</span><span class="sr-rec-tn">'+keys.length+'</span></button>'
     + keys.map(function(k){ var u=universe[k]; var p=u.quota>0?(u.gain/u.quota*100):null;
       return '<button class="sr-rec-tab'+(curF===k?' on':'')+'" data-staff="'+esc(k)+'" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))">'
-        +'<span class="sr-rec-av" style="background:'+avColor(k)+'">'+esc(avInit(u.name))+'</span>'
+        +'<span class="sr-rec-av" style="background:'+avColor(k)+'">'+esc(avInit(u.name))+(u.flags>0?'<span class="sr-rec-flag" title="'+u.flags+' possible EXP jump(s)">!</span>':'')+'</span>'
         +'<span class="sr-rec-tnm2">'+esc(u.name)+'</span>'
         +'<span class="sr-rec-tperf" style="color:'+perfCol(p)+'">'+(p!=null?Math.round(p)+'%':'—')+'</span></button>';
     }).join('');
   // --- DAILY LOG (Staff/Date/Hrs/Actual-h/Target-h/Diff/Perf%/Result) ---
   var dfil=curF?daily.filter(function(r){return r.key===curF;}):daily;
-  var dres=function(r){ if(r.perf==null) return '<span class="sr-rb sr-rb-no">No std</span>'; if(r.perf>=100) return '<span class="sr-rb sr-rb-ok">Pass</span>'; return '<span class="sr-rb sr-rb-un">Under</span>'; };
+  var dres=function(r){ if(r.flags>0) return '<span class="sr-rb sr-rb-jump" title="'+r.flags+' report(s) look like EXP jumps — likely typos">⚠ jump'+(r.flags>1?' ×'+r.flags:'')+'</span>'; if(r.perf==null) return '<span class="sr-rb sr-rb-no">No std</span>'; if(r.perf>=100) return '<span class="sr-rb sr-rb-ok">Pass</span>'; return '<span class="sr-rb sr-rb-un">Under</span>'; };
   var drows=dfil.map(function(r){ var diff=r.perH-r.targetH; return '<tr>'
     +'<td class="sr-rec-nm">'+esc(nameOf(r.key,r.name))+'</td><td>'+esc(r.date)+'</td><td>'+r.hours.toFixed(2)+'h</td>'
     +'<td class="sr-rec-ph">'+r.perH.toFixed(2)+'</td>'
@@ -16322,22 +16338,30 @@ function _srRecCardHTML(data){
             var tgt=(s.target!=null)?('+'+s.target.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
             var hasDiff=(s.tag!=='checkin'&&s.target!=null); var dv=hasDiff?(s.gain-s.target):0;
             var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
-            return '<tr><td class="sr-rec-nm">'+esc(nameOf(s.key,s.name))+'</td>'
+            return '<tr'+(s.flag?' class="sr-sl-flag"':'')+'><td class="sr-rec-nm">'+esc(nameOf(s.key,s.name))+'</td>'
               +'<td class="sr-sl-t">'+(krMode?'<b>KR</b> ':'')+fmtT(s.ms)+'</td>'
               +'<td>'+tagB(s.tag)+'</td><td>'+esc(s.client)+'</td>'
               +'<td>'+esc(String(s.pc==null?'':s.pc))+'</td><td>'+esc(String(s.lv==null?'':s.lv))+'</td>'
               +'<td>'+esc(s.map)+'</td>'
-              +'<td class="sr-num">'+act+'</td><td class="sr-num">'+tgt+'</td>'
+              +'<td class="sr-num">'+(s.flag?'<span class="sr-jump">⚠ '+act+'</span>':act)+'</td><td class="sr-num">'+tgt+'</td>'
               +'<td class="sr-num '+(hasDiff?dcls(dv):'')+'">'+diff+'</td>'
               +'<td class="sr-num">'+sres(s)+'</td></tr>';
           }).join('')+'</tbody></table>';
       }).join('');
     }
   }
+  var warn='';
+  if(curF && universe[curF] && universe[curF].flags>0){
+    var uw=universe[curF]; var rawP=uw.quota>0?(uw.gain/uw.quota*100):null; var clnP=uw.quota>0?((uw.cleanGain||0)/uw.quota*100):null;
+    warn='<div class="sr-rec-warn"><b>⚠ '+uw.flags+' report'+(uw.flags>1?'s':'')+' look like EXP jumps</b> — a single hour gained far more than this player\'s usual, almost always a typo or EXP-readout glitch. They\'re highlighted in red in the session log below.'
+      +((rawP!=null&&clnP!=null)?' This player\'s perf reads <b>'+Math.round(rawP)+'%</b> with them included, but only about <b>'+Math.round(clnP)+'%</b> without.':'')
+      +'</div>';
+  }
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>Records &amp; Stats</h2><span class="sr-badge sr-badge-lock">CEO · Manager</span></div>'
     +'<div class="sr-rec-sub">All staff daily and session logs in one place — hours, actual EXP/h and per-report detail.</div>'
     +'<div class="sr-rec-tabs">'+tabs+'</div>'
+    +warn
     +'<div class="sr-rec-bar"><span class="sr-rec-cnt">Daily log · '+dfil.length+'</span><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button></div>'
     +dtbl
     +'<div class="sr-rec-bar" style="margin-top:26px"><span class="sr-rec-cnt">Session log'+(curF?' · '+sCount:'')+'</span><button class="sr-rec-csv'+(krMode?' on':'')+'" onclick="_srRecToggleKR()">KR time'+(krMode?' ✓':'')+'</button></div>'
