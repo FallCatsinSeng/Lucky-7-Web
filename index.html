@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v319 -->
+<!-- BUILD: v321 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7653,6 +7653,7 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 .tl-bar.client.dragging{opacity:.95;z-index:10}
 .tl-bar.client .tl-bar-edge{background:var(--ac)}
 .tl-bar.tl-bar-dim{opacity:.4}
+.tl-bar.client .tl-bar-wrapg{font-size:13px;font-weight:800;color:var(--ac-strong);flex-shrink:0;line-height:1;margin-left:-4px;margin-right:-3px;cursor:help}
 .tl-cl-noset{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--tx4);font-style:italic}
 .bar-resize{position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize;border-radius:0 5px 5px 0;transition:background var(--d-fast) var(--ease)}
 .bar-resize::after{content:'';position:absolute;right:3px;top:50%;transform:translateY(-50%);width:2px;height:14px;background:rgba(255,255,255,.55);border-radius:1px;transition:opacity var(--d-fast) var(--ease);opacity:0}
@@ -8316,7 +8317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v319';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v321';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -22183,7 +22184,12 @@ function staffRemaining(sid){ const s = staffById(sid); if(!s) return 0; return 
 // 배정 가능 여부: 평일·계약·DAY OFF·휴무 모두 통과해야 함
 function staffAvailable(s, day){ return !s.day_off && staffWorksOn(s, day); }
 function leaderPCs(sid){ return PCS.filter(p => p.leader === sid); }
-function nowHour(){ const d=new Date(); return d.getHours()+d.getMinutes()/60; }
+function nowHour(){
+  // [v321] The PC-status timeline grid + bookings are in KST (Korea, UTC+9). Compute the now-line from KST
+  // directly off UTC — not the viewer's local clock — so it's right whether the browser is on WIB or anywhere else.
+  const kst = new Date(Date.now() + 9*3600000);
+  return kst.getUTCHours() + kst.getUTCMinutes()/60;
+}
 function fmtAmPm(h){ h=((h%24)+24)%24; const a=h<12?'AM':'PM'; const hh=h===0?12:h<=12?h:h-12; return hh+' '+a; }
 function rankColor(pos){ return POSITIONS[pos]?.color || 'var(--ac)'; }
 function rankLabel(pos){ return POSITIONS[pos]?.label || 'Unranked'; }
@@ -23090,8 +23096,10 @@ function clientTimelineSectionHTML(){
         const w    = (seg.len/span*100).toFixed(3);
         const isLast = si === segs.length-1;
         const resizeH = isLast ? `<div class="bar-resize" onmousedown="clientBarMouseDown(event,'${c.id}','resize')"></div>` : '';
+        const wrapG = wrapped ? `<span class="tl-bar-wrapg" title="Overnight booking — one ${hrs}h shift from ${fmtAmPm(c.startH)} to ${fmtAmPm(c.endH)}. It crosses the ${fmtAmPm(tlAnchor)} start line, so it's drawn in two pieces (this is the ${isLast?'tail':'start'}).">${isLast?'\u21A9\uFE0E':'\u21AA\uFE0E'}</span>` : '';
         return `<div class="tl-bar client${wrapped?' wrapped':''}${offToday?' tl-bar-dim':''}" data-cid="${c.id}" style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px" onmousedown="clientBarMouseDown(event,'${c.id}','move')">
           <span class="tl-bar-edge"></span>
+          ${wrapG}
           <div class="b-time">${fmtAmPm(c.startH)} – ${fmtAmPm(c.endH)}</div>
           <div class="b-sub">★ ${c.name} · ${hrs}h</div>
           ${resizeH}
