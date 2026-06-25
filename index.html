@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v306 -->
+<!-- BUILD: v307 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v306';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v307';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -8352,18 +8352,48 @@ setTimeout(_checkVersion, 6000);
 document.addEventListener('visibilitychange', function(){ if(!document.hidden) _checkVersion(); });
 setInterval(_checkVersion, 15 * 60 * 1000);
 
-async function saveRecruits(){
+// [v306] saveRecruits is now a DEBOUNCER. The applicant blob is heavy (embedded base64 CVs/screenshots)
+// and the old code fired a full write on every single field edit — many big writes hitting one row at once,
+// which is exactly what triggered the "statement timeout" (lock contention on recruit_state). We now:
+//   • collapse rapid edits into ONE write (debounce),
+//   • retry quietly through transient overload instead of alarming on the first hiccup,
+//   • keep protecting the local edit (_recruitDirtyUntil) the whole time so a poll can't revert it,
+//   • only surface a (gentle) message if it's still failing after many tries.
+function saveRecruits(immediate){
+  _recruitDirtyUntil = Date.now() + 40000;     // hold the revert-poll off while we (re)try to save
+  clearTimeout(_recruitSaveTimer);
+  if(immediate) return _doSaveRecruits();      // [v306] deliberate save points (add/delete applicant, files) flush now
+  _recruitSaveTimer = setTimeout(_doSaveRecruits, 700);
+}
+async function _doSaveRecruits(){
   try{ pauseSync(); }catch(_){}
   if(!sb) return;
   if(_recruitLite) return;   // [v161] CRITICAL: never overwrite the real cloud copy with stripped/cache data
-  try{
-    const { error } = await _dbUpsert('recruit_state', 'default', APPLICANTS);
-    if(error){ console.warn('recruit_state save:', error.message); toast('Applicant save FAILED: ' + error.message, true); }
-    else {
-      try{ _recruitCacheSave(); }catch(_){}   // [v160] keep the instant-open cache fresh
-      try{ _dbUpsert('recruit_state', RECRUIT_BOARD_ID, _recruitStripped()); }catch(_){}  // [v161] refresh board row
+  var res;
+  try{ res = await _dbUpsert('recruit_state', 'default', APPLICANTS); }
+  catch(e){ res = { error:(e || { message:'save failed' }) }; }
+  // an error (e.g. statement timeout) OR a backoff-deferral both mean the data did NOT land — keep trying
+  if(res && (res.error || res.deferred)){
+    _recruitSaveTries++;
+    _recruitDirtyUntil = Date.now() + 45000;   // keep the edit protected across retries
+    if(_recruitSaveTries <= 8){
+      if(res.error) console.warn('recruit_state save retry ' + _recruitSaveTries + ':', res.error.message);
+      // wait past any active global backoff so the retry isn't immediately deferred again
+      var backoffLeft = (typeof _dbBackoffUntil !== 'undefined') ? (_dbBackoffUntil - Date.now()) : 0;
+      var wait = Math.max(3000, backoffLeft + 800);
+      clearTimeout(_recruitSaveTimer);
+      _recruitSaveTimer = setTimeout(_doSaveRecruits, wait);
+      return;
     }
-  }catch(e){ console.warn('recruit_state save:', e && e.message); }
+    // still failing after many tries — tell the user gently (data is safe locally, will retry on next edit)
+    _recruitSaveTries = 0;
+    toast('Database is busy — applicant changes are saved on this device and will sync once it frees up.', true);
+    return;
+  }
+  // real success
+  _recruitSaveTries = 0;
+  try{ _recruitCacheSave(); }catch(_){}   // [v160] keep the instant-open cache fresh
+  try{ _dbUpsert('recruit_state', RECRUIT_BOARD_ID, _recruitStripped()); }catch(_){}  // [v161] refresh board row
 }
 // [v159] cheap change-detection signature.
 // applicants embed base64 image/attachment data-URLs (often multi-MB total); stringifying
@@ -8422,6 +8452,7 @@ let openApplicantId = null;
 //                     (covers a slow/retried save so it can't revert your edit mid-entry)
 let _apEditing = false;
 let _recruitDirtyUntil = 0;
+let _recruitSaveTimer = null, _recruitSaveTries = 0;   // [v306] debounce + retry recruit_state writes (overload-resilient)
 let recruitStageFilter = 'all';
 let recruitSpecFilter = 'all';
 let recruitViewMode = 'kanban';
@@ -8795,7 +8826,7 @@ async function deleteApplicant(id){
   if(!confirm(`이 지원자를 완전히 삭제할까요? / Permanently delete this applicant?\n\n${a.name}\n\n되돌릴 수 없습니다 / Cannot be undone.`)) return;
   const idx = APPLICANTS.findIndex(x => x.id === id);
   if(idx >= 0) APPLICANTS.splice(idx, 1);
-  await saveRecruits();
+  await saveRecruits(true);
   _recruitSig = _recruitSigLite();
   toast('지원자 삭제됨 / Applicant deleted');
   try{ logAction('delete', 'deleted applicant', a.name); }catch(_){}
@@ -9675,7 +9706,7 @@ async function removeApplicantFile(appId, idx){
   if(!confirm(`이 첨부를 삭제할까요? / Delete this attachment?\n${f.name}`)) return;
   a.files.splice(idx, 1);
   a.updated = new Date().toISOString().slice(0,10);
-  await saveRecruits();
+  await saveRecruits(true);
   toast('첨부 삭제됨 / Attachment deleted');
   renderApplicantPanel();
   try{ renderRecruit(); }catch(_){}
@@ -9727,7 +9758,7 @@ async function addFilesToApplicant(id){
       a.files.push(entry);
     }
     a.updated = new Date().toISOString().slice(0,10);
-    await saveRecruits();
+    await saveRecruits(true);
     toast('첨부 추가됨 / Files attached ✓');
     renderApplicantPanel();
     try{ renderRecruit(); }catch(_){}
