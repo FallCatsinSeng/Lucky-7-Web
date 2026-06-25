@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v309 -->
+<!-- BUILD: v310 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8316,7 +8316,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v309';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v310';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15792,7 +15792,30 @@ function _srInjectCSS(){
 "#sr-app .sr-rec-tbl tr:last-child td{border-bottom:none;}",
 "#sr-app .sr-rec-nm{color:var(--tx,#e6e5e2)!important;font-weight:600;}",
 "#sr-app .sr-rec-ph{color:var(--ac,#c9963a)!important;font-weight:700;}",
-"#sr-app.sr-app-wide{max-width:600px;}"
+"#sr-app.sr-app-wide{max-width:100%;margin:6px 0 34px;}",
+"#sr-app .sr-ok{color:var(--gr,#4d9a8a);}",
+"#sr-app .sr-re{color:var(--re,#c46a6a);}",
+"#sr-app .sr-mut{color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-rec-tbl td:nth-child(2),#sr-app .sr-rec-tbl th:nth-child(2){text-align:left;}",
+"#sr-app .sr-rec-csv.on{background:var(--ac,#c9963a);border-color:var(--ac,#c9963a);color:#1a1a1a;}",
+"#sr-app .sr-rb{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;letter-spacing:.02em;white-space:nowrap;}",
+"#sr-app .sr-rb-ok{background:rgba(77,154,138,.16);color:var(--gr,#4d9a8a);}",
+"#sr-app .sr-rb-un{background:rgba(201,150,58,.18);color:var(--ac,#c9963a);}",
+"#sr-app .sr-rb-wu{background:rgba(196,106,106,.16);color:var(--re,#c46a6a);}",
+"#sr-app .sr-rb-no{background:var(--bg-i,#202020);color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-rb-st{background:var(--bg-i,#202020);color:var(--tx2,#989792);}",
+"#sr-app .sr-sb{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:var(--bg-i,#202020);color:var(--tx2,#989792);white-space:nowrap;}",
+"#sr-app .sr-sb-in{background:rgba(77,154,138,.14);color:var(--gr,#4d9a8a);}",
+"#sr-app .sr-sb-out{background:rgba(196,106,106,.14);color:var(--re,#c46a6a);}",
+"#sr-app .sr-sl-day{display:flex;align-items:center;gap:9px;margin:18px 0 6px;padding-bottom:6px;border-bottom:1px solid var(--br,#262625);}",
+"#sr-app .sr-sl-dn{font-size:12px;font-weight:700;color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-sl-dc{font-size:10px;font-weight:700;color:var(--tx3,#6c6b66);background:var(--bg-i,#202020);padding:1px 7px;border-radius:5px;}",
+"#sr-app .sr-sl-tbl{width:100%;border-collapse:collapse;font-size:12px;}",
+"#sr-app .sr-sl-tbl td{padding:7px;border-bottom:1px solid var(--br,#1f1f1e);color:var(--tx2,#bdbcb8);text-align:left;vertical-align:middle;font-variant-numeric:tabular-nums;}",
+"#sr-app .sr-sl-tbl tr:last-child td{border-bottom:none;}",
+"#sr-app .sr-sl-tbl td.sr-num{text-align:right;white-space:nowrap;}",
+"#sr-app .sr-sl-t{color:var(--tx3,#6c6b66);white-space:nowrap;}",
+"#sr-app .sr-sl-t b{color:var(--ac,#c9963a);font-size:9px;margin-right:1px;}"
 ].join("\n");
   document.head.appendChild(s);
 }
@@ -16173,20 +16196,15 @@ async function renderShiftAdmin(silent){
 }
 
 
-// [v308] Records & Stats — per-staff filter + CSV export (CEO/Manager view inside the Calculator page)
-function _srRecFilterBy(key){
-  key=key||''; window._srRecFilter=key;
-  var rows=document.querySelectorAll('#sr-app .sr-rec-row'), shown=0, i;
-  for(i=0;i<rows.length;i++){ var m=(!key)||rows[i].getAttribute('data-staff')===key; rows[i].style.display=m?'':'none'; if(m)shown++; }
-  var tabs=document.querySelectorAll('#sr-app .sr-rec-tab');
-  for(i=0;i<tabs.length;i++){ if((tabs[i].getAttribute('data-staff')||'')===key) tabs[i].classList.add('on'); else tabs[i].classList.remove('on'); }
-  var c=document.getElementById('sr-rec-cnt'); if(c) c.textContent='Daily log · '+shown;
-}
+// [v310] Records & Stats — filter / KR-time toggle re-render the card from stashed data; CSV exports the daily log.
+function _srRecReRender(){ var app=document.querySelector('#sr-app.sr-app-wide'); if(app && window._srRecAll){ app.innerHTML=_srRecCardHTML(window._srRecAll); } }
+function _srRecFilterBy(key){ window._srRecFilter=key||''; _srRecReRender(); }
+function _srRecToggleKR(){ window._srRecKR=!window._srRecKR; _srRecReRender(); }
 function _srRecCSV(){
-  var rows=(window._srRecData||[]).slice(); if(!rows.length){ try{toast('No records to export',true);}catch(_){ } return; }
+  var rows=((window._srRecAll&&window._srRecAll.daily)||[]).slice(); if(!rows.length){ try{toast('No records to export',true);}catch(_){ } return; }
   var f=window._srRecFilter||''; if(f) rows=rows.filter(function(r){return r.key===f;});
-  var body=rows.map(function(r){ return '"'+String(r.name).replace(/"/g,'""')+'",'+r.date+','+r.hours.toFixed(2)+','+r.gain.toFixed(1)+','+r.perH.toFixed(2); }).join('\n');
-  var csv='Staff,Date,Hours,Gain %,EXP per hour\n'+body;
+  var body=rows.map(function(r){ var diff=r.perH-r.targetH; return '"'+String(r.name).replace(/"/g,'""')+'",'+r.date+','+r.hours.toFixed(2)+','+r.perH.toFixed(2)+','+(r.targetH>0?r.targetH.toFixed(2):'')+','+(r.perf!=null?((diff>=0?'+':'')+diff.toFixed(2)):'')+','+(r.perf!=null?Math.round(r.perf):'')+','+(r.perf==null?'No std':(r.perf>=100?'Pass':'Under')); }).join('\n');
+  var csv='Staff,Date,Hours,Actual/h,Target/h,Diff,Perf %,Result\n'+body;
   try{
     var blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); var url=URL.createObjectURL(blob);
     var a=document.createElement('a'); a.href=url; a.download='lucky7-records-'+(f||'all')+'-'+new Date().toISOString().slice(0,10)+'.csv';
@@ -16210,7 +16228,7 @@ function _srRecCompute(reports, clients){
   var _ord={checkin:0,status:1,checkout:2};
   var groups={};
   reports.forEach(function(r){ var k=normName(r.booster); if(!k) return; if(!groups[k]) groups[k]={name:r.booster, rs:[]}; groups[k].rs.push(r); });
-  var recAgg={};
+  var recAgg={}, sessions=[];
   Object.keys(groups).forEach(function(k){
     var g=groups[k];
     var allRs=g.rs.slice().sort(function(a,b){ return ((reportMs(a)||0)-(reportMs(b)||0)) || ((_ord[a.tag]!=null?_ord[a.tag]:1)-(_ord[b.tag]!=null?_ord[b.tag]:1)); });
@@ -16221,39 +16239,92 @@ function _srRecCompute(reports, clients){
     var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
     allRs.forEach(function(r){
       if(isTestMap(r)) return;
-      if(!(r.tag==='status'||r.tag==='checkout'||!r.tag)) return;
-      if(isDup[r.id]) return;
-      var _rd=shiftDateOf(r); if(!_rd) return;
-      if(!recAgg[g.name]) recAgg[g.name]={};
-      if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0};
-      var _ra=recAgg[g.name][_rd];
-      _ra.hours+=1; _ra.gain+=(segGain[r.id]||0);
-      var _rmo=findMap(clients,r); if(_rmo&&Number(_rmo.target)>0) _ra.quota+=Number(_rmo.target);
+      var _rd=shiftDateOf(r);
+      var _tag=(r.tag==='checkin')?'checkin':((r.tag==='checkout')?'checkout':'status');
+      var _rmo=findMap(clients,r);
+      var _tgt=(_rmo&&Number(_rmo.target)>0)?Number(_rmo.target):null;
+      var _dup=!!isDup[r.id];
+      var _gain=(_tag==='checkin')?null:(_dup?0:(segGain[r.id]||0));
+      sessions.push({ name:g.name, key:normName(g.name), date:_rd, ms:reportMs(r), tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, dup:_dup });
+      if(_tag!=='checkin' && !_dup && _rd){
+        if(!recAgg[g.name]) recAgg[g.name]={};
+        if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0};
+        var _ra=recAgg[g.name][_rd];
+        _ra.hours+=1; _ra.gain+=(_gain||0);
+        if(_tgt) _ra.quota+=_tgt;
+      }
     });
   });
-  var recRows=[];
-  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; recRows.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,perH:(a.hours>0?a.gain/a.hours:0)}); }); });
-  recRows.sort(function(a,b){ if(a.date!==b.date) return a.date<b.date?1:-1; return a.name<b.name?-1:(a.name>b.name?1:0); });
-  return recRows;
+  var daily=[];
+  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; var perH=(a.hours>0?a.gain/a.hours:0); var targetH=(a.hours>0&&a.quota>0?a.quota/a.hours:0); var perf=(a.quota>0?(a.gain/a.quota*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,quota:a.quota,perH:perH,targetH:targetH,perf:perf}); }); });
+  daily.sort(function(a,b){ if(a.date!==b.date) return a.date<b.date?1:-1; return a.name<b.name?-1:(a.name>b.name?1:0); });
+  sessions.sort(function(a,b){ return (b.ms||0)-(a.ms||0); });
+  return { daily:daily, sessions:sessions };
 }
-function _srRecCardHTML(recRows){
-  recRows = recRows||[];
-  window._srRecData=recRows;
-  var _rcS={}; recRows.forEach(function(r){ if(!_rcS[r.key])_rcS[r.key]={name:r.name,n:0}; _rcS[r.key].n++; });
-  var _rcK=Object.keys(_rcS).sort(function(a,b){ return _rcS[b].n-_rcS[a].n; });
-  var _curF=window._srRecFilter||''; if(_curF && !_rcS[_curF]){ _curF=''; window._srRecFilter=''; }
-  var _tab=function(key,label,n,active){ return '<button class="sr-rec-tab'+(active?' on':'')+'" data-staff="'+_srEsc(key)+'" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))">'+_srEsc(label)+(n!=null?'<span class="sr-rec-tn">'+n+'</span>':'')+'</button>'; };
-  var _tabs=_tab('','All',recRows.length,_curF==='');
-  _rcK.forEach(function(k){ _tabs+=_tab(k,_rcS[k].name,_rcS[k].n,_curF===k); });
-  var _trs=recRows.map(function(r){ return '<tr class="sr-rec-row" data-staff="'+_srEsc(r.key)+'"'+((_curF&&_curF!==r.key)?' style="display:none"':'')+'><td class="sr-rec-nm">'+_srEsc(r.name)+'</td><td>'+_srEsc(r.date)+'</td><td>'+r.hours.toFixed(2)+'h</td><td>'+r.gain.toFixed(1)+'%</td><td class="sr-rec-ph">'+r.perH.toFixed(2)+'</td></tr>'; }).join('');
-  var _shown=_curF?recRows.filter(function(r){return r.key===_curF;}).length:recRows.length;
-  var _tbl=recRows.length?('<table class="sr-rec-tbl"><thead><tr><th>Staff</th><th>Date</th><th>Hrs</th><th>Gain</th><th>EXP/h</th></tr></thead><tbody>'+_trs+'</tbody></table>'):'<div class="sr-empty">No records logged yet.</div>';
+function _srRecCardHTML(data){
+  data = data||{daily:[],sessions:[]};
+  var daily=data.daily||[], sessions=data.sessions||[];
+  window._srRecAll=data;
+  var esc=_srEsc;
+  var st={}; daily.forEach(function(r){ if(!st[r.key])st[r.key]={name:r.name,n:0,gain:0,quota:0}; st[r.key].n++; st[r.key].gain+=r.gain; st[r.key].quota+=r.quota; });
+  var keys=Object.keys(st).sort(function(a,b){ var pa=st[a].quota>0?st[a].gain/st[a].quota:-1, pb=st[b].quota>0?st[b].gain/st[b].quota:-1; if(pb!==pa) return pb-pa; return st[b].n-st[a].n; });
+  var curF=window._srRecFilter||''; if(curF && !st[curF]){ curF=''; window._srRecFilter=''; }
+  var krMode=!!window._srRecKR;
+  var dcls=function(v){ return v>0?'sr-ok':(v<0?'sr-re':''); };
+  // --- per-staff filter tabs (perf% badge like Railway) ---
+  var tab=function(key,label,sub,active){ return '<button class="sr-rec-tab'+(active?' on':'')+'" data-staff="'+esc(key)+'" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))"><span>'+esc(label)+'</span>'+(sub!=null?'<span class="sr-rec-tn">'+sub+'</span>':'')+'</button>'; };
+  var tabs=tab('','All',daily.length,curF==='');
+  keys.forEach(function(k){ var p=st[k].quota>0?(st[k].gain/st[k].quota*100):null; tabs+=tab(k,st[k].name,(p!=null?Math.round(p)+'%':'—'),curF===k); });
+  // --- DAILY LOG (Staff/Date/Hrs/Actual-h/Target-h/Diff/Perf%/Result) ---
+  var dfil=curF?daily.filter(function(r){return r.key===curF;}):daily;
+  var dres=function(r){ if(r.perf==null) return '<span class="sr-rb sr-rb-no">No std</span>'; if(r.perf>=100) return '<span class="sr-rb sr-rb-ok">Pass</span>'; return '<span class="sr-rb sr-rb-un">Under</span>'; };
+  var drows=dfil.map(function(r){ var diff=r.perH-r.targetH; return '<tr>'
+    +'<td class="sr-rec-nm">'+esc(r.name)+'</td><td>'+esc(r.date)+'</td><td>'+r.hours.toFixed(2)+'h</td>'
+    +'<td class="sr-rec-ph">'+r.perH.toFixed(2)+'</td>'
+    +'<td>'+(r.targetH>0?r.targetH.toFixed(2):'<span class="sr-mut">—</span>')+'</td>'
+    +'<td class="'+(r.perf!=null?dcls(diff):'')+'">'+(r.perf!=null?((diff>=0?'+':'')+diff.toFixed(2)):'<span class="sr-mut">—</span>')+'</td>'
+    +'<td>'+(r.perf!=null?Math.round(r.perf)+'%':'<span class="sr-mut">—</span>')+'</td>'
+    +'<td>'+dres(r)+'</td></tr>'; }).join('');
+  var dtbl=dfil.length?('<table class="sr-rec-tbl"><thead><tr><th>Staff</th><th>Date</th><th>Hrs</th><th>Actual/h</th><th>Target/h</th><th>Diff</th><th>Perf%</th><th>Result</th></tr></thead><tbody>'+drows+'</tbody></table>'):'<div class="sr-empty">No records logged yet.</div>';
+  // --- SESSION LOG (per-report detail, grouped by date, only for the selected staff) ---
+  var slog, sCount=0;
+  if(!curF){ slog='<div class="sr-empty" style="padding:20px 10px">Tap a staff above to see their session log.</div>'; }
+  else {
+    var sfil=sessions.filter(function(s){return s.key===curF;}); sCount=sfil.length;
+    if(!sfil.length){ slog='<div class="sr-empty">No sessions logged.</div>'; }
+    else {
+      var fmtT=function(ms){ if(!ms) return '—'; var off=krMode?9:7; var d=new Date(ms+off*3600000); var p=function(n){return(n<10?'0':'')+n;}; return p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate())+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes()); };
+      var dayName=function(dd){ var dt=new Date(dd+'T00:00:00Z'); if(isNaN(dt.getTime())) return ''; return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getUTCDay()]; };
+      var tagB=function(t){ if(t==='checkin') return '<span class="sr-sb sr-sb-in">Check-in</span>'; if(t==='checkout') return '<span class="sr-sb sr-sb-out">Check-out</span>'; return '<span class="sr-sb">Status</span>'; };
+      var sres=function(s){ if(s.tag==='checkin') return '<span class="sr-rb sr-rb-st">Start</span>'; if(s.target==null) return '<span class="sr-mut">—</span>'; var ratio=s.target>0?(s.gain||0)/s.target:0; if(ratio>=1) return '<span class="sr-rb sr-rb-ok">Over</span>'; if(ratio>=0.7) return '<span class="sr-rb sr-rb-un">Under</span>'; return '<span class="sr-rb sr-rb-wu">Way under</span>'; };
+      var grp={}, gord=[]; sfil.forEach(function(s){ var d=s.date||'—'; if(!grp[d]){grp[d]=[]; gord.push(d);} grp[d].push(s); });
+      slog=gord.map(function(d){ var rows=grp[d];
+        return '<div class="sr-sl-day"><span class="sr-sl-dn">'+esc(d)+(dayName(d)?' ('+dayName(d)+')':'')+'</span><span class="sr-sl-dc">'+rows.length+'</span></div>'
+          +'<table class="sr-sl-tbl"><tbody>'+rows.map(function(s){
+            var act=(s.tag==='checkin')?(s.expAt.toFixed(2)+'%'):(((s.gain||0)>=0?'+':'')+(s.gain||0).toFixed(2)+'%');
+            var tgt=(s.target!=null)?('+'+s.target.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
+            var hasDiff=(s.tag!=='checkin'&&s.target!=null); var dv=hasDiff?(s.gain-s.target):0;
+            var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
+            return '<tr><td class="sr-rec-nm">'+esc(s.name)+'</td>'
+              +'<td class="sr-sl-t">'+(krMode?'<b>KR</b> ':'')+fmtT(s.ms)+'</td>'
+              +'<td>'+tagB(s.tag)+'</td><td>'+esc(s.client)+'</td>'
+              +'<td>'+esc(String(s.pc==null?'':s.pc))+'</td><td>'+esc(String(s.lv==null?'':s.lv))+'</td>'
+              +'<td>'+esc(s.map)+'</td>'
+              +'<td class="sr-num">'+act+'</td><td class="sr-num">'+tgt+'</td>'
+              +'<td class="sr-num '+(hasDiff?dcls(dv):'')+'">'+diff+'</td>'
+              +'<td class="sr-num">'+sres(s)+'</td></tr>';
+          }).join('')+'</tbody></table>';
+      }).join('');
+    }
+  }
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>Records &amp; Stats</h2><span class="sr-badge sr-badge-lock">CEO · Manager</span></div>'
-    +'<div class="sr-rec-sub">All staff daily logs in one place — hours and actual EXP/h, by date.</div>'
-    +'<div class="sr-rec-tabs">'+_tabs+'</div>'
-    +'<div class="sr-rec-bar"><span class="sr-rec-cnt" id="sr-rec-cnt">Daily log · '+_shown+'</span><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button></div>'
-    +_tbl
+    +'<div class="sr-rec-sub">All staff daily and session logs in one place — hours, actual EXP/h and per-report detail.</div>'
+    +'<div class="sr-rec-tabs">'+tabs+'</div>'
+    +'<div class="sr-rec-bar"><span class="sr-rec-cnt">Daily log · '+dfil.length+'</span><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button></div>'
+    +dtbl
+    +'<div class="sr-rec-bar" style="margin-top:26px"><span class="sr-rec-cnt">Session log'+(curF?' · '+sCount:'')+'</span><button class="sr-rec-csv'+(krMode?' on':'')+'" onclick="_srRecToggleKR()">KR time'+(krMode?' ✓':'')+'</button></div>'
+    +slog
     +'</div>';
 }
 async function renderRecords(){
