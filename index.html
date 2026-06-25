@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v316 -->
+<!-- BUILD: v317 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8316,7 +8316,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v316';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v317';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15236,6 +15236,8 @@ function _srRenderCIStart(){
 }
 function _srBumpStart(d){ var n=_srPlayStartH+d; if(n>=0&&n<_srShiftEndH) _srPlayStartH=n; _srRenderCIStart(); _srSyncWin(); }
 function _srPickMap(full){
+  _srLastMap=full;                                   // [v316] remember the pick so a re-render can't reset the map to default
+  try{ if(_srSession) _srSession.map=full; }catch(_){}
   document.querySelectorAll('#sr-app [data-sr-map]').forEach(function(x){ x.textContent=full; });
   var lst=document.querySelectorAll('#sr-dd-map .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel', lst[k].getAttribute('data-full')===full);
   _srCloseDD();
@@ -15451,12 +15453,19 @@ async function _srConfirm(){
 // ───────── shift report: save to payroll + post Discord card ─────────
 var _SR_SERVER='https://buju-report-production.up.railway.app';   // report server (Railway). If the host ever moves, change ONLY this line.
 var _srBusy=false;
+var _srLastMap='';   // [v316] last map the booster picked — kept across form re-renders so it can't snap back to default
 function _srKST(h){ return _srPad(h+2); }
 function _srTodayWIB(){ return new Date(Date.now()+7*3600*1000).toISOString().slice(0,10); }
 function _srSel(){
   var pcEl=document.querySelector('#sr-app .sr-pc-card.sel');
+  // [v316] map = what's actually shown in the dropdown (set directly on pick — the source of truth the booster
+  // sees and the review uses), with the selected option / last pick as fallbacks.
+  var ddMap=document.querySelector('#sr-dd-map [data-sr-map]');
+  var mapTxt=ddMap?String(ddMap.textContent||'').trim():'';
+  if(mapTxt==='\u2014') mapTxt='';
   var mapEl=document.querySelector('#sr-dd-map .sr-dd-opt.sel');
-  return { pc:pcEl?pcEl.getAttribute('data-pc'):'', name:pcEl?pcEl.getAttribute('data-name'):'', map:mapEl?mapEl.getAttribute('data-full'):'' };
+  var mapVal=mapTxt || (mapEl?mapEl.getAttribute('data-full'):'') || _srLastMap || '';
+  return { pc:pcEl?pcEl.getAttribute('data-pc'):'', name:pcEl?pcEl.getAttribute('data-name'):'', map:mapVal };
 }
 function _srNote(screen){ var el=document.querySelector('#sr-s-'+screen+' [data-sr-note]'); return el?el.value:''; }
 function _srCalcClient(clients,name){ var cn=String(name||'').trim(); return (clients||[]).find(function(c){return String(c.name||'').trim()===cn;})||null; }
@@ -15566,6 +15575,9 @@ async function _srSubmitReport(kind,screen){
     // kept showing "-". Here we find the actual character on THIS pc (so the same client name on two PCs can
     // carry different gear), fall back to any name match, then overlay whatever the editor has set.
     try{
+      // [v316] pull the latest client data first, so a nickname/gear the admin changed after this booster's
+      // page loaded is reflected in the report (was stale → reports kept the old nickname).
+      if(typeof syncClientStateFromCloud==='function'){ try{ await syncClientStateFromCloud(); }catch(_){} }
       var _erpC=null, _nmT=String(name||'').trim();
       if(typeof PCS!=='undefined' && PCS && typeof clientById==='function'){
         var _pp=PCS.find(function(p){ return String(p.id)===String(pc); });
@@ -15865,18 +15877,22 @@ function _srBuildHTML(){
   var clients=_srClients();
   var firstPC = clients.length?('PC'+clients[0].pc+' · '+clients[0].name):'—';
   var pcCards = clients.length ? clients.map(function(c,i){ var _pcl=(c.pc!=null&&String(c.pc)!=='?'&&String(c.pc)!=='')?('PC'+_srEsc(String(c.pc))):'PC?'; var _nm=_srEsc(c.name)+(c.dup?(' <span style="color:var(--tx3,#6c6b66);font-weight:400">('+c.dup+')</span>'):''); return '<button class="sr-pc-card'+(i===0?' sel':'')+'" data-idx="'+i+'" data-pc="'+_srEsc(String(c.pc))+'" data-name="'+_srEsc(c.name)+'" onclick="_srPickCard('+i+')"><span class="sr-pc-n">'+_pcl+'</span><span class="sr-pc-nm">'+_nm+'</span></button>'; }).join('') : '<div class="sr-empty">No clients yet — add them in PC Status</div>';
-  var groups=_srMapGroups(), firstMap='';
-  groups.forEach(function(g){ g.maps.forEach(function(m){ if(!firstMap && !m.excl) firstMap=m.full; }); });
+  var groups=_srMapGroups(), firstMap='', _allMaps=[];
+  groups.forEach(function(g){ g.maps.forEach(function(m){ _allMaps.push(m.full); if(!firstMap && !m.excl) firstMap=m.full; }); });
   if(!firstMap && groups.length && groups[0].maps.length) firstMap=groups[0].maps[0].full;
+  // [v316] keep the booster's last-picked map (or an in-progress shift's map) selected across re-renders,
+  // instead of snapping back to the first map — that snap is what made reports "revert to default".
+  var defMap=((_srSession&&_srSession.map)||_srLastMap||'');
+  if(!defMap || _allMaps.indexOf(defMap)<0) defMap=firstMap;
   var mapOpts='';
   groups.forEach(function(g){
     mapOpts+='<div class="sr-dd-grp">'+_srEsc(g.name)+'</div>';
     g.maps.forEach(function(m){
-      mapOpts+='<button class="sr-dd-opt'+(m.full===firstMap?' sel':'')+(m.excl?' sr-excl':'')+'" data-full="'+_srEsc(m.full)+'" onclick="_srPickMap(\''+_srArg(m.full)+'\')">'+_srEsc(m.short||m.full)+(m.excl?'<span class="sr-t2">excluded</span>':'')+'</button>';
+      mapOpts+='<button class="sr-dd-opt'+(m.full===defMap?' sel':'')+(m.excl?' sr-excl':'')+'" data-full="'+_srEsc(m.full)+'" onclick="_srPickMap(\''+_srArg(m.full)+'\')">'+_srEsc(m.short||m.full)+(m.excl?'<span class="sr-t2">excluded</span>':'')+'</button>';
     });
   });
   if(!mapOpts) mapOpts='<div class="sr-empty">No maps yet — add them in Map Info</div>';
-  var firstMapLabel = firstMap || '—';
+  var firstMapLabel = defMap || '\u2014';
 
   var checkin=''
   +'<div class="sr-s" id="sr-s-checkin">'
