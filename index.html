@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v304 -->
+<!-- BUILD: v305 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8310,6 +8310,48 @@ async function _dbUpsert(table, id, data, onConflict){
   return res;
 }
 
+// [v305] ---- "new version available" banner ----
+// Deploying a new build doesn't reach already-open tabs until a hard refresh, which is easy to forget.
+// We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
+// the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
+// show a one-click Refresh. Reloads stay spread out and user-initiated.
+var _APP_BUILD = 'v305';   // keep in lockstep with the BUILD comment at the top of this file
+var _verBannerShown = false;
+async function _checkVersion(){
+  if(_verBannerShown || !location || !location.href) return;
+  try{
+    var base = location.href.split('#')[0].split('?')[0];
+    var resp = await fetch(base + '?v=' + Date.now(), { cache:'no-store' });   // unique URL busts browser + CDN cache
+    if(!resp || !resp.ok || !resp.body) return;
+    var reader = resp.body.getReader();
+    var first = await reader.read();                 // BUILD comment is at the very top → in the first chunk
+    try{ reader.cancel(); }catch(_){}                // stop the download; we don't need the rest of the file
+    var text = new TextDecoder('utf-8').decode(first.value || new Uint8Array());
+    var m = text.match(/BUILD:\s*v(\d+)/);
+    if(!m) return;
+    var deployed = parseInt(m[1], 10);
+    var running = parseInt((String(_APP_BUILD).match(/\d+/) || ['0'])[0], 10);
+    if(deployed > running) _showVersionBanner('v' + deployed);
+  }catch(_){}
+}
+function _showVersionBanner(ver){
+  if(_verBannerShown || !document.body) return;
+  _verBannerShown = true;
+  var bar = document.createElement('div');
+  bar.id = '_ver-banner';
+  bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:99999;background:#14213d;color:#fff;border:1px solid #c9963a;border-radius:10px;padding:10px 14px;box-shadow:0 8px 28px rgba(0,0,0,.45);font:500 13px/1.2 system-ui,-apple-system,sans-serif;display:flex;align-items:center;gap:12px;max-width:92vw';
+  bar.innerHTML = '<span>🔄 New version ' + ver + ' is available.</span>'
+    + '<button id="_ver-refresh" style="background:#c9963a;color:#14213d;border:0;border-radius:7px;padding:6px 12px;font-weight:700;cursor:pointer">Refresh</button>'
+    + '<button id="_ver-dismiss" title="Dismiss" style="background:transparent;color:#9aa3b2;border:0;cursor:pointer;font-size:17px;line-height:1">×</button>';
+  document.body.appendChild(bar);
+  var rf = document.getElementById('_ver-refresh'); if(rf) rf.onclick = function(){ try{ location.reload(); }catch(_){ location.href = location.href; } };
+  var dm = document.getElementById('_ver-dismiss'); if(dm) dm.onclick = function(){ try{ bar.remove(); }catch(_){} _verBannerShown = false; };
+}
+// check shortly after load, whenever the tab refocuses, and every 15 min
+setTimeout(_checkVersion, 6000);
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) _checkVersion(); });
+setInterval(_checkVersion, 15 * 60 * 1000);
+
 async function saveRecruits(){
   try{ pauseSync(); }catch(_){}
   if(!sb) return;
@@ -14878,6 +14920,7 @@ function recalcSettlement(){
 let STANDARD_EXP = []
 // [v166] persist Standard-EXP PCs + custom maps (were in-memory only → vanished on refresh)
 let _expSynced=false, _expSig='', _expSaving=false, _expPollTimer=null, _expSaveTimer=null;
+let _expDirtyUntil=0;   // [v305] grace window after a Standard-EXP edit so a poll can't revert it
 function _expSigNow(){ return JSON.stringify({ p: STANDARD_EXP, m: (typeof MAP_GROUPS!=='undefined'?MAP_GROUPS:{}) }); }
 function _applyExpState(d){
   if(!d) return;
@@ -14898,6 +14941,8 @@ async function syncExpFromCloud(){
 }
 function saveExpState(){
   _expSig = _expSigNow();
+  pauseSync(7000);                            // [v305] hold polls so a fresh edit can't be reverted by a stale read
+  _expDirtyUntil = Date.now() + 25000;        // [v305] cover a slow/retried write
   if(!sb) return;
   _expSaving = true;
   clearTimeout(_expSaveTimer);
@@ -14931,16 +14976,19 @@ function reconcilePcExp(){
 }
 async function pollExp(){
   if(!sb || !currentUser || _expSaving) return;
+  if(Date.now() < _syncPausedUntil) return;        // [v305] respect the post-save pause (was missing)
+  if(Date.now() < _expDirtyUntil) return;           // [v305] a Standard-EXP cell was just edited — let it land
   try{
     const { data, error } = await sb.from('exp_state').select('data').eq('id','default').maybeSingle();
     if(error || !data || !data.data) return;
     const incoming = JSON.stringify({ p: data.data.pcs||[], m: data.data.maps||{} });
     if(incoming === _expSig) return;
-    _applyExpState(data.data); _expSig = incoming; _expSynced = true;
     const mod = (typeof findChannelById==='function') ? (findChannelById(activeChannelId)||{}).module : null;
     const ae = document.activeElement;
-    const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
-    if(mod==='exp-standard' && !typing){ try{ renderExpStandard(); }catch(_){} }
+    const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable);
+    if(typing) return;                                // [v305] don't overwrite the grid mid-edit (was applied before this check)
+    _applyExpState(data.data); _expSig = incoming; _expSynced = true;
+    if(mod==='exp-standard'){ try{ renderExpStandard(); }catch(_){} }
   }catch(_){}
 }
 function expLabel(r){ const m=(r.map||'').trim(); const spec=('LV.'+(r.lv||'-')+' '+(r.cls||'')+' 검 +'+(r.we||0)+' 방 +'+(r.ae||0)).replace(/\s+/g,' ').trim(); return m ? (m+' · '+spec) : spec; }
@@ -18197,19 +18245,19 @@ async function saveAnnouncements(){
 }
 async function pollAnnouncements(){
   if(!sb || !currentUser || _annSaving) return;
+  if(Date.now() < _syncPausedUntil) return;        // [v305] respect the post-save pause
   try{
     const { data, error } = await sb.from('announce_state').select('data').eq('id','default').maybeSingle();
     if(error || !data || !Array.isArray(data.data)) return;
     const sig = JSON.stringify(data.data);
     if(sig === _annSig) return;
+    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
+    const ae = document.activeElement;
+    const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable);
+    if(typing && mod === 'announce') return;          // [v305] don't refresh the list out from under a draft
     ANNOUNCEMENTS = data.data; _annSig = sig;
     try{ renderSidebar(); }catch(_){}
-    const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
-    if(mod === 'announce'){
-      const ae = document.activeElement;
-      const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
-      if(!typing){ try{ renderAnnouncements(); }catch(_){} }
-    }
+    if(mod === 'announce'){ try{ renderAnnouncements(); }catch(_){} }
   }catch(_){}
 }
 
@@ -20825,6 +20873,7 @@ const CLIENT_ACCOUNTS = [];
 // both stored in one JSON row in client_state: { accounts:[...], pool:[...] }
 // (CLIENTS / CLIENT_ACCOUNTS are const arrays → mutate in place via splice, never reassign)
 let _clientSynced = false, _clientSig = '', _clientSaving = false, _clientPollTimer = null, _clientSaveTimer = null;
+let _clientDirtyUntil = 0;   // [v305] grace window after a client field edit so a poll can't revert it mid-entry (mirrors _recruitDirtyUntil)
 function _clientStateSig(){ return JSON.stringify({ a: CLIENT_ACCOUNTS, p: CLIENTS }); }
 function _applyClientState(d){
   if(!d) return;
@@ -20850,6 +20899,7 @@ async function syncClientStateFromCloud(){
 function saveClientState(immediate){
   _clientSig = _clientStateSig();
   pauseSync(7000);            // [v211] hold polls ~7s so a fresh paid/unpaid change can't be reverted by a stale cloud read
+  if(!immediate) _clientDirtyUntil = Date.now() + 25000;   // [v305] field edits: hold the revert-poll off long enough for a slow/retried write to land
   if(!sb) return;
   _clientSaving = true;
   clearTimeout(_clientSaveTimer);
@@ -20866,15 +20916,20 @@ function saveClientState(immediate){
 async function pollClientState(){
   if(!sb || !currentUser || _clientSaving) return;
   if(Date.now() < _syncPausedUntil) return;        // [v211] we just changed a client locally — don't let a stale read revert it
+  if(Date.now() < _clientDirtyUntil) return;        // [v305] a client field was just edited — give the save time to land before pulling
   try{
     const { data, error } = await sb.from('client_state').select('data').eq('id','default').maybeSingle();
     if(error || !data || !data.data) return;
     const incoming = JSON.stringify({ a: data.data.accounts||[], p: data.data.pool||[] });
     if(incoming === _clientSig) return;
-    _applyClientState(data.data); _clientSig = incoming;
+    // [v305] CRITICAL: bail out BEFORE applying if the user is mid-edit. Previously _applyClientState ran
+    // first and the typing check only skipped the re-render — so the incoming (stale) data overwrote the
+    // field being typed and the next save persisted the revert. Now we never clobber an in-flight edit;
+    // we just retry next tick (sig is left unchanged so the real change still lands once editing stops).
     const ae = document.activeElement;
-    const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable);
+    const typing = ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable);
     if(typing) return;
+    _applyClientState(data.data); _clientSig = incoming;
     const mod = (typeof findChannelById === 'function') ? (findChannelById(activeChannelId)||{}).module : null;
     if(mod === 'clients'){ try{ renderClients(); }catch(_){} }
     // [v211] client contract / due / payment also feed the calendar+schedule — repaint them too
