@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v314 -->
+<!-- BUILD: v315 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8316,7 +8316,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v314';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v315';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15138,10 +15138,25 @@ function _srThread(){
   try{
     if(typeof STAFF_PROFILE==='undefined' || typeof currentUser==='undefined' || !currentUser) return '';
     var p = STAFF_PROFILE[currentUser.id] || STAFF_PROFILE[currentUser.name] || null;
-    if(!p){ var nm=String(currentUser.name||'').toLowerCase().trim(); for(var k in STAFF_PROFILE){ if(String(k).toLowerCase().trim()===nm){ p=STAFF_PROFILE[k]; break; } } }
+    var myNm=String(currentUser.name||'').toLowerCase().trim();
+    var strip=function(s){ return String(s||'').toLowerCase().trim().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim(); };
+    var myKey=strip(currentUser.name);
+    // [v315] the admin may have saved the thread under a staff-row id that isn't this login's id
+    // (e.g. the roster fell back to name-based ids). Resolve by matching the account name through the
+    // team roster, then by the profile's own stored name — so the thread is found either way.
+    if(!p && typeof _teamCache!=='undefined' && Array.isArray(_teamCache)){
+      for(var i=0;i<_teamCache.length;i++){ var m=_teamCache[i]; if(!m||!STAFF_PROFILE[m.id]) continue; var mn=String(m.name||'').toLowerCase().trim(); if(mn===myNm || strip(m.name)===myKey){ p=STAFF_PROFILE[m.id]; break; } }
+    }
+    if(!p){ for(var k in STAFF_PROFILE){ var pr=STAFF_PROFILE[k]; var kn=String(k).toLowerCase().trim(); var fn=String((pr&&pr.personal&&pr.personal.full_name)||''); if(kn===myNm || strip(k)===myKey || (fn&&strip(fn)===myKey)){ p=pr; break; } } }
     return _srParseThread(p && p.personal ? p.personal.discord_thread : '');
   }catch(e){ return ''; }
 }
+function _srThreadLineHTML(){
+  return _srThread()
+    ? '<span style="font-size:11.5px;color:var(--gr,#4d9a8a);">✓ reports go to your Discord thread</span>'
+    : '<span style="font-size:11.5px;color:var(--re,#c46a6a);">⚠ no Discord thread set — ask an admin to add it on your staff profile</span>';
+}
+function _srRefreshThreadLine(){ try{ var el=document.getElementById('sr-thread-line'); if(el) el.innerHTML=_srThreadLineHTML(); }catch(_){}}
 function _srClients(){
   var out=[];
   try{
@@ -15841,10 +15856,7 @@ function _srExpRow(prefix,mode,screen){
 }
 function _srBuildHTML(){
   var booster=_srEsc(_srBooster());
-  var _tid=_srThread();
-  var threadLine = _tid
-    ? '<span style="font-size:11.5px;color:var(--gr,#4d9a8a);">✓ reports go to your Discord thread</span>'
-    : '<span style="font-size:11.5px;color:var(--re,#c46a6a);">⚠ no Discord thread set — ask an admin to add it on your staff profile</span>';
+  var threadLine = '<span id="sr-thread-line">'+_srThreadLineHTML()+'</span>';
   var sh0=_SR_SHIFTS[0];
   var shiftOpts=_SR_SHIFTS.map(function(s,i){ return '<button class="sr-dd-opt'+(i===0?' sel':'')+'" onclick="_srPickShift('+i+')">'+_srEsc(s.name)+'<span class="sr-t2">'+_srEsc(s.time.replace(' → ','–'))+'</span></button>'; }).join('');
   var clients=_srClients();
@@ -16009,6 +16021,8 @@ function renderCalcEmbed(){
   var adminRole = (role==='admin' || role==='op' || (typeof currentUser!=='undefined' && currentUser && currentUser.role==='hr'));
   if(adminRole && !window._srForceForm){ window._srAdminDay=0; renderShiftAdmin(); return; }
   otherView.innerHTML=_srBuildHTML();
+  // [v315] pull the freshest staff info so a Discord thread the admin just set shows up here without a hard reload
+  try{ var _ps=[]; if(typeof loadStaffState==='function') _ps.push(loadStaffState()); if(typeof loadTeamMembers==='function') _ps.push(loadTeamMembers()); if(_ps.length) Promise.all(_ps).then(function(){ _srRefreshThreadLine(); }).catch(function(){}); }catch(_){}
   var _resume = (!!_srSession && !!_srSession.client) || _srLoadSession();   // [v264] resume an active shift across navigation/reload
   if(!_resume){ _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=8; }
   _srRenderCIStart(); _srRenderWin();
