@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v310 -->
+<!-- BUILD: v311 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8316,7 +8316,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v310';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v311';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16079,7 +16079,7 @@ async function renderShiftAdmin(silent){
   _srInjectCSS();
   var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
   var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
-  var normName=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)\.?\s+/,'').trim().split(/\s+/)[0]||''; };
+  var normName=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; };
   // [v291] A single hourly report can't realistically span more than ~20 levels. A bigger
   // jump means the LV field is bad data (e.g. "400" typed for "40"), which would otherwise
   // explode the gain by ~360*100%. When that happens, fall back to the within-level EXP %
@@ -16218,7 +16218,7 @@ function _srRecCSV(){
 function _srRecCompute(reports, clients){
   reports = Array.isArray(reports)?reports:[];
   clients = Array.isArray(clients)?clients:[];
-  var normName=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)\.?\s+/,'').trim().split(/\s+/)[0]||''; };
+  var normName=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; };
   var MAX_LV_JUMP=20;
   var gainedPct=function(r){ var dLv=(Number(r.lvAfter)||0)-(Number(r.lvBefore)||0); var dExp=(Number(r.expAfter)||0)-(Number(r.expBefore)||0); if(Math.abs(dLv)>MAX_LV_JUMP) return dExp; return dLv*100+dExp; };
   var reportMs=function(r){ if(!r) return null; if(typeof r.createdAt==='number'&&r.createdAt>1e12) return r.createdAt; var m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; };
@@ -16327,25 +16327,32 @@ function _srRecCardHTML(data){
     +slog
     +'</div>';
 }
-async function renderRecords(){
+async function renderRecords(silent){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
   var _grr=((currentUser&&currentUser.role)||'').toLowerCase();
   var _canRec=(currentUserRole==='admin')||_grr==='ceo'||_grr==='manager';
+  if(!_canRec){ if(!silent) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>Records &amp; Stats</h2></div><div class="sr-empty">CEO / Manager only.</div></div></div>'; return; }
   _srInjectCSS();
-  if(!_canRec){ otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>Records &amp; Stats</h2></div><div class="sr-empty">CEO / Manager only.</div></div></div>'; return; }
-  if(!otherView.querySelector('.sr-rec-card')) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>Records &amp; Stats</h2><span class="sr-badge">Live</span></div><div class="sr-admin-load">⟳ loading records…</div></div></div>';
+  // [v310] silent = background poll: keep scroll + current filter, no loading flash, no error wipe
+  var _keepTop = silent ? (otherView.scrollTop||0) : 0;
+  var _keepWin = silent ? (window.scrollY||document.documentElement.scrollTop||0) : 0;
+  if(!silent && !otherView.querySelector('.sr-rec-card')) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>Records &amp; Stats</h2><span class="sr-badge">Live</span></div><div class="sr-admin-load">⟳ loading records…</div></div></div>';
   var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
   var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
   try{
     var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
-    var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr});
+    var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*&t='+Date.now(),{headers:hdr,cache:'no-store'});
     var rows=await res.json().catch(function(){return [];});
     var byKey={}; if(Array.isArray(rows)) rows.forEach(function(r){ byKey[r.key]=(r.value!==undefined?r.value:r.data); });
     var reports=Array.isArray(byKey.reports)?byKey.reports:[];
     var clients=Array.isArray(byKey.clients)?byKey.clients:[];
     var recRows=_srRecCompute(reports, clients);
-    otherView.innerHTML='<div id="sr-app" class="sr-app-wide">'+_srRecCardHTML(recRows)+'</div>';
+    var app=otherView.querySelector('#sr-app.sr-app-wide');
+    if(silent && app){ app.innerHTML=_srRecCardHTML(recRows); }
+    else { otherView.innerHTML='<div id="sr-app" class="sr-app-wide">'+_srRecCardHTML(recRows)+'</div>'; }
+    if(silent){ try{ otherView.scrollTop=_keepTop; window.scrollTo(0,_keepWin); }catch(_){} }
   }catch(e){
+    if(silent) return;   // background refresh failed — keep the current view, don't flash an error
     otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>Records &amp; Stats</h2></div><div class="sr-empty">Couldn\'t load records right now.</div></div></div>';
   }
 }
@@ -18334,7 +18341,7 @@ async function renderMyPerformance(){
   // Reads the calc's data directly from the REPORT Supabase project (no server.js, no CORS).
   const REPORT_SUPABASE_URL = 'https://ohnasvgwzmknzujtqrzt.supabase.co';
   const REPORT_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
-  const normName = (n) => String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)\.?\s+/,'').trim().split(/\s+/)[0] || '';
+  const normName = (n) => String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0] || '';
   const toMin = (hhmm) => { const s=String(hhmm==null?'':hhmm).trim(); const m=s.match(/^(\d{1,2}):(\d{2})$/); if(!m) return NaN; const h=Number(m[1]), mn=Number(m[2]); if(h<0||h>24||mn<0||mn>59) return NaN; return h*60+mn; };
   const ovMin = (s,e,bs,be) => Math.max(0, Math.min(e,be)-Math.max(s,bs));
   const workHoursOf = (s) => { if(s && s.workHours) return Number(s.workHours); const m=String(s&&s.shift||'').match(/(\d+)\s*h/i); return m?Number(m[1]):12; };
@@ -19452,9 +19459,10 @@ async function pollShiftView(){
   if(!currentUser) return;
   var ch=(typeof findChannelById==='function')?findChannelById(activeChannelId):null;
   var mod=ch?ch.module:null;
-  if(mod!=='calc-embed') return;
+  if(mod!=='calc-embed' && mod!=='records') return;
   var ae=document.activeElement;
   if(ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable)) return;
+  if(mod==='records'){ try{ await renderRecords(true); }catch(_){} return; }   // [v310] live Records refresh
   var role=(typeof currentUserRole!=='undefined')?currentUserRole:'player';
   var adminRole=(role==='admin'||role==='op'||(currentUser&&currentUser.role==='hr'));
   if(!(adminRole && !window._srForceForm)) return;   // booster / form view — never auto-refresh
