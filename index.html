@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v303 -->
+<!-- BUILD: v304 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15434,7 +15434,10 @@ async function _srPostCard(type,fields,shot){
 }
 function _srFields(name,pc,gear,ps,pe,map,prevLv,prevExp,lv,exp,prevAde,ade,note,date){
   var no=gear.no;
-  return { clientNo:no, nickname:name, clientNoLabel:(no!=null?no+' ':'')+(name||''),
+  // [v304] nickname = in-game character name (gear.charName, from the character's 캐릭/label field) so the
+  // KakaoTalk bot matches the right character; falls back to the client name when no character name is set.
+  var charName=(gear.charName!=null && String(gear.charName).trim()!=='') ? String(gear.charName).trim() : (name||'');
+  return { clientNo:no, nickname:charName, clientName:(name||''), clientNoLabel:(no!=null?no+' ':'')+(name||''),
     pc:pc, lv:lv, class:gear.classJob||'', threadId:((_srSession&&_srSession.threadId)?_srSession.threadId:_srThread()),
     weapon:(gear.weapon!=null&&gear.weapon!=='')?('+'+gear.weapon):'', armor:(gear.armor!=null&&gear.armor!=='')?('+'+gear.armor):'', ac:(gear.ac!=null&&gear.ac!=='')?gear.ac:'',
     playStart:ps, playEnd:pe, map:map, exp:exp, prevExp:prevExp, prevLv:prevLv,
@@ -15479,6 +15482,9 @@ async function _srSubmitReport(kind,screen){
         if(_erpC.weapon!=null && _erpC.weapon!=='')         gear.weapon=_erpC.weapon;
         if(_erpC.armor_set!=null && _erpC.armor_set!=='')   gear.armor=_erpC.armor_set;
         if(_erpC.ac!=null && _erpC.ac!=='')                 gear.ac=_erpC.ac;
+        // [v304] The card's nickname must be the in-game CHARACTER name (so the KakaoTalk bot can match it),
+        // not the client/account name. That lives in the character's label (the 캐릭 field in the editor).
+        if(_erpC.label && String(_erpC.label).trim())       gear.charName=String(_erpC.label).trim();
       }
     }catch(e){}
     var base=Date.now(), newRecs=[], cardFields, cardType;
@@ -22366,7 +22372,7 @@ function clientEditForm(c, opts){
     </div>`}
     <div class="c-form-row">
       <label>캐릭</label>
-      <input type="text" class="grow" value="${(c.label||'').replace(/"/g,'&quot;')}" placeholder="예: 기사, 하이브리드 법사" oninput="setClientField('${c.id}','label',this.value)">
+      <input type="text" class="grow" value="${(c.label||'').replace(/"/g,'&quot;')}" placeholder="인게임 캐릭터명 (카톡 매칭용)" title="${_uiLang()==='ko'?'리포트/카톡에 표시되는 인게임 캐릭터 이름. 비우면 손님 이름으로 대체됩니다.':'In-game character name shown on the report/KakaoTalk. Falls back to the client name if blank.'}" oninput="setClientField('${c.id}','label',this.value)">
     </div>
     <div class="c-form-row">
       <label>직업</label>
