@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v328 -->
+<!-- BUILD: v329 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8317,7 +8317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v328';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v329';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15238,11 +15238,15 @@ function _srApplyShiftIdx(i){
   _srRenderCIStart(); _srSyncWin();
   return true;
 }
-// [v328] Resolve THIS player's assigned shift key (Staff list → manual shift). Mirrors _srThread()'s profile
-// resolver so it survives an id/name mismatch or a duplicate profile record.
+// [v328] Resolve THIS player's assigned shift key. Mirrors _srThread()'s profile resolver so it survives an
+// id/name mismatch or a duplicate profile record.
+// [v329] Look in more places: a shift can land in manual_shift, shift, or pref_shift on the profile, or on the
+// roster row. Any value is accepted only if it's a real shift key (SHIFT_SCHEDULE or SHIFTS), so junk is ignored.
 function _srMyShiftKey(){
   try{
     if(typeof STAFF_PROFILE==='undefined' || typeof currentUser==='undefined' || !currentUser) return '';
+    var valid=function(k){ k=String(k||'').trim(); if(!k) return ''; if((typeof SHIFT_SCHEDULE!=='undefined'&&SHIFT_SCHEDULE[k])||(typeof SHIFTS!=='undefined'&&SHIFTS[k])) return k; return ''; };
+    var fromProfile=function(c){ c=c||{}; var p=c.personal||{}; return valid(c.manual_shift)||valid(c.shift)||valid(c.pref_shift)||valid(p.manual_shift)||valid(p.shift)||valid(p.pref_shift); };
     var strip=function(s){ return String(s||'').toLowerCase().trim().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim(); };
     var myNm=String(currentUser.name||'').toLowerCase().trim(), myKey=strip(currentUser.name);
     var cands=[];
@@ -15252,21 +15256,29 @@ function _srMyShiftKey(){
       _teamCache.forEach(function(m){ if(m && STAFF_PROFILE[m.id] && (String(m.name||'').toLowerCase().trim()===myNm || strip(m.name)===myKey)) cands.push(STAFF_PROFILE[m.id]); });
     }
     for(var k in STAFF_PROFILE){ var pr=STAFF_PROFILE[k]; if(!pr) continue; var fn=(pr.personal&&pr.personal.full_name)||''; if(String(k).toLowerCase().trim()===myNm || strip(k)===myKey || (fn&&strip(fn)===myKey)) cands.push(pr); }
-    for(var i=0;i<cands.length;i++){ var mk=cands[i] && cands[i].manual_shift; if(mk) return mk; }
+    for(var i=0;i<cands.length;i++){ var mk=fromProfile(cands[i]); if(mk) return mk; }
+    // roster row fallback (some deployments keep the shift on the team member, not the profile)
+    if(typeof _teamCache!=='undefined' && Array.isArray(_teamCache)){
+      for(var j=0;j<_teamCache.length;j++){ var mm=_teamCache[j]; if(!mm) continue; if(String(mm.name||'').toLowerCase().trim()===myNm || strip(mm.name)===myKey || String(mm.id||'')===String(currentUser.id)){ var tk=valid(mm.shift)||valid(mm.pref_shift)||valid(mm.manual_shift); if(tk) return tk; } }
+    }
     return '';
   }catch(_){ return ''; }
 }
-// [v328] Map a SHIFT_SCHEDULE key (e.g. '8h_s3') to the matching _SR_SHIFTS index by its work-time window,
-// so the form's shift list and the HR shift definitions stay in sync without a hand-kept lookup table.
+// [v328] Map a shift key to the matching _SR_SHIFTS index by its time window, so the form's shift list and
+// the HR shift definitions stay in sync without a hand-kept lookup table.
+// [v329] Accept BOTH key flavours: SHIFT_SCHEDULE/APPLY_SHIFTS ('8h_s3', parsed from the work string) and
+// SHIFTS ('shift3', which carries startH/endH directly).
 function _srShiftIdxForKey(key){
   try{
-    if(!key || typeof SHIFT_SCHEDULE==='undefined' || !SHIFT_SCHEDULE[key]) return -1;
-    var work=String(SHIFT_SCHEDULE[key].work||'');
-    var m=Array.from(work.matchAll(/(\d{1,2})(?::\d{2})?\s*(AM|PM)/gi));
-    if(m.length<2) return -1;
-    var to24=function(h,ap){ h=parseInt(h,10); ap=String(ap).toUpperCase(); if(ap==='PM'&&h!==12)h+=12; if(ap==='AM'&&h===12)h=0; return h; };
-    var sH=to24(m[0][1],m[0][2]), eH=to24(m[1][1],m[1][2]);
-    var eEff=(eH<=sH)?eH+24:eH;
+    if(!key) return -1;
+    var sH=null, eEff=null;
+    if(typeof SHIFT_SCHEDULE!=='undefined' && SHIFT_SCHEDULE[key]){
+      var work=String(SHIFT_SCHEDULE[key].work||'');
+      var m=Array.from(work.matchAll(/(\d{1,2})(?::\d{2})?\s*(AM|PM)/gi));
+      if(m.length>=2){ var to24=function(h,ap){ h=parseInt(h,10); ap=String(ap).toUpperCase(); if(ap==='PM'&&h!==12)h+=12; if(ap==='AM'&&h===12)h=0; return h; }; var s=to24(m[0][1],m[0][2]), e=to24(m[1][1],m[1][2]); sH=s; eEff=(e<=s)?e+24:e; }
+    }
+    if(sH===null && typeof SHIFTS!=='undefined' && SHIFTS[key] && SHIFTS[key].startH!=null && SHIFTS[key].endH!=null){ sH=SHIFTS[key].startH; eEff=SHIFTS[key].endH; }
+    if(sH===null) return -1;
     for(var i=0;i<_SR_SHIFTS.length;i++){ if(_SR_SHIFTS[i].s===sH && _SR_SHIFTS[i].e===eEff) return i; }
     for(var j=0;j<_SR_SHIFTS.length;j++){ if(_SR_SHIFTS[j].s===sH) return j; }
     return -1;
@@ -15276,10 +15288,15 @@ function _srShiftIdxForKey(key){
 // active/resumed shift, or runs when the check-in screen isn't showing. Safe to call repeatedly.
 function _srAutoPickShift(){
   try{
+    var key=_srMyShiftKey(), idx=_srShiftIdxForKey(key);
+    try{   // [v329] diagnostic — open the browser console and look for [auto-shift] to see exactly what was found
+      var _shp=[]; if(typeof STAFF_PROFILE!=='undefined'){ for(var _k in STAFF_PROFILE){ var _p=STAFF_PROFILE[_k]; if(!_p) continue; var _pp=_p.personal||{}; var _v=_p.manual_shift||_p.shift||_p.pref_shift||_pp.manual_shift||_pp.shift||_pp.pref_shift||_pp.shift_pattern; if(_v) _shp.push(String(_k).slice(0,14)+':'+_v); } }
+      console.log('[auto-shift] user='+((currentUser&&currentUser.name)||'?')+' id='+((currentUser&&currentUser.id)||'?')+' → key="'+key+'" idx='+idx+' locked='+_srShiftLocked+' session='+!!(_srSession&&_srSession.client)+' | profiles-with-shift: '+(_shp.length?_shp.join(' , '):'(none found)'));
+    }catch(_){}
     if(_srShiftLocked) return;
     if(_srSession && _srSession.client) return;
     var cs=document.getElementById('sr-s-checkin'); if(!cs || cs.style.display==='none') return;
-    var ai=_srShiftIdxForKey(_srMyShiftKey()); if(ai>=0) _srApplyShiftIdx(ai);
+    if(idx>=0) _srApplyShiftIdx(idx);
   }catch(_){}
 }
 function _srRenderCIStart(){
