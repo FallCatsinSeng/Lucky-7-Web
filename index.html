@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v324 -->
+<!-- BUILD: v325 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8317,7 +8317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v324';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v325';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16282,10 +16282,13 @@ function _srRecInjectEditCSS(){
     +'.sr-map-caret:hover{color:var(--ac,#c9963a)}'
     +'.sr-map-list{margin-top:6px;border:1px solid var(--br2,#2a3142);border-radius:8px;background:var(--bg-b,#11161f);max-height:184px;overflow-y:auto;display:none;-webkit-overflow-scrolling:touch}'
     +'.sr-map-list.on{display:block}'
-    +'.sr-map-opt{padding:9px 11px;font-size:14px;color:var(--tx2,#b8bcc6);cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    +'.sr-map-opt{padding:8px 11px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05)}'
     +'.sr-map-opt:last-child{border-bottom:none}'
-    +'.sr-map-opt:hover{background:rgba(201,150,58,.14);color:var(--tx,#e7e5de)}'
-    +'.sr-map-opt.sel{color:var(--ac,#c9963a);font-weight:600}'
+    +'.sr-map-opt:hover{background:rgba(201,150,58,.14)}'
+    +'.sr-map-opt.sel .sr-map-main{color:var(--ac,#c9963a);font-weight:600}'
+    +'.sr-map-main{display:block;font-size:14px;color:var(--tx2,#b8bcc6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    +'.sr-map-opt:hover .sr-map-main{color:var(--tx,#e7e5de)}'
+    +'.sr-map-sub{display:block;font-size:11px;color:var(--tx3,#8b93a1);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
     +'.sr-map-empty{padding:10px 11px;font-size:12px;color:var(--tx3,#8b93a1)}';
   document.head.appendChild(st);
 }
@@ -16317,21 +16320,26 @@ function _srShiftPeerIds(reports, targetId){
 }
 // [v324] Custom scrollable map picker for the report editor (replaces the native <datalist>, which filtered
 // itself down to almost nothing once the field held a long value, so it read as un-scrollable).
-function _srMapRender(){
+// [v325] Opening the list shows EVERY map; only typing filters it. Entries are {full, short} — the short name
+// shows big with the full string beneath; picking writes the full string (what reports store).
+function _srMapRender(useFilter){
   var inp=document.getElementById('sr-rec-edit-map'), list=document.getElementById('sr-rec-edit-maplist');
   if(!list) return;
   var all=(window._srMapAll||[]);
   var cur=String((inp&&inp.value)||'').trim();
-  var q=cur.toLowerCase();
-  var rows=all.filter(function(m){ return !q || String(m).toLowerCase().indexOf(q)>=0; });
+  var q=useFilter?cur.toLowerCase():'';
+  var rows=all.filter(function(m){ return !q || String(m.full).toLowerCase().indexOf(q)>=0 || String(m.short).toLowerCase().indexOf(q)>=0; });
   var esc=_srEsc;
   if(!rows.length){ list.innerHTML='<div class="sr-map-empty">'+(all.length?'No saved map matches — Save uses exactly what you typed.':'No saved maps yet — type the zone and Save.')+'</div>'; return; }
-  list.innerHTML=rows.map(function(m){ return '<div class="sr-map-opt'+(m===cur?' sel':'')+'" data-m="'+esc(m)+'" onclick="_srMapPick(this.getAttribute(\'data-m\'))">'+esc(m)+'</div>'; }).join('');
+  list.innerHTML=rows.map(function(m){
+    var sub=(m.short && m.short!==m.full)?('<span class="sr-map-sub">'+esc(m.full)+'</span>'):'';
+    return '<div class="sr-map-opt'+(m.full===cur?' sel':'')+'" data-m="'+esc(m.full)+'" onclick="_srMapPick(this.getAttribute(\'data-m\'))"><span class="sr-map-main">'+esc(m.short||m.full)+'</span>'+sub+'</div>';
+  }).join('');
 }
-function _srMapOpen(){ var l=document.getElementById('sr-rec-edit-maplist'); if(l){ _srMapRender(); l.classList.add('on'); } }
+function _srMapOpen(){ var l=document.getElementById('sr-rec-edit-maplist'); if(l){ _srMapRender(false); l.classList.add('on'); try{ var sel=l.querySelector('.sr-map-opt.sel'); if(sel&&sel.scrollIntoView) sel.scrollIntoView({block:'nearest'}); }catch(_){} } }
 function _srMapClose(){ var l=document.getElementById('sr-rec-edit-maplist'); if(l) l.classList.remove('on'); }
 function _srMapToggle(){ var l=document.getElementById('sr-rec-edit-maplist'); if(!l) return; if(l.classList.contains('on')){ _srMapClose(); } else { _srMapOpen(); var inp=document.getElementById('sr-rec-edit-map'); if(inp){ try{ inp.focus(); }catch(_){} } } }
-function _srMapFilter(){ var l=document.getElementById('sr-rec-edit-maplist'); if(l){ _srMapRender(); l.classList.add('on'); } }
+function _srMapFilter(){ var l=document.getElementById('sr-rec-edit-maplist'); if(l){ _srMapRender(true); l.classList.add('on'); } }
 function _srMapPick(m){ var inp=document.getElementById('sr-rec-edit-map'); if(inp){ inp.value=m; } _srMapClose(); }
 function _srMapMaybeClose(e){ var w=document.getElementById('sr-rec-edit-mapwrap'); if(w && e && e.target && !w.contains(e.target)){ _srMapClose(); } }
 function _srRecEditReport(id){
@@ -16342,9 +16350,16 @@ function _srRecEditReport(id){
   var esc=_srEsc;
   var lvVal=(s.lv==null?'':s.lv), expVal=(s.expAt!=null?Number(s.expAt).toFixed(2):''), mapVal=(s.map==null?'':s.map);
   var tagLabel=(s.tag==='checkin'?'Check-in':(s.tag==='checkout'?'Check-out':'Status'));
-  // [v324] gather every map ever seen in reports → a scrollable custom picker (the native <datalist> hid
-  // most options once the field had a long value, so it looked un-scrollable). TEST is left out of the list.
-  var _mapSet={}, _mapAll=[]; try{ var _ms=(window._srRecAll&&window._srRecAll.sessions)||[]; for(var _mi=0;_mi<_ms.length;_mi++){ var _mm=String(_ms[_mi].map||'').trim(); if(_mm && _mm.toUpperCase()!=='TEST') _mapSet[_mm]=1; } _mapAll=Object.keys(_mapSet).sort(function(a,b){ return String(a).localeCompare(String(b)); }); }catch(_){} window._srMapAll=_mapAll;
+  // [v325] Picker list = the SAME curated master list the check-in form uses (_srMapGroups → synced English
+  // names), so every zone shows here too — not just maps that already appear in past reports. We then fold in
+  // any custom/legacy map strings already on reports, plus the value on THIS report, so nothing a player typed
+  // is lost. Each entry keeps {full, short}: the short label shows in the list, picking writes the full string.
+  var _mapList=[], _mapSeen={};
+  var _mapAdd=function(full, short){ var f=String(full==null?'':full).trim(); if(!f || f.toUpperCase()==='TEST') return; var kk=f.toLowerCase(); if(_mapSeen[kk]) return; _mapSeen[kk]=1; _mapList.push({full:f, short:(String(short||'').trim()||f)}); };
+  try{ var _mg=(typeof _srMapGroups==='function')?_srMapGroups():[]; _mg.forEach(function(g){ (g.maps||[]).forEach(function(m){ if(!m.excl) _mapAdd(m.full, m.short); }); }); }catch(_){}
+  try{ var _ms=(window._srRecAll&&window._srRecAll.sessions)||[]; for(var _mi=0;_mi<_ms.length;_mi++){ _mapAdd(_ms[_mi].map, _ms[_mi].map); } }catch(_){}
+  _mapAdd(mapVal, mapVal);   // the current report's own map, so it's always in the list
+  window._srMapAll=_mapList;
   var ov=document.createElement('div'); ov.id='sr-rec-edit-ov'; ov.className='sr-rec-edit-ov';
   ov.onclick=function(e){ if(e.target===ov) _srRecCloseEdit(); };
   ov.innerHTML='<div class="sr-rec-edit" onclick="_srMapMaybeClose(event)">'
@@ -16577,6 +16592,7 @@ async function renderRecords(silent){
   var _keepWin = silent ? (window.scrollY||document.documentElement.scrollTop||0) : 0;
   if(!silent && !otherView.querySelector('.sr-rec-card')) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>Records &amp; Stats</h2><span class="sr-badge">Live</span></div><div class="sr-admin-load">⟳ loading records…</div></div></div>';
   if(!silent){ try{ if(typeof loadTeamMembers==='function') await loadTeamMembers(); }catch(_){} }   // [v313] roster → show every player as a tab
+  if(!silent){ try{ if(typeof syncExpFromCloud==='function'){ if(typeof _expSynced!=='undefined') _expSynced=true; await syncExpFromCloud(); } }catch(_){} }   // [v325] load the master map list so the report editor's map picker shows every zone
   var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
   var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
   try{
