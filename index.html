@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v342 -->
+<!-- BUILD: v345 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8318,7 +8318,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v342';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v345';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15369,7 +15369,10 @@ function _srCheckEnd(){
 }
 var _srSession=null;
 var _srShots={checkin:null,update:null,checkout:null};
-var _SR_TYPO_MAX=25;
+// [v345] EXP-jump typo cap scales with character level (the player enters their level at check-in).
+// Low-level chars level fast — 5–6%/h is normal — so Lv 1–27 gets a loose 6% cap; Lv 28+ mains
+// grind slowly and get the strict 2% cap. A one-report gain over the cap blocks submission.
+function _srTypoMax(lv){ lv=Number(lv)||0; return lv<=27 ? 6 : 2; }
 function _srApplyExp(prevLv,prevExp,raw){
   raw=String(raw==null?'':raw).trim();
   if(raw==='') return {valid:false,error:'Enter the current EXP %'};
@@ -15381,7 +15384,7 @@ function _srApplyExp(prevLv,prevExp,raw){
   if(neg){ isDeath=true; lv=pL; exp=pE-val; gain=-val; if(exp<0)exp=0; }
   else if(val>=pE){ lv=pL; exp=val; gain=val-pE; }
   else { lv=pL+1; exp=val; gain=(100-pE)+val; leveledUp=true; }
-  return {valid:true,lv:lv,exp:exp,gain:gain,leveledUp:leveledUp,isDeath:isDeath,typo:(!isDeath&&gain>_SR_TYPO_MAX)};
+  return {valid:true,lv:lv,exp:exp,gain:gain,leveledUp:leveledUp,isDeath:isDeath,typo:(!isDeath&&gain>_srTypoMax(pL))};
 }
 function _srPrev(){ return _srSession ? _srSession.prev : null; }
 function _srExpPreview(screen){
@@ -15394,7 +15397,7 @@ function _srExpPreview(screen){
   if(raw===''){ el.className='sr-exp-prev'; el.textContent='\u2192 was Lv '+prev.lv+' @ '+(Number(prev.exp).toFixed(2))+'%'; return; }
   var r=_srApplyExp(prev.lv,prev.exp,raw);
   if(!r.valid){ el.className='sr-exp-prev sr-bad'; el.textContent='\u26a0 '+r.error; return; }
-  if(r.typo){ el.className='sr-exp-prev sr-bad'; el.textContent='\u26a0 jumps '+r.gain.toFixed(1)+'% \u2014 looks like a typo'; return; }
+  if(r.typo){ el.className='sr-exp-prev sr-bad'; el.textContent='\u26a0 suspicious jump +'+r.gain.toFixed(2)+'% \u2014 check your EXP'; return; }
   var tag = r.isDeath ? ' (exp lost)' : (r.leveledUp ? '  \u00b7  LEVEL UP \u2191' : '');
   el.className='sr-exp-prev sr-good';
   el.textContent='\u2192 Lv '+r.lv+' @ '+r.exp.toFixed(2)+'%  \u00b7  '+(r.gain>=0?'+':'')+r.gain.toFixed(2)+'% gain'+tag;
@@ -15490,7 +15493,7 @@ function _srReview(which){
   document.getElementById('sr-sheet-title').textContent=ending?'Check out — is this right?':'Submit report — is this right?';
   var warn='', block=false;
   if(calc && !calc.valid){ warn+='<div class="sr-warn">⚠ '+_srEsc(calc.error)+'</div>'; block=true; }
-  else if(calc && calc.typo){ warn+='<div class="sr-warn">⚠ This jumps '+calc.gain.toFixed(1)+'% in one report — that usually means a typo. Double-check the EXP. If it really is right, confirm below.</div>'; }
+  else if(calc && calc.typo){ warn+='<div class="sr-warn">⚠ Suspicious EXP jump detected (+'+calc.gain.toFixed(2)+'% in one report). Please check your EXP and submit the report again.</div>'; block=true; }
   if(adenaTypo){ warn+='<div class="sr-warn">⚠ Adena jumps '+_srNum(prev.adena)+' → '+_srNum(endAdeR)+' (+'+_srNum(endAdeR-prev.adena)+') in one hour — that usually means a mistyped digit. Double-check it. If it really is right, confirm below.</div>'; }
   if(!d.shot){ warn+='<div class="sr-warn">⚠ Add a screenshot before you submit</div>'; block=true; }
   var expTypo=!!(calc&&calc.typo), needConfirm=expTypo||adenaTypo;
