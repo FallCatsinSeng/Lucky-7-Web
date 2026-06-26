@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v321 -->
+<!-- BUILD: v322 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8317,7 +8317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v321';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v322';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16255,6 +16255,74 @@ async function renderShiftAdmin(silent){
 
 // [v310] Records & Stats — filter / KR-time toggle re-render the card from stashed data; CSV exports the daily log.
 function _srRecReRender(){ var app=document.querySelector('#sr-app.sr-app-wide'); if(app && window._srRecAll){ app.innerHTML=_srRecCardHTML(window._srRecAll); } }
+// [v322] CEO/admin report editing — fix a wrong level/EXP a player typed. Edits the single report in calc_data
+// (Tokyo) and re-renders. Records is already admin-only, so this is CEO/admin-gated by where it lives + a check.
+function _srRecInjectEditCSS(){
+  if(document.getElementById('sr-rec-edit-style')) return;
+  var st=document.createElement('style'); st.id='sr-rec-edit-style';
+  st.textContent='.sr-sl-edit{background:transparent;border:1px solid var(--br2,#2a3142);color:var(--tx3,#8b93a1);border-radius:6px;width:26px;height:24px;cursor:pointer;font-size:12px;line-height:1;padding:0}'
+    +'.sr-sl-edit:hover{border-color:var(--ac,#c9963a);color:var(--ac,#c9963a)}'
+    +'.sr-sl-ed{width:34px;text-align:center}'
+    +'.sr-rec-edit-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px}'
+    +'.sr-rec-edit{background:var(--bg-c,#1a1f2b);border:1px solid var(--br2,#2a3142);border-radius:14px;padding:20px;width:300px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}'
+    +'.sr-rec-edit-h{font-size:16px;font-weight:700;color:var(--tx,#e7e5de);margin-bottom:4px}'
+    +'.sr-rec-edit-meta{font-size:12px;color:var(--tx3,#8b93a1);margin-bottom:14px}'
+    +'.sr-rec-edit-l{display:block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3,#8b93a1);margin:10px 0 4px}'
+    +'.sr-rec-edit-i{width:100%;box-sizing:border-box;background:var(--bg-b,#11161f);border:1px solid var(--br2,#2a3142);border-radius:8px;padding:9px 11px;color:var(--tx,#e7e5de);font-size:15px}'
+    +'.sr-rec-edit-i:focus{outline:none;border-color:var(--ac,#c9963a)}'
+    +'.sr-rec-edit-note{font-size:11.5px;color:var(--tx3,#8b93a1);margin:12px 0 4px;line-height:1.4}'
+    +'.sr-rec-edit-btns{display:flex;gap:8px;margin-top:14px}'
+    +'.sr-rec-edit-btns button{flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent}'
+    +'.sr-rec-edit-cancel{background:transparent;border-color:var(--br2,#2a3142);color:var(--tx2,#b8bcc6)}'
+    +'.sr-rec-edit-save{background:var(--ac,#c9963a);color:#1a1206}'
+    +'.sr-rec-edit-save:disabled{opacity:.6;cursor:default}';
+  document.head.appendChild(st);
+}
+function _srRecEditReport(id){
+  if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ toast('No permission — CEO/Manager only', true); return; }
+  var s=null; try{ var arr=(window._srRecAll&&window._srRecAll.sessions)||[]; for(var i=0;i<arr.length;i++){ if(String(arr[i].id)===String(id)){ s=arr[i]; break; } } }catch(_){}
+  if(!s){ toast('Report not found — refresh and try again', true); return; }
+  _srRecInjectEditCSS(); _srRecCloseEdit();
+  var esc=_srEsc;
+  var lvVal=(s.lv==null?'':s.lv), expVal=(s.expAt!=null?Number(s.expAt).toFixed(2):'');
+  var tagLabel=(s.tag==='checkin'?'Check-in':(s.tag==='checkout'?'Check-out':'Status'));
+  var ov=document.createElement('div'); ov.id='sr-rec-edit-ov'; ov.className='sr-rec-edit-ov';
+  ov.onclick=function(e){ if(e.target===ov) _srRecCloseEdit(); };
+  ov.innerHTML='<div class="sr-rec-edit">'
+    +'<div class="sr-rec-edit-h">Edit report</div>'
+    +'<div class="sr-rec-edit-meta">'+esc(s.name)+' · '+tagLabel+(s.client?' · '+esc(s.client):'')+(s.date?' · '+esc(s.date):'')+'</div>'
+    +'<label class="sr-rec-edit-l">Level</label>'
+    +'<input id="sr-rec-edit-lv" class="sr-rec-edit-i" type="number" min="1" max="99" step="1" value="'+esc(String(lvVal))+'">'
+    +'<label class="sr-rec-edit-l">EXP %</label>'
+    +'<input id="sr-rec-edit-exp" class="sr-rec-edit-i" type="number" min="0" max="100" step="0.01" value="'+esc(String(expVal))+'">'
+    +'<div class="sr-rec-edit-note">Fixes a level/EXP a player typed wrong. Updates this report and recalculates the stats around it.</div>'
+    +'<div class="sr-rec-edit-btns"><button class="sr-rec-edit-cancel" onclick="_srRecCloseEdit()">Cancel</button>'
+    +'<button id="sr-rec-edit-save" class="sr-rec-edit-save" data-rid="'+esc(String(id))+'" onclick="_srRecSaveReport(this.getAttribute(\'data-rid\'))">Save</button></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  var li=document.getElementById('sr-rec-edit-lv'); if(li){ li.focus(); try{ li.select(); }catch(_){} }
+}
+function _srRecCloseEdit(){ var ov=document.getElementById('sr-rec-edit-ov'); if(ov&&ov.parentNode) ov.parentNode.removeChild(ov); }
+async function _srRecSaveReport(id){
+  if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ toast('No permission', true); return; }
+  var liEl=document.getElementById('sr-rec-edit-lv'), exEl=document.getElementById('sr-rec-edit-exp'), btn=document.getElementById('sr-rec-edit-save');
+  var lv=liEl?parseInt(liEl.value,10):NaN, exp=exEl?parseFloat(exEl.value):NaN;
+  if(!isFinite(lv)||lv<1||lv>99){ toast('Enter a valid level (1–99)', true); if(liEl) liEl.focus(); return; }
+  if(!isFinite(exp)||exp<0||exp>100){ toast('Enter a valid EXP % (0–100)', true); if(exEl) exEl.focus(); return; }
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  try{
+    var reports=await _srGetCalc('reports');
+    var idx=-1; for(var i=0;i<reports.length;i++){ if(String(reports[i].id)===String(id)){ idx=i; break; } }
+    if(idx<0){ toast('Report not found — it may have changed. Refresh and retry.', true); if(btn){ btn.disabled=false; btn.textContent='Save'; } return; }
+    reports[idx].lvAfter=lv; reports[idx].expAfter=exp;
+    if(String(reports[idx].tag||'')==='checkin'){ reports[idx].lvBefore=lv; reports[idx].expBefore=exp; }
+    reports[idx].editedAt=Date.now();
+    try{ reports[idx].editedBy=(currentUser&&currentUser.name)||'admin'; }catch(_){ reports[idx].editedBy='admin'; }
+    var ok=await _srPutCalc('reports', reports);
+    if(ok){ toast('✓ Report updated'); _srRecCloseEdit(); try{ renderRecords(); }catch(_){} }
+    else { toast('Save failed — try again', true); if(btn){ btn.disabled=false; btn.textContent='Save'; } }
+  }catch(e){ toast('Save error — check connection', true); if(btn){ btn.disabled=false; btn.textContent='Save'; } }
+}
 function _srRecFilterBy(key){ window._srRecFilter=key||''; _srRecReRender(); }
 function _srRecToggleKR(){ window._srRecKR=!window._srRecKR; _srRecReRender(); }
 function _srRecCSV(){
@@ -16309,7 +16377,7 @@ function _srRecCompute(reports, clients){
       var _dup=!!isDup[r.id];
       var _gain=(_tag==='checkin')?null:(_dup?0:(segGain[r.id]||0));
       var _flag=(_gain!=null)&&(_gain>80 || _gain>_jThr);
-      sessions.push({ name:g.name, key:normName(g.name), date:_rd, ms:reportMs(r), tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, dup:_dup, flag:_flag });
+      sessions.push({ id:r.id, name:g.name, key:normName(g.name), date:_rd, ms:reportMs(r), tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, dup:_dup, flag:_flag });
       if(_tag!=='checkin' && !_dup && _rd){
         if(!recAgg[g.name]) recAgg[g.name]={};
         if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0,flags:0,cleanGain:0};
@@ -16332,6 +16400,7 @@ function _srRecCardHTML(data){
   var daily=data.daily||[], sessions=data.sessions||[];
   window._srRecAll=data;
   var esc=_srEsc;
+  var isAdmin=(typeof currentUserRole!=='undefined' && currentUserRole==='admin');   // [v322] CEO/admin can edit a report
   // --- full player universe: everyone with records + the whole roster (so non-reporting players show too) ---
   var nmKey=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; };
   var universe={};
@@ -16391,7 +16460,9 @@ function _srRecCardHTML(data){
               +'<td>'+esc(s.map)+'</td>'
               +'<td class="sr-num">'+(s.flag?'<span class="sr-jump">⚠ '+act+'</span>':act)+'</td><td class="sr-num">'+tgt+'</td>'
               +'<td class="sr-num '+(hasDiff?dcls(dv):'')+'">'+diff+'</td>'
-              +'<td class="sr-num">'+sres(s)+'</td></tr>';
+              +'<td class="sr-num">'+sres(s)+'</td>'
+              +(isAdmin?'<td class="sr-sl-ed"><button class="sr-sl-edit" title="Edit level / EXP (CEO/admin)" data-rid="'+esc(String(s.id||''))+'" onclick="_srRecEditReport(this.getAttribute(\'data-rid\'))">✎</button></td>':'')
+              +'</tr>';
           }).join('')+'</tbody></table>';
       }).join('');
     }
