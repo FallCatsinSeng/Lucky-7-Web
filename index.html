@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v335 -->
+<!-- BUILD: v336 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8318,7 +8318,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v335';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v336';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15102,7 +15102,7 @@ function expOpenPC(i){
         <div class="pcb-tilei"><div class="pcb-tl">레벨</div><input class="pcb-tin" value="${r.lv||''}" inputmode="numeric" ${ro} oninput="setExpStd(${i},'lv',this.value)"></div>
         <div class="pcb-tilei"><div class="pcb-tl">시간당 평균치</div><div class="pcb-avgwrap"><input class="pcb-tin pcb-avgin" value="${r.target||''}" inputmode="decimal" ${ro} oninput="setExpStd(${i},'target',this.value)"><span class="pcb-unit">%/h</span></div></div>
       </div>
-      <div class="pcb-row" style="margin-top:14px"><div class="pcb-lab">📍 맵</div><div class="pcb-selw"><select ${dis} onchange="setExpStd(${i},'map',this.value)">${mapGroupOptHTML(r.map)}</select></div></div>
+      <div class="pcb-row" style="margin-top:14px"><div class="pcb-lab">📍 맵</div><div class="pcb-selw"><select ${dis} onchange="expSetMapAuto(${i},this.value)">${mapGroupOptHTML(r.map)}</select></div></div>
     </div>
     ${ce?`<div class="pcb-mft">
       <button class="pcb-tog ${r.on!==false?'on':'off'}" onclick="expToggleOn(${i})">${r.on!==false?'● 근무중':'○ OFF'}</button>
@@ -16804,6 +16804,7 @@ async function renderCalcStandards(){
   var calc=[];
   try{ calc=await _srGetCalc('clients'); }catch(e){ var ge=document.getElementById('cs-grid'); if(ge) ge.innerHTML='<div class="cs-err">Couldn\u2019t reach the report server — try again.</div>'; return; }
   if(!Array.isArray(calc)) calc=[];
+  _csClients=calc;
   var byExact={}, byNorm={};
   calc.forEach(function(e){ var nm=String((e&&e.name)||'').trim(); if(!nm) return; if(!byExact[nm]) byExact[nm]=e; var nn=_csNorm(nm); if(nn&&!byNorm[nn]) byNorm[nn]=e; });
   var matchCalc=function(name){ var nm=String(name||'').trim(); if(byExact[nm]) return byExact[nm]; var nn=_csNorm(nm); return (nn&&byNorm[nn])?byNorm[nn]:null; };
@@ -16950,6 +16951,35 @@ async function _csToggleTraining(){
   if(!ok){ _csTraining=!_csTraining; toast('Couldn\u2019t reach the report server',true); return; }
   toast(_csTraining?'Training mode ON — all base pay':'Training mode OFF — standards applied');
   renderCalcStandards();
+}
+// [v336] Connect the By-PC page to the EXP Standards rate book: picking a map on a PC tile auto-fills
+// that client's %/h from the per-client map targets stored in the report server's `clients` calc_data.
+var _csClients=[];   // cached rate book (calc_data 'clients')
+function _csZoneKey(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0)return'orc'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; }
+function _expRateFor(clientName, mapName, lv){
+  var cn=String(clientName||'').trim(); if(!cn) return null;
+  var clients=Array.isArray(_csClients)?_csClients:[]; var c=null,i;
+  for(i=0;i<clients.length;i++){ if(String((clients[i]&&clients[i].name)||'').trim()===cn){ c=clients[i]; break; } }
+  if(!c){ var nn=(typeof _csNorm==='function')?_csNorm(cn):cn; for(i=0;i<clients.length;i++){ if((typeof _csNorm==='function'?_csNorm(clients[i]&&clients[i].name):'')===nn){ c=clients[i]; break; } } }
+  if(!c||!Array.isArray(c.maps)) return null;
+  var zk=_csZoneKey(mapName);
+  var cand=c.maps.filter(function(m){ return _csZoneKey((m&&(m.en||m.ko))||'')===zk; });
+  if(!cand.length) return null;
+  var L=Number(lv);
+  var leveled=cand.filter(function(m){ return isFinite(Number(m.level)); }).sort(function(a,b){ return Number(a.level)-Number(b.level); });
+  if(leveled.length && isFinite(L)){ var below=leveled.filter(function(m){ return Number(m.level)<=L; }); var pk=below.length?below[below.length-1]:leveled[0]; if(pk && pk.target!=null && pk.target!=='') return Number(pk.target); }
+  var wild=cand.find(function(m){ return m.level==null||m.level===''; });
+  if(wild && wild.target!=null && wild.target!=='') return Number(wild.target);
+  if(cand[0] && cand[0].target!=null && cand[0].target!=='') return Number(cand[0].target);
+  return null;
+}
+async function expSetMapAuto(i,v){
+  var r=(typeof STANDARD_EXP!=='undefined')?STANDARD_EXP[i]:null; if(!r) return;
+  r.map=v;
+  try{ _csClients=await _srGetCalc('clients'); }catch(_){ if(!Array.isArray(_csClients)) _csClients=[]; }
+  try{ var nm=(typeof entrySpec==='function')?(entrySpec(r).name||''):''; var rate=_expRateFor(nm,v,r.lv); if(rate!=null && isFinite(rate)) r.target=rate; }catch(_){}
+  try{ saveExpState(); }catch(_){}
+  try{ var bg=document.getElementById('pcb-mbg'); if(bg && bg.classList.contains('show')){ expOpenPC(i); } else { renderExpStandard(); } }catch(_){}
 }
 function renderExpStandard(){
   const otherView=document.getElementById('ch-other'); if(!otherView) return;
