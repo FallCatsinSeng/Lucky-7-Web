@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v323 -->
+<!-- BUILD: v324 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8317,7 +8317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v323';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v324';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16264,7 +16264,7 @@ function _srRecInjectEditCSS(){
     +'.sr-sl-edit:hover{border-color:var(--ac,#c9963a);color:var(--ac,#c9963a)}'
     +'.sr-sl-ed{width:34px;text-align:center}'
     +'.sr-rec-edit-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:flex;align-items:center;justify-content:center;padding:20px}'
-    +'.sr-rec-edit{background:var(--bg-c,#1a1f2b);border:1px solid var(--br2,#2a3142);border-radius:14px;padding:20px;width:300px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}'
+    +'.sr-rec-edit{background:var(--bg-c,#1a1f2b);border:1px solid var(--br2,#2a3142);border-radius:14px;padding:20px;width:300px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}'
     +'.sr-rec-edit-h{font-size:16px;font-weight:700;color:var(--tx,#e7e5de);margin-bottom:4px}'
     +'.sr-rec-edit-meta{font-size:12px;color:var(--tx3,#8b93a1);margin-bottom:14px}'
     +'.sr-rec-edit-l{display:block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tx3,#8b93a1);margin:10px 0 4px}'
@@ -16275,9 +16275,65 @@ function _srRecInjectEditCSS(){
     +'.sr-rec-edit-btns button{flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent}'
     +'.sr-rec-edit-cancel{background:transparent;border-color:var(--br2,#2a3142);color:var(--tx2,#b8bcc6)}'
     +'.sr-rec-edit-save{background:var(--ac,#c9963a);color:#1a1206}'
-    +'.sr-rec-edit-save:disabled{opacity:.6;cursor:default}';
+    +'.sr-rec-edit-save:disabled{opacity:.6;cursor:default}'
+    +'.sr-map-wrap{position:relative}'
+    +'.sr-map-input{padding-right:30px!important}'
+    +'.sr-map-caret{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:22px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:var(--tx3,#8b93a1);cursor:pointer;font-size:12px;padding:0;border-radius:6px}'
+    +'.sr-map-caret:hover{color:var(--ac,#c9963a)}'
+    +'.sr-map-list{margin-top:6px;border:1px solid var(--br2,#2a3142);border-radius:8px;background:var(--bg-b,#11161f);max-height:184px;overflow-y:auto;display:none;-webkit-overflow-scrolling:touch}'
+    +'.sr-map-list.on{display:block}'
+    +'.sr-map-opt{padding:9px 11px;font-size:14px;color:var(--tx2,#b8bcc6);cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    +'.sr-map-opt:last-child{border-bottom:none}'
+    +'.sr-map-opt:hover{background:rgba(201,150,58,.14);color:var(--tx,#e7e5de)}'
+    +'.sr-map-opt.sel{color:var(--ac,#c9963a);font-weight:600}'
+    +'.sr-map-empty{padding:10px 11px;font-size:12px;color:var(--tx3,#8b93a1)}';
   document.head.appendChild(st);
 }
+// [v324] Shift peers — every report in the same contiguous shift (one booster, one client, check-in → checkout)
+// as the given report id. Mirrors _srRecCompute's walk so "apply map to the shift" matches the session log
+// grouping exactly. TEST reports are excluded and don't break a run. Falls back to just the target id.
+function _srShiftPeerIds(reports, targetId){
+  reports = Array.isArray(reports)?reports:[];
+  var normName=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; };
+  var reportMs=function(r){ if(!r) return null; if(typeof r.createdAt==='number'&&r.createdAt>1e12) return r.createdAt; var m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; };
+  var isTestMap=function(r){ return String(r.map||'').toUpperCase()==='TEST'; };
+  var _ord={checkin:0,status:1,checkout:2};
+  var target=null,i; for(i=0;i<reports.length;i++){ if(String(reports[i].id)===String(targetId)){ target=reports[i]; break; } }
+  if(!target) return [String(targetId)];
+  var key=normName(target.booster);
+  var mine=reports.filter(function(r){ return normName(r.booster)===key; });
+  mine.sort(function(a,b){ return ((reportMs(a)||0)-(reportMs(b)||0)) || ((_ord[a.tag]!=null?_ord[a.tag]:1)-(_ord[b.tag]!=null?_ord[b.tag]:1)); });
+  var shifts=[], cur=null;
+  mine.forEach(function(r){
+    if(isTestMap(r)) return;
+    var cl=String(r.client||'').trim();
+    if(r.tag==='checkin'){ cur={client:cl, ids:[String(r.id)]}; shifts.push(cur); return; }
+    if(cur && cl!==cur.client){ cur=null; }
+    if(cur){ cur.ids.push(String(r.id)); if(r.tag==='checkout') cur=null; }
+    else { shifts.push({client:cl, ids:[String(r.id)]}); }
+  });
+  for(var s=0;s<shifts.length;s++){ if(shifts[s].ids.indexOf(String(targetId))>=0) return shifts[s].ids; }
+  return [String(targetId)];
+}
+// [v324] Custom scrollable map picker for the report editor (replaces the native <datalist>, which filtered
+// itself down to almost nothing once the field held a long value, so it read as un-scrollable).
+function _srMapRender(){
+  var inp=document.getElementById('sr-rec-edit-map'), list=document.getElementById('sr-rec-edit-maplist');
+  if(!list) return;
+  var all=(window._srMapAll||[]);
+  var cur=String((inp&&inp.value)||'').trim();
+  var q=cur.toLowerCase();
+  var rows=all.filter(function(m){ return !q || String(m).toLowerCase().indexOf(q)>=0; });
+  var esc=_srEsc;
+  if(!rows.length){ list.innerHTML='<div class="sr-map-empty">'+(all.length?'No saved map matches — Save uses exactly what you typed.':'No saved maps yet — type the zone and Save.')+'</div>'; return; }
+  list.innerHTML=rows.map(function(m){ return '<div class="sr-map-opt'+(m===cur?' sel':'')+'" data-m="'+esc(m)+'" onclick="_srMapPick(this.getAttribute(\'data-m\'))">'+esc(m)+'</div>'; }).join('');
+}
+function _srMapOpen(){ var l=document.getElementById('sr-rec-edit-maplist'); if(l){ _srMapRender(); l.classList.add('on'); } }
+function _srMapClose(){ var l=document.getElementById('sr-rec-edit-maplist'); if(l) l.classList.remove('on'); }
+function _srMapToggle(){ var l=document.getElementById('sr-rec-edit-maplist'); if(!l) return; if(l.classList.contains('on')){ _srMapClose(); } else { _srMapOpen(); var inp=document.getElementById('sr-rec-edit-map'); if(inp){ try{ inp.focus(); }catch(_){} } } }
+function _srMapFilter(){ var l=document.getElementById('sr-rec-edit-maplist'); if(l){ _srMapRender(); l.classList.add('on'); } }
+function _srMapPick(m){ var inp=document.getElementById('sr-rec-edit-map'); if(inp){ inp.value=m; } _srMapClose(); }
+function _srMapMaybeClose(e){ var w=document.getElementById('sr-rec-edit-mapwrap'); if(w && e && e.target && !w.contains(e.target)){ _srMapClose(); } }
 function _srRecEditReport(id){
   if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ toast('No permission — CEO/Manager only', true); return; }
   var s=null; try{ var arr=(window._srRecAll&&window._srRecAll.sessions)||[]; for(var i=0;i<arr.length;i++){ if(String(arr[i].id)===String(id)){ s=arr[i]; break; } } }catch(_){}
@@ -16286,10 +16342,12 @@ function _srRecEditReport(id){
   var esc=_srEsc;
   var lvVal=(s.lv==null?'':s.lv), expVal=(s.expAt!=null?Number(s.expAt).toFixed(2):''), mapVal=(s.map==null?'':s.map);
   var tagLabel=(s.tag==='checkin'?'Check-in':(s.tag==='checkout'?'Check-out':'Status'));
-  var _mapSet={}, _mapOpts=''; try{ var _ms=(window._srRecAll&&window._srRecAll.sessions)||[]; for(var _mi=0;_mi<_ms.length;_mi++){ var _mm=String(_ms[_mi].map||'').trim(); if(_mm) _mapSet[_mm]=1; } _mapOpts=Object.keys(_mapSet).sort().map(function(m){ return '<option value="'+esc(m)+'"></option>'; }).join(''); }catch(_){}
+  // [v324] gather every map ever seen in reports → a scrollable custom picker (the native <datalist> hid
+  // most options once the field had a long value, so it looked un-scrollable). TEST is left out of the list.
+  var _mapSet={}, _mapAll=[]; try{ var _ms=(window._srRecAll&&window._srRecAll.sessions)||[]; for(var _mi=0;_mi<_ms.length;_mi++){ var _mm=String(_ms[_mi].map||'').trim(); if(_mm && _mm.toUpperCase()!=='TEST') _mapSet[_mm]=1; } _mapAll=Object.keys(_mapSet).sort(function(a,b){ return String(a).localeCompare(String(b)); }); }catch(_){} window._srMapAll=_mapAll;
   var ov=document.createElement('div'); ov.id='sr-rec-edit-ov'; ov.className='sr-rec-edit-ov';
   ov.onclick=function(e){ if(e.target===ov) _srRecCloseEdit(); };
-  ov.innerHTML='<div class="sr-rec-edit">'
+  ov.innerHTML='<div class="sr-rec-edit" onclick="_srMapMaybeClose(event)">'
     +'<div class="sr-rec-edit-h">Edit report</div>'
     +'<div class="sr-rec-edit-meta">'+esc(s.name)+' · '+tagLabel+(s.client?' · '+esc(s.client):'')+(s.date?' · '+esc(s.date):'')+'</div>'
     +'<label class="sr-rec-edit-l">Level</label>'
@@ -16297,9 +16355,12 @@ function _srRecEditReport(id){
     +'<label class="sr-rec-edit-l">EXP %</label>'
     +'<input id="sr-rec-edit-exp" class="sr-rec-edit-i" type="number" min="0" max="100" step="0.01" value="'+esc(String(expVal))+'">'
     +'<label class="sr-rec-edit-l">Map / zone</label>'
-    +'<input id="sr-rec-edit-map" class="sr-rec-edit-i" type="text" list="sr-rec-edit-maps" value="'+esc(String(mapVal))+'" placeholder="e.g. Dragon Dungeon">'
-    +'<datalist id="sr-rec-edit-maps">'+_mapOpts+'</datalist>'
-    +'<div class="sr-rec-edit-note">Fixes a level, EXP or map a player entered wrong. Updates this report and recalculates the stats (and the target) around it.</div>'
+    +'<div class="sr-map-wrap" id="sr-rec-edit-mapwrap">'
+      +'<input id="sr-rec-edit-map" class="sr-rec-edit-i sr-map-input" type="text" autocomplete="off" value="'+esc(String(mapVal))+'" placeholder="e.g. Dragon Dungeon" oninput="_srMapFilter()" onfocus="_srMapOpen()">'
+      +'<button type="button" class="sr-map-caret" tabindex="-1" onclick="_srMapToggle()">▾</button>'
+      +'<div class="sr-map-list" id="sr-rec-edit-maplist"></div>'
+    +'</div>'
+    +'<div class="sr-rec-edit-note">Fixes a level, EXP or map a player entered wrong. <b>Changing the map updates the whole shift</b> (every report from check-in to check-out); level/EXP only change this one report. Stats and target recalculate.</div>'
     +'<div class="sr-rec-edit-btns"><button class="sr-rec-edit-cancel" onclick="_srRecCloseEdit()">Cancel</button>'
     +'<button id="sr-rec-edit-save" class="sr-rec-edit-save" data-rid="'+esc(String(id))+'" onclick="_srRecSaveReport(this.getAttribute(\'data-rid\'))">Save</button></div>'
     +'</div>';
@@ -16318,13 +16379,28 @@ async function _srRecSaveReport(id){
     var reports=await _srGetCalc('reports');
     var idx=-1; for(var i=0;i<reports.length;i++){ if(String(reports[i].id)===String(id)){ idx=i; break; } }
     if(idx<0){ toast('Report not found — it may have changed. Refresh and retry.', true); if(btn){ btn.disabled=false; btn.textContent='Save'; } return; }
+    var editor='admin'; try{ editor=(currentUser&&currentUser.name)||'admin'; }catch(_){ editor='admin'; }
+    var oldMap=String(reports[idx].map==null?'':reports[idx].map);
+    var mapChanged=(mp!=null)&&(mp!==oldMap);
+    // [v324] resolve the shift peers from the ORIGINAL array (before we touch any map) so a map fix lands on
+    // the player's whole shift — check-in, every hourly status, and the checkout — not just this one row.
+    var peerIds=mapChanged?_srShiftPeerIds(reports, id):[String(id)];
     reports[idx].lvAfter=lv; reports[idx].expAfter=exp;
     if(mp!=null) reports[idx].map=mp;
     if(String(reports[idx].tag||'')==='checkin'){ reports[idx].lvBefore=lv; reports[idx].expBefore=exp; }
-    reports[idx].editedAt=Date.now();
-    try{ reports[idx].editedBy=(currentUser&&currentUser.name)||'admin'; }catch(_){ reports[idx].editedBy='admin'; }
+    reports[idx].editedAt=Date.now(); reports[idx].editedBy=editor;
+    var propagated=0;
+    if(mapChanged){
+      var pset={}; for(var pi=0;pi<peerIds.length;pi++) pset[String(peerIds[pi])]=1;
+      for(var k=0;k<reports.length;k++){ var rk=reports[k];
+        if(String(rk.id)===String(id)) continue;
+        if(!pset[String(rk.id)]) continue;
+        if(String(rk.map==null?'':rk.map)===mp) continue;
+        rk.map=mp; rk.editedAt=Date.now(); rk.editedBy=editor; propagated++;
+      }
+    }
     var ok=await _srPutCalc('reports', reports);
-    if(ok){ toast('✓ Report updated'); _srRecCloseEdit(); try{ renderRecords(); }catch(_){} }
+    if(ok){ var _m='✓ Report updated'; if(propagated>0) _m+=' · map applied to '+propagated+' more report'+(propagated>1?'s':'')+' in this shift'; toast(_m); _srRecCloseEdit(); try{ renderRecords(); }catch(_){} }
     else { toast('Save failed — try again', true); if(btn){ btn.disabled=false; btn.textContent='Save'; } }
   }catch(e){ toast('Save error — check connection', true); if(btn){ btn.disabled=false; btn.textContent='Save'; } }
 }
