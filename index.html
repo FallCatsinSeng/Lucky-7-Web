@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v325 -->
+<!-- BUILD: v326 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8317,7 +8317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v325';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v326';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15560,6 +15560,21 @@ async function _srSubmitReport(kind,screen){
   if(kind!=='checkin' && !sess){ _srToast("Check in first"); return false; }
   _srBusy=true;
   try{
+    // [v326] Re-sync this shift's map from the cloud check-in BEFORE building the report. The map lived only in
+    // the player's local session, so a CEO map fix in Records never reached new hourly reports — the player kept
+    // re-submitting the original map ("it reverted"). The check-in record is the shift's source of truth (see
+    // _srRecoverFromReports) and a map edit already propagates onto it, so adopting it here carries the fix
+    // forward. Fully guarded: any hiccup just keeps the current session map, never blocks the report.
+    if(kind!=='checkin' && sess && sess.client){
+      try{
+        var _allR=await _srGetCalc('reports');
+        if(Array.isArray(_allR) && _allR.length){
+          var _meB=sess.booster||_srBooster(), _scl=String(sess.client||''), _ci=null;
+          for(var _ri=0;_ri<_allR.length;_ri++){ var _rr=_allR[_ri]; if(_rr && _rr.booster===_meB && _rr.tag==='checkin' && String(_rr.client||'')===_scl){ if(!_ci || (_rr.createdAt||0)>(_ci.createdAt||0)) _ci=_rr; } }
+          if(_ci && _ci.map!=null && String(_ci.map).trim()!=='' && String(_ci.map)!==String(sess.map)){ sess.map=String(_ci.map); try{ _srSaveSession(); }catch(_){} }
+        }
+      }catch(_){}
+    }
     var sel=_srSel();
     var name = (kind==='checkin') ? sel.name : sess.client;
     var pc   = (kind==='checkin') ? sel.pc   : sess.pc;
