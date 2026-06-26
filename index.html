@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v327 -->
+<!-- BUILD: v328 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8317,7 +8317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v327';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v328';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15208,7 +15208,7 @@ var _SR_SHIFTS=[
   {name:'Night · 10h', time:'21:00 → 07:00', s:21, e:31},
   {name:'Night · 8h (3)', time:'01:00 → 09:00', s:1, e:9}
 ];
-var _srShiftStartH=7, _srShiftEndH=19, _srWinStart=7, _srWinEnd=8, _srPlayStartH=7, _srOnOk=null;
+var _srShiftStartH=7, _srShiftEndH=19, _srWinStart=7, _srWinEnd=8, _srPlayStartH=7, _srOnOk=null, _srShiftLocked=false;
 var _srCoStart=18, _srCoEnd=19;   // [v301] editable checkout "final stretch" window (WIB hours)
 
 function _srGo(name){
@@ -15224,12 +15224,63 @@ function _srToggleDD(id){ var dd=document.getElementById(id); if(!dd) return; va
 function _srCloseDD(){ var l=document.querySelectorAll('#sr-app .sr-dd.open'); for(var i=0;i<l.length;i++) l[i].classList.remove('open'); }
 
 function _srPickShift(i){
-  var sh=_SR_SHIFTS[i]; if(!sh) return;
+  _srShiftLocked=true;                                 // [v328] a manual pick locks the shift so the async auto-fill can't override it
+  if(_srApplyShiftIdx(i)) _srCloseDD();
+}
+// [v328] Shared shift apply — sets the window globals + dropdown display, WITHOUT locking. Used by both the
+// manual pick and the automatic fill.
+function _srApplyShiftIdx(i){
+  var sh=_SR_SHIFTS[i]; if(!sh) return false;
   _srShiftStartH=sh.s; _srShiftEndH=sh.e; _srPlayStartH=sh.s;
   var nm=document.getElementById('sr-shift-name'); if(nm) nm.textContent=sh.name;
   var tm=document.getElementById('sr-shift-time'); if(tm) tm.textContent=sh.time;
   var lst=document.querySelectorAll('#sr-dd-shift .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel',k===i);
-  _srRenderCIStart(); _srSyncWin(); _srCloseDD();
+  _srRenderCIStart(); _srSyncWin();
+  return true;
+}
+// [v328] Resolve THIS player's assigned shift key (Staff list → manual shift). Mirrors _srThread()'s profile
+// resolver so it survives an id/name mismatch or a duplicate profile record.
+function _srMyShiftKey(){
+  try{
+    if(typeof STAFF_PROFILE==='undefined' || typeof currentUser==='undefined' || !currentUser) return '';
+    var strip=function(s){ return String(s||'').toLowerCase().trim().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim(); };
+    var myNm=String(currentUser.name||'').toLowerCase().trim(), myKey=strip(currentUser.name);
+    var cands=[];
+    if(STAFF_PROFILE[currentUser.id]) cands.push(STAFF_PROFILE[currentUser.id]);
+    if(STAFF_PROFILE[currentUser.name]) cands.push(STAFF_PROFILE[currentUser.name]);
+    if(typeof _teamCache!=='undefined' && Array.isArray(_teamCache)){
+      _teamCache.forEach(function(m){ if(m && STAFF_PROFILE[m.id] && (String(m.name||'').toLowerCase().trim()===myNm || strip(m.name)===myKey)) cands.push(STAFF_PROFILE[m.id]); });
+    }
+    for(var k in STAFF_PROFILE){ var pr=STAFF_PROFILE[k]; if(!pr) continue; var fn=(pr.personal&&pr.personal.full_name)||''; if(String(k).toLowerCase().trim()===myNm || strip(k)===myKey || (fn&&strip(fn)===myKey)) cands.push(pr); }
+    for(var i=0;i<cands.length;i++){ var mk=cands[i] && cands[i].manual_shift; if(mk) return mk; }
+    return '';
+  }catch(_){ return ''; }
+}
+// [v328] Map a SHIFT_SCHEDULE key (e.g. '8h_s3') to the matching _SR_SHIFTS index by its work-time window,
+// so the form's shift list and the HR shift definitions stay in sync without a hand-kept lookup table.
+function _srShiftIdxForKey(key){
+  try{
+    if(!key || typeof SHIFT_SCHEDULE==='undefined' || !SHIFT_SCHEDULE[key]) return -1;
+    var work=String(SHIFT_SCHEDULE[key].work||'');
+    var m=Array.from(work.matchAll(/(\d{1,2})(?::\d{2})?\s*(AM|PM)/gi));
+    if(m.length<2) return -1;
+    var to24=function(h,ap){ h=parseInt(h,10); ap=String(ap).toUpperCase(); if(ap==='PM'&&h!==12)h+=12; if(ap==='AM'&&h===12)h=0; return h; };
+    var sH=to24(m[0][1],m[0][2]), eH=to24(m[1][1],m[1][2]);
+    var eEff=(eH<=sH)?eH+24:eH;
+    for(var i=0;i<_SR_SHIFTS.length;i++){ if(_SR_SHIFTS[i].s===sH && _SR_SHIFTS[i].e===eEff) return i; }
+    for(var j=0;j<_SR_SHIFTS.length;j++){ if(_SR_SHIFTS[j].s===sH) return j; }
+    return -1;
+  }catch(_){ return -1; }
+}
+// [v328] Auto-fill the shift dropdown from the player's assigned shift. Never overrides a manual pick, an
+// active/resumed shift, or runs when the check-in screen isn't showing. Safe to call repeatedly.
+function _srAutoPickShift(){
+  try{
+    if(_srShiftLocked) return;
+    if(_srSession && _srSession.client) return;
+    var cs=document.getElementById('sr-s-checkin'); if(!cs || cs.style.display==='none') return;
+    var ai=_srShiftIdxForKey(_srMyShiftKey()); if(ai>=0) _srApplyShiftIdx(ai);
+  }catch(_){}
 }
 function _srRenderCIStart(){
   var a=document.getElementById('sr-ci-start'); if(a) a.textContent=_srPad(_srPlayStartH);
@@ -15903,8 +15954,9 @@ function _srExpRow(prefix,mode,screen){
 function _srBuildHTML(){
   var booster=_srEsc(_srBooster());
   var threadLine = '<span id="sr-thread-line">'+_srThreadLineHTML()+'</span>';
-  var sh0=_SR_SHIFTS[0];
-  var shiftOpts=_SR_SHIFTS.map(function(s,i){ return '<button class="sr-dd-opt'+(i===0?' sel':'')+'" onclick="_srPickShift('+i+')">'+_srEsc(s.name)+'<span class="sr-t2">'+_srEsc(s.time.replace(' → ','–'))+'</span></button>'; }).join('');
+  var _shDef=_srShiftIdxForKey(_srMyShiftKey()); if(_shDef<0) _shDef=0;   // [v328] default the dropdown to this player's assigned shift (Staff list → manual shift)
+  var sh0=_SR_SHIFTS[_shDef]||_SR_SHIFTS[0];
+  var shiftOpts=_SR_SHIFTS.map(function(s,i){ return '<button class="sr-dd-opt'+(i===_shDef?' sel':'')+'" onclick="_srPickShift('+i+')">'+_srEsc(s.name)+'<span class="sr-t2">'+_srEsc(s.time.replace(' → ','–'))+'</span></button>'; }).join('');
   var clients=_srClients();
   var firstPC = clients.length?('PC'+clients[0].pc+' · '+clients[0].name):'—';
   var pcCards = clients.length ? clients.map(function(c,i){ var _pcl=(c.pc!=null&&String(c.pc)!=='?'&&String(c.pc)!=='')?('PC'+_srEsc(String(c.pc))):'PC?'; var _nm=_srEsc(c.name)+(c.dup?(' <span style="color:var(--tx3,#6c6b66);font-weight:400">('+c.dup+')</span>'):''); return '<button class="sr-pc-card'+(i===0?' sel':'')+'" data-idx="'+i+'" data-pc="'+_srEsc(String(c.pc))+'" data-name="'+_srEsc(c.name)+'" onclick="_srPickCard('+i+')"><span class="sr-pc-n">'+_pcl+'</span><span class="sr-pc-nm">'+_nm+'</span></button>'; }).join('') : '<div class="sr-empty">No clients yet — add them in PC Status</div>';
@@ -16074,12 +16126,12 @@ function renderCalcEmbed(){
   if(adminRole && !window._srForceForm){ window._srAdminDay=0; renderShiftAdmin(); return; }
   otherView.innerHTML=_srBuildHTML();
   // [v315] pull the freshest staff info so a Discord thread the admin just set shows up here without a hard reload
-  try{ var _ps=[]; if(typeof loadStaffState==='function') _ps.push(loadStaffState()); if(typeof loadTeamMembers==='function') _ps.push(loadTeamMembers()); if(_ps.length) Promise.all(_ps).then(function(){ _srRefreshThreadLine(); }).catch(function(){}); }catch(_){}
+  try{ var _ps=[]; if(typeof loadStaffState==='function') _ps.push(loadStaffState()); if(typeof loadTeamMembers==='function') _ps.push(loadTeamMembers()); if(_ps.length) Promise.all(_ps).then(function(){ _srRefreshThreadLine(); _srAutoPickShift(); }).catch(function(){}); }catch(_){}
   var _resume = (!!_srSession && !!_srSession.client) || _srLoadSession();   // [v264] resume an active shift across navigation/reload
-  if(!_resume){ _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=8; }
+  if(!_resume){ _srShiftLocked=false; _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=8; }
   _srRenderCIStart(); _srRenderWin();
   if(_resume){ _srResumeUpdate(); }
-  else { _srGo('checkin'); _srSession=null; _srShots={checkin:null,update:null,checkout:null}; _srTryRecover(); }
+  else { _srGo('checkin'); _srSession=null; _srShots={checkin:null,update:null,checkout:null}; _srTryRecover(); _srAutoPickShift(); }
   _srBindPaste();
   if(!window._srDocClickBound){ window._srDocClickBound=true; document.addEventListener('click', function(e){ if(!e.target.closest('.sr-dd')) _srCloseDD(); }); }
 }
