@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v340 -->
+<!-- BUILD: v341 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8318,7 +8318,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v340';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v341';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15927,6 +15927,9 @@ function _srInjectCSS(){
 "#sr-app .sr-mut{color:var(--tx3,#6c6b66);}",
 "#sr-app .sr-rec-tbl td:nth-child(2),#sr-app .sr-rec-tbl th:nth-child(2){text-align:left;}",
 "#sr-app .sr-rec-csv.on{background:var(--ac,#c9963a);border-color:var(--ac,#c9963a);color:#1a1a1a;}",
+    "#sr-app .sr-rec-actions{display:flex;gap:8px;align-items:center;}",
+    "#sr-app .sr-rec-danger{border-color:rgba(214,90,82,.42);color:#dd7a72;}",
+    "#sr-app .sr-rec-danger:hover{background:rgba(214,90,82,.12);border-color:#dd7a72;color:#ef948c;}",
 "#sr-app .sr-rb{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;letter-spacing:.02em;white-space:nowrap;}",
 "#sr-app .sr-rb-ok{background:rgba(77,154,138,.16);color:var(--gr,#4d9a8a);}",
 "#sr-app .sr-rb-un{background:rgba(201,150,58,.18);color:var(--ac,#c9963a);}",
@@ -16518,6 +16521,24 @@ function _srRecCSV(){
     setTimeout(function(){ try{URL.revokeObjectURL(url);}catch(_){ } },1500);
   }catch(e){ try{toast('Export failed',true);}catch(_){ } }
 }
+// [v341] Records & Stats — wipe ALL report data (check-ins, status, checkouts) for every staff member. CEO-only, double-confirmed, irreversible.
+async function _srRecResetAll(){
+  if(typeof currentUserRole!=='undefined' && currentUserRole!=='admin'){ try{toast('CEO only',true);}catch(_){ } return; }
+  var cur=[]; try{ cur=(await _srGetCalc('reports'))||[]; }catch(_){ cur=[]; }
+  var n=cur.length;
+  if(!n){ try{toast('No report data to reset',false);}catch(_){ } return; }
+  if(!confirm('⚠ Reset ALL report data?\n\nThis permanently deletes every shift report — all '+n+' entries (check-ins, status updates and checkouts) for every staff member. The Records & Stats page and the performance figures will be wiped clean.\n\nThis cannot be undone.')) return;
+  if(!confirm('Last check — really delete all '+n+' reports? There is no recovery.')) return;
+  var ok=false; try{ ok=await _srPutCalc('reports',[]); }catch(_){ ok=false; }
+  if(ok){
+    try{ window._srRecAll=null; }catch(_){ }
+    try{ window._srRecFilter=''; }catch(_){ }
+    try{ toast('All report data reset · '+n+' entries deleted'); }catch(_){ }
+    try{ renderRecords(); }catch(_){ }
+  } else {
+    try{ toast('Reset failed — check connection and try again',true); }catch(_){ }
+  }
+}
 
 // [v309] Records & Stats — shared aggregation. Mirrors the Calculator's gain logic (level-typo cap,
 // duplicate suppression, night-shift date anchoring) so Records agree with the day view. Pure function.
@@ -16660,7 +16681,7 @@ function _srRecCardHTML(data){
     +'<div class="sr-rec-sub">All staff daily and session logs in one place — hours, actual EXP/h and per-report detail.</div>'
     +'<div class="sr-rec-tabs">'+tabs+'</div>'
     +warn
-    +'<div class="sr-rec-bar"><span class="sr-rec-cnt">Daily log · '+dfil.length+'</span><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button></div>'
+    +'<div class="sr-rec-bar"><span class="sr-rec-cnt">Daily log · '+dfil.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button><button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">🗑 Reset all data</button></span></div>'
     +dtbl
     +'<div class="sr-rec-bar" style="margin-top:26px"><span class="sr-rec-cnt">Session log'+(curF?' · '+sCount:'')+'</span><button class="sr-rec-csv'+(krMode?' on':'')+'" onclick="_srRecToggleKR()">KR time'+(krMode?' ✓':'')+'</button></div>'
     +slog
