@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v333 -->
+<!-- BUILD: v334 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8318,7 +8318,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v333';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v334';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16698,20 +16698,41 @@ async function renderRecords(silent){
   }
 }
 
-// [v331] EXP Standards page — the web Performance Calculator's "Standards" view, brought into the ERP.
-// Reads the SAME data the calculator uses: the report server's `clients` calc_data (name · PC · gear · maps
-// with per-zone %/h targets), via _srGetCalc('clients'). Read-only card grid, placed below Records & Stats.
+// [v334] EXP Standards — driven by the ERP CLIENTS list (add a client in the Client tab and it shows
+// here automatically), PC comes from the PC Status board, and each client's maps/targets are editable
+// and saved to the report server's `clients` calc_data (what the calculator + bot read). Existing maps
+// are carried over by name with honorifics ignored (마석도 선생님 ↔ 마석도님), so the data you already
+// have is kept. Game tabs are intentionally skipped for now.
+var _csTraining=false;     // training-mode toggle: standards off, base pay, no penalties
+var _csEditName=null;      // client name currently open in the editor
+var _csEditMaps=[];        // working copy of that client's maps while editing
+var _csRows=[];            // rows currently rendered (index → {name, maps}) for the Edit buttons
+
+function _csNorm(s){
+  return String(s||'')
+    .replace(/선생님|사장님|형님|언니|누나|쌤|님|형|씨/g,'')
+    .replace(/\b(mr|ms|mrs|teacher)\.?\b/gi,'')
+    .replace(/[\s·.\-_'"]/g,'')
+    .toLowerCase();
+}
+function _csIsTraining(name){ return /training|훈련|연습/i.test(String(name||'')); }
+
 function _csInjectCSS(){
   if(document.getElementById('cs-style')) return;
   var s=document.createElement('style'); s.id='cs-style';
   s.textContent=[
     ".cs-wrap{max-width:1400px;margin:0 auto;padding:4px 2px 44px}",
     ".cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:16px}",
-    ".cs-card{background:var(--bg-c,#161616);border:1px solid var(--br,#262625);border-radius:16px;padding:15px 16px 9px;display:flex;flex-direction:column}",
-    ".cs-hd{display:flex;align-items:baseline;gap:7px}",
+    ".cs-card{background:var(--bg-c,#161616);border:1px solid var(--br,#262625);border-radius:16px;padding:14px 16px 9px;display:flex;flex-direction:column}",
+    ".cs-card.train{border-color:rgba(201,150,58,.28)}",
+    ".cs-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}",
+    ".cs-hd{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}",
     ".cs-num{color:var(--ac,#c9963a);font-weight:700;font-size:15px;flex-shrink:0}",
     ".cs-name{color:var(--tx,#e6e5e2);font-weight:700;font-size:16px;line-height:1.25}",
-    ".cs-pc{color:var(--tx3,#6c6b66);font-size:11.5px;font-weight:600;letter-spacing:.03em;margin:3px 0 11px}",
+    ".cs-train-tag{font-size:9px;font-weight:800;letter-spacing:.06em;color:#d6a93f;background:rgba(201,150,58,.14);border:1px solid rgba(201,150,58,.3);padding:2px 6px;border-radius:6px}",
+    ".cs-edit{flex-shrink:0;font-size:11.5px;color:var(--tx2,#989792);background:transparent;border:1px solid var(--br2,#33332f);padding:3px 10px;border-radius:8px;cursor:pointer}",
+    ".cs-edit:hover{color:var(--tx,#e6e5e2);border-color:var(--ac,#c9963a)}",
+    ".cs-pc{color:var(--tx3,#6c6b66);font-size:11.5px;font-weight:600;letter-spacing:.03em;margin:4px 0 11px}",
     ".cs-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}",
     ".cs-chip{font-size:11.5px;color:var(--tx2,#989792);background:var(--bg-a,#232323);border:1px solid var(--br2,#33332f);padding:3px 9px;border-radius:8px;white-space:nowrap}",
     ".cs-maps{margin-top:6px}",
@@ -16721,71 +16742,152 @@ function _csInjectCSS(){
     ".cs-map-r small{font-size:10px;color:var(--tx3,#6c6b66);font-weight:500;margin-left:1px}",
     ".cs-nomap{padding:14px 2px 8px;color:var(--tx3,#6c6b66);font-size:12.5px}",
     ".cs-empty,.cs-err,.cs-loading{grid-column:1/-1;padding:34px 8px;color:var(--tx3,#6c6b66);font-size:13.5px;text-align:center}",
-    ".cs-err{color:var(--re,#c46a6a)}"
+    ".cs-err{color:var(--re,#c46a6a)}",
+    ".cs-train-bar{margin-top:16px;display:flex;flex-direction:column;gap:10px}",
+    ".cs-train-tog{display:inline-flex;align-items:center;gap:11px;background:var(--bg-c,#161616);border:1px solid var(--br,#262625);border-radius:12px;padding:9px 14px 9px 11px;cursor:pointer;align-self:flex-start}",
+    ".cs-train-tog.on{border-color:rgba(201,150,58,.5)}",
+    ".cs-train-knob{width:34px;height:20px;border-radius:999px;background:#3a3a37;position:relative;transition:background .15s;flex-shrink:0}",
+    ".cs-train-knob::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#cfcdc7;transition:left .15s}",
+    ".cs-train-tog.on .cs-train-knob{background:var(--ac,#c9963a)}",
+    ".cs-train-tog.on .cs-train-knob::after{left:16px}",
+    ".cs-train-txt{display:flex;flex-direction:column;line-height:1.3;text-align:left}",
+    ".cs-train-txt b{font-size:13px;color:var(--tx,#e6e5e2)}",
+    ".cs-train-txt small{font-size:11px;color:var(--tx3,#6c6b66)}",
+    ".cs-train-note{font-size:12.5px;color:#d6a93f;background:rgba(201,150,58,.1);border:1px solid rgba(201,150,58,.28);border-radius:10px;padding:9px 13px}",
+    ".cs-ed-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:9999;padding:18px}",
+    ".cs-ed-bg.show{display:flex}",
+    ".cs-ed-modal{background:var(--bg-b,#1b1b1a);border:1px solid var(--br,#2c2c2a);border-radius:18px;width:100%;max-width:440px;max-height:84vh;display:flex;flex-direction:column;overflow:hidden}",
+    ".cs-ed-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 18px 12px;border-bottom:1px solid var(--br,#2c2c2a)}",
+    ".cs-ed-title{font-size:16px;font-weight:700;color:var(--tx,#e6e5e2)}",
+    ".cs-ed-sub{font-size:11.5px;color:var(--tx3,#6c6b66);margin-top:2px}",
+    ".cs-ed-x{background:transparent;border:none;color:var(--tx3,#6c6b66);font-size:18px;cursor:pointer;line-height:1}",
+    ".cs-ed-body{padding:12px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}",
+    ".cs-ed-row{display:flex;align-items:center;gap:8px}",
+    ".cs-ed-map{flex:1;min-width:0;background:var(--bg-a,#232323);border:1px solid var(--br2,#33332f);border-radius:8px;padding:8px 10px;color:var(--tx,#e6e5e2);font-size:13px}",
+    ".cs-ed-tgtw{display:flex;align-items:center;gap:3px;background:var(--bg-a,#232323);border:1px solid var(--br2,#33332f);border-radius:8px;padding:0 9px 0 0;flex-shrink:0}",
+    ".cs-ed-tgt{width:50px;background:transparent;border:none;padding:8px 0 8px 10px;color:#5fb88f;font-weight:700;font-size:13px;text-align:right}",
+    ".cs-ed-tgtw span{font-size:10px;color:var(--tx3,#6c6b66)}",
+    ".cs-ed-del{flex-shrink:0;background:transparent;border:none;color:var(--tx3,#6c6b66);font-size:15px;cursor:pointer;padding:4px}",
+    ".cs-ed-del:hover{color:var(--re,#c46a6a)}",
+    ".cs-ed-empty{font-size:12.5px;color:var(--tx3,#6c6b66);padding:8px 2px}",
+    ".cs-ed-ft{display:flex;gap:10px;padding:12px 18px 16px;border-top:1px solid var(--br,#2c2c2a)}",
+    ".cs-ed-add{flex:1;background:var(--bg-a,#232323);border:1px solid var(--br2,#33332f);border-radius:9px;padding:9px;color:var(--tx,#e6e5e2);font-size:13px;font-weight:600;cursor:pointer}",
+    ".cs-ed-save{flex:1;background:var(--ac,#c9963a);border:none;border-radius:9px;padding:9px;color:#1a1408;font-size:13px;font-weight:700;cursor:pointer}"
   ].join("\n");
   document.head.appendChild(s);
 }
+
 async function renderCalcStandards(){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
   _csInjectCSS();
-  otherView.innerHTML='<div class="cs-wrap"><div class="att-eyebrow">Game · Standard</div><div class="ph">EXP Standards</div><div class="psub">Per-client hunting-zone targets · live from the report server</div><div class="cs-grid" id="cs-grid"><div class="cs-loading">Loading…</div></div></div>';
-  var clients=[];
-  try{ clients=await _srGetCalc('clients'); }catch(e){ var ge=document.getElementById('cs-grid'); if(ge) ge.innerHTML='<div class="cs-err">Couldn\u2019t reach the report server — try again.</div>'; return; }
-  var grid=document.getElementById('cs-grid'); if(!grid) return;
-  if(!Array.isArray(clients)||!clients.length){ grid.innerHTML='<div class="cs-empty">No clients yet.</div>'; return; }
   var esc=_srEsc;
-  var pick=function(o,keys){ for(var i=0;i<keys.length;i++){ var v=o[keys[i]]; if(v!=null && v!=='') return v; } return ''; };
-  // [v332] PC number now follows the PC Status board (the ERP's source of truth), not the stale
-  // pc field stored in calc_data. For each client name, gather the PCs it's assigned to on the board.
-  var boardPcsByName={};
-  try{
-    if(typeof PCS!=='undefined' && Array.isArray(PCS) && typeof clientById==='function'){
-      PCS.forEach(function(p){
-        (Array.isArray(p.clients)?p.clients:[]).forEach(function(cid){
-          if(cid==null) return;
-          var cl=clientById(cid); var cnm=cl&&cl.name?String(cl.name).trim():'';
-          if(cnm){ (boardPcsByName[cnm]=boardPcsByName[cnm]||[]).push(p.id); }
-        });
-      });
-    }
-  }catch(_){}
-  // Count entries per name so multi-PC clients (same name on PC1 + PC2) keep their stored pc and don't collapse.
-  var nameCount={};
-  clients.forEach(function(c){ var nm=String((c&&c.name)||'').trim(); if(nm) nameCount[nm]=(nameCount[nm]||0)+1; });
-  var resolvePc=function(c){
-    var nm=String(c.name||'').trim();
-    var cpc=(c.pc!=null&&String(c.pc).trim()!=='')?String(c.pc).trim():'';
-    var board=boardPcsByName[nm]||[];
-    if((nameCount[nm]||0)>1){ return cpc || (board.length?String(board[0]):''); }  // multi-PC: keep stored pc
-    if(board.length) return String(board[0]);   // single entry: PC Status is authoritative
-    return cpc;                                  // not on the board: keep whatever was stored
-  };
-  var numByName={}, nextNum=1;
-  var cards=clients.map(function(c){
+  // Training-mode state (shared key on the report server). Missing key → defaults OFF.
+  try{ var tm=await _srGetCalc('training_mode'); _csTraining=!!(tm&&tm.length&&(tm[0]===true||tm[0]==='true'||(tm[0]&&tm[0].on))); }catch(_){}
+  var togCls=_csTraining?'cs-train-tog on':'cs-train-tog';
+  var togSub=_csTraining?'ON · standards off (all base pay)':'OFF · standards applied';
+  var note=_csTraining?'<div class="cs-train-note">Training mode — standards not applied. Everyone is paid base, no penalties. (Standards are kept.)</div>':'';
+  var shell='<div class="cs-wrap"><div class="att-eyebrow">Game · Standard</div><div class="ph">EXP Standards</div>'
+    +'<div class="psub">Per-client targets · client &amp; PC come from Lucky7, maps saved to the report server</div>'
+    +'<div class="cs-train-bar"><button class="'+togCls+'" onclick="_csToggleTraining()"><span class="cs-train-knob"></span><span class="cs-train-txt"><b>Training mode</b><small>'+togSub+'</small></span></button>'+note+'</div>'
+    +'<div class="cs-grid" id="cs-grid"><div class="cs-loading">Loading…</div></div>'
+    +'<div class="cs-ed-bg" id="cs-ed-bg" onclick="if(event.target===this)_csEditClose()"><div class="cs-ed-modal" id="cs-ed-modal"></div></div>'
+    +'<datalist id="cs-ed-maplist"></datalist></div>';
+  otherView.innerHTML=shell;
+  // Map suggestions for the editor (same master list the report form uses).
+  try{ var dl=document.getElementById('cs-ed-maplist'); if(dl && typeof _srMapGroups==='function'){ var seen={},opt=''; _srMapGroups().forEach(function(g){ (g.maps||[]).forEach(function(m){ var f=m.full||m.short; if(f&&!seen[f]){ seen[f]=1; opt+='<option value="'+esc(String(f))+'">'; } }); }); dl.innerHTML=opt; } }catch(_){}
+
+  // Existing maps from the report server, indexed by exact name and by normalized name (honorifics off).
+  var calc=[];
+  try{ calc=await _srGetCalc('clients'); }catch(e){ var ge=document.getElementById('cs-grid'); if(ge) ge.innerHTML='<div class="cs-err">Couldn\u2019t reach the report server — try again.</div>'; return; }
+  if(!Array.isArray(calc)) calc=[];
+  var byExact={}, byNorm={};
+  calc.forEach(function(e){ var nm=String((e&&e.name)||'').trim(); if(!nm) return; if(!byExact[nm]) byExact[nm]=e; var nn=_csNorm(nm); if(nn&&!byNorm[nn]) byNorm[nn]=e; });
+  var matchCalc=function(name){ var nm=String(name||'').trim(); if(byExact[nm]) return byExact[nm]; var nn=_csNorm(nm); return (nn&&byNorm[nn])?byNorm[nn]:null; };
+
+  // PC(s) per ERP client id, from the PC Status board (source of truth).
+  var pcsByCid={};
+  try{ if(typeof PCS!=='undefined' && Array.isArray(PCS)){ PCS.forEach(function(p){ (Array.isArray(p.clients)?p.clients:[]).forEach(function(cid){ if(cid==null) return; (pcsByCid[cid]=pcsByCid[cid]||[]).push(p.id); }); }); } }catch(_){}
+
+  var grid=document.getElementById('cs-grid'); if(!grid) return;
+  var erp=(typeof CLIENTS!=='undefined' && Array.isArray(CLIENTS))?CLIENTS.slice():[];
+  if(!erp.length){ grid.innerHTML='<div class="cs-empty">No clients yet — add one in the Client tab and it\u2019ll appear here.</div>'; return; }
+
+  _csRows=[];
+  var cards=erp.map(function(c,i){
     c=c||{};
     var nm=String(c.name||'').trim()||'\u2014';
-    if(!numByName[nm]) numByName[nm]=nextNum++;
-    var _pcn=resolvePc(c);
-    var pc=(_pcn!=='')?('PC '+esc(String(_pcn))):'PC \u2014';
-    var lv=pick(c,['lv','level','lvl','charLv','char_lv']);
-    var sword=pick(c,['sword','weapon','wpn']);
-    var armor=pick(c,['armor','armor_set','set']);
-    var ac=pick(c,['ac']);
-    var job=pick(c,['job','char_class','class','cls']);
+    var mc=matchCalc(nm);
+    var maps=(mc&&Array.isArray(mc.maps))?mc.maps:[];
+    _csRows.push({name:nm, maps:maps});
+    var pcs=pcsByCid[c.id]||[];
+    var pc=pcs.length?('PC '+esc(pcs.join(', '))):'PC \u2014';
+    var lv=(mc&&mc.lv!=null&&mc.lv!=='')?mc.lv:((mc&&mc.level!=null&&mc.level!=='')?mc.level:'');
+    var sword=(c.weapon!=null&&c.weapon!=='')?c.weapon:'';
+    var armor=(c.armor_set!=null&&c.armor_set!=='')?c.armor_set:'';
+    var ac=(c.ac!=null&&c.ac!=='')?c.ac:'';
+    var job=c.char_class?_srClassEN(c.char_class):'';
     var chips='<span class="cs-chip">Lv '+(esc(String(lv))||'\u2014')+'</span>';
     if(sword!==''||armor!=='') chips+='<span class="cs-chip">Wpn '+(esc(String(sword))||'\u2014')+' / '+(esc(String(armor))||'\u2014')+' Armor</span>';
     if(ac!=='') chips+='<span class="cs-chip">AC '+esc(String(ac))+'</span>';
     if(job!=='') chips+='<span class="cs-chip">'+esc(String(job))+'</span>';
-    var maps=Array.isArray(c.maps)?c.maps:[];
     var rows=maps.length ? maps.map(function(m){
       m=m||{}; var mn=esc(String(m.en||m.ko||m.name||'\u2014'));
       var tg=(m.target!=null&&m.target!=='')?Number(m.target):NaN;
       var tgs=isFinite(tg)?tg.toFixed(2):'\u2014';
       return '<div class="cs-map"><span class="cs-map-n">\uD83D\uDCCD '+mn+'</span><span class="cs-map-r">'+tgs+' <small>%/h</small></span></div>';
-    }).join('') : '<div class="cs-nomap">No maps yet.</div>';
-    return '<div class="cs-card"><div class="cs-hd"><span class="cs-num">'+numByName[nm]+'.</span><span class="cs-name">'+esc(nm)+'</span></div><div class="cs-pc">'+pc+'</div><div class="cs-chips">'+chips+'</div><div class="cs-maps">'+rows+'</div></div>';
+    }).join('') : '<div class="cs-nomap">No maps yet. Tap Edit to add.</div>';
+    var train=_csIsTraining(nm);
+    var tag=train?'<span class="cs-train-tag">TRAINING</span>':'';
+    return '<div class="cs-card'+(train?' train':'')+'"><div class="cs-card-top"><div class="cs-hd"><span class="cs-num">'+(i+1)+'.</span><span class="cs-name">'+esc(nm)+'</span>'+tag+'</div><button class="cs-edit" onclick="_csOpenEditor('+i+')">Edit \u270E</button></div><div class="cs-pc">'+pc+'</div><div class="cs-chips">'+chips+'</div><div class="cs-maps">'+rows+'</div></div>';
   }).join('');
   grid.innerHTML=cards;
+}
+
+function _csEditBody(){
+  if(!_csEditMaps.length) return '<div class="cs-ed-empty">No maps yet. Add one below.</div>';
+  return _csEditMaps.map(function(m,j){
+    var en=_srEsc(String(m.en||m.ko||''));
+    var tg=(m.target!=null&&m.target!=='')?_srEsc(String(m.target)):'';
+    return '<div class="cs-ed-row"><input class="cs-ed-map" value="'+en+'" placeholder="Map (English)" list="cs-ed-maplist" oninput="_csEditSetMap('+j+',\'en\',this.value)"><div class="cs-ed-tgtw"><input class="cs-ed-tgt" value="'+tg+'" inputmode="decimal" placeholder="0.00" oninput="_csEditSetMap('+j+',\'target\',this.value)"><span>%/h</span></div><button class="cs-ed-del" onclick="_csEditDelMap('+j+')">\u2715</button></div>';
+  }).join('');
+}
+function _csOpenEditor(i){
+  var row=(_csRows||[])[i]; if(!row) return;
+  _csEditName=row.name;
+  _csEditMaps=(row.maps||[]).map(function(m){ m=m||{}; return {en:String(m.en||m.ko||m.name||''), ko:String(m.ko||''), level:(m.level!=null?m.level:''), target:(m.target!=null?m.target:'')}; });
+  var modal=document.getElementById('cs-ed-modal'); var bg=document.getElementById('cs-ed-bg'); if(!modal||!bg) return;
+  modal.innerHTML='<div class="cs-ed-hd"><div><div class="cs-ed-title">'+_srEsc(String(_csEditName))+'</div><div class="cs-ed-sub">Maps &amp; targets · saved to the report server</div></div><button class="cs-ed-x" onclick="_csEditClose()">\u2715</button></div><div class="cs-ed-body" id="cs-ed-body">'+_csEditBody()+'</div><div class="cs-ed-ft"><button class="cs-ed-add" onclick="_csEditAddMap()">\uFF0B Add map</button><button class="cs-ed-save" onclick="_csEditSave()">Save</button></div>';
+  bg.classList.add('show');
+}
+function _csEditClose(){ var bg=document.getElementById('cs-ed-bg'); if(bg) bg.classList.remove('show'); _csEditName=null; _csEditMaps=[]; }
+function _csEditAddMap(){ _csEditMaps.push({en:'',ko:'',level:'',target:''}); var b=document.getElementById('cs-ed-body'); if(b) b.innerHTML=_csEditBody(); }
+function _csEditDelMap(j){ _csEditMaps.splice(j,1); var b=document.getElementById('cs-ed-body'); if(b) b.innerHTML=_csEditBody(); }
+function _csEditSetMap(j,f,v){ if(_csEditMaps[j]) _csEditMaps[j][f]=v; }
+async function _csEditSave(){
+  var name=_csEditName; if(!name){ return; }
+  var erpC=(typeof CLIENTS!=='undefined'&&Array.isArray(CLIENTS))?CLIENTS.find(function(x){return String((x&&x.name)||'').trim()===String(name).trim();}):null;
+  var maps=_csEditMaps.filter(function(m){ return String((m&&m.en)||'').trim()!==''; }).map(function(m){
+    var en=String(m.en||'').trim();
+    var tg=(m.target!=null&&m.target!=='')?Number(m.target):0; if(!isFinite(tg)) tg=0;
+    return { en:en, ko:(m.ko&&String(m.ko).trim())?String(m.ko).trim():en, level:(m.level!=null&&m.level!=='')?m.level:'', target:tg };
+  });
+  var pcs=[]; try{ if(erpC && typeof PCS!=='undefined' && Array.isArray(PCS)){ PCS.forEach(function(p){ if((Array.isArray(p.clients)?p.clients:[]).indexOf(erpC.id)>=0) pcs.push(p.id); }); } }catch(_){}
+  var gear={ job:erpC&&erpC.char_class?_srClassEN(erpC.char_class):'', sword:(erpC&&erpC.weapon!=null&&erpC.weapon!=='')?erpC.weapon:'', armor:(erpC&&erpC.armor_set!=null&&erpC.armor_set!=='')?erpC.armor_set:'', ac:(erpC&&erpC.ac!=null&&erpC.ac!=='')?erpC.ac:'' };
+  var arr; try{ arr=await _srGetCalc('clients'); }catch(e){ toast('Couldn\u2019t reach the report server — not saved',true); return; }
+  if(!Array.isArray(arr)) arr=[];
+  var idx=-1; for(var k=0;k<arr.length;k++){ if(String((arr[k]&&arr[k].name)||'').trim()===String(name).trim()){ idx=k; break; } }
+  if(idx>=0){ var keep=arr[idx]||{}; keep.name=name; keep.maps=maps; keep.job=gear.job; keep.sword=gear.sword; keep.armor=gear.armor; keep.ac=gear.ac; if(pcs.length) keep.pc=pcs[0]; arr[idx]=keep; }
+  else { arr.push({ name:name, pc:(pcs.length?pcs[0]:''), job:gear.job, sword:gear.sword, armor:gear.armor, ac:gear.ac, maps:maps }); }
+  var ok=false; try{ ok=await _srPutCalc('clients',arr); }catch(e){ ok=false; }
+  if(ok){ toast('\u2713 Standards saved'); _csEditClose(); renderCalcStandards(); }
+  else { toast('Save failed — try again',true); }
+}
+async function _csToggleTraining(){
+  _csTraining=!_csTraining;
+  var ok=false; try{ ok=await _srPutCalc('training_mode',[_csTraining]); }catch(e){ ok=false; }
+  if(!ok){ _csTraining=!_csTraining; toast('Couldn\u2019t reach the report server',true); return; }
+  toast(_csTraining?'Training mode ON — all base pay':'Training mode OFF — standards applied');
+  renderCalcStandards();
 }
 function renderExpStandard(){
   const otherView=document.getElementById('ch-other'); if(!otherView) return;
