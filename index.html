@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v339 -->
+<!-- BUILD: v340 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8318,7 +8318,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v339';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v340';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16757,12 +16757,13 @@ function _csInjectCSS(){
     ".cs-ed-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9999;padding:16px}",
     ".cs-ed-bg.show{display:flex}",
     ".cs-ed-modal{background:var(--bg-b,#1b1b1a);border:1px solid var(--br,#2c2c2a);border-radius:18px;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}",
+    ".cs-ed-modal *{box-sizing:border-box}",
     ".cs-ed-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 18px 13px;border-bottom:1px solid var(--br,#2c2c2a)}",
     ".cs-ed-title{font-size:16px;font-weight:700;color:var(--tx,#e6e5e2)}",
     ".cs-ed-x{background:var(--bg-a,#232323);border:1px solid var(--br2,#33332f);border-radius:8px;width:28px;height:28px;color:var(--tx2,#989792);font-size:15px;cursor:pointer}",
     ".cs-ed-body{padding:14px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:13px}",
-    ".cs-ed-g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}",
-    ".cs-ed-g4{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}",
+    ".cs-ed-g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}",
+    ".cs-ed-g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}",
     ".cs-ed-lbl{font-size:11px;color:var(--tx3,#6c6b66);font-weight:600;margin-bottom:5px;display:block}",
     ".cs-ed-inp,.cs-ed-sel{width:100%;background:var(--bg-a,#232323);border:1px solid var(--br2,#33332f);border-radius:8px;padding:9px 11px;color:var(--tx,#e6e5e2);font-size:13.5px}",
     ".cs-ed-sel{cursor:pointer}",
@@ -16773,8 +16774,8 @@ function _csInjectCSS(){
     ".cs-ed-mhd2{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}",
     ".cs-ed-mttl{font-size:11px;color:var(--tx3,#6c6b66);font-weight:600}",
     ".cs-ed-mexp{font-size:11px;color:var(--ac,#c9963a);font-weight:600}",
-    ".cs-ed-mcols{display:grid;grid-template-columns:1fr 1fr 46px 58px 24px;gap:6px;padding:0 2px 4px;font-size:9.5px;color:var(--tx3,#6c6b66)}",
-    ".cs-ed-mrow{display:grid;grid-template-columns:1fr 1fr 46px 58px 24px;gap:6px;align-items:center;margin-bottom:6px}",
+    ".cs-ed-mcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 42px 54px 22px;gap:6px;padding:0 2px 4px;font-size:9.5px;color:var(--tx3,#6c6b66)}",
+    ".cs-ed-mrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 42px 54px 22px;gap:6px;align-items:center;margin-bottom:6px}",
     ".cs-ed-mc{width:100%;min-width:0;background:var(--bg-a,#232323);border:1px solid var(--br2,#33332f);border-radius:7px;padding:7px 8px;color:var(--tx,#e6e5e2);font-size:12.5px}",
     ".cs-ed-mc.tgt{color:#5fb88f;font-weight:700;text-align:right}",
     ".cs-ed-mdel{background:transparent;border:none;color:#b6614f;font-size:14px;cursor:pointer;padding:2px}",
