@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v326 -->
+<!-- BUILD: v327 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8317,7 +8317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v326';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v327';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15238,9 +15238,9 @@ function _srRenderCIStart(){
 function _srBumpStart(d){ var n=_srPlayStartH+d; if(n>=0&&n<_srShiftEndH) _srPlayStartH=n; _srRenderCIStart(); _srSyncWin(); }
 function _srPickMap(full){
   _srLastMap=full;                                   // [v316] remember the pick so a re-render can't reset the map to default
-  try{ if(_srSession) _srSession.map=full; }catch(_){}
+  try{ if(_srSession){ _srSession.map=full; _srSession.mapSetAt=Date.now(); try{ _srSaveSession(); }catch(_){} } }catch(_){}   // [v327] a mid-shift map change stamps "now" so the check-in re-sync (v326) treats it as the most recent edit and keeps it
   document.querySelectorAll('#sr-app [data-sr-map]').forEach(function(x){ x.textContent=full; });
-  var lst=document.querySelectorAll('#sr-dd-map .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel', lst[k].getAttribute('data-full')===full);
+  var lst=document.querySelectorAll('#sr-app [id^="sr-dd-map"] .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel', lst[k].getAttribute('data-full')===full);   // [v327] reflect the pick in every map dropdown (check-in, update, checkout)
   _srCloseDD();
 }
 function _srPickPC(pc,name){
@@ -15364,7 +15364,7 @@ async function _srCheckIn(){
   if(exp>100){ _srToast("EXP can't be over 100%"); return; }
   if(!_srShots.checkin){ _srToast("Add a screenshot to check in"); return; }
   _srSession={ booster:_srBooster(), threadId:_srThread(),
-    client:sel.name, pc:sel.pc, map:sel.map,
+    client:sel.name, pc:sel.pc, map:sel.map, mapSetAt:Date.now(),
     startLv:lv, startExp:exp, startAdena:adena, prev:{ lv:lv, exp:exp, adena:adena } };
   var btn=root.querySelector('.sr-btn-primary'); var old=btn?btn.textContent:'';
   if(btn){ btn.disabled=true; btn.textContent='Checking in\u2026'; }
@@ -15571,7 +15571,10 @@ async function _srSubmitReport(kind,screen){
         if(Array.isArray(_allR) && _allR.length){
           var _meB=sess.booster||_srBooster(), _scl=String(sess.client||''), _ci=null;
           for(var _ri=0;_ri<_allR.length;_ri++){ var _rr=_allR[_ri]; if(_rr && _rr.booster===_meB && _rr.tag==='checkin' && String(_rr.client||'')===_scl){ if(!_ci || (_rr.createdAt||0)>(_ci.createdAt||0)) _ci=_rr; } }
-          if(_ci && _ci.map!=null && String(_ci.map).trim()!=='' && String(_ci.map)!==String(sess.map)){ sess.map=String(_ci.map); try{ _srSaveSession(); }catch(_){} }
+          if(_ci && _ci.map!=null && String(_ci.map).trim()!=='' && String(_ci.map)!==String(sess.map)){
+            var _ciT=(_ci.editedAt||_ci.createdAt||0), _myT=(sess.mapSetAt||0);
+            if(_ciT>_myT){ sess.map=String(_ci.map); sess.mapSetAt=_ciT; try{ _srSaveSession(); }catch(_){} }   // [v327] adopt the check-in map only if it changed MORE RECENTLY than the player's own mid-shift map pick — otherwise the player's change wins
+          }
         }
       }catch(_){}
     }
@@ -15939,8 +15942,9 @@ function _srBuildHTML(){
 
   var update=''
   +'<div class="sr-s" id="sr-s-update" style="display:none;">'
-  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">📍 <span data-sr-map>'+_srEsc(firstMapLabel)+'</span></span></div>'
-  +  '<p class="sr-sub">Name automatic · tap PC or map to change</p>'
+  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span></div>'
+  +  '<p class="sr-sub">Name &amp; PC carry over from check-in · tap PC to change</p>'
+  +  '<div class="sr-row"><label class="sr-lab">Map <span style="color:var(--tx3,#6c6b66);font-weight:400;">· change it if you moved hunting zone</span></label><div class="sr-dd" id="sr-dd-map-up"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-map-up\')"><span class="ttl" data-sr-map>'+_srEsc(firstMapLabel)+'</span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+mapOpts+'</div></div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Hour reported</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBump(\'s\',-1)">−</button><span class="sr-t" id="sr-w1">07:00</span><button onclick="_srBump(\'s\',1)">+</button></span><span class="sr-arr">→</span><span class="sr-t" id="sr-w2">08:00</span><span class="sr-auto">1 hour<br>auto-rolls</span></div><p class="sr-sub" style="margin:7px 0 0;">Client sees <b id="sr-up-kst">09:00 → 10:00</b> KST</p></div>'
   +  _srExpRow('','live','update')
   +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
@@ -15953,8 +15957,9 @@ function _srBuildHTML(){
 
   var checkout=''
   +'<div class="sr-s" id="sr-s-checkout" style="display:none;">'
-  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span><span class="sr-chip">📍 <span data-sr-map>'+_srEsc(firstMapLabel)+'</span></span></div>'
+  +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span></div>'
   +  '<p class="sr-sub">Final report — captures whatever hours are left in the shift</p>'
+  +  '<div class="sr-row"><label class="sr-lab">Map <span style="color:var(--tx3,#6c6b66);font-weight:400;">· change it if you moved hunting zone</span></label><div class="sr-dd" id="sr-dd-map-co"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-map-co\')"><span class="ttl" data-sr-map>'+_srEsc(firstMapLabel)+'</span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+mapOpts+'</div></div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Final stretch</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBumpCo(\'s\',-1)">−</button><span class="sr-t" id="sr-co-s">18:00</span><button onclick="_srBumpCo(\'s\',1)">+</button></span><span class="sr-arr">→</span><span class="sr-tstep"><button onclick="_srBumpCo(\'e\',-1)">−</button><span class="sr-t" id="sr-co-e">19:00</span><button onclick="_srBumpCo(\'e\',1)">+</button></span><span class="sr-auto" id="sr-co-kst">20:00 → 21:00<br>KST</span></div><div class="sr-split"><span class="sr-sc" id="sr-co-n">1 hr</span><span class="sr-cap" id="sr-co-cap">· full gain, no split</span></div></div>'
   +  _srExpRow('','live','checkout')
   +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
@@ -16045,7 +16050,7 @@ async function _srRecoverFromReports(){
     _srPlayStartH=pW; _srShiftStartH=pW; _srShiftEndH=shiftEnd;
     _srWinStart=Math.max(pW, Math.min(pW+hoursDone, shiftEnd-1));
     _srWinEnd=Math.min(_srWinStart+1, shiftEnd);
-    _srSession={ booster:me, threadId:_srThread(), client:ci.client, pc:ci.pc, map:ci.map,
+    _srSession={ booster:me, threadId:_srThread(), client:ci.client, pc:ci.pc, map:ci.map, mapSetAt:(ci.editedAt||ci.createdAt||Date.now()),
       startLv:ci.lvAfter, startExp:ci.expAfter, startAdena:ci.adena,
       prev:{ lv:(last.lvAfter!=null?last.lvAfter:ci.lvAfter), exp:(last.expAfter!=null?last.expAfter:ci.expAfter), adena:(last.adena!=null?last.adena:ci.adena) } };
     return true;
