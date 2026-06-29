@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v384 — 급여 1단계 마무리: _csSeedStandards에 sh/sl 밴드 자동 시드 추가(6 PC, 머지) -->
+<!-- BUILD: v385 — 버그수정: 실시간 시간 버킷을 고정 UTC 그리드 → 롤링 갭(20분) 방식으로 변경 (Claws 16:09 리포트 소실 수정) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v384';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v385';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16313,19 +16313,26 @@ function _srShiftT(hhmm, delta){
 // [v261] Drill-down: render a booster's individual reports for the day. Single-moment rows (calc hourly,
 // stored in WIB device-clock) collapse to one time; ranged rows (typed shift windows, KST) keep the range.
 // Every row shows both WIB (booster's clock) and KST (Korea), converted with the fixed 2h offset.
+// [v384] Hour-merge runs on a ROLLING GAP (_SR_HOUR_GAP_MS) between consecutive reports, not a fixed
+// UTC clock grid. The old Math.floor(ms/3600000) grid merged any two reports landing in the same
+// calendar-hour cell even if they were genuinely two separate ~1h sessions (e.g. one submitted late) —
+// that silently dropped real hourly reports. Now a report only merges if it arrived shortly after the
+// last one in the run; well-spaced (~50-80min) reports always stay separate, matching what was actually
+// submitted (Discord).
+var _SR_HOUR_GAP_MS = 20*60*1000;   // merge only true catch-up/batch readings (<=20min apart)
 function _srDetailHTML(reps){
   if(!reps||!reps.length) return '<div style="padding:8px 4px;color:var(--tx3);font-size:12px">No individual reports.</div>';
-  // [v377] Hourly rows now reflect REAL submission time (createdAt). Consecutive same-clock-hour + same-map
-  // status readings merge into one row showing the combined hourly gain — so the detail matches the
-  // real-time hour count in the header (no more 1-report-per-row inflation). A check-out in the same hour merges in too (its tag wins). Check-in keeps its typed window.
+  // [v377] Hourly rows now reflect REAL submission time (createdAt). Consecutive same-map status readings
+  // merge into one row showing the combined hourly gain — so the detail matches the real-time hour count
+  // in the header (no more 1-report-per-row inflation). A check-out in the same run merges in too (its tag wins). Check-in keeps its typed window.
   var pad=function(h){ h=((h%24)+24)%24; return (h<10?'0':'')+h+':00'; };
   var grp=[], i=0;
   while(i<reps.length){
     var r=reps[i];
     if(r.tag==='checkin'||r.dup||r.ms==null){ grp.push({merged:false,rep:r}); i++; continue; }   // [v381] check-OUT now joins the merge run (last reading wins the tag), matching Records
     var hb=Math.floor(r.ms/3600000), mp=String(r.map||''), sum=0, last=r, j=i;
-    while(j<reps.length){ var x=reps[j]; if(x.tag==='checkin'||x.dup||x.ms==null) break; if(Math.floor(x.ms/3600000)!==hb||String(x.map||'')!==mp) break; sum+=(x.gain||0); last=x; j++; }
-    grp.push({merged:true,rep:last,hb:hb,gain:sum}); i=j;
+    while(j<reps.length){ var x=reps[j]; if(x.tag==='checkin'||x.dup||x.ms==null) break; if(String(x.map||'')!==mp) break; if(j>i&&(x.ms-last.ms)>_SR_HOUR_GAP_MS) break; sum+=(x.gain||0); last=x; j++; }
+    grp.push({merged:(j>i+1),rep:last,hb:hb,gain:sum}); i=j;
   }
   return '<div style="padding:4px 0 8px">'+grp.map(function(row){
     var r=row.rep, wibLine, kstLine;
@@ -16442,8 +16449,8 @@ async function renderShiftAdmin(silent){
       var ci=null;
       for(i=allRs.length-1;i>=0;i--){ if(allRs[i].tag==='checkin'){ci=allRs[i];break;} if(allRs[i].tag==='checkout'){break;} }
 
-      var sGain=0,sQuota=0,sHours=0, _shb={};   // [v377] count by real CLOCK-HOUR (createdAt), not per report
-      if(ci){ var ciMs=reportMs(ci); allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); var _sms=reportMs(r); var _shk=(_sms!=null)?('h'+Math.floor(_sms/3600000)):('r'+r.id); if(!_shb[_shk])_shb[_shk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_shb[_shk].tgt=Number(mo.target); } }); sHours=Object.keys(_shb).length; Object.keys(_shb).forEach(function(_k){ sQuota+=(_shb[_k].tgt||0); }); }
+      var sGain=0,sQuota=0,sHours=0, _shb={};   // [v384] count by real ROLLING-GAP hour run (createdAt), not a fixed clock grid — see _SR_HOUR_GAP_MS
+      if(ci){ var ciMs=reportMs(ci); var _sLastMs=null,_sSeq=0; allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); var _sms=reportMs(r); var _shk; if(_sms!=null){ if(_sLastMs==null||(_sms-_sLastMs)>_SR_HOUR_GAP_MS)_sSeq++; _sLastMs=_sms; _shk='h'+_sSeq; } else { _shk='r'+r.id; } if(!_shb[_shk])_shb[_shk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_shb[_shk].tgt=Number(mo.target); } }); sHours=Object.keys(_shb).length; Object.keys(_shb).forEach(function(_k){ sQuota+=(_shb[_k].tgt||0); }); }
       var sPct=sQuota>0?(sGain/sQuota*100):0;
 
       // [v259] Anchor each report to its shift's CHECK-IN date (same as payroll's shiftDateOf), so a night
@@ -16451,12 +16458,13 @@ async function renderShiftAdmin(silent){
       // instead of splitting across midnight. Day shifts are unaffected (check-in date == report date).
       var shiftDateMap={}; (function(){ var curCi=null,curCiMs=null,MAXSPAN=16*3600*1000; allRs.forEach(function(r){ if(isTestMap(r))return; var rms=reportMs(r); if(curCi&&curCiMs!=null&&rms!=null&&(rms-curCiMs)>MAXSPAN)curCi=null; if(r.tag==='checkin'){curCi=r;curCiMs=rms;return;} if(curCi&&curCi.client!==r.client)curCi=null; shiftDateMap[r.id]=curCi?curCi.date:r.date; if(r.tag==='checkout')curCi=null; }); })();
       var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
-      var tGain=0,tQuota=0,tHours=0, tReports=[], _thb={};   // [v377] real CLOCK-HOUR buckets (createdAt)
+      var tGain=0,tQuota=0,tHours=0, tReports=[], _thb={};   // [v384] real ROLLING-GAP hour-run buckets (createdAt) — see _SR_HOUR_GAP_MS
+      var _tLastMs=null,_tSeq=0;
       allRs.forEach(function(r){ if(isTestMap(r))return; if(shiftDateOf(r)!==selDate)return;
         if(r.tag==='checkin'){ tReports.push({start:r.start,end:r.end,map:r.map,tag:'checkin',gain:null,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:false,ms:reportMs(r)}); return; }
         if(r.tag==='status'||r.tag==='checkout'||!r.tag){
           var g=(segGain[r.id]||0), dup=!!isDup[r.id];
-          if(!dup){ tGain+=g; var _tms=reportMs(r); var _thk=(_tms!=null)?('h'+Math.floor(_tms/3600000)):('r'+r.id); if(!_thb[_thk])_thb[_thk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_thb[_thk].tgt=Number(mo.target); }
+          if(!dup){ tGain+=g; var _tms=reportMs(r); var _thk; if(_tms!=null){ if(_tLastMs==null||(_tms-_tLastMs)>_SR_HOUR_GAP_MS)_tSeq++; _tLastMs=_tms; _thk='h'+_tSeq; } else { _thk='r'+r.id; } if(!_thb[_thk])_thb[_thk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_thb[_thk].tgt=Number(mo.target); }
           tReports.push({start:r.start,end:r.end,map:r.map,tag:(r.tag||'status'),gain:g,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:dup,ms:reportMs(r)});
         }
       });
@@ -16778,6 +16786,7 @@ function _srRecCompute(reports, clients){
     var _g=[]; allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id]||r.tag==='checkin')return; var gg=segGain[r.id]; if(gg!=null&&gg>0)_g.push(gg); });
     var _med=0; if(_g.length){ var _gs=_g.slice().sort(function(a,b){return a-b;}); _med=_gs[Math.floor(_gs.length/2)]; }
     var _jThr=Math.max(5, 6*Math.max(_med,0.3));   // flag if a single hour gained > 6x the usual, with a 5% floor
+    var _hourSeqByDate={};   // [v384] per-date rolling-gap hour sequence — see _SR_HOUR_GAP_MS
     allRs.forEach(function(r){
       if(isTestMap(r)) return;
       var _rd=shiftDateOf(r);
@@ -16798,10 +16807,12 @@ function _srRecCompute(reports, clients){
         if(_tag!=='checkin' && !_dup){
           _ra.gain+=(_gain||0);
           if(!_flag) _ra.cleanGain+=(_gain||0);   // [v314] gain with jumps removed
-          // [v371] count actual CLOCK-HOURS, not reports: bucket by submission hour so sub-hour / batched
-          // catch-up reports (e.g. 3 readings dumped at check-out) collapse into one hour instead of
-          // inflating the hour count and crushing the performance %. 1 report/hour is unaffected.
-          var _hk=(_rms!=null)?('h'+Math.floor(_rms/3600000)):('r'+r.id);
+          // [v384] count actual real-time HOUR RUNS, not reports and not a fixed clock grid: a new hour
+          // starts whenever the gap since the booster's last reading (this date) exceeds _SR_HOUR_GAP_MS.
+          // (Old [v371] bucketed by Math.floor(ms/3600000) — a fixed UTC grid that could wrongly merge two
+          // genuinely separate ~1h reports landing in the same calendar-hour cell, e.g. one submitted late.)
+          var _hk;
+          if(_rms!=null){ var _hs=_hourSeqByDate[_rd]||(_hourSeqByDate[_rd]={lastMs:null,seq:0}); if(_hs.lastMs==null||(_rms-_hs.lastMs)>_SR_HOUR_GAP_MS)_hs.seq++; _hs.lastMs=_rms; _hk='h'+_hs.seq; } else { _hk='r'+r.id; }
           if(!_ra.hb[_hk]) _ra.hb[_hk]={tgt:0};
           if(_tgt) _ra.hb[_hk].tgt=_tgt;          // target for this clock-hour (last seen wins)
           if(_flag) _ra.flags++;
@@ -16937,7 +16948,23 @@ function _srRecCardHTML(data){
           +(isAdmin?(opt.noEdit?'<td></td>':'<td class="sr-sl-x" onclick="event.stopPropagation();_srRecEditReport(\''+rid+'\')" title="수동 조정">✕</td>'):'')
           +'</tr>';
       };
-      var hourKey=function(s){ if(s.tag==='checkin'||s.flag) return null; if(s.ms==null) return null; return Math.floor(s.ms/3600000)+'|'+String(s.client||'')+'|'+String(s.map||''); };
+      // [v384] Bucket by a ROLLING GAP between consecutive same-client+map reports (_SR_HOUR_GAP_MS), not a
+      // fixed Math.floor(ms/3600000) clock grid. The grid version could merge — and silently drop from this
+      // queue — two genuinely separate ~1h reports that happened to land in the same calendar-hour cell
+      // (e.g. one submitted ~80min after the previous, the next only ~40min after that). rws is newest-first;
+      // compute the gap chain on an ascending copy, then look up each row's bucket id by report id.
+      var _bkOf={}; (function(){
+        var asc=rws.slice().sort(function(a,b){ return (a.ms||0)-(b.ms||0); });
+        var seq=0, last=null;
+        asc.forEach(function(s){
+          if(s.tag==='checkin'||s.flag||s.ms==null) return;
+          var mp=String(s.map||''), cl=String(s.client||'');
+          if(!last||last.map!==mp||last.client!==cl||(s.ms-last.ms)>_SR_HOUR_GAP_MS) seq++;
+          _bkOf[s.id]='b'+seq;
+          last={map:mp,client:cl,ms:s.ms};
+        });
+      })();
+      var hourKey=function(s){ if(s.tag==='checkin'||s.flag) return null; if(s.ms==null) return null; return _bkOf[s.id]!=null?_bkOf[s.id]:null; };
       var grps=[], gmap={}; rws.forEach(function(s){ var hk=hourKey(s); if(hk==null){ grps.push([s]); return; } if(gmap[hk]==null){ gmap[hk]=grps.length; grps.push([]); } grps[gmap[hk]].push(s); });
       var rowsHTML=grps.map(function(grp){
         if(grp.length===1) return slRow(grp[0]);
