@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v395 — ACTUAL EXP 인라인 편집을 병합행에도 확장: 입력값=그 시간대 합계 → 마지막 보고에 차액 반영 -->
+<!-- BUILD: v396 — Client별 카드 정렬을 PC 현황 보드 순서(PCS 배열)에 맞춤 — 두 화면 순서 항상 일치 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v395';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v396';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17055,7 +17055,14 @@ function _srRecCardHTML(data){
   // [v390] Sort client cards by PC number (matching the PC Status board order) instead of alphabetically —
   // alphabetical order scattered PCs in a seemingly random sequence ("messy"). Clients without a PC number
   // (e.g. training accounts not yet assigned) sort after numbered ones, alphabetically among themselves.
+  // [v396] Order By Client cards by the PC Status board order (the PCS array order, which is drag-reorderable)
+  // so the two views always agree. Falls back to numeric PC, then client name.
+  var _pcOrd={}; try{ if(typeof PCS!=='undefined'&&Array.isArray(PCS)){ for(var _pi=0;_pi<PCS.length;_pi++){ var _pp=PCS[_pi]; if(_pp&&_pp.id!=null&&_pcOrd[String(_pp.id)]==null) _pcOrd[String(_pp.id)]=_pi; } } }catch(_){ }
   var clKeys=Object.keys(byClient).sort(function(a,b){
+    var oa=_pcOrd[String(byClient[a].pc)], ob=_pcOrd[String(byClient[b].pc)];
+    var ha=(oa!=null), hb=(ob!=null);
+    if(ha&&hb&&oa!==ob) return oa-ob;
+    if(ha!==hb) return ha?-1:1;
     var pa=Number(byClient[a].pc), pb=Number(byClient[b].pc);
     var fa=isFinite(pa), fb=isFinite(pb);
     if(fa&&fb&&pa!==pb) return pa-pb;
