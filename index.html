@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v399 — Client별 데이터를 직원별 로그와 동기화: 시간단위 버킷(동일 _SR_HOUR_GAP_MS)으로 실측/h·기준대비(vs Std) 재계산 + 카드에 실측/h 표시 -->
+<!-- BUILD: v400 — Client뷰: PC보드에 배정됐지만 기록 없는 클라(PC9 등)도 빈 카드로 노출, 헤드라인을 시간당 EXP%(평균 EXP%/h)로 전환해 기록·기준과 동기화, 트레이닝 섹션은 '기준 없음' 표기 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v399';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v400';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16039,6 +16039,7 @@ function _srInjectCSS(){
 "#sr-app .sr-clcard-act-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);}",
 "#sr-app .sr-clcard-act-v{font-size:14px;font-weight:800;color:var(--tx,#e6e5e2);}",
 "#sr-app .sr-clcard-act-t{font-size:10px;font-weight:600;color:var(--tx3,#5f5e5a);}",
+"#sr-app .sr-clcard-nodata{opacity:.5;}",
 "#sr-app .sr-clcard-hero .sr-pfp{flex:none;align-self:center;}",
 "#sr-app .sr-clcard-big{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ac,#c2a04a);}",
 "#sr-app .sr-clcard-l{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);margin-top:3px;}",
@@ -17062,6 +17063,8 @@ function _srRecCardHTML(data){
     if(s.tag!=='checkin'){ o.statuses++; o._reps.push({ms:s.ms,target:s.target,gain:s.gain,flag:!!s.flag}); if(!s.flag){ o.clean+=(s.gain||0); o.cleanN++; if(s.target!=null){ o.mgain+=(s.gain||0); o.tgtSum+=s.target; } } }
     if(s.key)o.staff[s.key]=(o.staff[s.key]||0)+1; if(s.map)o.maps[s.map]=1; if(s.ms){ if(o.minMs==null||s.ms<o.minMs)o.minMs=s.ms; if(o.maxMs==null||s.ms>o.maxMs)o.maxMs=s.ms; } });
   Object.keys(byClient).forEach(function(c){ if(_clName[c]) byClient[c].client=_clName[c]; });
+  // [v400] surface clients ASSIGNED on the PC Status board even with no reports this period (e.g. PC9 with no logs shows as an empty card)
+  try{ if(typeof PCS!=='undefined' && Array.isArray(PCS)){ PCS.forEach(function(_p){ if(!_p||_p.status==='offline') return; (_p.clients||[]).forEach(function(_cid){ var _co=(typeof clientById==='function')?clientById(_cid):null; var _nm=(_co&&_co.name)?String(_co.name).trim():''; if(!_nm) return; var _ck=clNorm(_nm); if(!_ck) return; if(!byClient[_ck]){ byClient[_ck]={key:_ck,client:_nm,pc:_p.id,reps:0,statuses:0,mgain:0,tgtSum:0,clean:0,cleanN:0,staff:{},maps:{},minMs:null,maxMs:null,_reps:[],_noData:true}; } else if(byClient[_ck].pc==null||String(byClient[_ck].pc)===''){ byClient[_ck].pc=_p.id; } }); }); } }catch(_){ }
   var clientStat=function(o){ var avg=o.cleanN?(o.clean/o.cleanN):null;
     // [v399] Hour-bucket the client's reports exactly like By Staff (rolling _SR_HOUR_GAP_MS gap, per-hour target last-seen-wins),
     // so Actual/H and vs-Std reconcile with the By Staff log. Gain includes flagged (matches recAgg in By Staff).
@@ -17212,10 +17215,10 @@ function _srRecCardHTML(data){
     ? (_bandList.length?('<div class="sr-gband-grid">'+_bandList.map(function(g){return bandHTML(g,true);}).join('')+'</div>'):_emptyBand)
     : (_bandList.length?_bandList.map(function(g){return bandHTML(g,false);}).join(''):_emptyBand);
   var _clCardOne=function(c,ci){ var o=byClient[c]; var st=clientStat(o); var pf=st.perf; var _kl=_uiLang()==='ko';
-    return '<button class="sr-clcard" onclick="_srRecClientByIdx('+ci+')">'
+    return '<button class="sr-clcard'+(o._noData?' sr-clcard-nodata':'')+'" onclick="_srRecClientByIdx('+ci+')">'
       +'<div class="sr-clcard-top"><span class="sr-clcard-nm">'+esc(o.client||c)+'</span>'+((o.pc!=null&&String(o.pc)!=='')?'<span class="sr-clcard-pc">PC'+esc(String(o.pc))+'</span>':'')+'</div>'
-      +'<div class="sr-clcard-hero"><div class="sr-clcard-bigwrap"><span class="sr-clcard-big">'+(st.avg!=null?st.avg.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">'+(_kl?'평균 EXP%':'Average EXP%')+'</span></div>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'">'+(_kl?'기준 ':'vs Std ')+Math.round(pf)+'%</span>':'')+'</div>'
-      +'<div class="sr-clcard-act"><span class="sr-clcard-act-l">'+(_kl?'실측/h':'Actual/h')+'</span><span class="sr-clcard-act-v">'+(st.actualH!=null?st.actualH.toFixed(2):'—')+'</span>'+(st.targetH!=null?'<span class="sr-clcard-act-t">/ '+(_kl?'기준':'std')+' '+st.targetH.toFixed(2)+'</span>':'')+'</div>'
+      +'<div class="sr-clcard-hero"><div class="sr-clcard-bigwrap"><span class="sr-clcard-big">'+(st.actualH!=null?st.actualH.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">'+(_kl?'평균 EXP%/h':'Avg EXP%/h')+'</span></div>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'">'+(_kl?'기준 ':'vs Std ')+Math.round(pf)+'%</span>':'')+'</div>'
+      +(st.targetH!=null?'<div class="sr-clcard-act"><span class="sr-clcard-act-l">'+(_kl?'기준/h':'Std/h')+'</span><span class="sr-clcard-act-v">'+st.targetH.toFixed(2)+'%</span></div>':'')
       +'<div class="sr-clcard-meta"><b>👥 '+st.nStaff+(_kl?'명':'')+'</b><b>🧾 '+o.reps+(_kl?'건':'')+'</b><b>🗺 '+(st.maps.length||0)+(_kl?'맵':'')+'</b></div>'
       +'<div class="sr-clcard-maps">'+(st.maps.length?st.maps.map(esc).join(' · '):'—')+'</div>'
       +'</button>';
@@ -17234,7 +17237,7 @@ function _srRecCardHTML(data){
   var body = (mode==='clock')
     ? _clockBoardHTML(sessions)
     : (mode==='client')
-    ? (periodTab+'<div class="sr-clgrid">'+clientCards+'</div>'+(_trainN?('<div class="sr-cltrain-hd">'+(_uiLang()==='ko'?'\ud83c\udf93 \ud2b8\ub808\uc774\ub2dd \ud074\ub77c':'\ud83c\udf93 Training')+'<span class="sr-cltrain-cnt">'+_trainN+'</span></div><div class="sr-clgrid">'+_trainCards+'</div>'):''))
+    ? (periodTab+'<div class="sr-clgrid">'+clientCards+'</div>'+(_trainN?('<div class="sr-cltrain-hd">'+(_uiLang()==='ko'?'\ud83c\udf93 \ud2b8\ub808\uc774\ub2dd \ud074\ub77c · 기준 없음':'\ud83c\udf93 Training · no standard')+'<span class="sr-cltrain-cnt">'+_trainN+'</span></div><div class="sr-clgrid">'+_trainCards+'</div>'):''))
     : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">일일 기록 · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">🗑 전체 초기화</button></span></div>'+bands);
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span><span class="sr-badge">실시간</span></div>'
