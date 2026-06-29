@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v368 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
+<!-- BUILD: v369 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8319,7 +8319,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v368';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v369';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16945,14 +16945,20 @@ function _srRecCardHTML(data){
   // ════════════════ FOCUS VIEW (한 직원만) ════════════════
   if(curF){
     var u=universe[curF]; var meta=GMETA[u.grp]||GMETA.un;
-    var perf=u.quota>0?(u.gain/u.quota*100):null; var actualH=u.hours>0?(u.gain/u.hours):null;
+    var perf=u.quota>0?((u.cleanGain!=null?u.cleanGain:u.gain)/u.quota*100):null; var actualH=u.hours>0?(u.gain/u.hours):null;
     var myRows=daily.filter(function(r){return r.key===curF;}).slice().sort(function(a,b){ return a.date<b.date?1:(a.date>b.date?-1:0); });
     var drows=myRows.map(function(r){ return rowHTML(r,meta.gc,null); }).join('');
     var dtbl=myRows.length?(THEAD+drows+'</tbody></table>'):'<div class="sr-tbl-empty">일일 기록이 없어요.</div>';
     var warn='';
-    if(u.flags>0){ var rawP=u.quota>0?(u.gain/u.quota*100):null; var clnP=u.quota>0?((u.cleanGain||0)/u.quota*100):null;
-      warn='<div class="sr-rec-warn"><b>⚠ EXP 점프로 보이는 보고 '+u.flags+'건</b> — 한 시간 동안 평소보다 훨씬 많이 올라간 경우로 대부분 오타·EXP 표기 오류입니다. 아래 세션 기록에 빨간색으로 표시됩니다.'
-        +((rawP!=null&&clnP!=null)?' 성과는 포함 시 <b>'+Math.round(rawP)+'%</b>, 제외하면 약 <b>'+Math.round(clnP)+'%</b>입니다.':'')+'</div>'; }
+    if(u.flags>0){ var rawP=u.quota>0?(u.gain/u.quota*100):null; var clnP=u.quota>0?((u.cleanGain||0)/u.quota*100):null; var _wpct=(rawP!=null&&clnP!=null);
+      if(_uiLang()==='ko'){
+        warn='<div class="sr-rec-warn"><b>⚠ EXP 점프로 보이는 보고 '+u.flags+'건</b> — 한 시간 동안 평소보다 훨씬 많이 올라간 경우로 대부분 오타·EXP 표기 오류입니다. 아래 세션 기록에 빨간색으로 표시됩니다.'
+          +(_wpct?' 성과는 포함 시 <b>'+Math.round(rawP)+'%</b>, 제외하면 약 <b>'+Math.round(clnP)+'%</b>입니다. 위 성과 수치는 제외 기준이에요.':'')+'</div>';
+      } else {
+        warn='<div class="sr-rec-warn"><b>⚠ '+u.flags+' report'+(u.flags>1?'s':'')+' look like EXP jumps</b> — a single hour gained far more than usual, almost always a typo or EXP-readout error. They’re flagged in red in the session log below.'
+          +(_wpct?' Performance is <b>'+Math.round(rawP)+'%</b> with them included, about <b>'+Math.round(clnP)+'%</b> excluded. The figure shown above uses the excluded value.':'')+'</div>';
+      }
+    }
     var chip=function(l,v){ return '<div class="sr-fchip"><span class="l">'+l+'</span><span class="v">'+v+'</span></div>'; };
     return '<div class="sr-card sr-rec-card" style="--gc:'+meta.gc+';--gcb:'+meta.gcb+'">'
       +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span></div>'
