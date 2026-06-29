@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v390 — Records EN: Client별 카드 정렬(PC순)+레이아웃 버그 수정, 시계 탭 전체 번역, 명/건/대 카운터 접미사 EN모드 제거 -->
+<!-- BUILD: v391 — 버그수정: Client별 카드의 메타줄(인원/보고/맵)이 실제로 깨지던 row를 flex+unsplittable 유닛으로 재설계 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v390';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v391';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16029,7 +16029,8 @@ function _srInjectCSS(){
 "#sr-app .sr-clcard-row{display:flex;align-items:baseline;gap:7px;margin-bottom:8px;flex-wrap:wrap;}",
 "#sr-app .sr-clcard-big{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ac,#c2a04a);}",
 "#sr-app .sr-clcard-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);}",
-"#sr-app .sr-clcard-meta{font-size:11.5px;color:var(--tx2,#989792);margin-bottom:5px;}",
+"#sr-app .sr-clcard-meta{display:flex;flex-wrap:wrap;gap:2px 9px;font-size:11.5px;color:var(--tx2,#989792);margin-bottom:5px;}",
+    "#sr-app .sr-clcard-meta b{white-space:nowrap;font-weight:inherit;}",
 "#sr-app .sr-clcard-maps{font-size:11px;color:var(--tx3,#5f5e5a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 "#sr-app .sr-kr{appearance:none;border:1px solid var(--br2,#2f2f2d);background:var(--bg-i,#1a1a1a);color:var(--tx2,#989792);font:inherit;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:9px;cursor:pointer;text-transform:none;letter-spacing:0;}",
 "#sr-app .sr-kr b{color:var(--tx3,#5f5e5a);font-weight:800;margin-right:2px;}",
@@ -17146,7 +17147,7 @@ function _srRecCardHTML(data){
     return '<button class="sr-clcard" onclick="_srRecClientByIdx('+ci+')">'
       +'<div class="sr-clcard-top"><span class="sr-clcard-nm">'+esc(o.client||c)+'</span>'+((o.pc!=null&&String(o.pc)!=='')?'<span class="sr-clcard-pc">PC'+esc(String(o.pc))+'</span>':'')+'</div>'
       +'<div class="sr-clcard-row"><span class="sr-clcard-big">'+(st.avg!=null?st.avg.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">'+(_kl?'평균 EXP%':'Average EXP%')+'</span>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'" style="margin-left:auto">'+(_kl?'기준 ':'vs Std ')+Math.round(pf)+'%</span>':'')+'</div>'
-      +'<div class="sr-clcard-meta">👥 '+st.nStaff+(_kl?'명':'')+' · 🧾 '+o.reps+(_kl?'건':'')+' · 🗺 '+(st.maps.length||0)+(_kl?'맵':'')+'</div>'
+      +'<div class="sr-clcard-meta"><b>👥 '+st.nStaff+(_kl?'명':'')+'</b><b>🧾 '+o.reps+(_kl?'건':'')+'</b><b>🗺 '+(st.maps.length||0)+(_kl?'맵':'')+'</b></div>'
       +'<div class="sr-clcard-maps">'+(st.maps.length?st.maps.map(esc).join(' · '):'—')+'</div>'
       +'</button>';
   }).join('') || '<div class="sr-empty">'+(_uiLang()==='ko'?'클라이언트 세션이 없어요.':'No client sessions yet.')+'</div>';
