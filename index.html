@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v396 — Client별 카드 정렬을 PC 현황 보드 순서(PCS 배열)에 맞춤 — 두 화면 순서 항상 일치 -->
+<!-- BUILD: v397 — Client별: 트레이닝 클라(이름에 TRAINING)를 별도 섹션으로 분리, 실제 클라 그리드와 구분 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v396';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v397';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16021,6 +16021,8 @@ function _srInjectCSS(){
 "#sr-app .sr-modetab button:hover{color:var(--tx,#e6e5e2);}",
 "#sr-app .sr-modetab button.on{color:var(--tx,#e6e5e2);background:var(--bg-a,#232323);box-shadow:var(--e1);}",
 "#sr-app .sr-clgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:4px;}",
+"#sr-app .sr-cltrain-hd{display:flex;align-items:center;gap:9px;margin:24px 2px 9px;font-size:12.5px;font-weight:800;color:var(--tx2,#989792);text-transform:uppercase;letter-spacing:.04em;}",
+"#sr-app .sr-cltrain-cnt{font-size:11px;font-weight:700;color:var(--tx3,#5f5e5a);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);padding:1px 8px;border-radius:7px;}",
 "#sr-app .sr-clcard{display:flex;flex-direction:column;align-items:stretch;text-align:left;background:var(--bg-c,#161616);border:1px solid var(--br,#232322);border-radius:14px;padding:14px;cursor:pointer;font:inherit;color:var(--tx,#e6e5e2);transition:border-color .14s ease,transform .14s ease;overflow:hidden;}",
 "#sr-app .sr-clcard:hover{border-color:var(--ac-bord,rgba(194,160,74,.4));transform:translateY(-1px);}",
 "#sr-app .sr-clcard-top{display:flex;align-items:center;gap:8px;margin-bottom:9px;}",
@@ -17186,14 +17188,18 @@ function _srRecCardHTML(data){
     +'</div>';
   };
   var bands=GORDER.filter(function(g){ return grpCount(g)>0; }).map(bandHTML).join('') || '<div class="sr-empty">아직 기록이 없어요.</div>';
-  var clientCards=clKeys.map(function(c,ci){ var o=byClient[c]; var st=clientStat(o); var pf=st.perf; var _kl=_uiLang()==='ko';
+  var _clCardOne=function(c,ci){ var o=byClient[c]; var st=clientStat(o); var pf=st.perf; var _kl=_uiLang()==='ko';
     return '<button class="sr-clcard" onclick="_srRecClientByIdx('+ci+')">'
       +'<div class="sr-clcard-top"><span class="sr-clcard-nm">'+esc(o.client||c)+'</span>'+((o.pc!=null&&String(o.pc)!=='')?'<span class="sr-clcard-pc">PC'+esc(String(o.pc))+'</span>':'')+'</div>'
       +'<div class="sr-clcard-hero"><div class="sr-clcard-bigwrap"><span class="sr-clcard-big">'+(st.avg!=null?st.avg.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">'+(_kl?'평균 EXP%':'Average EXP%')+'</span></div>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'">'+(_kl?'기준 ':'vs Std ')+Math.round(pf)+'%</span>':'')+'</div>'
       +'<div class="sr-clcard-meta"><b>👥 '+st.nStaff+(_kl?'명':'')+'</b><b>🧾 '+o.reps+(_kl?'건':'')+'</b><b>🗺 '+(st.maps.length||0)+(_kl?'맵':'')+'</b></div>'
       +'<div class="sr-clcard-maps">'+(st.maps.length?st.maps.map(esc).join(' · '):'—')+'</div>'
       +'</button>';
-  }).join('') || '<div class="sr-empty">'+(_uiLang()==='ko'?'클라이언트 세션이 없어요.':'No client sessions yet.')+'</div>';
+  };
+  var _isTrainClient=function(o){ return /training/i.test(String((o&&o.client)||'')); };   // [v397] training PCs split out of the real-client grid
+  var _realCards='', _trainCards='', _realN=0, _trainN=0;
+  clKeys.forEach(function(c,ci){ var h=_clCardOne(c,ci); if(_isTrainClient(byClient[c])){ _trainCards+=h; _trainN++; } else { _realCards+=h; _realN++; } });
+  var clientCards=_realN?_realCards:('<div class="sr-empty">'+(_uiLang()==='ko'?'클라이언트 세션이 없어요.':'No client sessions yet.')+'</div>');
   var modetab='<div class="sr-modetab"><button class="'+(mode==='staff'?'on':'')+'" onclick="_srRecModeBy(\'staff\')">👤 '+(_uiLang()==='ko'?'직원별':'By Staff')+'</button><button class="'+(mode==='client'?'on':'')+'" onclick="_srRecModeBy(\'client\')">🎮 '+(_uiLang()==='ko'?'클라별':'By Client')+'</button><button class="'+(mode==='clock'?'on':'')+'" onclick="_srRecModeBy(\'clock\')">⏱ '+(_uiLang()==='ko'?'시계':'Clock')+'</button></div>';
   var periodTab='<div class="sr-modetab sr-period" style="margin:-4px 0 14px">'
     +'<button class="'+(_period==='today'?'on':'')+'" onclick="_srRecPeriodBy(\'today\')">오늘</button>'
@@ -17204,7 +17210,7 @@ function _srRecCardHTML(data){
   var body = (mode==='clock')
     ? _clockBoardHTML(sessions)
     : (mode==='client')
-    ? (periodTab+'<div class="sr-clgrid">'+clientCards+'</div>')
+    ? (periodTab+'<div class="sr-clgrid">'+clientCards+'</div>'+(_trainN?('<div class="sr-cltrain-hd">'+(_uiLang()==='ko'?'\ud83c\udf93 \ud2b8\ub808\uc774\ub2dd \ud074\ub77c':'\ud83c\udf93 Training')+'<span class="sr-cltrain-cnt">'+_trainN+'</span></div><div class="sr-clgrid">'+_trainCards+'</div>'):''))
     : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">일일 기록 · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">🗑 전체 초기화</button></span></div>'+bands);
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span><span class="sr-badge">실시간</span></div>'
