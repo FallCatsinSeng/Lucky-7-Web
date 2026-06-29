@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v391 — 버그수정: Client별 카드의 메타줄(인원/보고/맵)이 실제로 깨지던 row를 flex+unsplittable 유닛으로 재설계 -->
+<!-- BUILD: v392 — 실측 EXP%: 보고별 자체 게인(expAfter-expBefore)=디스코드와 일치, 크로스리포트 델타 제거(3곳) + Client별 카드 히어로행 재설계 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v391';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v392';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16026,9 +16026,11 @@ function _srInjectCSS(){
 "#sr-app .sr-clcard-top{display:flex;align-items:center;gap:8px;margin-bottom:9px;}",
 "#sr-app .sr-clcard-nm{font-size:14px;font-weight:800;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 "#sr-app .sr-clcard-pc{font-size:10px;font-weight:700;color:var(--tx2,#989792);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);padding:1px 7px;border-radius:6px;margin-left:auto;flex:none;}",
-"#sr-app .sr-clcard-row{display:flex;align-items:baseline;gap:7px;margin-bottom:8px;flex-wrap:wrap;}",
+"#sr-app .sr-clcard-hero{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;}",
+"#sr-app .sr-clcard-bigwrap{display:flex;flex-direction:column;line-height:1.05;min-width:0;}",
+"#sr-app .sr-clcard-hero .sr-pfp{flex:none;align-self:center;}",
 "#sr-app .sr-clcard-big{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ac,#c2a04a);}",
-"#sr-app .sr-clcard-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);}",
+"#sr-app .sr-clcard-l{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);margin-top:3px;}",
 "#sr-app .sr-clcard-meta{display:flex;flex-wrap:wrap;gap:2px 9px;font-size:11.5px;color:var(--tx2,#989792);margin-bottom:5px;}",
     "#sr-app .sr-clcard-meta b{white-space:nowrap;font-weight:inherit;}",
 "#sr-app .sr-clcard-maps{font-size:11px;color:var(--tx3,#5f5e5a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
@@ -16439,7 +16441,7 @@ async function renderShiftAdmin(silent){
       var allRs=g.rs.slice().sort(function(a,b){ return ((reportMs(a)||0)-(reportMs(b)||0)) || ((_ord[a.tag]!=null?_ord[a.tag]:1)-(_ord[b.tag]!=null?_ord[b.tag]:1)); });
       var isDup={}, DUP=10*60*1000, i,j;
       for(i=0;i<allRs.length;i++){ var r=allRs[i]; if(isTestMap(r))continue; for(j=i-1;j>=0;j--){ var p=allRs[j]; if(((reportMs(r)||0)-(reportMs(p)||0))>DUP)break; if(isDup[p.id])continue; if(String(p.client||'').trim()===String(r.client||'').trim()&&(p.tag||'')===(r.tag||'')&&Number(p.lvAfter)===Number(r.lvAfter)&&Number(p.expAfter)===Number(r.expAfter)){ isDup[r.id]=true; break; } } }
-      var segGain={}, segLv={}; (function(){ var prev=null, lastLv=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0; segLv[r.id]=(lastLv!=null?lastLv:(Number(r.lvAfter)||0)); return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r); segLv[r.id]=(Number(r.lvAfter)||0); return;} if(prev&&prev.client!==r.client){prev=null;lastLv=null;} if(r.tag==='checkin'){segGain[r.id]=null; lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; prev=r; return;} if(prev){ var _x=((Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0))-((Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0)); if(_x<0)_x=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0); var _own=gainedPct(r); if(_x>_own*2+30){ segGain[r.id]=_own; segLv[r.id]=(lastLv!=null?lastLv:(Number(r.lvAfter)||0)); /* [v294] LV not supported by EXP gained → keep last consistent level */ } else { segGain[r.id]=_x; lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; } } else { segGain[r.id]=gainedPct(r); lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; } prev=r; }); })();
+      var segGain={}, segLv={}; (function(){ var prev=null, lastLv=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0; segLv[r.id]=(lastLv!=null?lastLv:(Number(r.lvAfter)||0)); return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r); segLv[r.id]=(Number(r.lvAfter)||0); return;} if(prev&&prev.client!==r.client){prev=null;lastLv=null;} if(r.tag==='checkin'){segGain[r.id]=null; lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; prev=r; return;} if(prev){ segGain[r.id]=gainedPct(r); lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; } else { segGain[r.id]=gainedPct(r); lastLv=(Number(r.lvAfter)||0); segLv[r.id]=lastLv; }   /* [v392] actual per-report result (expAfter-expBefore), matches Discord */ prev=r; }); })();
 
       var latest=allRs[allRs.length-1];
       var latestMs=reportMs(latest);
@@ -16778,7 +16780,7 @@ function _srRecCompute(reports, clients){
     var allRs=g.rs.slice().sort(function(a,b){ return ((reportMs(a)||0)-(reportMs(b)||0)) || ((_ord[a.tag]!=null?_ord[a.tag]:1)-(_ord[b.tag]!=null?_ord[b.tag]:1)); });
     var isDup={}, DUP=10*60*1000, i,j;
     for(i=0;i<allRs.length;i++){ var r=allRs[i]; if(isTestMap(r))continue; for(j=i-1;j>=0;j--){ var p=allRs[j]; if(((reportMs(r)||0)-(reportMs(p)||0))>DUP)break; if(isDup[p.id])continue; if(String(p.client||'').trim()===String(r.client||'').trim()&&(p.tag||'')===(r.tag||'')&&Number(p.lvAfter)===Number(r.lvAfter)&&Number(p.expAfter)===Number(r.expAfter)){ isDup[r.id]=true; break; } } }
-    var segGain={}; (function(){ var prev=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0; return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r); return;} if(prev&&prev.client!==r.client){prev=null;} if(r.tag==='checkin'){segGain[r.id]=null; prev=r; return;} if(prev){ var _x=((Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0))-((Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0)); if(_x<0)_x=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0); var _own=gainedPct(r); segGain[r.id]=(_x>_own*2+30)?_own:_x; } else { segGain[r.id]=gainedPct(r); } prev=r; }); })();
+    var segGain={}; (function(){ var prev=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0; return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r); return;} if(prev&&prev.client!==r.client){prev=null;} if(r.tag==='checkin'){segGain[r.id]=null; prev=r; return;} segGain[r.id]=gainedPct(r); prev=r;   /* [v392] actual per-report result, matches Discord */ }); })();
     var shiftDateMap={}; (function(){ var curCi=null,curCiMs=null,MAXSPAN=16*3600*1000; allRs.forEach(function(r){ if(isTestMap(r))return; var rms=reportMs(r); if(curCi&&curCiMs!=null&&rms!=null&&(rms-curCiMs)>MAXSPAN)curCi=null; if(r.tag==='checkin'){curCi=r;curCiMs=rms;return;} if(curCi&&curCi.client!==r.client)curCi=null; shiftDateMap[r.id]=curCi?curCi.date:r.date; if(r.tag==='checkout')curCi=null; }); })();
     var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
     // [v314] EXP-jump detection: an hourly report can't realistically gain a large % of a level. Flag any
@@ -17146,7 +17148,7 @@ function _srRecCardHTML(data){
   var clientCards=clKeys.map(function(c,ci){ var o=byClient[c]; var st=clientStat(o); var pf=st.perf; var _kl=_uiLang()==='ko';
     return '<button class="sr-clcard" onclick="_srRecClientByIdx('+ci+')">'
       +'<div class="sr-clcard-top"><span class="sr-clcard-nm">'+esc(o.client||c)+'</span>'+((o.pc!=null&&String(o.pc)!=='')?'<span class="sr-clcard-pc">PC'+esc(String(o.pc))+'</span>':'')+'</div>'
-      +'<div class="sr-clcard-row"><span class="sr-clcard-big">'+(st.avg!=null?st.avg.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">'+(_kl?'평균 EXP%':'Average EXP%')+'</span>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'" style="margin-left:auto">'+(_kl?'기준 ':'vs Std ')+Math.round(pf)+'%</span>':'')+'</div>'
+      +'<div class="sr-clcard-hero"><div class="sr-clcard-bigwrap"><span class="sr-clcard-big">'+(st.avg!=null?st.avg.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">'+(_kl?'평균 EXP%':'Average EXP%')+'</span></div>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'">'+(_kl?'기준 ':'vs Std ')+Math.round(pf)+'%</span>':'')+'</div>'
       +'<div class="sr-clcard-meta"><b>👥 '+st.nStaff+(_kl?'명':'')+'</b><b>🧾 '+o.reps+(_kl?'건':'')+'</b><b>🗺 '+(st.maps.length||0)+(_kl?'맵':'')+'</b></div>'
       +'<div class="sr-clcard-maps">'+(st.maps.length?st.maps.map(esc).join(' · '):'—')+'</div>'
       +'</button>';
@@ -20009,10 +20011,7 @@ async function renderMyPerformance(){
         if(prev && prev.client!==r.client) prev=null;
         if(r.tag==='checkin'){ segGain[r.id]=null; segAde[r.id]=0; prev=r; continue; }
         if(prev){
-          let x=((Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0))-((Number(prev.lvAfter)||0)*100+(Number(prev.expAfter)||0));
-          if(x<0) x=(Number(r.expAfter)||0)-(Number(prev.expAfter)||0);
-          const own=gainedPct(r);
-          segGain[r.id]=(x > own*2+30) ? own : x;   // [v293] cross-report inflated by LV mismatch → use report's own gain
+          segGain[r.id]=gainedPct(r);   // [v392] actual per-report result (expAfter-expBefore), matches Discord — not a chained cross-report delta
           let ag=(Number(r.adena)||0)-(Number(prev.adena)||0); if(ag<0) ag=0; segAde[r.id]=ag;
         } else {
           segGain[r.id]=gainedPct(r);
