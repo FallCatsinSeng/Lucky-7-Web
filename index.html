@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v365 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
+<!-- BUILD: v366 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8319,7 +8319,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v365';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v366';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16754,20 +16754,25 @@ function _srRecCompute(reports, clients){
       var _dup=!!isDup[r.id];
       var _gain=(_tag==='checkin')?null:(_dup?0:(segGain[r.id]||0));
       var _flag=(_gain!=null)&&(_gain>80 || _gain>_jThr);
-      sessions.push({ id:r.id, name:g.name, key:normName(g.name), date:_rd, ms:reportMs(r), tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, dup:_dup, flag:_flag });
-      if(_tag!=='checkin' && !_dup && _rd){
+      var _rms=reportMs(r);
+      sessions.push({ id:r.id, name:g.name, key:normName(g.name), date:_rd, ms:_rms, tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, dup:_dup, flag:_flag });
+      if(_rd){
         if(!recAgg[g.name]) recAgg[g.name]={};
-        if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0,flags:0,cleanGain:0};
+        if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0,flags:0,cleanGain:0,minMs:null,maxMs:null};
         var _ra=recAgg[g.name][_rd];
-        _ra.hours+=1; _ra.gain+=(_gain||0);
-        if(!_flag) _ra.cleanGain+=(_gain||0);   // [v314] gain with jumps removed
-        if(_tgt) _ra.quota+=_tgt;
-        if(_flag) _ra.flags++;
+        // [v366] track the shift's clock span (incl. check-in = start) so Records shows WHEN, not just how many hours
+        if(_rms!=null){ if(_ra.minMs==null||_rms<_ra.minMs)_ra.minMs=_rms; if(_ra.maxMs==null||_rms>_ra.maxMs)_ra.maxMs=_rms; }
+        if(_tag!=='checkin' && !_dup){
+          _ra.hours+=1; _ra.gain+=(_gain||0);
+          if(!_flag) _ra.cleanGain+=(_gain||0);   // [v314] gain with jumps removed
+          if(_tgt) _ra.quota+=_tgt;
+          if(_flag) _ra.flags++;
+        }
       }
     });
   });
   var daily=[];
-  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; var perH=(a.hours>0?a.gain/a.hours:0); var targetH=(a.hours>0&&a.quota>0?a.quota/a.hours:0); var perf=(a.quota>0?(a.gain/a.quota*100):null); var cleanPerf=(a.quota>0?((a.cleanGain||0)/a.quota*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,quota:a.quota,perH:perH,targetH:targetH,perf:perf,flags:(a.flags||0),cleanGain:(a.cleanGain||0),cleanPerf:cleanPerf,hoursFlag:(a.hours>16)}); }); });
+  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; if(!(a.hours>0)) return; var perH=(a.hours>0?a.gain/a.hours:0); var targetH=(a.hours>0&&a.quota>0?a.quota/a.hours:0); var perf=(a.quota>0?(a.gain/a.quota*100):null); var cleanPerf=(a.quota>0?((a.cleanGain||0)/a.quota*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,quota:a.quota,perH:perH,targetH:targetH,perf:perf,flags:(a.flags||0),cleanGain:(a.cleanGain||0),cleanPerf:cleanPerf,hoursFlag:(a.hours>16),minMs:a.minMs,maxMs:a.maxMs}); }); });
   daily.sort(function(a,b){ if(a.date!==b.date) return a.date<b.date?1:-1; return a.name<b.name?-1:(a.name>b.name?1:0); });
   sessions.sort(function(a,b){ return (b.ms||0)-(a.ms||0); });
   return { daily:daily, sessions:sessions };
@@ -16830,7 +16835,7 @@ function _srRecCardHTML(data){
   var pfCls=function(p){ return p==null?'no':(p>=100?'hot':(p>=80?'mid':'low')); };
   var pfColVar=function(p){ return p==null?'var(--tx3)':(p>=100?'var(--gr)':(p>=80?'var(--ac)':'var(--re)')); };
   var dres=function(r){ if(r.flags>0) return '<span class="sr-rb sr-rb-jump">⚠ 점프'+(r.flags>1?' ×'+r.flags:'')+'</span>'; if(r.perf==null) return '<span class="sr-rb sr-rb-no">기준없음</span>'; if(r.perf>=100) return '<span class="sr-rb sr-rb-ok">달성</span>'; return '<span class="sr-rb sr-rb-un">미달</span>'; };
-  var hoursCell=function(r){ return r.hoursFlag?('<td class="sr-re" title="24h 초과 — 체크아웃 누락 가능">⚠ '+r.hours.toFixed(2)+'h</td>'):('<td>'+r.hours.toFixed(2)+'h</td>'); };
+  var hoursCell=function(r){ var _rng=(r.minMs!=null&&r.maxMs!=null)?('<div style="font-size:10px;color:var(--tx3);font-weight:600;font-variant-numeric:tabular-nums;margin-top:3px;white-space:nowrap">'+(krMode?'<b style="color:var(--ac)">KR</b> ':'')+fmtHM(r.minMs)+' ~ '+fmtHM(r.maxMs)+'</div>'):''; var _h=r.hours.toFixed(2)+'h'; return r.hoursFlag?('<td class="sr-re" title="24h 초과 — 체크아웃 누락 가능">⚠ '+_h+_rng+'</td>'):('<td>'+_h+_rng+'</td>'); };
   // shared daily-row builder (rank optional, showName toggles name col content)
   var rowHTML=function(r,gc,rank){ var diff=r.perH-r.targetH; var rkc=rank===1?'r1':rank===2?'r2':rank===3?'r3':''; var bw=r.perf!=null?Math.min(100,Math.round(r.perf)):0;
     return '<tr class="'+(r.flags>0?'warn':'')+'">'
