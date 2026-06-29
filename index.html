@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v376 — i18n: 목표/h→Target/h, 차이→Diff (영어 모드 헤더 번역) -->
+<!-- BUILD: v377 — Calculator(성과계산기) 실시간 시간 집계: 보고 createdAt 기준 클럭아워 카운트 + 시간별 상세 병합 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8318,7 +8318,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v376';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v377';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16325,27 +16325,41 @@ function _srShiftT(hhmm, delta){
 // Every row shows both WIB (booster's clock) and KST (Korea), converted with the fixed 2h offset.
 function _srDetailHTML(reps){
   if(!reps||!reps.length) return '<div style="padding:8px 4px;color:var(--tx3);font-size:12px">No individual reports.</div>';
-  return '<div style="padding:4px 0 8px">'+reps.map(function(r){
-    var single = !!(r.start && r.end && r.start===r.end);
-    var wibLine, kstLine;
-    if(single){            // calc hourly: stored value is booster's PC clock (WIB); KST = +2h
-      wibLine=_srEsc(r.start); kstLine=_srEsc(_srShiftT(r.start,2));
-    } else if(r.start||r.end){ // typed window (check-in/out): stored in KST; WIB = -2h
-      kstLine=_srEsc((r.start||'')+(r.end?' \u2192 '+r.end:''));
-      wibLine=_srEsc(_srShiftT(r.start,-2)+(r.end?' \u2192 '+_srShiftT(r.end,-2):''));
-    } else { wibLine='\u2014'; kstLine='\u2014'; }
+  // [v377] Hourly rows now reflect REAL submission time (createdAt). Consecutive same-clock-hour + same-map
+  // status readings merge into one row showing the combined hourly gain — so the detail matches the
+  // real-time hour count in the header (no more 1-report-per-row inflation). Check-in/out keep their typed window.
+  var pad=function(h){ h=((h%24)+24)%24; return (h<10?'0':'')+h+':00'; };
+  var grp=[], i=0;
+  while(i<reps.length){
+    var r=reps[i];
+    if(r.tag==='checkin'||r.tag==='checkout'||r.dup||r.ms==null){ grp.push({merged:false,rep:r}); i++; continue; }
+    var hb=Math.floor(r.ms/3600000), mp=String(r.map||''), sum=0, last=r, j=i;
+    while(j<reps.length){ var x=reps[j]; if(x.tag==='checkin'||x.tag==='checkout'||x.dup||x.ms==null) break; if(Math.floor(x.ms/3600000)!==hb||String(x.map||'')!==mp) break; sum+=(x.gain||0); last=x; j++; }
+    grp.push({merged:true,rep:last,hb:hb,gain:sum}); i=j;
+  }
+  return '<div style="padding:4px 0 8px">'+grp.map(function(row){
+    var r=row.rep, wibLine, kstLine;
+    if(row.merged){ var wh=new Date((row.hb*3600000)+7*3600000).getUTCHours(); wibLine=pad(wh)+' \u2192 '+pad(wh+1); kstLine=pad(wh+2)+' \u2192 '+pad(wh+3); }
+    else {
+      var single = !!(r.start && r.end && r.start===r.end);
+      if(single){ wibLine=_srEsc(r.start); kstLine=_srEsc(_srShiftT(r.start,2)); }
+      else if(r.start||r.end){ kstLine=_srEsc((r.start||'')+(r.end?' \u2192 '+r.end:'')); wibLine=_srEsc(_srShiftT(r.start,-2)+(r.end?' \u2192 '+_srShiftT(r.end,-2):'')); }
+      else { wibLine='\u2014'; kstLine='\u2014'; }
+    }
     var timeHTML='<span style="display:inline-block;min-width:120px;line-height:1.5">'
       +'<span style="color:var(--tx);font-weight:600">'+wibLine+'</span> <span style="color:var(--tx3);font-size:9.5px">WIB</span><br>'
       +'<span style="color:var(--tx2)">'+kstLine+'</span> <span style="color:var(--tx3);font-size:9.5px">KST</span>'
       +'</span>';
-    var tag = r.tag==='checkout'?'check-out':(r.tag==='checkin'?'check-in':'hourly');
+    var tg = r.tag==='checkout'?'check-out':(r.tag==='checkin'?'check-in':'hourly');
     var tagCol = r.tag==='checkin'?'var(--gr)':(r.tag==='checkout'?'var(--ac)':'var(--tx3)');
-    var gain = (r.gain==null) ? '' : (r.gain>=0?'+':'')+Number(r.gain).toFixed(2)+'%';
-    var op = r.dup ? 'opacity:.45;' : '';
+    var gv = row.merged ? row.gain : r.gain;
+    var gain = (gv==null) ? '' : (gv>=0?'+':'')+Number(gv).toFixed(2)+'%';
+    var isDupRow = (!row.merged && r.dup);
+    var op = isDupRow ? 'opacity:.45;' : '';
     return '<div style="display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:6px 9px;margin:3px 0;border-left:2px solid var(--br2);font-size:12px;'+op+'">'
       +timeHTML
       +'<span style="color:var(--tx2);flex:1;min-width:120px">'+_srEsc(r.map||'\u2014')+'</span>'
-      +'<span style="color:'+tagCol+';font-size:10.5px;letter-spacing:.04em;text-transform:uppercase">'+tag+(r.dup?' \u00B7 dup':'')+'</span>'
+      +'<span style="color:'+tagCol+';font-size:10.5px;letter-spacing:.04em;text-transform:uppercase">'+tg+(isDupRow?' \u00B7 dup':'')+'</span>'
       +(gain?'<span style="color:var(--ac);font-weight:600;min-width:56px;text-align:right">'+gain+'</span>':'<span style="min-width:56px"></span>')
       +'<span style="color:var(--tx3);font-size:11px">Lv'+(r.lv!=null?_srEsc(String(r.lv)):'?')+(r.exp!=null?' \u00B7 '+Number(r.exp).toFixed(1)+'%':'')+'</span>'
       +'</div>';
@@ -16438,8 +16452,8 @@ async function renderShiftAdmin(silent){
       var ci=null;
       for(i=allRs.length-1;i>=0;i--){ if(allRs[i].tag==='checkin'){ci=allRs[i];break;} if(allRs[i].tag==='checkout'){break;} }
 
-      var sGain=0,sQuota=0,sHours=0;
-      if(ci){ var ciMs=reportMs(ci); allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); sHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)sQuota+=Number(mo.target); } }); }
+      var sGain=0,sQuota=0,sHours=0, _shb={};   // [v377] count by real CLOCK-HOUR (createdAt), not per report
+      if(ci){ var ciMs=reportMs(ci); allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); var _sms=reportMs(r); var _shk=(_sms!=null)?('h'+Math.floor(_sms/3600000)):('r'+r.id); if(!_shb[_shk])_shb[_shk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_shb[_shk].tgt=Number(mo.target); } }); sHours=Object.keys(_shb).length; Object.keys(_shb).forEach(function(_k){ sQuota+=(_shb[_k].tgt||0); }); }
       var sPct=sQuota>0?(sGain/sQuota*100):0;
 
       // [v259] Anchor each report to its shift's CHECK-IN date (same as payroll's shiftDateOf), so a night
@@ -16447,15 +16461,16 @@ async function renderShiftAdmin(silent){
       // instead of splitting across midnight. Day shifts are unaffected (check-in date == report date).
       var shiftDateMap={}; (function(){ var curCi=null,curCiMs=null,MAXSPAN=16*3600*1000; allRs.forEach(function(r){ if(isTestMap(r))return; var rms=reportMs(r); if(curCi&&curCiMs!=null&&rms!=null&&(rms-curCiMs)>MAXSPAN)curCi=null; if(r.tag==='checkin'){curCi=r;curCiMs=rms;return;} if(curCi&&curCi.client!==r.client)curCi=null; shiftDateMap[r.id]=curCi?curCi.date:r.date; if(r.tag==='checkout')curCi=null; }); })();
       var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
-      var tGain=0,tQuota=0,tHours=0, tReports=[];
+      var tGain=0,tQuota=0,tHours=0, tReports=[], _thb={};   // [v377] real CLOCK-HOUR buckets (createdAt)
       allRs.forEach(function(r){ if(isTestMap(r))return; if(shiftDateOf(r)!==selDate)return;
-        if(r.tag==='checkin'){ tReports.push({start:r.start,end:r.end,map:r.map,tag:'checkin',gain:null,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:false}); return; }
+        if(r.tag==='checkin'){ tReports.push({start:r.start,end:r.end,map:r.map,tag:'checkin',gain:null,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:false,ms:reportMs(r)}); return; }
         if(r.tag==='status'||r.tag==='checkout'||!r.tag){
           var g=(segGain[r.id]||0), dup=!!isDup[r.id];
-          if(!dup){ tGain+=g; tHours+=1; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)tQuota+=Number(mo.target); }
-          tReports.push({start:r.start,end:r.end,map:r.map,tag:(r.tag||'status'),gain:g,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:dup});
+          if(!dup){ tGain+=g; var _tms=reportMs(r); var _thk=(_tms!=null)?('h'+Math.floor(_tms/3600000)):('r'+r.id); if(!_thb[_thk])_thb[_thk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_thb[_thk].tgt=Number(mo.target); }
+          tReports.push({start:r.start,end:r.end,map:r.map,tag:(r.tag||'status'),gain:g,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:dup,ms:reportMs(r)});
         }
       });
+      tHours=Object.keys(_thb).length; Object.keys(_thb).forEach(function(_k){ tQuota+=(_thb[_k].tgt||0); });
       var tPct=tQuota>0?(tGain/tQuota*100):0;
 
       if(onShift){ if(_srIsDismissed(g.name, latestMs)){ _srHidden++; } else { liveCards.push({name:g.name,pc:latest.pc,client:latest.client,map:latest.map,lastMs:latestMs,pct:sPct,gain:sGain,hours:sHours,quota:sQuota}); } }
