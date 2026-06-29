@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v398 — 직원별 All 보기: 시프트 밴드를 가로 그리드의 컴팩트 카드(헤더+아바타띠, 표 없음)로, 헤더 클릭 시 해당 시프트 표 펼침 -->
+<!-- BUILD: v399 — Client별 데이터를 직원별 로그와 동기화: 시간단위 버킷(동일 _SR_HOUR_GAP_MS)으로 실측/h·기준대비(vs Std) 재계산 + 카드에 실측/h 표시 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v398';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v399';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16035,6 +16035,10 @@ function _srInjectCSS(){
 "#sr-app .sr-clcard-pc{font-size:10px;font-weight:700;color:var(--tx2,#989792);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);padding:1px 7px;border-radius:6px;margin-left:auto;flex:none;}",
 "#sr-app .sr-clcard-hero{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;}",
 "#sr-app .sr-clcard-bigwrap{display:flex;flex-direction:column;line-height:1.05;min-width:0;}",
+"#sr-app .sr-clcard-act{display:flex;align-items:baseline;gap:7px;margin:-2px 0 8px;font-variant-numeric:tabular-nums;}",
+"#sr-app .sr-clcard-act-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);}",
+"#sr-app .sr-clcard-act-v{font-size:14px;font-weight:800;color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-clcard-act-t{font-size:10px;font-weight:600;color:var(--tx3,#5f5e5a);}",
 "#sr-app .sr-clcard-hero .sr-pfp{flex:none;align-self:center;}",
 "#sr-app .sr-clcard-big{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ac,#c2a04a);}",
 "#sr-app .sr-clcard-l{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);margin-top:3px;}",
@@ -17051,14 +17055,23 @@ function _srRecCardHTML(data){
   var clNorm=function(n){ n=String(n||'').trim(); n=n.replace(/^\s*\d+\s*[.)\-]\s*/,''); return n.replace(/선생님|사장님|형님|언니|누나|쌤|님|형|씨/g,'').replace(/\b(mr|ms|mrs)\.?\b/gi,'').replace(/[\s·.\-_'"]/g,'').toLowerCase(); };
   var byClient={}, _clName={}, _clCnt={};
   sessions.forEach(function(s){ var raw=String(s.client||'').trim(); if(!raw) return; var c=clNorm(raw); if(!c) return;
-    if(!byClient[c])byClient[c]={key:c,client:raw,pc:s.pc,reps:0,statuses:0,mgain:0,tgtSum:0,clean:0,cleanN:0,staff:{},maps:{},minMs:null,maxMs:null};
+    if(!byClient[c])byClient[c]={key:c,client:raw,pc:s.pc,reps:0,statuses:0,mgain:0,tgtSum:0,clean:0,cleanN:0,staff:{},maps:{},minMs:null,maxMs:null,_reps:[]};
     var o=byClient[c]; o.reps++;
     _clCnt[c]=_clCnt[c]||{}; _clCnt[c][raw]=(_clCnt[c][raw]||0)+1; if(!_clName[c]||_clCnt[c][raw]>_clCnt[c][_clName[c]]) _clName[c]=raw;
     if(s.pc!=null&&String(s.pc)!=='')o.pc=s.pc;
-    if(s.tag!=='checkin'){ o.statuses++; if(!s.flag){ o.clean+=(s.gain||0); o.cleanN++; if(s.target!=null){ o.mgain+=(s.gain||0); o.tgtSum+=s.target; } } }
+    if(s.tag!=='checkin'){ o.statuses++; o._reps.push({ms:s.ms,target:s.target,gain:s.gain,flag:!!s.flag}); if(!s.flag){ o.clean+=(s.gain||0); o.cleanN++; if(s.target!=null){ o.mgain+=(s.gain||0); o.tgtSum+=s.target; } } }
     if(s.key)o.staff[s.key]=(o.staff[s.key]||0)+1; if(s.map)o.maps[s.map]=1; if(s.ms){ if(o.minMs==null||s.ms<o.minMs)o.minMs=s.ms; if(o.maxMs==null||s.ms>o.maxMs)o.maxMs=s.ms; } });
   Object.keys(byClient).forEach(function(c){ if(_clName[c]) byClient[c].client=_clName[c]; });
-  var clientStat=function(o){ var avg=o.cleanN?(o.clean/o.cleanN):null; var perf=(o.tgtSum>0)?(o.mgain/o.tgtSum*100):null; return {avg:avg,perf:perf,nStaff:Object.keys(o.staff).length,maps:Object.keys(o.maps)}; };
+  var clientStat=function(o){ var avg=o.cleanN?(o.clean/o.cleanN):null;
+    // [v399] Hour-bucket the client's reports exactly like By Staff (rolling _SR_HOUR_GAP_MS gap, per-hour target last-seen-wins),
+    // so Actual/H and vs-Std reconcile with the By Staff log. Gain includes flagged (matches recAgg in By Staff).
+    var _reps=(o._reps||[]).slice().sort(function(a,b){ return (a.ms||0)-(b.ms||0); });
+    var _bk={}, _seq=0, _last=null, _ri=0;
+    _reps.forEach(function(r){ var hk; if(r.ms!=null){ if(_last==null||(r.ms-_last)>_SR_HOUR_GAP_MS) _seq++; _last=r.ms; hk='h'+_seq; } else { hk='r'+(_ri++); } if(!_bk[hk]) _bk[hk]={tgt:0,gain:0}; _bk[hk].gain+=(Number(r.gain)||0); if(r.target!=null&&Number(r.target)>0) _bk[hk].tgt=Number(r.target); });
+    var _hrs=Object.keys(_bk).length, _quota=0, _hg=0;
+    Object.keys(_bk).forEach(function(k){ _quota+=_bk[k].tgt; _hg+=_bk[k].gain; });
+    var actualH=_hrs>0?(_hg/_hrs):null; var perf=_quota>0?(_hg/_quota*100):null; var targetH=(_hrs>0&&_quota>0)?(_quota/_hrs):null;
+    return {avg:avg,perf:perf,actualH:actualH,targetH:targetH,hours:_hrs,nStaff:Object.keys(o.staff).length,maps:Object.keys(o.maps)}; };
   // [v390] Sort client cards by PC number (matching the PC Status board order) instead of alphabetically —
   // alphabetical order scattered PCs in a seemingly random sequence ("messy"). Clients without a PC number
   // (e.g. training accounts not yet assigned) sort after numbered ones, alphabetically among themselves.
@@ -17202,6 +17215,7 @@ function _srRecCardHTML(data){
     return '<button class="sr-clcard" onclick="_srRecClientByIdx('+ci+')">'
       +'<div class="sr-clcard-top"><span class="sr-clcard-nm">'+esc(o.client||c)+'</span>'+((o.pc!=null&&String(o.pc)!=='')?'<span class="sr-clcard-pc">PC'+esc(String(o.pc))+'</span>':'')+'</div>'
       +'<div class="sr-clcard-hero"><div class="sr-clcard-bigwrap"><span class="sr-clcard-big">'+(st.avg!=null?st.avg.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">'+(_kl?'평균 EXP%':'Average EXP%')+'</span></div>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'">'+(_kl?'기준 ':'vs Std ')+Math.round(pf)+'%</span>':'')+'</div>'
+      +'<div class="sr-clcard-act"><span class="sr-clcard-act-l">'+(_kl?'실측/h':'Actual/h')+'</span><span class="sr-clcard-act-v">'+(st.actualH!=null?st.actualH.toFixed(2):'—')+'</span>'+(st.targetH!=null?'<span class="sr-clcard-act-t">/ '+(_kl?'기준':'std')+' '+st.targetH.toFixed(2)+'</span>':'')+'</div>'
       +'<div class="sr-clcard-meta"><b>👥 '+st.nStaff+(_kl?'명':'')+'</b><b>🧾 '+o.reps+(_kl?'건':'')+'</b><b>🗺 '+(st.maps.length||0)+(_kl?'맵':'')+'</b></div>'
       +'<div class="sr-clcard-maps">'+(st.maps.length?st.maps.map(esc).join(' · '):'—')+'</div>'
       +'</button>';
