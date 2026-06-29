@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v364 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
+<!-- BUILD: v365 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8319,7 +8319,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v364';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v365';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16963,7 +16963,7 @@ function _srRecCardHTML(data){
   var byG={d12:[],n12:[],s1:[],s2:[],s3:[],un:[]};
   Object.keys(universe).forEach(function(k){ var g=universe[k].grp||'un'; (byG[g]=byG[g]||[]).push(k); });
   var grpCount=function(g){ return (byG[g]||[]).length; };
-  var segBtn=function(g,label){ var on=(curG===g); var n=(g==='all')?Object.keys(universe).length:grpCount(g); var st=(on&&g!=='all'&&GMETA[g])?(' style="color:'+GMETA[g].gc+';background:'+GMETA[g].gcb+'"'):''; return '<button class="'+(on?'on':'')+'"'+st+' onclick="_srRecGroupBy(\''+g+'\')">'+label+' <span class="n">'+n+'</span></button>'; };
+  var segBtn=function(g,label){ var on=(curG===g); var n=(g==='all')?Object.keys(universe).length:grpCount(g); var st=(on&&g!=='all'&&GMETA[g])?(' style="color:'+GMETA[g].gc+';background:'+GMETA[g].gcb+'"'):''; return '<button class="'+(on?'on':'')+'" data-g="'+g+'"'+st+' onclick="_srRecGroupBy(\''+g+'\')">'+label+' <span class="n">'+n+'</span></button>'; };
   var seg='<div class="sr-gseg">'+segBtn('all','전체')+segBtn('d12','☀️ 12H 주간')+segBtn('n12','🌙 12H 야간')+segBtn('s1','🌅 8H S1')+segBtn('s2','🌆 8H S2')+segBtn('s3','🌃 8H S3')+(grpCount('un')?segBtn('un','❔ 미배정'):'')+'</div>';
   var dailyByKey={}; daily.forEach(function(r){ (dailyByKey[r.key]=dailyByKey[r.key]||[]).push(r); });
 
@@ -16988,7 +16988,7 @@ function _srRecCardHTML(data){
     var ghosts=ordered.filter(function(k){return !universe[k].hasRec;}).map(function(k){ return '<tr style="opacity:.5"><td class="sr-rec-nm"><span class="sr-rk">–</span><span class="sr-gdot" style="background:'+meta.gc+'"></span>'+esc(universe[k].name)+(LEADERS[k]?' 👑':'')+'</td><td colspan="6" style="text-align:left" class="sr-mut">보고 대기</td><td><span class="sr-rb sr-rb-no">기준없음</span></td></tr>'; }).join('');
     var sub = recN? ('<tr class="sub"><td class="sr-rec-nm">소계 · '+meta.tt+'</td><td>—</td><td>'+gHours.toFixed(2)+'h</td><td>'+(gActualH!=null?gActualH.toFixed(2):'—')+'</td><td>—</td><td class="'+(gPerf!=null&&gPerf>=100?'sr-ok':'sr-re')+'">'+(gPerf!=null?(gPerf>=100?'▲':'▼'):'—')+'</td><td><span class="sr-pfp '+pfCls(gPerf)+'">'+(gPerf!=null?gPerf+'%':'—')+'</span></td><td>'+(gPerf!=null?(gPerf>=100?'<span class="sr-rb sr-rb-ok">평균 달성</span>':'<span class="sr-rb sr-rb-un">평균 미달</span>'):'<span class="sr-rb sr-rb-no">—</span>')+'</td></tr>') : '';
     var tbl = (drows||ghosts)? (THEAD+drows+ghosts+sub+'</tbody></table>') : '<div class="sr-tbl-empty">아직 기록이 없어요.</div>';
-    return '<div class="sr-gband'+((curG!=='all'&&curG!==g)?' hide':'')+'" style="--gc:'+meta.gc+';--gcb:'+meta.gcb+'">'
+    return '<div class="sr-gband'+((curG!=='all'&&curG!==g)?' hide':'')+'" data-g="'+g+'" style="--gc:'+meta.gc+';--gcb:'+meta.gcb+'">'
       +'<div class="sr-gband-hd">'
         +'<span class="sr-gband-ic">'+meta.ic+'</span>'
         +'<span class="sr-gband-tt">'+meta.tt+'</span>'
@@ -17436,33 +17436,37 @@ async function renderRecords(silent){
   if(!_canRec){ if(!silent) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>기록 · 통계</h2></div><div class="sr-empty">대표 · 매니저 전용입니다.</div></div></div>'; return; }
   _srInjectCSS();
   if(silent && window._srRecMode==='clock'){ return; }   // [v355] don't clobber clock playback
-  // [v310] silent = background poll: keep scroll + current filter, no loading flash, no error wipe
-  var _keepTop = silent ? (otherView.scrollTop||0) : 0;
-  var _keepWin = silent ? (window.scrollY||document.documentElement.scrollTop||0) : 0;
-  if(!silent && !otherView.querySelector('.sr-rec-card')) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge">실시간</span></div><div class="sr-admin-load">⟳ 기록 불러오는 중…</div></div></div>';
+  // [v365] instant paint from cache so the page is never blank while the network catches up
+  var _painted=false;
+  if(!silent && window._srRecMode!=='clock'){ var _cz=_rcGetCache(); if(_cz){ try{ otherView.innerHTML='<div id="sr-app" class="sr-app-wide">'+_srRecCardHTML(_srRecCompute(_cz.reports,_cz.clients))+'</div>'; _painted=true; }catch(_){ } } }
+  var _bg = silent || _painted;   // after a cache paint, the fresh fetch refreshes in place (keep scroll/filter)
+  // [v310] silent/bg = keep scroll + current filter, no loading flash, no error wipe
+  var _keepTop = _bg ? (otherView.scrollTop||0) : 0;
+  var _keepWin = _bg ? (window.scrollY||document.documentElement.scrollTop||0) : 0;
+  if(!_bg && !otherView.querySelector('.sr-rec-card')) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge">실시간</span></div><div class="sr-admin-load">⟳ 기록 불러오는 중…</div></div></div>';
+  // [v365] roster + map-list enrichments run in the BACKGROUND — first paint waits only on the report fetch (was gated on the slow map sync)
+  if(!silent){
+    if(typeof loadTeamMembers==='function') Promise.resolve().then(loadTeamMembers).then(function(){ try{ if(window._srRecAll&&window._srRecMode!=='clock') _srRecReRender(); }catch(_){ } }).catch(function(){});   // [v313] roster → every player gets a tab (silent re-render when it lands)
+    if(typeof syncExpFromCloud==='function'){ if(typeof _expSynced!=='undefined') _expSynced=true; Promise.resolve().then(syncExpFromCloud).catch(function(){}); }   // [v325] master map list for the editor's picker
+  }
   var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
   var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
   try{
     var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
-    // [v363] reports fetch + roster load + map sync run CONCURRENTLY (was 3 serial round-trips before first paint)
-    var _tasks=[ fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr,cache:'no-store'}).then(function(r){return r.json();}).catch(function(){return [];}) ];
-    if(!silent){
-      _tasks.push((typeof loadTeamMembers==='function')?Promise.resolve().then(loadTeamMembers).catch(function(){}):Promise.resolve());   // [v313] roster → every player gets a tab
-      _tasks.push((typeof syncExpFromCloud==='function')?Promise.resolve().then(function(){ if(typeof _expSynced!=='undefined') _expSynced=true; return syncExpFromCloud(); }).catch(function(){}):Promise.resolve());   // [v325] master map list for the editor
-    }
-    var _res=await Promise.all(_tasks); var rows=_res[0];
+    var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr,cache:'no-store'});
+    var rows=await res.json().catch(function(){return [];});
     var byKey={}; if(Array.isArray(rows)) rows.forEach(function(r){ byKey[r.key]=(r.value!==undefined?r.value:r.data); });
     var reports=Array.isArray(byKey.reports)?byKey.reports:[];
     var clients=Array.isArray(byKey.clients)?byKey.clients:[];
     _rcSetCache(reports,clients);
     var recRows=_srRecCompute(reports, clients);
     var app=otherView.querySelector('#sr-app.sr-app-wide');
-    if(silent && app){ app.innerHTML=_srRecCardHTML(recRows); }
+    if(_bg && app){ app.innerHTML=_srRecCardHTML(recRows); }
     else { otherView.innerHTML='<div id="sr-app" class="sr-app-wide">'+_srRecCardHTML(recRows)+'</div>'; }
     if(window._srRecMode==='clock'){ try{ requestAnimationFrame(function(){ if(typeof _ckInit==='function') _ckInit(); }); }catch(_){} }
-    if(silent){ try{ otherView.scrollTop=_keepTop; window.scrollTo(0,_keepWin); }catch(_){} }
+    if(_bg){ try{ otherView.scrollTop=_keepTop; window.scrollTo(0,_keepWin); }catch(_){} }
   }catch(e){
-    if(silent) return;   // background refresh failed — keep the current view, don't flash an error
+    if(_bg) return;   // background/refresh failed — keep the current view, don't flash an error
     otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>기록 · 통계</h2></div><div class="sr-empty">지금은 기록을 불러올 수 없어요.</div></div></div>';
   }
 }
@@ -17563,7 +17567,10 @@ async function renderCalcStandards(){
   var esc=_srEsc;
   // [v363] paint chrome immediately so the page isn't blank while training-mode + clients fetch
   if(!otherView.querySelector('.cs-wrap')) otherView.innerHTML='<div class="cs-wrap"><div class="att-eyebrow">Game · Standard</div><div class="ph">EXP Standards</div><div class="psub">Client &amp; PC from Lucky7 · maps editable, saved to the report server</div><div class="cs-grid"><div class="cs-loading">Loading…</div></div></div>';
-  try{ var tm=await _srGetCalc('training_mode'); _csTraining=!!(tm&&tm.length&&(tm[0]===true||tm[0]==='true'||(tm[0]&&tm[0].on))); }catch(_){}
+  // [v365] fetch training-mode + clients concurrently (was two serial round-trips)
+  var _csTm=null, _csCalc=null, _csCalcErr=false;
+  try{ var _csB=await Promise.all([ _srGetCalc('training_mode').catch(function(){return null;}), _srGetCalc('clients').catch(function(){_csCalcErr=true;return null;}) ]); _csTm=_csB[0]; _csCalc=_csB[1]; }catch(_){ _csCalcErr=true; }
+  try{ _csTraining=!!(_csTm&&_csTm.length&&(_csTm[0]===true||_csTm[0]==='true'||(_csTm[0]&&_csTm[0].on))); }catch(_){}
   var togCls=_csTraining?'cs-train-tog on':'cs-train-tog';
   var togSub=_csTraining?'ON · standards off (all base pay)':'OFF · standards applied';
   var note=_csTraining?'<div class="cs-train-note">Training mode — standards not applied. Everyone is paid base, no penalties. (Standards are kept.)</div>':'';
@@ -17573,9 +17580,8 @@ async function renderCalcStandards(){
     +'<div class="cs-grid" id="cs-grid"><div class="cs-loading">Loading…</div></div>'
     +'<div class="cs-ed-bg" id="cs-ed-bg" onclick="if(event.target===this)_csEditClose()"><div class="cs-ed-modal" id="cs-ed-modal"></div></div></div>';
 
-  var calc=[];
-  try{ calc=await _srGetCalc('clients'); }catch(e){ var ge=document.getElementById('cs-grid'); if(ge) ge.innerHTML='<div class="cs-err">Couldn\u2019t reach the report server — try again.</div>'; return; }
-  if(!Array.isArray(calc)) calc=[];
+  var calc=Array.isArray(_csCalc)?_csCalc:[];
+  if(_csCalcErr){ var ge=document.getElementById('cs-grid'); if(ge) ge.innerHTML='<div class="cs-err">Couldn\u2019t reach the report server — try again.</div>'; return; }
   _csClients=calc;
   var byExact={}, byNorm={};
   calc.forEach(function(e){ var nm=String((e&&e.name)||'').trim(); if(!nm) return; if(!byExact[nm]) byExact[nm]=e; var nn=_csNorm(nm); if(nn&&!byNorm[nn]) byNorm[nn]=e; });
