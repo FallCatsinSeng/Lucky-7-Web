@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v378 — i18n: 통계/클라/세션 기록/점프/총 보고/행을 눌러 수동 조정 영어 번역 + 건 접미사 EN 숨김 -->
+<!-- BUILD: v379 — Layer 2: 보고 폼 시간 기본값=실시간 현재 시각(수정 가능한 선택적 오버라이드) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8318,7 +8318,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v378';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v379';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15233,7 +15233,7 @@ function _srPickShift(i){
 // manual pick and the automatic fill.
 function _srApplyShiftIdx(i){
   var sh=_SR_SHIFTS[i]; if(!sh) return false;
-  _srShiftStartH=sh.s; _srShiftEndH=sh.e; _srPlayStartH=sh.s;
+  _srShiftStartH=sh.s; _srShiftEndH=sh.e; _srPlayStartH=_srNowInShift();   // [v379] default to real current hour (editable)
   var nm=document.getElementById('sr-shift-name'); if(nm) nm.textContent=sh.name;
   var tm=document.getElementById('sr-shift-time'); if(tm) tm.textContent=sh.time;
   var lst=document.querySelectorAll('#sr-dd-shift .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel',k===i);
@@ -15326,6 +15326,17 @@ function _srPickCard(idx){
 }
 function _srToggleShot(el){ el.classList.toggle('has'); }
 
+// [v379] Layer 2 — report form defaults to the REAL current hour (booster reports in actual time).
+// Steppers stay editable as an optional override (e.g. a manager correcting a late login). Since the
+// performance count now runs off real submission time, this default only sets the displayed/client window.
+function _srNowWIB(){ try{ return new Date(Date.now()+7*3600000).getUTCHours(); }catch(_){ return _srShiftStartH; } }
+function _srNowInShift(){
+  var s=_srShiftStartH, e=_srShiftEndH, n=_srNowWIB();
+  if(!isFinite(n)) return s;
+  if(n<s){ if(e>24 && (n+24)<e) n+=24; else return s; }   // overnight early-AM maps into the next-day frame; otherwise before shift -> start
+  if(n>e-1) return e-1;                                    // past shift end -> last hour
+  return n;
+}
 function _srSyncWin(){ _srWinStart=_srPlayStartH; _srWinEnd=Math.min(_srPlayStartH+1,_srShiftEndH); _srRenderWin(); }
 function _srRenderWin(){
   var w1=document.getElementById('sr-w1'), w2=document.getElementById('sr-w2');
@@ -16275,7 +16286,7 @@ async function _srRecoverFromReports(){
     var shiftEnd=(eW<=pW)?eW+24:eW;
     var hoursDone=mine.filter(function(r){ return (r.createdAt>ci.createdAt)&&(r.tag==='status'||r.tag==='checkout'); }).length;
     _srPlayStartH=pW; _srShiftStartH=pW; _srShiftEndH=shiftEnd;
-    _srWinStart=Math.max(pW, Math.min(pW+hoursDone, shiftEnd-1));
+    _srWinStart=_srNowInShift();   // [v379] resume defaults to the real current hour (was pW+hoursDone)
     _srWinEnd=Math.min(_srWinStart+1, shiftEnd);
     _srSession={ booster:me, threadId:_srThread(), client:ci.client, pc:ci.pc, map:ci.map, mapSetAt:(ci.editedAt||ci.createdAt||Date.now()),
       startLv:ci.lvAfter, startExp:ci.expAfter, startAdena:ci.adena,
@@ -16303,7 +16314,7 @@ function renderCalcEmbed(){
   // [v315] pull the freshest staff info so a Discord thread the admin just set shows up here without a hard reload
   try{ var _ps=[]; if(typeof loadStaffState==='function') _ps.push(loadStaffState()); if(typeof loadTeamMembers==='function') _ps.push(loadTeamMembers()); if(_ps.length) Promise.all(_ps).then(function(){ _srRefreshThreadLine(); _srAutoPickShift(); }).catch(function(){}); }catch(_){}
   var _resume = (!!_srSession && !!_srSession.client) || _srLoadSession();   // [v264] resume an active shift across navigation/reload
-  if(!_resume){ _srShiftLocked=false; _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=7; _srWinStart=7; _srWinEnd=8; }
+  if(!_resume){ _srShiftLocked=false; _srShiftStartH=7; _srShiftEndH=19; _srPlayStartH=_srNowInShift(); _srWinStart=_srPlayStartH; _srWinEnd=Math.min(_srPlayStartH+1,_srShiftEndH); }   // [v379] default to real current hour
   _srRenderCIStart(); _srRenderWin();
   if(_resume){ _srResumeUpdate(); }
   else { _srGo('checkin'); _srSession=null; _srShots={checkin:null,update:null,checkout:null}; _srTryRecover(); _srAutoPickShift(); }
