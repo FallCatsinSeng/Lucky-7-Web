@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v385 — 버그수정: 실시간 시간 버킷을 고정 UTC 그리드 → 롤링 갭(20분) 방식으로 변경 (Claws 16:09 리포트 소실 수정) -->
+<!-- BUILD: v386 — Records: 기준 컬럼을 Goal로 변경 + Stable/Cut Below 밴드 표시 추가 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v385';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v386';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16793,11 +16793,15 @@ function _srRecCompute(reports, clients){
       var _tag=(r.tag==='checkin')?'checkin':((r.tag==='checkout')?'checkout':'status');
       var _rmo=findMap(clients,r);
       var _tgt=(_rmo&&Number(_rmo.target)>0)?Number(_rmo.target):null;
+      // [v386] Surface the Stable hi/lo band alongside the Goal target, so Records can show the full
+      // Goal/Stable/Cut breakdown, not just the single Goal number.
+      var _sh=(_rmo&&_rmo.sh!=null&&_rmo.sh!=='')?Number(_rmo.sh):null; if(_sh!=null&&!isFinite(_sh))_sh=null;
+      var _sl=(_rmo&&_rmo.sl!=null&&_rmo.sl!=='')?Number(_rmo.sl):null; if(_sl!=null&&!isFinite(_sl))_sl=null;
       var _dup=!!isDup[r.id];
       var _gain=(_tag==='checkin')?null:(_dup?0:(segGain[r.id]||0));
       var _flag=(_gain!=null)&&(_gain>80 || _gain>_jThr);
       var _rms=reportMs(r);
-      sessions.push({ id:r.id, name:g.name, key:normName(g.name), date:_rd, ms:_rms, tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, dup:_dup, flag:_flag });
+      sessions.push({ id:r.id, name:g.name, key:normName(g.name), date:_rd, ms:_rms, tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, sh:_sh, sl:_sl, dup:_dup, flag:_flag });
       if(_rd){
         if(!recAgg[g.name]) recAgg[g.name]={};
         if(!recAgg[g.name][_rd]) recAgg[g.name][_rd]={hours:0,gain:0,quota:0,flags:0,cleanGain:0,minMs:null,maxMs:null,hb:{}};
@@ -16930,7 +16934,8 @@ function _srRecCardHTML(data){
       // (jump/typo) reports always stay individual so they remain directly editable.
       var slRow=function(s,opt){ opt=opt||{};
         var act=(s.tag==='checkin')?(s.expAt.toFixed(2)+'%'):(((s.gain||0)>=0?'+':'')+(s.gain||0).toFixed(2)+'%');
-        var tgt=(s.target!=null)?('+'+s.target.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
+        var band=(s.sh!=null&&s.sl!=null)?('<br><span style="font-size:9.5px;font-weight:600;white-space:nowrap"><span style="color:var(--ye)">Stable '+s.sh.toFixed(2)+'~'+s.sl.toFixed(2)+'%</span> &middot; <span style="color:var(--re)">Cut &lt;'+s.sl.toFixed(2)+'%</span></span>'):'';
+        var tgt=(s.target!=null)?('+'+s.target.toFixed(2)+'%'+band):'<span class="sr-mut">—</span>';
         var hasDiff=(s.tag!=='checkin'&&s.target!=null); var dv=hasDiff?(s.gain-s.target):0;
         var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
         var rid=esc(String(s.id||'')); var cls=[]; if(s.flag)cls.push('sr-sl-flag'); if(isAdmin&&!opt.noEdit)cls.push('sr-sl-row'); if(opt.cls)cls.push(opt.cls);
@@ -16971,10 +16976,10 @@ function _srRecCardHTML(data){
         var sorted=grp.slice().sort(function(a,b){ return (a.ms||0)-(b.ms||0); });
         var last=sorted[sorted.length-1]; var sum=0; sorted.forEach(function(x){ sum+=(x.gain||0); });
         var anyOut=sorted.some(function(x){ return x.tag==='checkout'; });
-        var merged={ id:last.id, name:last.name, key:last.key, date:last.date, ms:last.ms, tag:anyOut?'checkout':'status', client:last.client, pc:last.pc, lv:last.lv, map:last.map, gain:sum, expAt:last.expAt, target:last.target, flag:false };
+        var merged={ id:last.id, name:last.name, key:last.key, date:last.date, ms:last.ms, tag:anyOut?'checkout':'status', client:last.client, pc:last.pc, lv:last.lv, map:last.map, gain:sum, expAt:last.expAt, target:last.target, sh:last.sh, sl:last.sl, flag:false };
         return slRow(merged);   // [v373] plain merged row — one row, combined hourly gain, no ×N badge / no expand
       }).join('');
-      var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th class="sr-num">실제 EXP</th><th class="sr-num">기준</th><th class="sr-num">차이</th><th class="sr-num">판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
+      var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th class="sr-num">실제 EXP</th><th class="sr-num">Goal</th><th class="sr-num">차이</th><th class="sr-num">판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
         +rowsHTML+'</tbody></table></div>';
       return head+body;
     }).join('');
