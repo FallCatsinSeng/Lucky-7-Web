@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v388 — Records VERDICT: 헤드라인 Goal 대신 Stable 밴드(sh/sl)로 판정 — Goal/Stable/Cut(빨강) -->
+<!-- BUILD: v389 — 시드 갱신: PC2/PC6에 Dragon Valley Dungeon F1(0.80/0.73/0.67) 추가 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v388';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v389';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17889,11 +17889,11 @@ async function _csEditDelete(){
 // Idempotent: re-running updates same-zone maps and appends new ones. Matching mirrors findMap's zoneKey.
 async function _csSeedStandards(){
   if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ try{toast('CEO only',true);}catch(_){ } return; }
-  if(!confirm('Seed Standard EXP for 6 PCs?\n\nWrites per-map targets + stable hi/lo bands (Dream Island / Oren Snowfield / Totem Field) into the report server, merged into existing clients. Maps in other zones (e.g. Dragon Dungeon) are kept. Safe to run more than once.')) return;
+  if(!confirm('Seed Standard EXP for 6 PCs?\n\nWrites per-map targets + stable hi/lo bands (Dream Island / Oren Snowfield / Totem Field / Dragon Valley Dungeon F1) into the report server, merged into existing clients. Maps in other zones are kept. Safe to run more than once.')) return;
   var SEED=[
     {pc:1, name:'경상도님',      maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00,sh:0.83,sl:0.77},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94,sh:0.78,sl:0.72}]},
-    {pc:2, name:'Owen 라인님',   maps:[{ko:'오크 숲',en:'Totem Field',target:0.70,sh:0.55,sl:0.50}]},
-    {pc:6, name:'마석도님',      maps:[{ko:'오크 숲',en:'Totem Field',target:0.70,sh:0.55,sl:0.50}]},
+    {pc:2, name:'Owen 라인님',   maps:[{ko:'오크 숲',en:'Totem Field',target:0.70,sh:0.55,sl:0.50},{ko:'드래곤 밸리 던전 1층',en:'Dragon Valley Dungeon F1',target:0.80,sh:0.73,sl:0.67}]},
+    {pc:6, name:'마석도님',      maps:[{ko:'오크 숲',en:'Totem Field',target:0.70,sh:0.55,sl:0.50},{ko:'드래곤 밸리 던전 1층',en:'Dragon Valley Dungeon F1',target:0.80,sh:0.73,sl:0.67}]},
     {pc:7, name:'고고형 지인쌤',  maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00,sh:0.83,sl:0.77},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94,sh:0.78,sl:0.72}]},
     {pc:8, name:'아귀님',        maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00,sh:0.83,sl:0.77},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94,sh:0.78,sl:0.72}]},
     {pc:9, name:'일점커님',      maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00,sh:0.83,sl:0.77},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94,sh:0.78,sl:0.72}]}
