@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v394 — 기록·통계 ACTUAL EXP 셀 인라인 편집: 보고별 게인/체크인 누적값 직접 수정→리포트 서버 저장(개별행 한정) -->
+<!-- BUILD: v395 — ACTUAL EXP 인라인 편집을 병합행에도 확장: 입력값=그 시간대 합계 → 마지막 보고에 차액 반영 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v394';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v395';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16688,7 +16688,7 @@ async function _srRecSaveReport(id){
 }
 // [v394] Inline-edit the ACTUAL EXP cell. status/checkout: entered value is the per-report GAIN -> set
 // expAfter = expBefore + gain (level-wrap aware) so gainedPct() reproduces it. check-in: value is cumulative EXP.
-async function _srSlSaveExp(id, raw, isCi){
+async function _srSlSaveExp(id, raw, isCi, mSum, mLastGain){
   if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ toast(_uiLang()==='ko'?'권한 없음 — 대표/매니저 전용':'CEO/manager only', true); return; }
   var v=parseFloat(String(raw==null?'':raw).replace(/[^0-9.\-]/g,''));
   if(!isFinite(v)){ toast(_uiLang()==='ko'?'숫자를 입력하세요':'Enter a number', true); try{renderRecords();}catch(_){ } return; }
@@ -16699,9 +16699,11 @@ async function _srSlSaveExp(id, raw, isCi){
   var r=reports[idx]; var editor='admin'; try{ editor=(currentUser&&currentUser.name)||'admin'; }catch(_){ }
   if(String(isCi)==='1' || r.tag==='checkin'){ var ev=Math.max(0,Math.min(100,v)); r.expAfter=ev; r.expBefore=ev; }
   else {
+    var gain=v;
+    if(mSum!=null && mSum!=='' && isFinite(Number(mSum))){ gain=(Number(mLastGain)||0)+(v-Number(mSum)); }   // [v395] merged row: entered value is the hour TOTAL -> apply the diff to the last report
     var lvB=(r.lvBefore!=null?Number(r.lvBefore):(Number(r.lvAfter)||0))||0;
     var eB=(r.expBefore!=null?Number(r.expBefore):0)||0;
-    var target=eB+v, levels=0;
+    var target=eB+gain, levels=0;
     while(target>=100){ target-=100; levels++; } while(target<0){ target+=100; levels--; }
     var lvA=lvB+levels; if(lvA<1) lvA=1; r.lvAfter=lvA; r.expAfter=Math.max(0,Math.min(100,target));
   }
@@ -16989,9 +16991,9 @@ function _srRecCardHTML(data){
         var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
         var rid=esc(String(s.id||'')); var cls=[]; if(s.flag)cls.push('sr-sl-flag'); if(isAdmin&&!opt.noEdit)cls.push('sr-sl-row'); if(opt.cls)cls.push(opt.cls);
         var onclk=(opt.onclick!=null)?opt.onclick:((isAdmin&&!opt.noEdit)?('onclick="_srRecEditReport(\''+rid+'\')"'):'');
-        var _expEditable=(isAdmin && !opt.noEdit && !opt.merged && s.id!=null);   // [v394] inline-edit the ACTUAL EXP cell
+        var _expEditable=(isAdmin && !opt.noEdit && s.id!=null);   // [v394] inline-edit ACTUAL EXP (incl. merged rows -> entered value = hour total)
         var actCell;
-        if(_expEditable){ var _rawn=(s.tag==='checkin')?Number(s.expAt||0).toFixed(2):Number(s.gain||0).toFixed(2); actCell='<input class="sr-sl-expi'+(s.flag?' sr-jump':'')+'" value="'+_rawn+'" inputmode="decimal" onclick="event.stopPropagation()" onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();this.blur();}" onchange="_srSlSaveExp(&#39;'+rid+'&#39;,this.value,'+(s.tag==='checkin'?'1':'0')+')">'; }
+        if(_expEditable){ var _rawn=(s.tag==='checkin')?Number(s.expAt||0).toFixed(2):Number(s.gain||0).toFixed(2); var _extra=opt.merged?(','+Number(s.gain||0)+','+Number(s._lastGain||0)):''; actCell='<input class="sr-sl-expi'+(s.flag?' sr-jump':'')+'" value="'+_rawn+'" inputmode="decimal" onclick="event.stopPropagation()" onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();this.blur();}" onchange="_srSlSaveExp(&#39;'+rid+'&#39;,this.value,'+(s.tag==='checkin'?'1':'0')+_extra+')">'; }
         else { actCell=(s.flag?'<span class="sr-jump">⚠ '+act+'</span>':act); }
         var badge=opt.badge?(' <span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(201,150,58,.16);color:var(--ac,#c9963a);font-size:.68rem;font-weight:800;vertical-align:middle">'+opt.badge+'</span>'):'';
         return '<tr'+(cls.length?' class="'+cls.join(' ')+'"':'')+(opt.data||'')+(onclk?' '+onclk:'')+'>'
@@ -17030,7 +17032,7 @@ function _srRecCardHTML(data){
         var sorted=grp.slice().sort(function(a,b){ return (a.ms||0)-(b.ms||0); });
         var last=sorted[sorted.length-1]; var sum=0; sorted.forEach(function(x){ sum+=(x.gain||0); });
         var anyOut=sorted.some(function(x){ return x.tag==='checkout'; });
-        var merged={ id:last.id, name:last.name, key:last.key, date:last.date, ms:last.ms, tag:anyOut?'checkout':'status', client:last.client, pc:last.pc, lv:last.lv, map:last.map, gain:sum, expAt:last.expAt, target:last.target, sh:last.sh, sl:last.sl, flag:false };
+        var merged={ id:last.id, name:last.name, key:last.key, date:last.date, ms:last.ms, tag:anyOut?'checkout':'status', client:last.client, pc:last.pc, lv:last.lv, map:last.map, gain:sum, expAt:last.expAt, target:last.target, sh:last.sh, sl:last.sl, flag:false, _lastGain:(last.gain||0) };
         return slRow(merged,{merged:true});   // [v373] plain merged row (combined gain — not inline-editable) — one row, combined hourly gain, no ×N badge / no expand
       }).join('');
       var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th class="sr-num">실제 EXP</th><th class="sr-num">Goal</th><th class="sr-num">Stable</th><th class="sr-num">Cut Below</th><th class="sr-num">차이</th><th class="sr-num">판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
