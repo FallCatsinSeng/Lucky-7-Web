@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v369 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
+<!-- BUILD: v370 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8319,7 +8319,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v369';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v370';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16397,7 +16397,7 @@ async function renderShiftAdmin(silent){
   };
   var reportMs=function(r){ if(!r) return null; if(typeof r.createdAt==='number'&&r.createdAt>1e12) return r.createdAt; var m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; };
   var isTestMap=function(r){ return String(r.map||'').toUpperCase()==='TEST'; };
-  var zoneKey=function(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0)return'orc'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; };
+  var zoneKey=function(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc'; if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream'; if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; };
   var findMap=function(clients,r){ var cn=String(r.client||'').trim(); var c=null,i; for(i=0;i<clients.length;i++){ if(String(clients[i].name||'').trim()===cn){c=clients[i];break;} } if(!c){ for(i=0;i<clients.length;i++){ if(String(clients[i].pc)===String(r.pc)){c=clients[i];break;} } } if(!c||!c.maps) return null; var z=zoneKey(r.map); var lv=Number(r.lvAfter!=null?r.lvAfter:r.lv); var cand=c.maps.filter(function(m){return zoneKey(m.en||m.ko)===z;}); if(!cand.length) return null; var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; };
   var _ord={checkin:0,status:1,checkout:2};
   var agoTxt=function(ms){ if(!ms) return '—'; var s=Math.max(0,Date.now()-ms), m=Math.floor(s/60000); if(m<1)return 'just now'; if(m<60)return m+'m ago'; var h=Math.floor(m/60); return h+'h '+(m%60)+'m ago'; };
@@ -16726,7 +16726,7 @@ function _srRecCompute(reports, clients){
   var gainedPct=function(r){ var dLv=(Number(r.lvAfter)||0)-(Number(r.lvBefore)||0); var dExp=(Number(r.expAfter)||0)-(Number(r.expBefore)||0); if(Math.abs(dLv)>MAX_LV_JUMP) return dExp; return dLv*100+dExp; };
   var reportMs=function(r){ if(!r) return null; if(typeof r.createdAt==='number'&&r.createdAt>1e12) return r.createdAt; var m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; };
   var isTestMap=function(r){ return String(r.map||'').toUpperCase()==='TEST'; };
-  var zoneKey=function(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0)return'orc'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; };
+  var zoneKey=function(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc'; if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream'; if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; };
   var findMap=function(clients,r){ var cn=String(r.client||'').trim(); var c=null,i; for(i=0;i<clients.length;i++){ if(String(clients[i].name||'').trim()===cn){c=clients[i];break;} } if(!c){ for(i=0;i<clients.length;i++){ if(String(clients[i].pc)===String(r.pc)){c=clients[i];break;} } } if(!c||!c.maps) return null; var z=zoneKey(r.map); var lv=Number(r.lvAfter!=null?r.lvAfter:r.lv); var cand=c.maps.filter(function(m){return zoneKey(m.en||m.ko)===z;}); if(!cand.length) return null; var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; };
   var _ord={checkin:0,status:1,checkout:2};
   var groups={};
@@ -17614,9 +17614,12 @@ function _csRenderShell(otherView){
   var togCls=_csTraining?'cs-train-tog on':'cs-train-tog';
   var togSub=_csTraining?'ON · standards off (all base pay)':'OFF · standards applied';
   var note=_csTraining?'<div class="cs-train-note">Training mode — standards not applied. Everyone is paid base, no penalties. (Standards are kept.)</div>':'';
+  var isAdmin=(typeof currentUserRole!=='undefined' && currentUserRole==='admin');
+  var seedRow=isAdmin?'<div style="margin:-2px 0 14px;display:flex;align-items:center;gap:11px;flex-wrap:wrap"><button onclick="_csSeedStandards()" style="display:inline-flex;align-items:center;gap:7px;background:var(--ac,#c9963a);color:#1a1205;border:none;border-radius:10px;padding:9px 15px;font-weight:700;font-size:.85rem;cursor:pointer">⬇ Seed Standard EXP</button><span style="color:var(--tx3,#8a8a86);font-size:.8rem">Writes the 6-PC map targets to the report server · merges with existing · safe to re-run</span></div>':'';
   otherView.innerHTML='<div class="cs-wrap"><div class="att-eyebrow">Game · Standard</div><div class="ph">EXP Standards</div>'
     +'<div class="psub">Client &amp; PC from Lucky7 · maps editable, saved to the report server</div>'
     +'<div class="cs-train-bar"><button class="'+togCls+'" onclick="_csToggleTraining()"><span class="cs-train-knob"></span><span class="cs-train-txt"><b>Training mode</b><small>'+togSub+'</small></span></button>'+note+'</div>'
+    +seedRow
     +'<div class="cs-grid" id="cs-grid"><div class="cs-loading">Loading…</div></div>'
     +'<div class="cs-ed-bg" id="cs-ed-bg" onclick="if(event.target===this)_csEditClose()"><div class="cs-ed-modal" id="cs-ed-modal"></div></div></div>';
 }
@@ -17767,6 +17770,42 @@ async function _csEditDelete(){
   var ok=false; try{ ok=await _srPutCalc('clients',next); }catch(err){ ok=false; }
   if(ok){ toast('Deleted'); _csEditClose(); renderCalcStandards(); }
   else { toast('Delete failed — try again',true); }
+}
+
+// [v370] CEO one-tap seeder — writes the Standard EXP guide (per-map %/h targets) into the report-server
+// 'clients' calc_data, MERGED into existing records (maps in other zones like Dragon Dungeon are kept).
+// Idempotent: re-running updates same-zone maps and appends new ones. Matching mirrors findMap's zoneKey.
+async function _csSeedStandards(){
+  if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ try{toast('CEO only',true);}catch(_){ } return; }
+  if(!confirm('Seed Standard EXP for 6 PCs?\n\nWrites per-map targets (Dream Island / Oren Snowfield / Totem Field) into the report server, merged into existing clients. Maps in other zones (e.g. Dragon Dungeon) are kept. Safe to run more than once.')) return;
+  var SEED=[
+    {pc:1, name:'경상도님',      maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94}]},
+    {pc:2, name:'Owen 라인님',   maps:[{ko:'오크 숲',en:'Totem Field',target:0.70}]},
+    {pc:6, name:'마석도님',      maps:[{ko:'오크 숲',en:'Totem Field',target:0.70}]},
+    {pc:7, name:'고고형 지인쌤',  maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94}]},
+    {pc:8, name:'아귀님',        maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94}]},
+    {pc:9, name:'일점커님',      maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94}]}
+  ];
+  var zk=function(s){ s=String(s||'').toLowerCase(); if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc'; if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream'; if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren'; if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon'; return s; };
+  var arr; try{ arr=await _srGetCalc('clients'); }catch(err){ try{toast('Couldn\u2019t reach the report server — nothing changed',true);}catch(_){ } return; }
+  if(!Array.isArray(arr)) arr=[];
+  var added=0, updated=0;
+  SEED.forEach(function(s){
+    var rec=null,i;
+    for(i=0;i<arr.length;i++){ if(String((arr[i]&&arr[i].name)||'').trim()===s.name){ rec=arr[i]; break; } }
+    if(!rec){ for(i=0;i<arr.length;i++){ if(arr[i]&&(arr[i].pc!=null)&&Number(arr[i].pc)===s.pc){ rec=arr[i]; break; } } }
+    if(!rec){ rec={ name:s.name, pc:s.pc, maps:[] }; arr.push(rec); }
+    if(!Array.isArray(rec.maps)) rec.maps=[];
+    s.maps.forEach(function(m){
+      var z=zk(m.en||m.ko), hit=null,k;
+      for(k=0;k<rec.maps.length;k++){ if(zk((rec.maps[k]&&(rec.maps[k].en||rec.maps[k].ko))||'')===z){ hit=rec.maps[k]; break; } }
+      if(hit){ hit.en=m.en; hit.ko=m.ko; hit.target=m.target; if(hit.level==null)hit.level=''; updated++; }
+      else { rec.maps.push({ ko:m.ko, en:m.en, level:'', target:m.target }); added++; }
+    });
+  });
+  var ok=false; try{ ok=await _srPutCalc('clients',arr); }catch(err){ ok=false; }
+  if(ok){ try{toast('\u2713 Seeded · '+added+' maps added, '+updated+' updated');}catch(_){ } try{renderCalcStandards();}catch(_){ } }
+  else { try{toast('Seed failed — try again',true);}catch(_){ } }
 }
 async function _csToggleTraining(){
   _csTraining=!_csTraining;
