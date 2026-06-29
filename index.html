@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v372 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
+<!-- BUILD: v373 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8319,7 +8319,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v372';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v373';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16673,8 +16673,6 @@ function _srRecModeBy(m){ window._srRecMode=m||'staff'; window._srRecFilter=''; 
 function _srRecClientBy(c){ window._srRecClient=c||''; if(c) window._srRecFilter=''; _srRecReRender(); }
 function _srRecClientByIdx(i){ var c=(window._srRecClients||[])[i]; window._srRecClient=c||''; window._srRecFilter=''; _srRecReRender(); }
 function _srSlToggle(id){ var w=document.getElementById(id); if(!w) return; var c=w.classList.toggle('collapsed'); var h=w.previousElementSibling; var a=h&&h.querySelector('.sr-sl-ca'); if(a) a.textContent=c?'▸':'▾'; }
-// [v372] expand/collapse a merged clock-hour summary row to reveal its individual readings (editable)
-function _srSlExpand(gid){ try{ var rows=document.querySelectorAll('tr[data-slg="'+gid+'"]'); if(!rows.length) return; var willShow=(rows[0].style.display==='none'); for(var i=0;i<rows.length;i++){ rows[i].style.display=willShow?'':'none'; } var ca=document.querySelector('[data-slgc="'+gid+'"]'); if(ca) ca.textContent=willShow?'▾':'▸'; }catch(_){} }
 function _srRecGroupBy(g){ g=g||'all'; window._srRecGroup=g;
   try{ var app=document.querySelector('#sr-app.sr-app-wide');
     if(app && !window._srRecFilter){ var bands=app.querySelectorAll('.sr-gband'), segs=app.querySelectorAll('.sr-gseg button');
@@ -16908,16 +16906,13 @@ function _srRecCardHTML(data){
       };
       var hourKey=function(s){ if(s.tag==='checkin'||s.flag) return null; if(s.ms==null) return null; return Math.floor(s.ms/3600000)+'|'+String(s.client||'')+'|'+String(s.map||''); };
       var grps=[], gmap={}; rws.forEach(function(s){ var hk=hourKey(s); if(hk==null){ grps.push([s]); return; } if(gmap[hk]==null){ gmap[hk]=grps.length; grps.push([]); } grps[gmap[hk]].push(s); });
-      var rowsHTML=grps.map(function(grp,ci){
+      var rowsHTML=grps.map(function(grp){
         if(grp.length===1) return slRow(grp[0]);
         var sorted=grp.slice().sort(function(a,b){ return (a.ms||0)-(b.ms||0); });
         var last=sorted[sorted.length-1]; var sum=0; sorted.forEach(function(x){ sum+=(x.gain||0); });
         var anyOut=sorted.some(function(x){ return x.tag==='checkout'; });
         var merged={ id:last.id, name:last.name, key:last.key, date:last.date, ms:last.ms, tag:anyOut?'checkout':'status', client:last.client, pc:last.pc, lv:last.lv, map:last.map, gain:sum, expAt:last.expAt, target:last.target, flag:false };
-        var gid='slg-'+gi+'-'+ci;
-        var head2=slRow(merged, { noEdit:true, badge:'×'+grp.length, cls:'sr-sl-row', caret:'<span data-slgc="'+gid+'" style="display:inline-block;width:12px;color:var(--tx3)">▸</span> ', onclick:'onclick="_srSlExpand(\''+gid+'\')"' });
-        var subs=sorted.map(function(x){ return slRow(x, { data:' data-slg="'+gid+'" style="display:none;opacity:.8"' }); }).join('');
-        return head2+subs;
+        return slRow(merged);   // [v373] plain merged row — one row, combined hourly gain, no ×N badge / no expand
       }).join('');
       var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th>실제 EXP</th><th>기준</th><th>차이</th><th>판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
         +rowsHTML+'</tbody></table></div>';
