@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v379 — Layer 2: 보고 폼 시간 기본값=실시간 현재 시각(수정 가능한 선택적 오버라이드) -->
+<!-- BUILD: v380 — 급여표 갱신(12H 주간 3.8/야간 4.3) + 10시간 시프트 전체 제거 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8217,11 +8217,8 @@ const BUSINESSES = {
 // 지원 가능 시프트 ─── 3가지 카테고리, 총 7개 시프트
 const APPLY_SHIFTS = {
   // 12 Hours
-  '12h_day':   { group:'12H', name:'Day Shift',   range:'07:00 AM - 07:00 PM', break:'01:00 PM - 02:00 PM', salary:'3.5 Juta', duration:12, color:'#4a8fd9' },
-  '12h_night': { group:'12H', name:'Night Shift', range:'07:00 PM - 07:00 AM', break:'01:00 AM - 02:00 AM', salary:'4.0 Juta', duration:12, color:'#b074ec' },
-  // 10 Hours
-  '10h_day':   { group:'10H', name:'Day Shift',   range:'09:00 AM - 07:00 PM', break:'02:00 PM - 03:00 PM', salary:'3.0 Juta', duration:10, color:'#4ec3e0' },
-  '10h_night': { group:'10H', name:'Night Shift', range:'09:00 PM - 07:00 AM', break:'02:00 AM - 03:00 AM', salary:'3.5 Juta', duration:10, color:'#9a6cd0' },
+  '12h_day':   { group:'12H', name:'Day Shift',   range:'07:00 AM - 07:00 PM', break:'01:00 PM - 02:00 PM', salary:'3.8 Juta', duration:12, color:'#4a8fd9' },
+  '12h_night': { group:'12H', name:'Night Shift', range:'07:00 PM - 07:00 AM', break:'01:00 AM - 02:00 AM', salary:'4.3 Juta', duration:12, color:'#b074ec' },
   // 8 Hours (3 Rotation)
   '8h_s1':     { group:'8H',  name:'Shift 1',     range:'09:00 AM - 05:00 PM', break:'01:00 PM - 02:00 PM', salary:'2.5 Juta', duration:8, color:'#3aa05a' },
   '8h_s2':     { group:'8H',  name:'Shift 2',     range:'05:00 PM - 01:00 AM', break:'09:00 PM - 10:00 PM', salary:'2.7 Juta', duration:8, color:'#e0a040' },
@@ -8318,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v379';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v380';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -8713,7 +8710,6 @@ function openOnboarding(applicantId){
         <div class="ap-section-title">⏱ 근무 형태 <span class="ob-fixed-tag">주 6일 고정</span></div>
         <div class="ob-choice-row">
           <button class="ob-choice ob-hours" data-hours="8" onclick="obSelectHours(this,8)">8시간</button>
-          <button class="ob-choice ob-hours" data-hours="10" onclick="obSelectHours(this,10)">10시간</button>
           <button class="ob-choice ob-hours on" data-hours="12" onclick="obSelectHours(this,12)">12시간</button>
         </div>
       </div>
@@ -9425,13 +9421,6 @@ function openShiftInfo(){
       </div>
 
       <div class="si-group">
-        <div class="si-group-title">10 Hours Shift</div>
-        <div class="si-group-desc">10시간 근무 · 1시간 무급 휴식</div>
-        ${renderShift('10h_day')}
-        ${renderShift('10h_night')}
-      </div>
-
-      <div class="si-group">
         <div class="si-group-title">8 Hours Shift <span class="si-group-tag">3 Rotation</span></div>
         <div class="si-group-desc">8시간 3교대 · 시프트별 임금 차등 (야간 가산)</div>
         ${renderShift('8h_s1')}
@@ -9523,10 +9512,6 @@ function openAddApplicantPanel(){  // 기존 상세 패널 닫기 (중복 방지
             <optgroup label="12 Hours">
               <option value="12h_day">12H Day Shift · 07:00 AM ~ 07:00 PM</option>
               <option value="12h_night">12H Night Shift · 07:00 PM ~ 07:00 AM</option>
-            </optgroup>
-            <optgroup label="10 Hours">
-              <option value="10h_day">10H Day Shift · 09:00 AM ~ 07:00 PM</option>
-              <option value="10h_night">10H Night Shift · 09:00 PM ~ 07:00 AM</option>
             </optgroup>
             <optgroup label="8 Hours (3 Rotation)">
               <option value="8h_s1">Shift 1 · 09:00 AM ~ 05:00 PM</option>
@@ -10746,10 +10731,8 @@ const SHIFT_TYPES = {
 
 // 시프트 시간표 (근무 시간 · 휴게 · 급여) — 직원 상세에 표시
 const SHIFT_SCHEDULE = {
-  '12h_day':   { type:'12H', dur:'12시간', label:'주간', icon:'☀️', work:'07:00 AM – 07:00 PM', brk:'01:00 PM – 02:00 PM', salary:'3.5 Juta', color:'#5fa3d9' },
-  '12h_night': { type:'12H', dur:'12시간', label:'야간', icon:'🌙', work:'07:00 PM – 07:00 AM', brk:'01:00 AM – 02:00 AM', salary:'4.0 Juta', color:'#a98fd6' },
-  '10h_day':   { type:'10H', dur:'10시간', label:'주간', icon:'☀️', work:'09:00 AM – 07:00 PM', brk:'02:00 PM – 03:00 PM', salary:'3.0 Juta', color:'#5fa3d9' },
-  '10h_night': { type:'10H', dur:'10시간', label:'야간', icon:'🌙', work:'09:00 PM – 07:00 AM', brk:'02:00 AM – 03:00 AM', salary:'3.5 Juta', color:'#a98fd6' },
+  '12h_day':   { type:'12H', dur:'12시간', label:'주간', icon:'☀️', work:'07:00 AM – 07:00 PM', brk:'01:00 PM – 02:00 PM', salary:'3.8 Juta', color:'#5fa3d9' },
+  '12h_night': { type:'12H', dur:'12시간', label:'야간', icon:'🌙', work:'07:00 PM – 07:00 AM', brk:'01:00 AM – 02:00 AM', salary:'4.3 Juta', color:'#a98fd6' },
   '8h_s1':     { type:'8H',  dur:'8시간', label:'시프트 1', icon:'🌅', work:'09:00 AM – 05:00 PM', brk:'01:00 PM – 02:00 PM', salary:'2.5 Juta', color:'#e0954a' },
   '8h_s2':     { type:'8H',  dur:'8시간', label:'시프트 2', icon:'🌆', work:'05:00 PM – 01:00 AM', brk:'09:00 PM – 10:00 PM', salary:'2.7 Juta', color:'#e07a5a' },
   '8h_s3':     { type:'8H',  dur:'8시간', label:'시프트 3', icon:'🌃', work:'01:00 AM – 09:00 AM', brk:'05:00 AM – 06:00 AM', salary:'3.0 Juta', color:'#a98fd6' }
@@ -10764,10 +10747,8 @@ function matchShift(cs){
   const e = to24(times[1][1], times[1][2]);
   if(s===7)  return SHIFT_SCHEDULE['12h_day'];
   if(s===19) return SHIFT_SCHEDULE['12h_night'];
-  if(s===21) return SHIFT_SCHEDULE['10h_night'];
   if(s===17) return SHIFT_SCHEDULE['8h_s2'];
   if(s===1)  return SHIFT_SCHEDULE['8h_s3'];
-  if(s===9 && e===19) return SHIFT_SCHEDULE['10h_day'];
   if(s===9 && e===17) return SHIFT_SCHEDULE['8h_s1'];
   return null;  // 특수 시프트 (서원 수업 등) — 원본 표시
 }
@@ -15203,11 +15184,9 @@ function _srMapGroups(){
 
 var _SR_SHIFTS=[
   {name:'Day · 12h', time:'07:00 → 19:00', s:7, e:19},
-  {name:'Day · 10h', time:'09:00 → 19:00', s:9, e:19},
   {name:'Day · 8h (1)', time:'09:00 → 17:00', s:9, e:17},
   {name:'Day · 8h (2)', time:'17:00 → 01:00', s:17, e:25},
   {name:'Night · 12h', time:'19:00 → 07:00', s:19, e:31},
-  {name:'Night · 10h', time:'21:00 → 07:00', s:21, e:31},
   {name:'Night · 8h (3)', time:'01:00 → 09:00', s:1, e:9}
 ];
 var _srShiftStartH=7, _srShiftEndH=19, _srWinStart=7, _srWinEnd=8, _srPlayStartH=7, _srOnOk=null, _srShiftLocked=false;
@@ -19081,7 +19060,7 @@ function openStaffInfoEditor(staffId){
     { k:'phone',      label:'전화번호 / Phone', value:p.phone },
     { k:'anydesk',    label:'AnyDesk', value:p.anydesk },
     { k:'start_work', label:'입사일 / Start date', type:'date', value:p.start_work },
-    { k:'shift_pattern', label:'시프트 / Shift', value:p.shift_pattern, ph:'12H Day · 10H Night ...' },
+    { k:'shift_pattern', label:'시프트 / Shift', value:p.shift_pattern, ph:'12H Day · 8H Shift 1 ...' },
     { k:'discord_thread', label:'Discord 보고 스레드 / Report thread link', value:p.discord_thread, ph:'https://discord.com/channels/…' }
   ], vals => {
     if(!STAFF_PROFILE[staffId]) STAFF_PROFILE[staffId] = {};
