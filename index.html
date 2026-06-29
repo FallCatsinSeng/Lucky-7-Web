@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v373 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
+<!-- BUILD: v374 — By-PC 기준 EXP 페이지 제거 + 세션표 숫자 헤더 우측정렬 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8138,7 +8138,6 @@ const CHANNEL_TREE = {
         { id:'pl-lineage-guide', name:'리니지 운영', icon:'sword', module:'guide-lineage', kind:'view' },
         { id:'pl-maple-guide',   name:'메이플 운영', icon:'leaf',  module:'guide-maple', kind:'view' },
         { id:'pl-maps',          name:'맵 정보',     icon:'map',   module:'maps', kind:'view' },
-        { id:'pl-exp-std',       name:'기준 EXP',    icon:'trend', module:'exp-standard', kind:'view' },
         { id:'pl-exp-standard',  name:'성과 계산기',  icon:'target',module:'calc-embed', kind:'view' },
         { id:'pl-records',       name:'기록·통계',    icon:'scroll', module:'records', kind:'view', perms:['admin'] },
         { id:'pl-race',          name:'레이스',       icon:'trend',  module:'race', kind:'view', perms:['all'] },
@@ -8319,7 +8318,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v373';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v374';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16053,6 +16052,7 @@ function _srInjectCSS(){
 "#sr-app .sr-sl-dc{font-size:10px;font-weight:700;color:var(--tx3,#5f5e5a);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);padding:1px 7px;border-radius:6px;}",
 "#sr-app .sr-sl-wrap.collapsed{display:none;}",
 "#sr-app .sr-sl-tbl thead th{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--tx3,#5f5e5a);font-weight:700;text-align:left;padding:7px 8px;border-bottom:1px solid var(--br,#232322);}",
+"#sr-app .sr-sl-tbl thead th.sr-num{text-align:right;white-space:nowrap;}",
 "#sr-app .sr-sl-nm{font-weight:700;color:var(--tx,#e6e5e2);}",
 "#sr-app .sr-sl-row{cursor:pointer;}",
 "#sr-app .sr-sl-row:hover td{background:rgba(255,255,255,.03);}",
@@ -16914,7 +16914,7 @@ function _srRecCardHTML(data){
         var merged={ id:last.id, name:last.name, key:last.key, date:last.date, ms:last.ms, tag:anyOut?'checkout':'status', client:last.client, pc:last.pc, lv:last.lv, map:last.map, gain:sum, expAt:last.expAt, target:last.target, flag:false };
         return slRow(merged);   // [v373] plain merged row — one row, combined hourly gain, no ×N badge / no expand
       }).join('');
-      var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th>실제 EXP</th><th>기준</th><th>차이</th><th>판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
+      var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th class="sr-num">실제 EXP</th><th class="sr-num">기준</th><th class="sr-num">차이</th><th class="sr-num">판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
         +rowsHTML+'</tbody></table></div>';
       return head+body;
     }).join('');
