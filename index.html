@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v386 — Records: 기준 컬럼을 Goal로 변경 + Stable/Cut Below 밴드 표시 추가 -->
+<!-- BUILD: v387 — Records: Stable/Cut Below를 Goal 셀 안 줄바꿈 대신 별도 컬럼으로 분리 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v386';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v387';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16934,8 +16934,10 @@ function _srRecCardHTML(data){
       // (jump/typo) reports always stay individual so they remain directly editable.
       var slRow=function(s,opt){ opt=opt||{};
         var act=(s.tag==='checkin')?(s.expAt.toFixed(2)+'%'):(((s.gain||0)>=0?'+':'')+(s.gain||0).toFixed(2)+'%');
-        var band=(s.sh!=null&&s.sl!=null)?('<br><span style="font-size:9.5px;font-weight:600;white-space:nowrap"><span style="color:var(--ye)">Stable '+s.sh.toFixed(2)+'~'+s.sl.toFixed(2)+'%</span> &middot; <span style="color:var(--re)">Cut &lt;'+s.sl.toFixed(2)+'%</span></span>'):'';
-        var tgt=(s.target!=null)?('+'+s.target.toFixed(2)+'%'+band):'<span class="sr-mut">—</span>';
+        var tgt=(s.target!=null)?('+'+s.target.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
+        var hasBand=(s.sh!=null&&s.sl!=null);
+        var stableCell=hasBand?('<span style="color:var(--ye)">'+s.sh.toFixed(2)+'~'+s.sl.toFixed(2)+'%</span>'):'<span class="sr-mut">—</span>';
+        var cutCell=hasBand?('<span style="color:var(--re)">&lt;'+s.sl.toFixed(2)+'%</span>'):'<span class="sr-mut">—</span>';
         var hasDiff=(s.tag!=='checkin'&&s.target!=null); var dv=hasDiff?(s.gain-s.target):0;
         var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
         var rid=esc(String(s.id||'')); var cls=[]; if(s.flag)cls.push('sr-sl-flag'); if(isAdmin&&!opt.noEdit)cls.push('sr-sl-row'); if(opt.cls)cls.push(opt.cls);
@@ -16948,6 +16950,7 @@ function _srRecCardHTML(data){
           +'<td>'+esc(String(s.pc==null?'':s.pc))+'</td><td>'+esc(String(s.lv==null?'':s.lv))+'</td>'
           +'<td>'+esc(s.map)+'</td>'
           +'<td class="sr-num">'+(s.flag?'<span class="sr-jump">⚠ '+act+'</span>':act)+'</td><td class="sr-num">'+tgt+'</td>'
+          +'<td class="sr-num">'+stableCell+'</td><td class="sr-num">'+cutCell+'</td>'
           +'<td class="sr-num '+(hasDiff?dcls(dv):'')+'">'+diff+'</td>'
           +'<td class="sr-num">'+sres(s)+'</td>'
           +(isAdmin?(opt.noEdit?'<td></td>':'<td class="sr-sl-x" onclick="event.stopPropagation();_srRecEditReport(\''+rid+'\')" title="수동 조정">✕</td>'):'')
@@ -16979,7 +16982,7 @@ function _srRecCardHTML(data){
         var merged={ id:last.id, name:last.name, key:last.key, date:last.date, ms:last.ms, tag:anyOut?'checkout':'status', client:last.client, pc:last.pc, lv:last.lv, map:last.map, gain:sum, expAt:last.expAt, target:last.target, sh:last.sh, sl:last.sl, flag:false };
         return slRow(merged);   // [v373] plain merged row — one row, combined hourly gain, no ×N badge / no expand
       }).join('');
-      var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th class="sr-num">실제 EXP</th><th class="sr-num">Goal</th><th class="sr-num">차이</th><th class="sr-num">판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
+      var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th class="sr-num">실제 EXP</th><th class="sr-num">Goal</th><th class="sr-num">Stable</th><th class="sr-num">Cut Below</th><th class="sr-num">차이</th><th class="sr-num">판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
         +rowsHTML+'</tbody></table></div>';
       return head+body;
     }).join('');
