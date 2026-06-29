@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v382 — i18n: 소계/멤버 없음/멤버 카운트 + 기록 설명문 EN -->
+<!-- BUILD: v383 — 급여 1단계: EXP 기준표에 Stable hi/lo 밴드 필드 추가(맵별, 편집·저장·표시) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v382';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v383';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17631,10 +17631,11 @@ function _csInjectCSS(){
     ".cs-ed-mhd2{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}",
     ".cs-ed-mttl{font-size:11px;color:var(--tx3,#6c6b66);font-weight:600}",
     ".cs-ed-mexp{font-size:11px;color:var(--ac,#c9963a);font-weight:600}",
-    ".cs-ed-mcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 42px 54px 22px;gap:6px;padding:0 2px 4px;font-size:9.5px;color:var(--tx3,#6c6b66)}",
-    ".cs-ed-mrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 42px 54px 22px;gap:6px;align-items:center;margin-bottom:6px}",
+    ".cs-ed-mcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 38px 48px 48px 48px 20px;gap:6px;padding:0 2px 4px;font-size:9.5px;color:var(--tx3,#6c6b66)}",
+    ".cs-ed-mrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 38px 48px 48px 48px 20px;gap:6px;align-items:center;margin-bottom:6px}",
     ".cs-ed-mc{width:100%;min-width:0;background:var(--bg-a,#232323);border:1px solid var(--br2,#33332f);border-radius:7px;padding:7px 8px;color:var(--tx,#e6e5e2);font-size:12.5px}",
     ".cs-ed-mc.tgt{color:#5fb88f;font-weight:700;text-align:right}",
+    ".cs-ed-mc.sb{color:#c9a45f;font-weight:600;text-align:right}",
     ".cs-ed-mdel{background:transparent;border:none;color:#b6614f;font-size:14px;cursor:pointer;padding:2px}",
     ".cs-ed-madd{margin-top:2px;align-self:flex-start;background:var(--bg-a,#232323);border:1px dashed var(--br2,#44443f);border-radius:8px;padding:7px 13px;color:var(--tx2,#989792);font-size:12.5px;font-weight:600;cursor:pointer}",
     ".cs-ed-ft{display:flex;gap:9px;padding:13px 18px 16px;border-top:1px solid var(--br,#2c2c2a)}",
@@ -17725,7 +17726,9 @@ function _csRenderGrid(calc){
       m=m||{}; var mn=esc(String(m.en||m.ko||m.name||'\u2014'));
       var tg=(m.target!=null&&m.target!=='')?Number(m.target):NaN;
       var tgs=isFinite(tg)?tg.toFixed(2):'\u2014';
-      return '<div class="cs-map"><span class="cs-map-n">\uD83D\uDCCD '+mn+'</span><span class="cs-map-r">'+tgs+' <small>%/h</small></span></div>';
+      var _sh=(m.sh!=null&&m.sh!=='')?Number(m.sh):NaN, _sl=(m.sl!=null&&m.sl!=='')?Number(m.sl):NaN;
+      var band=(isFinite(_sh)&&isFinite(_sl))?(' <span style="color:var(--tx3,#6c6b66);font-size:9.5px;font-weight:600">'+_sh.toFixed(2)+'~'+_sl.toFixed(2)+'</span>'):'';
+      return '<div class="cs-map"><span class="cs-map-n">\uD83D\uDCCD '+mn+'</span><span class="cs-map-r">'+tgs+' <small>%/h</small>'+band+'</span></div>';
     }).join('') : '<div class="cs-nomap">No maps yet. Tap Edit to add.</div>';
     var train=_csIsTraining(nm); var tag=train?'<span class="cs-train-tag">TRAINING</span>':'';
     return '<div class="cs-card'+(train?' train':'')+'"><div class="cs-card-top"><div class="cs-hd"><span class="cs-num">'+(i+1)+'.</span><span class="cs-name">'+esc(nm)+'</span>'+tag+'</div><button class="cs-edit" onclick="_csOpenEditor('+i+')">Edit \u270E</button></div><div class="cs-pc">'+pc+'</div><div class="cs-chips">'+chips+'</div><div class="cs-maps">'+mrows+'</div></div>';
@@ -17748,7 +17751,7 @@ function _csOpenEditor(i){
     sword:pick(c.weapon, mc.sword),
     armor:pick(c.armor_set, mc.armor),
     ac:pick(c.ac, mc.ac),
-    maps:(Array.isArray(mc.maps)?mc.maps:[]).map(function(m){ m=m||{}; return {ko:String(m.ko||''), en:String(m.en||''), lv:(m.level!=null?m.level:(m.lv!=null?m.lv:'')), target:(m.target!=null?m.target:'')}; })
+    maps:(Array.isArray(mc.maps)?mc.maps:[]).map(function(m){ m=m||{}; return {ko:String(m.ko||''), en:String(m.en||''), lv:(m.level!=null?m.level:(m.lv!=null?m.lv:'')), target:(m.target!=null?m.target:''), sh:(m.sh!=null?m.sh:''), sl:(m.sl!=null?m.sl:'')}; })
   };
   var modal=document.getElementById('cs-ed-modal'); var bg=document.getElementById('cs-ed-bg'); if(!modal||!bg) return;
   modal.innerHTML=_csEdShell();
@@ -17768,7 +17771,7 @@ function _csEdShell(){
     +'<div><span class="cs-ed-lbl">Job</span><select class="cs-ed-sel" onchange="_csEdSet(\'job\',this.value)">'+jobOpts+'</select></div>'
     +'<div class="cs-ed-g4">'+step('lv','Level')+step('sword','Wpn')+step('armor','Armor')+step('ac','AC')+'</div>'
     +'<div><div class="cs-ed-mhd2"><span class="cs-ed-mttl">Per-map hourly target (Korean / English + %/h)</span><span class="cs-ed-mexp">경험치</span></div>'
-    +'<div class="cs-ed-mcols"><span>Korean name</span><span>English name</span><span>Lv</span><span>%/h</span><span></span></div>'
+    +'<div class="cs-ed-mcols"><span>Korean name</span><span>English name</span><span>Lv</span><span>Goal</span><span>Stb hi</span><span>Stb lo</span><span></span></div>'
     +'<div id="cs-ed-maps">'+_csEdMapsHTML()+'</div>'
     +'<button class="cs-ed-madd" onclick="_csEdAddMap()">\uFF0B Add map</button></div>'
     +'</div>'
@@ -17783,13 +17786,15 @@ function _csEdMapsHTML(){
       +'<input class="cs-ed-mc" value="'+esc(String(m.en||''))+'" placeholder="Ant Cave" oninput="_csEdSetMap('+j+',\'en\',this.value)">'
       +'<input class="cs-ed-mc" value="'+esc(String(m.lv!=null?m.lv:''))+'" inputmode="numeric" placeholder="Lv" oninput="_csEdSetMap('+j+',\'lv\',this.value)">'
       +'<input class="cs-ed-mc tgt" value="'+esc(String(m.target!=null?m.target:''))+'" inputmode="decimal" placeholder="0" oninput="_csEdSetMap('+j+',\'target\',this.value)">'
+      +'<input class="cs-ed-mc sb" value="'+esc(String(m.sh!=null?m.sh:''))+'" inputmode="decimal" placeholder="hi" oninput="_csEdSetMap('+j+',\'sh\',this.value)">'
+      +'<input class="cs-ed-mc sb" value="'+esc(String(m.sl!=null?m.sl:''))+'" inputmode="decimal" placeholder="lo" oninput="_csEdSetMap('+j+',\'sl\',this.value)">'
       +'<button class="cs-ed-mdel" onclick="_csEdDelMap('+j+')">\u2715</button></div>';
   }).join('');
 }
 function _csEdSet(f,v){ if(_csEd) _csEd[f]=v; }
 function _csEdStep(f,d){ if(!_csEd) return; var n=parseFloat(_csEd[f]); if(!isFinite(n)) n=0; n=Math.round((n+d)*100)/100; _csEd[f]=String(n); var el=document.getElementById('cs-ed-'+f); if(el) el.value=_csEd[f]; }
 function _csEdSetMap(j,f,v){ if(_csEd&&_csEd.maps[j]) _csEd.maps[j][f]=v; }
-function _csEdAddMap(){ if(!_csEd) return; _csEd.maps.push({ko:'',en:'',lv:'',target:''}); var b=document.getElementById('cs-ed-maps'); if(b) b.innerHTML=_csEdMapsHTML(); }
+function _csEdAddMap(){ if(!_csEd) return; _csEd.maps.push({ko:'',en:'',lv:'',target:'',sh:'',sl:''}); var b=document.getElementById('cs-ed-maps'); if(b) b.innerHTML=_csEdMapsHTML(); }
 function _csEdDelMap(j){ if(!_csEd) return; _csEd.maps.splice(j,1); var b=document.getElementById('cs-ed-maps'); if(b) b.innerHTML=_csEdMapsHTML(); }
 function _csEditClose(){ var bg=document.getElementById('cs-ed-bg'); if(bg) bg.classList.remove('show'); _csEd=null; }
 
@@ -17800,7 +17805,9 @@ async function _csEditSave(){
   var maps=(e.maps||[]).filter(function(m){ return String(m.en||'').trim()!=='' || String(m.ko||'').trim()!==''; }).map(function(m){
     var en=String(m.en||'').trim(), ko=String(m.ko||'').trim();
     var tg=(m.target!=null&&m.target!=='')?Number(m.target):0; if(!isFinite(tg)) tg=0;
-    return { ko:ko||en, en:en||ko, level:(m.lv!=null&&m.lv!=='')?numOrEmpty(m.lv):'', target:tg };
+    var sh=(m.sh!=null&&m.sh!=='')?Number(m.sh):''; if(sh!==''&&!isFinite(sh)) sh='';
+    var sl=(m.sl!=null&&m.sl!=='')?Number(m.sl):''; if(sl!==''&&!isFinite(sl)) sl='';
+    return { ko:ko||en, en:en||ko, level:(m.lv!=null&&m.lv!=='')?numOrEmpty(m.lv):'', target:tg, sh:sh, sl:sl };
   });
   var rec={ no:numOrEmpty(e.no), pc:numOrEmpty(e.pc), name:name, nick:String(e.nick||'').trim(), job:String(e.job||'').trim(), lv:numOrEmpty(e.lv), sword:numOrEmpty(e.sword), armor:numOrEmpty(e.armor), ac:numOrEmpty(e.ac), maps:maps };
   var arr; try{ arr=await _srGetCalc('clients'); }catch(err){ toast('Couldn\u2019t reach the report server — not saved',true); return; }
