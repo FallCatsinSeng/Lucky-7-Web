@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v400 — Client뷰: PC보드에 배정됐지만 기록 없는 클라(PC9 등)도 빈 카드로 노출, 헤드라인을 시간당 EXP%(평균 EXP%/h)로 전환해 기록·기준과 동기화, 트레이닝 섹션은 '기준 없음' 표기 -->
+<!-- BUILD: v401 — 직원별 로그: '일일 기록/전체 초기화' 라벨 EN 모드 영어로 정리, All 보기를 2열 그리드에서 세로 1열 리스트로 변경 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v400';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v401';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15961,7 +15961,7 @@ function _srInjectCSS(){
 "#sr-app .sr-gseg button.on[data-g=un]{color:var(--gun);background:var(--gun-bg);}",
 "#sr-app .sr-gband{border:1px solid var(--br,#232322);border-radius:16px;overflow:hidden;margin-bottom:18px;background:var(--bg-c,#161616);}",
 "#sr-app .sr-gband.hide{display:none;}",
-"#sr-app .sr-gband-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:14px;align-items:start;margin-top:2px;}",
+"#sr-app .sr-gband-grid{display:grid;grid-template-columns:1fr;gap:12px;align-items:stretch;margin-top:2px;}",
 "#sr-app .sr-gband-compact{margin-bottom:0;}",
 "#sr-app .sr-gband-compact .sr-gband-hd{transition:filter .14s ease;}",
 "#sr-app .sr-gband-compact .sr-gband-hd:hover{filter:brightness(1.18);}",
@@ -17238,7 +17238,7 @@ function _srRecCardHTML(data){
     ? _clockBoardHTML(sessions)
     : (mode==='client')
     ? (periodTab+'<div class="sr-clgrid">'+clientCards+'</div>'+(_trainN?('<div class="sr-cltrain-hd">'+(_uiLang()==='ko'?'\ud83c\udf93 \ud2b8\ub808\uc774\ub2dd \ud074\ub77c · 기준 없음':'\ud83c\udf93 Training · no standard')+'<span class="sr-cltrain-cnt">'+_trainN+'</span></div><div class="sr-clgrid">'+_trainCards+'</div>'):''))
-    : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">일일 기록 · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">🗑 전체 초기화</button></span></div>'+bands);
+    : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">'+(_uiLang()==='ko'?'일일 기록':'Daily log')+' · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">'+(_uiLang()==='ko'?'🗑 전체 초기화':'🗑 Reset all')+'</button></span></div>'+bands);
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span><span class="sr-badge">실시간</span></div>'
     +'<div class="sr-rec-sub">'+(_uiLang()==='ko'?'전 직원·클라이언트 기록 — 시프트 그룹(12H 주/야 · 8H S1·2·3) 또는 클라별. 항목을 누르면 상세가 펼쳐집니다.':'All staff · client log — shift group (12H Day/Night · 8H S1·2·3) or by client. Tap an item to expand.')+'</div>'
