@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v389 — 시드 갱신: PC2/PC6에 Dragon Valley Dungeon F1(0.80/0.73/0.67) 추가 -->
+<!-- BUILD: v390 — Records EN: Client별 카드 정렬(PC순)+레이아웃 버그 수정, 시계 탭 전체 번역, 명/건/대 카운터 접미사 EN모드 제거 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v389';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v390';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16021,12 +16021,12 @@ function _srInjectCSS(){
 "#sr-app .sr-modetab button:hover{color:var(--tx,#e6e5e2);}",
 "#sr-app .sr-modetab button.on{color:var(--tx,#e6e5e2);background:var(--bg-a,#232323);box-shadow:var(--e1);}",
 "#sr-app .sr-clgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:4px;}",
-"#sr-app .sr-clcard{text-align:left;background:var(--bg-c,#161616);border:1px solid var(--br,#232322);border-radius:14px;padding:14px;cursor:pointer;font:inherit;color:var(--tx,#e6e5e2);transition:border-color .14s ease,transform .14s ease;}",
+"#sr-app .sr-clcard{text-align:left;background:var(--bg-c,#161616);border:1px solid var(--br,#232322);border-radius:14px;padding:14px;cursor:pointer;font:inherit;color:var(--tx,#e6e5e2);transition:border-color .14s ease,transform .14s ease;overflow:hidden;}",
 "#sr-app .sr-clcard:hover{border-color:var(--ac-bord,rgba(194,160,74,.4));transform:translateY(-1px);}",
 "#sr-app .sr-clcard-top{display:flex;align-items:center;gap:8px;margin-bottom:9px;}",
 "#sr-app .sr-clcard-nm{font-size:14px;font-weight:800;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 "#sr-app .sr-clcard-pc{font-size:10px;font-weight:700;color:var(--tx2,#989792);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);padding:1px 7px;border-radius:6px;margin-left:auto;flex:none;}",
-"#sr-app .sr-clcard-row{display:flex;align-items:baseline;gap:7px;margin-bottom:8px;}",
+"#sr-app .sr-clcard-row{display:flex;align-items:baseline;gap:7px;margin-bottom:8px;flex-wrap:wrap;}",
 "#sr-app .sr-clcard-big{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ac,#c2a04a);}",
 "#sr-app .sr-clcard-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);}",
 "#sr-app .sr-clcard-meta{font-size:11.5px;color:var(--tx2,#989792);margin-bottom:5px;}",
@@ -17015,7 +17015,17 @@ function _srRecCardHTML(data){
     if(s.key)o.staff[s.key]=(o.staff[s.key]||0)+1; if(s.map)o.maps[s.map]=1; if(s.ms){ if(o.minMs==null||s.ms<o.minMs)o.minMs=s.ms; if(o.maxMs==null||s.ms>o.maxMs)o.maxMs=s.ms; } });
   Object.keys(byClient).forEach(function(c){ if(_clName[c]) byClient[c].client=_clName[c]; });
   var clientStat=function(o){ var avg=o.cleanN?(o.clean/o.cleanN):null; var perf=(o.tgtSum>0)?(o.mgain/o.tgtSum*100):null; return {avg:avg,perf:perf,nStaff:Object.keys(o.staff).length,maps:Object.keys(o.maps)}; };
-  var clKeys=Object.keys(byClient).sort(function(a,b){ return String(byClient[a].client||a).localeCompare(String(byClient[b].client||b)); }); window._srRecClients=clKeys;
+  // [v390] Sort client cards by PC number (matching the PC Status board order) instead of alphabetically —
+  // alphabetical order scattered PCs in a seemingly random sequence ("messy"). Clients without a PC number
+  // (e.g. training accounts not yet assigned) sort after numbered ones, alphabetically among themselves.
+  var clKeys=Object.keys(byClient).sort(function(a,b){
+    var pa=Number(byClient[a].pc), pb=Number(byClient[b].pc);
+    var fa=isFinite(pa), fb=isFinite(pb);
+    if(fa&&fb&&pa!==pb) return pa-pb;
+    if(fa!==fb) return fa?-1:1;
+    return String(byClient[a].client||a).localeCompare(String(byClient[b].client||b));
+  });
+  window._srRecClients=clKeys;
 
   // ════════════════ CLIENT FOCUS (한 클라만) ════════════════
   if(curC){
@@ -17028,17 +17038,18 @@ function _srRecCardHTML(data){
       tord.sort(function(a,b){ return tl[a].date<tl[b].date?1:(tl[a].date>tl[b].date?-1:((tl[a].inMs||0)-(tl[b].inMs||0))); });
       var tlRows=tord.map(function(kk){ var t=tl[kk]; var mg=Object.keys(t.maps).join(', ')||'—'; var av=t.gN?(t.g/t.gN).toFixed(2)+'%':'—';
         return '<tr><td>'+esc(t.date)+'</td><td class="sr-sl-nm">'+esc(nameOf(t.key,t.name))+'</td><td class="sr-num">'+fmtHM(t.inMs)+' ~ '+fmtHM(t.outMs)+'</td><td class="sr-num">'+av+'</td><td>'+esc(mg)+'</td></tr>'; }).join('');
-      var tlTbl=tord.length?('<table class="sr-rec-tbl sr-tl-tbl"><thead><tr><th>날짜</th><th>직원</th><th>시간(체크인~아웃)</th><th>평균 EXP%</th><th>사냥터</th></tr></thead><tbody>'+tlRows+'</tbody></table>'):'<div class="sr-tbl-empty">타임라인 없음</div>';
+      var _L=_uiLang()==='ko';
+      var tlTbl=tord.length?('<table class="sr-rec-tbl sr-tl-tbl"><thead><tr><th>'+(_L?'날짜':'Date')+'</th><th>'+(_L?'직원':'Staff')+'</th><th>'+(_L?'시간(체크인~아웃)':'Time (Check-in ~ Out)')+'</th><th>'+(_L?'평균 EXP%':'Average EXP%')+'</th><th>'+(_L?'사냥터':'Hunting ground')+'</th></tr></thead><tbody>'+tlRows+'</tbody></table>'):'<div class="sr-tbl-empty">'+(_L?'타임라인 없음':'No timeline yet')+'</div>';
       var chipC=function(l,v){ return '<div class="sr-fchip"><span class="l">'+l+'</span><span class="v">'+v+'</span></div>'; };
       return '<div class="sr-card sr-rec-card" style="--gc:var(--ac);--gcb:var(--ac-bg)">'
         +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span></div>'
-        +'<button class="sr-focus-back" onclick="_srRecClientBy(\'\')">← 전체 기록</button>'
+        +'<button class="sr-focus-back" onclick="_srRecClientBy(\'\')">← '+(_L?'전체 기록':'All Log')+'</button>'
         +'<div class="sr-focus-hd">'
           +'<div class="sr-focus-av" style="background:#3a6ea5">🎮</div>'
           +'<div style="min-width:0"><div class="sr-focus-nm">'+esc(co.client||curC)+((co.pc!=null&&String(co.pc)!=='')?'<span class="sr-focus-gb">PC'+esc(String(co.pc))+'</span>':'')+'</div>'
-            +'<div class="sr-focus-chips">'+chipC('평균 EXP%',(cst.avg!=null?cst.avg.toFixed(2)+'%':'—'))+chipC('기준 대비',(cst.perf!=null?Math.round(cst.perf)+'%':'—'))+chipC('투입 직원',cst.nStaff+'명')+chipC('보고',(co.reps||0)+'건')+chipC('장비셋','미수집')+'</div></div>'
+            +'<div class="sr-focus-chips">'+chipC(_L?'평균 EXP%':'Average EXP%',(cst.avg!=null?cst.avg.toFixed(2)+'%':'—'))+chipC(_L?'기준 대비':'vs Standard',(cst.perf!=null?Math.round(cst.perf)+'%':'—'))+chipC(_L?'투입 직원':'Staff Deployed',cst.nStaff+(_L?'명':''))+chipC(_L?'보고':'Reports',(co.reps||0)+(_L?'건':''))+chipC(_L?'장비셋':'Gear Set',_L?'미수집':'Not collected')+'</div></div>'
         +'</div>'
-        +'<div class="sr-sec-h">⏱ 투입 타임라인<span class="ln"></span><span style="font-weight:700;color:var(--tx3)">'+tord.length+'</span></div>'
+        +'<div class="sr-sec-h">⏱ '+(_L?'투입 타임라인':'Deployment Timeline')+'<span class="ln"></span><span style="font-weight:700;color:var(--tx3)">'+tord.length+'</span></div>'
         +tlTbl
         +'<div class="sr-sec-h">🗺 사냥터<span class="ln"></span></div><div class="sr-clmaps">'+(cst.maps.length?cst.maps.map(esc).join(' · '):'—')+'</div>'
         +'<div class="sr-sec-h">🧾 세션 기록 <span class="sr-sec-hint">· 행을 눌러 수동 조정</span><span class="ln"></span>'+krPill+'</div>'
@@ -17131,15 +17142,15 @@ function _srRecCardHTML(data){
     +'</div>';
   };
   var bands=GORDER.filter(function(g){ return grpCount(g)>0; }).map(bandHTML).join('') || '<div class="sr-empty">아직 기록이 없어요.</div>';
-  var clientCards=clKeys.map(function(c,ci){ var o=byClient[c]; var st=clientStat(o); var pf=st.perf;
+  var clientCards=clKeys.map(function(c,ci){ var o=byClient[c]; var st=clientStat(o); var pf=st.perf; var _kl=_uiLang()==='ko';
     return '<button class="sr-clcard" onclick="_srRecClientByIdx('+ci+')">'
       +'<div class="sr-clcard-top"><span class="sr-clcard-nm">'+esc(o.client||c)+'</span>'+((o.pc!=null&&String(o.pc)!=='')?'<span class="sr-clcard-pc">PC'+esc(String(o.pc))+'</span>':'')+'</div>'
-      +'<div class="sr-clcard-row"><span class="sr-clcard-big">'+(st.avg!=null?st.avg.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">평균 EXP%</span>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'" style="margin-left:auto">기준 '+Math.round(pf)+'%</span>':'')+'</div>'
-      +'<div class="sr-clcard-meta">👥 '+st.nStaff+'명 · 🧾 '+o.reps+'건 · 🗺 '+(st.maps.length||0)+'맵</div>'
+      +'<div class="sr-clcard-row"><span class="sr-clcard-big">'+(st.avg!=null?st.avg.toFixed(2)+'%':'—')+'</span><span class="sr-clcard-l">'+(_kl?'평균 EXP%':'Average EXP%')+'</span>'+(pf!=null?'<span class="sr-pfp '+pfCls(pf)+'" style="margin-left:auto">'+(_kl?'기준 ':'vs Std ')+Math.round(pf)+'%</span>':'')+'</div>'
+      +'<div class="sr-clcard-meta">👥 '+st.nStaff+(_kl?'명':'')+' · 🧾 '+o.reps+(_kl?'건':'')+' · 🗺 '+(st.maps.length||0)+(_kl?'맵':'')+'</div>'
       +'<div class="sr-clcard-maps">'+(st.maps.length?st.maps.map(esc).join(' · '):'—')+'</div>'
       +'</button>';
-  }).join('') || '<div class="sr-empty">클라이언트 세션이 없어요.</div>';
-  var modetab='<div class="sr-modetab"><button class="'+(mode==='staff'?'on':'')+'" onclick="_srRecModeBy(\'staff\')">👤 직원별</button><button class="'+(mode==='client'?'on':'')+'" onclick="_srRecModeBy(\'client\')">🎮 클라별</button><button class="'+(mode==='clock'?'on':'')+'" onclick="_srRecModeBy(\'clock\')">⏱ 시계</button></div>';
+  }).join('') || '<div class="sr-empty">'+(_uiLang()==='ko'?'클라이언트 세션이 없어요.':'No client sessions yet.')+'</div>';
+  var modetab='<div class="sr-modetab"><button class="'+(mode==='staff'?'on':'')+'" onclick="_srRecModeBy(\'staff\')">👤 '+(_uiLang()==='ko'?'직원별':'By Staff')+'</button><button class="'+(mode==='client'?'on':'')+'" onclick="_srRecModeBy(\'client\')">🎮 '+(_uiLang()==='ko'?'클라별':'By Client')+'</button><button class="'+(mode==='clock'?'on':'')+'" onclick="_srRecModeBy(\'clock\')">⏱ '+(_uiLang()==='ko'?'시계':'Clock')+'</button></div>';
   var periodTab='<div class="sr-modetab sr-period" style="margin:-4px 0 14px">'
     +'<button class="'+(_period==='today'?'on':'')+'" onclick="_srRecPeriodBy(\'today\')">오늘</button>'
     +'<button class="'+(_period==='week'?'on':'')+'" onclick="_srRecPeriodBy(\'week\')">이번 주</button>'
@@ -17204,10 +17215,11 @@ function _ckBuildExp(sessions){
 
 function _clockBoardHTML(sessions){
   try{ if(typeof _raceInjectCSS==='function') _raceInjectCSS(); }catch(_){}
+  var _L=_uiLang()==='ko';
   var pcs=(typeof PCS!=='undefined'&&Array.isArray(PCS))?PCS.slice():[];
   pcs=pcs.filter(function(p){ return p && p.status!=='offline'; });
   pcs.sort(function(a,b){ return (Number(a.id)||0)-(Number(b.id)||0); });
-  if(!pcs.length) return '<div class="sr-empty">PC 현황에 가동 중인 PC가 없어요. PC 현황 보드에서 PC·직원을 배정하면 여기 시계에 동기화됩니다.</div>';
+  if(!pcs.length) return '<div class="sr-empty">'+(_L?'PC 현황에 가동 중인 PC가 없어요. PC 현황 보드에서 PC·직원을 배정하면 여기 시계에 동기화됩니다.':'No PCs are running in PC Status. Assign a PC/staff on the PC Status board and it\u2019ll sync here.')+'</div>';
 
   var exp=_ckBuildExp(sessions); window._ckExp=exp;
   // per-PC staff keys for EXP rollup
@@ -17217,23 +17229,23 @@ function _clockBoardHTML(sessions){
   });
   window._ckPCS=ckPCS;
 
-  var head='<div class="ck-bar"><div class="ck-bar-l"><button class="race-btn play" id="ck-play" onclick="_ckToggle()"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span class="lab">하루 재생</span></button>'
-    +'<button class="race-btn" id="ck-now" onclick="_ckNow()">지금</button>'
+  var head='<div class="ck-bar"><div class="ck-bar-l"><button class="race-btn play" id="ck-play" onclick="_ckToggle()"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span class="lab">'+(_L?'하루 재생':'Day Playback')+'</span></button>'
+    +'<button class="race-btn" id="ck-now" onclick="_ckNow()">'+(_L?'지금':'Now')+'</button>'
     +'<div class="race-seg" id="ck-speed"><button data-x="1" onclick="_ckSpeed(1)">1×</button><button data-x="2" class="on" onclick="_ckSpeed(2)">2×</button><button data-x="4" onclick="_ckSpeed(4)">4×</button></div></div>'
     +'<div class="ck-scrub" id="ck-scrub"><div class="ck-scrub-tr"></div><div class="ck-scrub-fl" id="ck-scrub-fl"></div><div class="ck-scrub-hd" id="ck-scrub-hd"></div></div>'
     +'<div class="ck-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'
-    +'<div class="race-read" id="ck-read">'+(exp.date?('재생을 누르면 하루가 흐르며 근무 시프트와 그 시간까지 올린 EXP%가 같이 표시됩니다. · 기준일 '+exp.date):'세션 데이터가 없어 EXP 오버레이는 비활성화. 시프트만 표시됩니다.')+'</div></div>';
+    +'<div class="race-read" id="ck-read">'+(exp.date?(_L?('재생을 누르면 하루가 흐르며 근무 시프트와 그 시간까지 올린 EXP%가 같이 표시됩니다. · 기준일 '+exp.date):('Press play to watch the day unfold with shift hours and EXP% gained up to that point. \u00B7 As of '+exp.date)):(_L?'세션 데이터가 없어 EXP 오버레이는 비활성화. 시프트만 표시됩니다.':'No session data, so the EXP overlay is disabled. Showing shifts only.'))+'</div></div>';
 
   var grid=ckPCS.map(function(p){
-    var crown=p.leader?'<span class="ck-crown" title="감독">♔</span>':'';
-    var leg=p.assigns.length?p.assigns.map(function(a,ai){ var rng=a.len>0?(_ckH2(a.start)+'–'+_ckH2(a.start+a.len)+' · '+a.len+'h'):'시간 미설정';
-      return '<div class="ck-lg ck-lg-go" onclick="_ckToStaffIdx('+p.id+','+ai+')" title="이 직원 EXP 기록 열기"><span class="ck-sw" style="background:'+_ckColor(a.name)+'"></span><span class="ck-nm">'+_srEsc(a.name)+'</span><span class="ck-tm">'+rng+'</span><span class="ck-go-ar">→</span></div>'; }).join(''):'<div class="ck-lg-empty">직원 미배정</div>';
+    var crown=p.leader?('<span class="ck-crown" title="'+(_L?'감독':'Supervisor')+'">♔</span>'):'';
+    var leg=p.assigns.length?p.assigns.map(function(a,ai){ var rng=a.len>0?(_ckH2(a.start)+'–'+_ckH2(a.start+a.len)+' · '+a.len+'h'):(_L?'시간 미설정':'Time not set');
+      return '<div class="ck-lg ck-lg-go" onclick="_ckToStaffIdx('+p.id+','+ai+')" title="'+(_L?'이 직원 EXP 기록 열기':'Open this staff\u2019s EXP record')+'"><span class="ck-sw" style="background:'+_ckColor(a.name)+'"></span><span class="ck-nm">'+_srEsc(a.name)+'</span><span class="ck-tm">'+rng+'</span><span class="ck-go-ar">→</span></div>'; }).join(''):'<div class="ck-lg-empty">'+(_L?'직원 미배정':'Staff unassigned')+'</div>';
     var rq=_ckReqOf(p.id); var cov=_ckCoverGap(rq,p.assigns);
-    var badge=rq?(cov&&cov.gap>0?'<span class="ck-bdg gap">'+cov.gap+'시간 빔</span>':'<span class="ck-bdg ok">충족</span>'):'<span class="ck-bdg unset">시간 미설정</span>';
-    var rqtime=rq?('<div class="ck-reqt">◷ '+_ckH2(rq.s)+'–'+_ckH2(rq.e)+' 요청'+(_ckCanEdit()?' <button class="ck-reqbtn" onclick="_ckOpenReq('+p.id+')">조정</button>':'')+'</div>'):(_ckCanEdit()?'<button class="ck-reqbtn full" onclick="_ckOpenReq('+p.id+')">◷ 요청시간 설정</button>':'');
-    var cl='<div class="ck-client'+(p.client?'':' none')+'">◎ '+(p.client?_srEsc(p.client):'클라 미배정')+badge+'</div>'+rqtime;
+    var badge=rq?(cov&&cov.gap>0?'<span class="ck-bdg gap">'+cov.gap+(_L?'시간 빔':'h gap')+'</span>':'<span class="ck-bdg ok">'+(_L?'충족':'Covered')+'</span>'):'<span class="ck-bdg unset">'+(_L?'시간 미설정':'Time not set')+'</span>';
+    var rqtime=rq?('<div class="ck-reqt">◷ '+_ckH2(rq.s)+'–'+_ckH2(rq.e)+(_L?' 요청':' Requested')+(_ckCanEdit()?(' <button class="ck-reqbtn" onclick="_ckOpenReq('+p.id+')">'+(_L?'조정':'Adjust')+'</button>'):'')+'</div>'):(_ckCanEdit()?('<button class="ck-reqbtn full" onclick="_ckOpenReq('+p.id+')">◷ '+(_L?'요청시간 설정':'Set Request Time')+'</button>'):'');
+    var cl='<div class="ck-client'+(p.client?'':' none')+'">◎ '+(p.client?_srEsc(p.client):(_L?'클라 미배정':'Client unassigned'))+badge+'</div>'+rqtime;
     return '<div class="ck-card" data-pc="'+p.id+'"><div class="ck-top"><span class="ck-pcid">PC<span>-'+_srEsc(String(p.id).padStart(2,'0'))+'</span></span><span class="ck-top-r">'+crown+'<span class="ck-exp" id="ck-exp-'+p.id+'">+0.0%</span></span></div>'
-      +'<div class="ck-clock">'+_ckClockSVG(p,p.assigns)+'<div class="ck-center" id="ck-center-'+p.id+'"><div class="hh">'+p.assigns.filter(function(a){return a.len>0;}).reduce(function(s,a){return s+a.len;},0)+'<span>h</span></div><div class="lab">스케줄</div></div></div>'
+      +'<div class="ck-clock">'+_ckClockSVG(p,p.assigns)+'<div class="ck-center" id="ck-center-'+p.id+'"><div class="hh">'+p.assigns.filter(function(a){return a.len>0;}).reduce(function(s,a){return s+a.len;},0)+'<span>h</span></div><div class="lab">'+(_L?'스케줄':'Schedule')+'</div></div></div>'
       +leg+cl+'</div>';
   }).join('');
 
@@ -17241,15 +17253,15 @@ function _clockBoardHTML(sessions){
 }
 
 async function _ckLoadReq(){ if(window._ckReqLoaded) return; window._ckReqLoaded=true; try{ if(typeof _srGetCalc!=='function') return; var arr=await _srGetCalc('clock_req'); var m={}; if(Array.isArray(arr)) arr.forEach(function(x){ if(x&&x.pc!=null) m[x.pc]={s:Number(x.s),e:Number(x.e)}; }); window._ckReq=m; if(window._srRecMode==='clock' && typeof _srRecReRender==='function') _srRecReRender(); }catch(_){} }
-async function _ckSaveReq(pc, sH, eH){ window._ckReq=window._ckReq||{}; if(sH==null||eH==null){ delete window._ckReq[pc]; } else { window._ckReq[pc]={s:sH,e:eH}; } var arr=Object.keys(window._ckReq).map(function(k){ return {pc:Number(k), s:window._ckReq[k].s, e:window._ckReq[k].e}; }); try{ if(typeof _srPutCalc==='function'){ var ok=await _srPutCalc('clock_req', arr); if(typeof toast==='function') toast(ok?'✓ 요청시간 저장됨':'저장 실패', !ok); } }catch(_){} if(window._srRecMode==='clock' && typeof _srRecReRender==='function') _srRecReRender(); }
+async function _ckSaveReq(pc, sH, eH){ window._ckReq=window._ckReq||{}; if(sH==null||eH==null){ delete window._ckReq[pc]; } else { window._ckReq[pc]={s:sH,e:eH}; } var arr=Object.keys(window._ckReq).map(function(k){ return {pc:Number(k), s:window._ckReq[k].s, e:window._ckReq[k].e}; }); try{ if(typeof _srPutCalc==='function'){ var ok=await _srPutCalc('clock_req', arr); var _L=_uiLang()==='ko'; if(typeof toast==='function') toast(ok?(_L?'✓ 요청시간 저장됨':'✓ Request time saved'):(_L?'저장 실패':'Save failed'), !ok); } }catch(_){} if(window._srRecMode==='clock' && typeof _srRecReRender==='function') _srRecReRender(); }
 function _ckReqClose(){ var ov=document.getElementById('ck-modal-ov'); if(ov)ov.remove(); }
-function _ckOpenReq(pc){ if(!_ckCanEdit()) return; var cur=_ckReqOf(pc)||{s:9,e:21};
+function _ckOpenReq(pc){ if(!_ckCanEdit()) return; var cur=_ckReqOf(pc)||{s:9,e:21}; var _L=_uiLang()==='ko';
   var opts=function(sel){ var o=''; for(var h=0;h<24;h++){ o+='<option value="'+h+'"'+(h===sel?' selected':'')+'>'+_ckH2(h)+':00</option>'; } return o; };
   var ov=document.createElement('div'); ov.className='ck-modal-ov'; ov.id='ck-modal-ov';
-  ov.innerHTML='<div class="ck-modal"><div class="ck-modal-h">PC-'+String(pc).padStart(2,'0')+' · 클라 요청시간</div>'
-    +'<div class="ck-modal-row"><label>시작</label><select id="ck-rq-s">'+opts(cur.s)+'</select><span class="ck-modal-tilde">~</span><label>종료</label><select id="ck-rq-e">'+opts(cur.e)+'</select></div>'
-    +'<div class="ck-modal-hint">종료가 시작보다 이르면 익일로 처리됩니다 (밤샘 가능)</div>'
-    +'<div class="ck-modal-btns"><button class="race-btn" onclick="_ckReqClose()">취소</button>'+(_ckReqOf(pc)?'<button class="race-btn" style="color:#d9665c" onclick="_ckSaveReq('+pc+',null,null);_ckReqClose()">삭제</button>':'')+'<button class="race-btn play" onclick="var s=+document.getElementById(\'ck-rq-s\').value,e=+document.getElementById(\'ck-rq-e\').value;_ckSaveReq('+pc+',s,e);_ckReqClose()">저장</button></div></div>';
+  ov.innerHTML='<div class="ck-modal"><div class="ck-modal-h">PC-'+String(pc).padStart(2,'0')+' · '+(_L?'클라 요청시간':'Client Request Time')+'</div>'
+    +'<div class="ck-modal-row"><label>'+(_L?'시작':'Start')+'</label><select id="ck-rq-s">'+opts(cur.s)+'</select><span class="ck-modal-tilde">~</span><label>'+(_L?'종료':'End')+'</label><select id="ck-rq-e">'+opts(cur.e)+'</select></div>'
+    +'<div class="ck-modal-hint">'+(_L?'종료가 시작보다 이르면 익일로 처리됩니다 (밤샘 가능)':'If end is earlier than start, it\u2019s treated as the next day (overnight allowed)')+'</div>'
+    +'<div class="ck-modal-btns"><button class="race-btn" onclick="_ckReqClose()">'+(_L?'취소':'Cancel')+'</button>'+(_ckReqOf(pc)?('<button class="race-btn" style="color:#d9665c" onclick="_ckSaveReq('+pc+',null,null);_ckReqClose()">'+(_L?'삭제':'Delete')+'</button>'):'')+'<button class="race-btn play" onclick="var s=+document.getElementById(\'ck-rq-s\').value,e=+document.getElementById(\'ck-rq-e\').value;_ckSaveReq('+pc+',s,e);_ckReqClose()">'+(_L?'저장':'Save')+'</button></div></div>';
   document.body.appendChild(ov); ov.addEventListener('click',function(e){ if(e.target===ov)_ckReqClose(); });
 }
 /* ── transport ── */
@@ -17257,15 +17269,16 @@ var _ckAnim=null;
 function _ckKstHour(){ var d=new Date(Date.now()+9*3600000); return d.getUTCHours()+d.getUTCMinutes()/60; }
 function _ckState(){ if(!window._ckSt) window._ckSt={scrub:_ckKstHour(),playing:false,speed:2,follow:true}; return window._ckSt; }
 function _ckSpeed(x){ _ckState().speed=x; var seg=document.getElementById('ck-speed'); if(seg)[].forEach.call(seg.children,function(c){c.classList.toggle('on',+c.getAttribute('data-x')===x);}); }
-function _ckStop(){ var st=_ckState(); st.playing=false; if(_ckAnim){cancelAnimationFrame(_ckAnim);_ckAnim=null;} var b=document.getElementById('ck-play'); if(b){b.classList.remove('on'); var l=b.querySelector('.lab'); if(l)l.textContent='하루 재생';} }
+function _ckStop(){ var st=_ckState(); st.playing=false; if(_ckAnim){cancelAnimationFrame(_ckAnim);_ckAnim=null;} var b=document.getElementById('ck-play'); if(b){b.classList.remove('on'); var l=b.querySelector('.lab'); if(l)l.textContent=(_uiLang()==='ko'?'하루 재생':'Day Playback');} }
 function _ckNow(){ var st=_ckState(); st.follow=true; _ckStop(); st.scrub=_ckKstHour(); _ckApply(); }
-function _ckToggle(){ var st=_ckState(); if(st.playing){ _ckStop(); return; } st.playing=true; st.follow=false; var b=document.getElementById('ck-play'); if(b){b.classList.add('on'); var l=b.querySelector('.lab'); if(l)l.textContent='정지';}
+function _ckToggle(){ var st=_ckState(); if(st.playing){ _ckStop(); return; } st.playing=true; st.follow=false; var b=document.getElementById('ck-play'); if(b){b.classList.add('on'); var l=b.querySelector('.lab'); if(l)l.textContent=(_uiLang()==='ko'?'정지':'Stop');}
   var lastT=performance.now();
   function loop(t){ if(!_ckState().playing){ return; } if(!document.getElementById('ck-board')){ _ckStop(); return; } var dt=(t-lastT)/1000; lastT=t; st.scrub=(st.scrub+dt*st.speed)%24; _ckApply(); _ckAnim=requestAnimationFrame(loop); }
   _ckAnim=requestAnimationFrame(loop);
 }
 function _ckSeekTo(cx){ var sc=document.getElementById('ck-scrub'); if(!sc)return; var r=sc.getBoundingClientRect(); var p=Math.max(0,Math.min(1,(cx-r.left)/r.width)); var st=_ckState(); st.follow=false; _ckStop(); st.scrub=p*24; _ckApply(); }
 function _ckApply(){
+  var _L=_uiLang()==='ko';
   var st=_ckState(); var h=st.scrub, hInt=Math.floor(h)%24, deg=(h*15).toFixed(2);
   var fl=document.getElementById('ck-scrub-fl'), hd=document.getElementById('ck-scrub-hd'); if(fl)fl.style.width=(h/24*100)+'%'; if(hd)hd.style.left=(h/24*100)+'%';
   var pcs=window._ckPCS||[], exp=window._ckExp||{cum:{}};
@@ -17278,10 +17291,14 @@ function _ckApply(){
     totStaff+=onCount; totExp+=pcExp;
     var hand=document.getElementById('ck-hand-'+p.id); if(hand) hand.setAttribute('transform','rotate('+deg+' '+_CKCX+' '+_CKCY+')');
     var ee=document.getElementById('ck-exp-'+p.id); if(ee){ ee.textContent=(pcExp>0?'+':'')+pcExp.toFixed(1)+'%'; ee.style.color=pcExp>0?'#36c66b':'var(--tx3)'; }
-    var ce=document.getElementById('ck-center-'+p.id); if(ce && (st.playing||!st.follow)){ ce.querySelector('.hh').innerHTML=onCount+'<span>명</span>'; ce.querySelector('.lab').textContent='근무중'; }
-    else if(ce){ var sched=p.assigns.filter(function(a){return a.len>0;}).reduce(function(s,a){return s+a.len;},0); ce.querySelector('.hh').innerHTML=sched+'<span>h</span>'; ce.querySelector('.lab').textContent='스케줄'; }
+    var ce=document.getElementById('ck-center-'+p.id); if(ce && (st.playing||!st.follow)){ ce.querySelector('.hh').innerHTML=onCount+'<span>'+(_L?'명':'')+'</span>'; ce.querySelector('.lab').textContent=(_L?'근무중':'Working'); }
+    else if(ce){ var sched=p.assigns.filter(function(a){return a.len>0;}).reduce(function(s,a){return s+a.len;},0); ce.querySelector('.hh').innerHTML=sched+'<span>h</span>'; ce.querySelector('.lab').textContent=(_L?'스케줄':'Schedule'); }
   });
-  var rd=document.getElementById('ck-read'); if(rd) rd.innerHTML='<b>'+_ckH2(hInt)+':00</b> 기준 · 근무 <b>'+totStaff+'</b>명 · 가동 <b>'+pcs.filter(function(p){return p.assigns.some(function(a){return a.len>0&&_ckInShift(hInt,a);});}).length+'</b>대 · 누적 EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>';
+  var nRunning=pcs.filter(function(p){return p.assigns.some(function(a){return a.len>0&&_ckInShift(hInt,a);});}).length;
+  var rd=document.getElementById('ck-read');
+  if(rd) rd.innerHTML=_L
+    ? ('<b>'+_ckH2(hInt)+':00</b> 기준 · 근무 <b>'+totStaff+'</b>명 · 가동 <b>'+nRunning+'</b>대 · 누적 EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>')
+    : ('<b>'+_ckH2(hInt)+':00</b> Standard · Work <b>'+totStaff+'</b> · Running <b>'+nRunning+'</b> · Total EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>');
 }
 function _ckInit(){ try{ _ckLoadReq(); }catch(_){} var sc=document.getElementById('ck-scrub'); if(!sc||sc._wired) return; sc._wired=true;
   sc.addEventListener('pointerdown',function(e){ sc.setPointerCapture(e.pointerId); _ckSeekTo(e.clientX); sc._drag=true; });
