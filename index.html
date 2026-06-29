@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v393 — Client별 카드 근본수정: <button>이 자식 행을 가로로 뭉개던 문제 → flex column 강제(세로 정렬) -->
+<!-- BUILD: v394 — 기록·통계 ACTUAL EXP 셀 인라인 편집: 보고별 게인/체크인 누적값 직접 수정→리포트 서버 저장(개별행 한정) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v393';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v394';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16051,6 +16051,10 @@ function _srInjectCSS(){
 "#sr-app .sr-sl-row:hover td{background:rgba(255,255,255,.03);}",
 "#sr-app .sr-sl-x{text-align:center;color:var(--tx3,#5f5e5a);cursor:pointer;font-weight:700;width:30px;}",
 "#sr-app .sr-sl-x:hover{color:var(--re,#c46a6a);}",
+"#sr-app .sr-sl-expi{width:64px;max-width:64px;background:transparent;border:1px solid transparent;border-radius:5px;color:var(--tx2,#bdbcb8);font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:3px 5px;cursor:text;}",
+"#sr-app .sr-sl-expi:hover{border-color:var(--br2,#2f2f2d);}",
+"#sr-app .sr-sl-expi:focus{outline:none;border-color:var(--ac,#c9963a);background:var(--bg-i,#1a1a1a);color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-sl-expi.sr-jump{color:var(--re,#c46a6a);font-weight:700;}",
 "#sr-app .sr-sec-hint{font-weight:600;text-transform:none;letter-spacing:0;font-size:10.5px;color:var(--tx3,#5f5e5a);}",
 "#sr-app .sr-clmaps{font-size:12.5px;color:var(--tx2,#989792);padding:2px 2px 4px;}",
 "#sr-app .sr-tl-tbl td{padding:9px;}",
@@ -16682,6 +16686,30 @@ async function _srRecSaveReport(id){
     else { toast('저장 실패 — 다시 시도', true); if(btn){ btn.disabled=false; btn.textContent='저장'; } }
   }catch(e){ toast('저장 오류 — 연결 확인', true); if(btn){ btn.disabled=false; btn.textContent='저장'; } }
 }
+// [v394] Inline-edit the ACTUAL EXP cell. status/checkout: entered value is the per-report GAIN -> set
+// expAfter = expBefore + gain (level-wrap aware) so gainedPct() reproduces it. check-in: value is cumulative EXP.
+async function _srSlSaveExp(id, raw, isCi){
+  if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ toast(_uiLang()==='ko'?'권한 없음 — 대표/매니저 전용':'CEO/manager only', true); return; }
+  var v=parseFloat(String(raw==null?'':raw).replace(/[^0-9.\-]/g,''));
+  if(!isFinite(v)){ toast(_uiLang()==='ko'?'숫자를 입력하세요':'Enter a number', true); try{renderRecords();}catch(_){ } return; }
+  var reports; try{ reports=await _srGetCalc('reports'); }catch(e){ toast(_uiLang()==='ko'?'연결 실패 — 다시 시도':'Connection failed — retry', true); return; }
+  if(!Array.isArray(reports)) reports=[];
+  var idx=-1; for(var i=0;i<reports.length;i++){ if(String(reports[i].id)===String(id)){ idx=i; break; } }
+  if(idx<0){ toast(_uiLang()==='ko'?'보고를 찾을 수 없어요 — 새로고침':'Report not found — refresh', true); try{renderRecords();}catch(_){ } return; }
+  var r=reports[idx]; var editor='admin'; try{ editor=(currentUser&&currentUser.name)||'admin'; }catch(_){ }
+  if(String(isCi)==='1' || r.tag==='checkin'){ var ev=Math.max(0,Math.min(100,v)); r.expAfter=ev; r.expBefore=ev; }
+  else {
+    var lvB=(r.lvBefore!=null?Number(r.lvBefore):(Number(r.lvAfter)||0))||0;
+    var eB=(r.expBefore!=null?Number(r.expBefore):0)||0;
+    var target=eB+v, levels=0;
+    while(target>=100){ target-=100; levels++; } while(target<0){ target+=100; levels--; }
+    var lvA=lvB+levels; if(lvA<1) lvA=1; r.lvAfter=lvA; r.expAfter=Math.max(0,Math.min(100,target));
+  }
+  r.editedAt=Date.now(); r.editedBy=editor;
+  var ok=false; try{ ok=await _srPutCalc('reports', reports); }catch(e){ ok=false; }
+  if(ok){ toast(_uiLang()==='ko'?'✓ 실측 EXP 수정됨':'✓ Actual EXP updated'); try{ renderRecords(); }catch(_){ } }
+  else { toast(_uiLang()==='ko'?'저장 실패 — 다시 시도':'Save failed — retry', true); try{renderRecords();}catch(_){ } }
+}
 function _srRecFilterBy(key){ window._srRecFilter=key||''; if(key) window._srRecClient=''; _srRecReRender(); }
 function _srRecPeriodBy(p){ window._srRecPeriod=p||'all'; _srRecReRender(); }   // [v368] Today / This Week / This Month / All
 function _srRecToggleKR(){ window._srRecKR=!window._srRecKR; _srRecReRender(); }
@@ -16961,6 +16989,10 @@ function _srRecCardHTML(data){
         var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
         var rid=esc(String(s.id||'')); var cls=[]; if(s.flag)cls.push('sr-sl-flag'); if(isAdmin&&!opt.noEdit)cls.push('sr-sl-row'); if(opt.cls)cls.push(opt.cls);
         var onclk=(opt.onclick!=null)?opt.onclick:((isAdmin&&!opt.noEdit)?('onclick="_srRecEditReport(\''+rid+'\')"'):'');
+        var _expEditable=(isAdmin && !opt.noEdit && !opt.merged && s.id!=null);   // [v394] inline-edit the ACTUAL EXP cell
+        var actCell;
+        if(_expEditable){ var _rawn=(s.tag==='checkin')?Number(s.expAt||0).toFixed(2):Number(s.gain||0).toFixed(2); actCell='<input class="sr-sl-expi'+(s.flag?' sr-jump':'')+'" value="'+_rawn+'" inputmode="decimal" onclick="event.stopPropagation()" onkeydown="if(event.key===&#39;Enter&#39;){event.preventDefault();this.blur();}" onchange="_srSlSaveExp(&#39;'+rid+'&#39;,this.value,'+(s.tag==='checkin'?'1':'0')+')">'; }
+        else { actCell=(s.flag?'<span class="sr-jump">⚠ '+act+'</span>':act); }
         var badge=opt.badge?(' <span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(201,150,58,.16);color:var(--ac,#c9963a);font-size:.68rem;font-weight:800;vertical-align:middle">'+opt.badge+'</span>'):'';
         return '<tr'+(cls.length?' class="'+cls.join(' ')+'"':'')+(opt.data||'')+(onclk?' '+onclk:'')+'>'
           +'<td class="sr-sl-nm">'+esc(nameOf(s.key,s.name))+'</td>'
@@ -16968,7 +17000,7 @@ function _srRecCardHTML(data){
           +'<td>'+tagB(s.tag)+'</td><td>'+esc(s.client)+badge+'</td>'
           +'<td>'+esc(String(s.pc==null?'':s.pc))+'</td><td>'+esc(String(s.lv==null?'':s.lv))+'</td>'
           +'<td>'+esc(s.map)+'</td>'
-          +'<td class="sr-num">'+(s.flag?'<span class="sr-jump">⚠ '+act+'</span>':act)+'</td><td class="sr-num">'+tgt+'</td>'
+          +'<td class="sr-num">'+actCell+'</td><td class="sr-num">'+tgt+'</td>'
           +'<td class="sr-num">'+stableCell+'</td><td class="sr-num">'+cutCell+'</td>'
           +'<td class="sr-num '+(hasDiff?dcls(dv):'')+'">'+diff+'</td>'
           +'<td class="sr-num">'+sres(s)+'</td>'
@@ -16999,7 +17031,7 @@ function _srRecCardHTML(data){
         var last=sorted[sorted.length-1]; var sum=0; sorted.forEach(function(x){ sum+=(x.gain||0); });
         var anyOut=sorted.some(function(x){ return x.tag==='checkout'; });
         var merged={ id:last.id, name:last.name, key:last.key, date:last.date, ms:last.ms, tag:anyOut?'checkout':'status', client:last.client, pc:last.pc, lv:last.lv, map:last.map, gain:sum, expAt:last.expAt, target:last.target, sh:last.sh, sl:last.sl, flag:false };
-        return slRow(merged);   // [v373] plain merged row — one row, combined hourly gain, no ×N badge / no expand
+        return slRow(merged,{merged:true});   // [v373] plain merged row (combined gain — not inline-editable) — one row, combined hourly gain, no ×N badge / no expand
       }).join('');
       var body='<div class="sr-sl-wrap" id="'+wid+'"><table class="sr-sl-tbl"><thead><tr><th>직원</th><th>작성시각</th><th>구분</th><th>클라</th><th>PC</th><th>LV</th><th>사냥터</th><th class="sr-num">실제 EXP</th><th class="sr-num">Goal</th><th class="sr-num">Stable</th><th class="sr-num">Cut Below</th><th class="sr-num">차이</th><th class="sr-num">판정</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
         +rowsHTML+'</tbody></table></div>';
