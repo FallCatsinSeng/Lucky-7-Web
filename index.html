@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v367 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
+<!-- BUILD: v368 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8319,7 +8319,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v367';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v368';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16667,6 +16667,7 @@ async function _srRecSaveReport(id){
   }catch(e){ toast('저장 오류 — 연결 확인', true); if(btn){ btn.disabled=false; btn.textContent='저장'; } }
 }
 function _srRecFilterBy(key){ window._srRecFilter=key||''; if(key) window._srRecClient=''; _srRecReRender(); }
+function _srRecPeriodBy(p){ window._srRecPeriod=p||'all'; _srRecReRender(); }   // [v368] Today / This Week / This Month / All
 function _srRecToggleKR(){ window._srRecKR=!window._srRecKR; _srRecReRender(); }
 function _srRecModeBy(m){ window._srRecMode=m||'staff'; window._srRecFilter=''; window._srRecClient=''; _srRecReRender(); }
 function _srRecClientBy(c){ window._srRecClient=c||''; if(c) window._srRecFilter=''; _srRecReRender(); }
@@ -16781,6 +16782,18 @@ function _srRecCardHTML(data){
   data = data||{daily:[],sessions:[]};
   var daily=data.daily||[], sessions=data.sessions||[];
   window._srRecAll=data;
+  // [v368] date-period filter (Today / This Week / This Month / All) — declutters the long log; full data stays in window._srRecAll
+  var _period=window._srRecPeriod||'week';
+  if(_period!=='all'){
+    var _pn=new Date(Date.now()+9*3600000);   // KST wall clock (report dates are KST-anchored)
+    var _pToday=_pn.toISOString().slice(0,10);
+    var _pDow=_pn.getUTCDay(); var _pMonOff=(_pDow===0?6:_pDow-1);
+    var _pWk=new Date(Date.UTC(_pn.getUTCFullYear(),_pn.getUTCMonth(),_pn.getUTCDate()-_pMonOff)).toISOString().slice(0,10);
+    var _pMo=_pToday.slice(0,8)+'01';
+    var _pOk=function(d){ d=String(d||'').slice(0,10); if(!d) return false; if(_period==='today') return d===_pToday; if(_period==='week') return d>=_pWk; if(_period==='month') return d>=_pMo; return true; };
+    daily=daily.filter(function(r){ return _pOk(r.date); });
+    sessions=sessions.filter(function(s){ return _pOk(s.date); });
+  }
   var esc=_srEsc;
   var isAdmin=(typeof currentUserRole!=='undefined' && currentUserRole==='admin');
   var nmKey=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; };
@@ -17016,11 +17029,17 @@ function _srRecCardHTML(data){
       +'</button>';
   }).join('') || '<div class="sr-empty">클라이언트 세션이 없어요.</div>';
   var modetab='<div class="sr-modetab"><button class="'+(mode==='staff'?'on':'')+'" onclick="_srRecModeBy(\'staff\')">👤 직원별</button><button class="'+(mode==='client'?'on':'')+'" onclick="_srRecModeBy(\'client\')">🎮 클라별</button><button class="'+(mode==='clock'?'on':'')+'" onclick="_srRecModeBy(\'clock\')">⏱ 시계</button></div>';
+  var periodTab='<div class="sr-modetab sr-period" style="margin:-4px 0 14px">'
+    +'<button class="'+(_period==='today'?'on':'')+'" onclick="_srRecPeriodBy(\'today\')">오늘</button>'
+    +'<button class="'+(_period==='week'?'on':'')+'" onclick="_srRecPeriodBy(\'week\')">이번 주</button>'
+    +'<button class="'+(_period==='month'?'on':'')+'" onclick="_srRecPeriodBy(\'month\')">이번 달</button>'
+    +'<button class="'+(_period==='all'?'on':'')+'" onclick="_srRecPeriodBy(\'all\')">전체</button>'
+    +'</div>';
   var body = (mode==='clock')
     ? _clockBoardHTML(sessions)
     : (mode==='client')
-    ? ('<div class="sr-clgrid">'+clientCards+'</div>')
-    : (seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">일일 기록 · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button><button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">🗑 전체 초기화</button></span></div>'+bands);
+    ? (periodTab+'<div class="sr-clgrid">'+clientCards+'</div>')
+    : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">일일 기록 · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button><button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">🗑 전체 초기화</button></span></div>'+bands);
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span><span class="sr-badge">실시간</span></div>'
     +'<div class="sr-rec-sub">전 직원·클라이언트 기록 — 시프트 그룹(12H 주/야 · 8H S1·2·3) 또는 클라별. 항목을 누르면 상세가 펼쳐집니다.</div>'
