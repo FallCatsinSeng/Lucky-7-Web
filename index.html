@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v383 — 급여 1단계: EXP 기준표에 Stable hi/lo 밴드 필드 추가(맵별, 편집·저장·표시) -->
+<!-- BUILD: v384 — 급여 1단계 마무리: _csSeedStandards에 sh/sl 밴드 자동 시드 추가(6 PC, 머지) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v383';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v384';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17838,14 +17838,14 @@ async function _csEditDelete(){
 // Idempotent: re-running updates same-zone maps and appends new ones. Matching mirrors findMap's zoneKey.
 async function _csSeedStandards(){
   if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ try{toast('CEO only',true);}catch(_){ } return; }
-  if(!confirm('Seed Standard EXP for 6 PCs?\n\nWrites per-map targets (Dream Island / Oren Snowfield / Totem Field) into the report server, merged into existing clients. Maps in other zones (e.g. Dragon Dungeon) are kept. Safe to run more than once.')) return;
+  if(!confirm('Seed Standard EXP for 6 PCs?\n\nWrites per-map targets + stable hi/lo bands (Dream Island / Oren Snowfield / Totem Field) into the report server, merged into existing clients. Maps in other zones (e.g. Dragon Dungeon) are kept. Safe to run more than once.')) return;
   var SEED=[
-    {pc:1, name:'경상도님',      maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94}]},
-    {pc:2, name:'Owen 라인님',   maps:[{ko:'오크 숲',en:'Totem Field',target:0.70}]},
-    {pc:6, name:'마석도님',      maps:[{ko:'오크 숲',en:'Totem Field',target:0.70}]},
-    {pc:7, name:'고고형 지인쌤',  maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94}]},
-    {pc:8, name:'아귀님',        maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94}]},
-    {pc:9, name:'일점커님',      maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94}]}
+    {pc:1, name:'경상도님',      maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00,sh:0.83,sl:0.77},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94,sh:0.78,sl:0.72}]},
+    {pc:2, name:'Owen 라인님',   maps:[{ko:'오크 숲',en:'Totem Field',target:0.70,sh:0.55,sl:0.50}]},
+    {pc:6, name:'마석도님',      maps:[{ko:'오크 숲',en:'Totem Field',target:0.70,sh:0.55,sl:0.50}]},
+    {pc:7, name:'고고형 지인쌤',  maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00,sh:0.83,sl:0.77},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94,sh:0.78,sl:0.72}]},
+    {pc:8, name:'아귀님',        maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00,sh:0.83,sl:0.77},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94,sh:0.78,sl:0.72}]},
+    {pc:9, name:'일점커님',      maps:[{ko:'드림 아일랜드',en:'Dream Island',target:1.00,sh:0.83,sl:0.77},{ko:'오렌 설원',en:'Oren Snowfield',target:0.94,sh:0.78,sl:0.72}]}
   ];
   var zk=function(s){ s=String(s||'').toLowerCase(); if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc'; if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream'; if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren'; if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon'; return s; };
   var arr; try{ arr=await _srGetCalc('clients'); }catch(err){ try{toast('Couldn\u2019t reach the report server — nothing changed',true);}catch(_){ } return; }
@@ -17860,8 +17860,8 @@ async function _csSeedStandards(){
     s.maps.forEach(function(m){
       var z=zk(m.en||m.ko), hit=null,k;
       for(k=0;k<rec.maps.length;k++){ if(zk((rec.maps[k]&&(rec.maps[k].en||rec.maps[k].ko))||'')===z){ hit=rec.maps[k]; break; } }
-      if(hit){ hit.en=m.en; hit.ko=m.ko; hit.target=m.target; if(hit.level==null)hit.level=''; updated++; }
-      else { rec.maps.push({ ko:m.ko, en:m.en, level:'', target:m.target }); added++; }
+      if(hit){ hit.en=m.en; hit.ko=m.ko; hit.target=m.target; hit.sh=m.sh; hit.sl=m.sl; if(hit.level==null)hit.level=''; updated++; }
+      else { rec.maps.push({ ko:m.ko, en:m.en, level:'', target:m.target, sh:m.sh, sl:m.sl }); added++; }
     });
   });
   var ok=false; try{ ok=await _srPutCalc('clients',arr); }catch(err){ ok=false; }
