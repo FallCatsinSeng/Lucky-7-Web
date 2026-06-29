@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v366 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
+<!-- BUILD: v367 — 클라별 수정: perf 폭주(점프/무목표) + 변형 병합 + 빈클라 제외 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8319,7 +8319,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v366';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v367';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17569,13 +17569,23 @@ function _csInjectCSS(){
 async function renderCalcStandards(){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
   _csInjectCSS();
-  var esc=_srEsc;
-  // [v363] paint chrome immediately so the page isn't blank while training-mode + clients fetch
-  if(!otherView.querySelector('.cs-wrap')) otherView.innerHTML='<div class="cs-wrap"><div class="att-eyebrow">Game · Standard</div><div class="ph">EXP Standards</div><div class="psub">Client &amp; PC from Lucky7 · maps editable, saved to the report server</div><div class="cs-grid"><div class="cs-loading">Loading…</div></div></div>';
+  // [v367] paint shell + grid instantly (grid from the shared clients cache), then refresh from the network
+  _csRenderShell(otherView);
+  var _cc=null; try{ _cc=(typeof _rcGetCache==='function')?_rcGetCache():null; }catch(_){}
+  if(_cc && Array.isArray(_cc.clients) && _cc.clients.length){ try{ _csRenderGrid(_cc.clients); }catch(_){} }
   // [v365] fetch training-mode + clients concurrently (was two serial round-trips)
   var _csTm=null, _csCalc=null, _csCalcErr=false;
   try{ var _csB=await Promise.all([ _srGetCalc('training_mode').catch(function(){return null;}), _srGetCalc('clients').catch(function(){_csCalcErr=true;return null;}) ]); _csTm=_csB[0]; _csCalc=_csB[1]; }catch(_){ _csCalcErr=true; }
+  var _wasTr=_csTraining;
   try{ _csTraining=!!(_csTm&&_csTm.length&&(_csTm[0]===true||_csTm[0]==='true'||(_csTm[0]&&_csTm[0].on))); }catch(_){}
+  if(_csTraining!==_wasTr){ _csRenderShell(otherView); }
+  if(_csCalcErr){ if(!(_cc&&Array.isArray(_cc.clients)&&_cc.clients.length)){ var ge=document.getElementById('cs-grid'); if(ge) ge.innerHTML='<div class="cs-err">Couldn\u2019t reach the report server — try again.</div>'; } return; }
+  _csRenderGrid(Array.isArray(_csCalc)?_csCalc:[]);
+  try{ if(typeof _rcGetCache==='function' && typeof _rcSetCache==='function'){ var _ex=_rcGetCache()||{}; _rcSetCache(_ex.reports||[], Array.isArray(_csCalc)?_csCalc:[]); } }catch(_){}
+}
+
+function _csRenderShell(otherView){
+  if(!otherView) return;
   var togCls=_csTraining?'cs-train-tog on':'cs-train-tog';
   var togSub=_csTraining?'ON · standards off (all base pay)':'OFF · standards applied';
   var note=_csTraining?'<div class="cs-train-note">Training mode — standards not applied. Everyone is paid base, no penalties. (Standards are kept.)</div>':'';
@@ -17584,29 +17594,24 @@ async function renderCalcStandards(){
     +'<div class="cs-train-bar"><button class="'+togCls+'" onclick="_csToggleTraining()"><span class="cs-train-knob"></span><span class="cs-train-txt"><b>Training mode</b><small>'+togSub+'</small></span></button>'+note+'</div>'
     +'<div class="cs-grid" id="cs-grid"><div class="cs-loading">Loading…</div></div>'
     +'<div class="cs-ed-bg" id="cs-ed-bg" onclick="if(event.target===this)_csEditClose()"><div class="cs-ed-modal" id="cs-ed-modal"></div></div></div>';
+}
 
-  var calc=Array.isArray(_csCalc)?_csCalc:[];
-  if(_csCalcErr){ var ge=document.getElementById('cs-grid'); if(ge) ge.innerHTML='<div class="cs-err">Couldn\u2019t reach the report server — try again.</div>'; return; }
+function _csRenderGrid(calc){
+  calc=Array.isArray(calc)?calc:[];
   _csClients=calc;
+  var esc=_srEsc;
   var byExact={}, byNorm={};
   calc.forEach(function(e){ var nm=String((e&&e.name)||'').trim(); if(!nm) return; if(!byExact[nm]) byExact[nm]=e; var nn=_csNorm(nm); if(nn&&!byNorm[nn]) byNorm[nn]=e; });
   var matchCalc=function(name){ var nm=String(name||'').trim(); if(byExact[nm]) return byExact[nm]; var nn=_csNorm(nm); return (nn&&byNorm[nn])?byNorm[nn]:null; };
-
-  // PC(s) from the PC Status board — by ERP client id, by exact name, and by normalized name.
   var pcsByCid={}, pcsByNorm={};
   try{ if(typeof PCS!=='undefined' && Array.isArray(PCS)){ PCS.forEach(function(p){ (Array.isArray(p.clients)?p.clients:[]).forEach(function(cid){ if(cid==null) return; (pcsByCid[cid]=pcsByCid[cid]||[]).push(p.id); var cl=(typeof clientById==='function')?clientById(cid):null; var nn=cl&&cl.name?_csNorm(cl.name):''; if(nn){ (pcsByNorm[nn]=pcsByNorm[nn]||[]).push(p.id); } }); }); } }catch(_){}
-
-  // Rows = ERP clients, then any report-server clients that don't match an ERP client by normalized name.
   var erp=(typeof CLIENTS!=='undefined' && Array.isArray(CLIENTS))?CLIENTS.slice():[];
   var erpNorms={}; erp.forEach(function(c){ var n=_csNorm(c&&c.name); if(n) erpNorms[n]=1; });
   var rows=[];
   erp.forEach(function(c){ rows.push({type:'erp', name:String((c&&c.name)||'').trim()||'\u2014', erp:c, calc:matchCalc(c&&c.name)}); });
   calc.forEach(function(e){ var n=_csNorm(e&&e.name); if(n && !erpNorms[n]) rows.push({type:'calc', name:String((e&&e.name)||'').trim()||'\u2014', erp:null, calc:e}); });
-
   var grid=document.getElementById('cs-grid'); if(!grid) return;
   if(!rows.length){ grid.innerHTML='<div class="cs-empty">No clients yet — add one in the Client tab and it\u2019ll appear here.</div>'; return; }
-
-  // [v337] resolve each card's PC from the board, then order cards by PC number (1,2,3… / no-PC last).
   rows.forEach(function(r){
     var c=r.erp||{}, mc=r.calc||{};
     var pcs=(r.type==='erp')?(pcsByCid[c.id]||[]):[];
@@ -17617,7 +17622,6 @@ async function renderCalcStandards(){
     r._pcSort=nums.length?Math.min.apply(null,nums):Infinity;
   });
   rows.sort(function(a,b){ if(a._pcSort!==b._pcSort) return a._pcSort-b._pcSort; return String(a.name).localeCompare(String(b.name)); });
-
   _csRows=rows;
   var cards=rows.map(function(r,i){
     var c=r.erp||{}, mc=r.calc||{};
