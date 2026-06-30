@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v437 | Shift Report: added a 💀 'Died this hour' toggle next to EXP now — booster types a plain POSITIVE loss % instead of having to remember to prefix a minus sign. Same underlying calc, just a clearer input. The Adena-jump warning (⚠ unrelated, pre-existing since v302) is explained to the CEO separately, not changed. -->
+<!-- BUILD: v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8336,7 +8336,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v437';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v438';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15411,7 +15411,13 @@ var _srShots={checkin:null,update:null,checkout:null};
 // Low-level chars level fast — 5–6%/h is normal — so Lv 1–27 gets a loose 6% cap; Lv 28+ mains
 // grind slowly and get the strict 2% cap. A one-report gain over the cap blocks submission.
 function _srTypoMax(lv){ lv=Number(lv)||0; return lv<=27 ? 6 : 2; }
-function _srApplyExp(prevLv,prevExp,raw){
+// [v438] forceDeath param: when the "Died this hour" toggle is checked, the typed value is the booster's
+// CURRENT BAR READING (exactly like normal mode — just read your screen, no math) instead of a calculated
+// loss amount. Previously (v437) the booster still had to subtract in their head ("I was at 21.68, now I'm
+// at 4.69, so I type 16.99") — that's the confusion in the report. Now: Died ON + type "4.69" (what's
+// literally on the bar) → gain = 4.69-21.68 = -16.99% automatically. The legacy leading-"-" convention
+// (typing "-16.99" directly, meaning "I lost 16.99") still works untouched for any old habit/cache.
+function _srApplyExp(prevLv,prevExp,raw,forceDeath){
   raw=String(raw==null?'':raw).trim();
   if(raw==='') return {valid:false,error:'Enter the current EXP %'};
   var neg=raw.charAt(0)==='-';
@@ -15420,6 +15426,7 @@ function _srApplyExp(prevLv,prevExp,raw){
   if(val>100) return {valid:false,error:"EXP can't be over 100%"};
   var pL=Number(prevLv)||0, pE=Number(prevExp)||0, lv,exp,gain,leveledUp=false,isDeath=false;
   if(neg){ isDeath=true; lv=pL; exp=pE-val; gain=-val; if(exp<0)exp=0; }
+  else if(forceDeath){ isDeath=true; lv=pL; exp=val; gain=val-pE; }
   else if(val>=pE){ lv=pL; exp=val; gain=val-pE; }
   else { lv=pL+1; exp=val; gain=(100-pE)+val; leveledUp=true; }
   return {valid:true,lv:lv,exp:exp,gain:gain,leveledUp:leveledUp,isDeath:isDeath,typo:(!isDeath&&gain>_srTypoMax(pL))};
@@ -15431,12 +15438,12 @@ function _srExpPreview(screen){
   if(!el||!inp) return;
   var prev=_srPrev();
   if(!prev){ el.className='sr-exp-prev'; el.textContent='\u2192 check in first'; return; }
-  var raw=_srDeathRaw(screen);   // [v437] applies the "Died this hour" sign automatically
+  var raw=String(inp.value||'').trim();   // [v438] the typed value is always read straight off the bar now
   if(raw===''){ el.className='sr-exp-prev'; el.textContent='\u2192 was Lv '+prev.lv+' @ '+(Number(prev.exp).toFixed(2))+'%'; return; }
-  var r=_srApplyExp(prev.lv,prev.exp,raw);
+  var r=_srApplyExp(prev.lv,prev.exp,raw,_srIsDeathOn(screen));
   if(!r.valid){ el.className='sr-exp-prev sr-bad'; el.textContent='\u26a0 '+r.error; return; }
   if(r.typo){ el.className='sr-exp-prev sr-bad'; el.textContent='\u26a0 suspicious jump +'+r.gain.toFixed(2)+'% \u2014 check your EXP'; return; }
-  var tag = r.isDeath ? ' (exp lost)' : (r.leveledUp ? '  \u00b7  LEVEL UP \u2191' : '');
+  var tag = (r.isDeath&&r.gain<0) ? ' (exp lost)' : (r.leveledUp ? '  \u00b7  LEVEL UP \u2191' : '');
   el.className='sr-exp-prev sr-good';
   el.textContent='\u2192 Lv '+r.lv+' @ '+r.exp.toFixed(2)+'%  \u00b7  '+(r.gain>=0?'+':'')+r.gain.toFixed(2)+'% gain'+tag;
 }
@@ -15494,14 +15501,14 @@ function _srReadScreen(which){
     shot: !!_srShots[which],
     pc: (root.querySelector('[data-sr-pc]')||{}).textContent||'',
     map: (root.querySelector('[data-sr-map]')||{}).textContent||'' };
-  if(live){ o.expRaw=_srDeathRaw(which); } else { var exps=root.querySelectorAll('.sr-exp .sr-inp'); o.lv=exps[0]?exps[0].value:''; o.expv=exps[1]?exps[1].value:''; }
+  if(live){ o.expRaw=live.value; o.isDeathToggle=_srIsDeathOn(which); } else { var exps=root.querySelectorAll('.sr-exp .sr-inp'); o.lv=exps[0]?exps[0].value:''; o.expv=exps[1]?exps[1].value:''; }
   return o;
 }
 function _srRecapHTML(d,calc){
   var chips=d.recs.map(function(r){return '<span class="sr-sc">'+_srEsc(r)+'</span>';}).join('');
   var shot=d.shot?'<span class="sr-rv sr-ok">✓ attached</span>':'<span class="sr-rv sr-re">✗ missing</span>';
   var expLine = calc ? ('Lv '+calc.lv+' @ '+calc.exp.toFixed(2)+'%'+(calc.leveledUp?' ↑':'')) : ('Lv '+_srEsc(d.lv)+' · '+_srEsc(d.expv)+'%');
-  var gainLine = calc ? ('<div class="sr-rrow"><span class="sr-rl">Gain</span><span class="sr-rv '+(calc.typo?'sr-re':(calc.gain<0?'':'sr-ok'))+'">'+(calc.gain>=0?'+':'')+calc.gain.toFixed(2)+'%'+(calc.isDeath?' (lost)':'')+'</span></div>') : '';
+  var gainLine = calc ? ('<div class="sr-rrow"><span class="sr-rl">Gain</span><span class="sr-rv '+(calc.typo?'sr-re':(calc.gain<0?'':'sr-ok'))+'">'+(calc.gain>=0?'+':'')+calc.gain.toFixed(2)+'%'+((calc.isDeath&&calc.gain<0)?' (lost)':'')+'</span></div>') : '';
   return '<div class="sr-rrow"><span class="sr-rl">Client · PC</span><span class="sr-rv">'+_srEsc(d.pc)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Map</span><span class="sr-rv">'+_srEsc(d.map)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Time</span><span class="sr-rv">'+_srEsc(d.t1)+' → '+_srEsc(d.t2)+'</span></div>'
@@ -15525,7 +15532,7 @@ function _srReview(which){
   var d=_srReadScreen(which);
   var ending=(which==='checkout')||(_srWinEnd>=_srShiftEndH);
   var prev=_srPrev();
-  var calc = (d.expRaw!=null && prev) ? _srApplyExp(prev.lv,prev.exp,d.expRaw) : null;
+  var calc = (d.expRaw!=null && prev) ? _srApplyExp(prev.lv,prev.exp,d.expRaw,d.isDeathToggle) : null;
   var endAdeR=parseFloat(d.adena); if(isNaN(endAdeR)) endAdeR=(prev?prev.adena:0);
   var adenaTypo = !!(prev && _srAdenaTypo(prev.adena, endAdeR));   // [v302] suspicious adena jump
   document.getElementById('sr-sheet-title').textContent=ending?'Check out — is this right?':'Submit report — is this right?';
@@ -16217,41 +16224,29 @@ function _srInjectCSS(){
   document.head.appendChild(s);
 }
 
-// [v437] "Died this hour" toggle — previously a booster who died had to manually type a MINUS-prefixed
-// number representing how much % they lost (e.g. "-16.99"), which was confusing and easy to get wrong
-// (forgetting the "-" silently submits a huge fake EXP gain instead of a loss). Now they just tap the
-// 💀 toggle and type a plain POSITIVE number for how much they lost — the minus sign is applied for them.
+// [v438] "Died this hour" toggle — type EXACTLY what's on your bar, same as always. The toggle's only
+// job is telling the system "treat a smaller number as a death loss, not a level-up wrap" — no math, no
+// minus sign, no subtracting anything in your head. (v437 still made the booster calculate the loss amount
+// themselves before typing; this removes that step entirely — see _srApplyExp's forceDeath param.)
 function _srExpRow(prefix,mode,screen){
   if(mode==='live'){
-    return '<div class="sr-row"><label class="sr-lab" id="sr-explab-'+screen+'">EXP now <span style="color:var(--tx3,#6c6b66);font-weight:400">· type the % on your bar</span></label>'
+    return '<div class="sr-row"><label class="sr-lab">EXP now <span style="color:var(--tx3,#6c6b66);font-weight:400">· type the % on your bar</span></label>'
       +'<div class="sr-exp"><input class="sr-inp sr-exp-live" value="" inputmode="decimal" placeholder="0.00" oninput="_srExpPreview(\''+screen+'\')"><span class="sr-u">%</span></div>'
-      +'<label class="sr-death-tog" id="sr-deathtog-'+screen+'"><input type="checkbox" class="sr-death-cb" onchange="_srDeathToggle(\''+screen+'\')"> 💀 Died this hour</label>'
+      +'<label class="sr-death-tog" id="sr-deathtog-'+screen+'"><input type="checkbox" class="sr-death-cb" onchange="_srDeathToggle(\''+screen+'\')"> 💀 Died this hour <span style="font-weight:400;opacity:.75">— bar went down? check this</span></label>'
       +'<div class="sr-exp-prev" id="sr-prev-'+screen+'">→ enter your EXP</div></div>';
   }
   return '<div class="sr-row"><label class="sr-lab">'+prefix+' EXP</label><div class="sr-exp"><span class="sr-u">Lv</span><input class="sr-inp sr-lv" value="" inputmode="numeric" placeholder="35"><input class="sr-inp" value="" inputmode="decimal" placeholder="0.00"><span class="sr-u">%</span></div></div>';
 }
-// Returns the input's value already normalized to what _srApplyExp expects: when "Died this hour" is
-// checked, a plain positive loss amount (e.g. "16.99") becomes "-16.99"; any "-" the booster might still
-// type themselves is stripped first so it can never become a double-negative.
-function _srDeathRaw(screen){
-  var inp=document.querySelector('#sr-s-'+screen+' .sr-exp-live'); if(!inp) return '';
+function _srIsDeathOn(screen){
   var cb=document.querySelector('#sr-s-'+screen+' .sr-death-cb');
-  var raw=String(inp.value||'').trim();
-  if(cb && cb.checked){ raw=raw.replace(/^-/,''); if(raw!=='') raw='-'+raw; }
-  return raw;
+  return !!(cb && cb.checked);
 }
 function _srDeathToggle(screen){
   var cb=document.querySelector('#sr-s-'+screen+' .sr-death-cb');
   var tog=document.getElementById('sr-deathtog-'+screen);
-  var lab=document.getElementById('sr-explab-'+screen);
-  var inp=document.querySelector('#sr-s-'+screen+' .sr-exp-live');
   var on=!!(cb&&cb.checked);
   if(tog) tog.classList.toggle('on',on);
-  if(lab) lab.innerHTML = on
-    ? 'EXP lost <span style="color:var(--tx3,#6c6b66);font-weight:400">· type how much % you lost (just the number, no minus needed)</span>'
-    : 'EXP now <span style="color:var(--tx3,#6c6b66);font-weight:400">· type the % on your bar</span>';
-  if(inp){ inp.placeholder = on ? 'e.g. 16.99' : '0.00'; if(on) inp.value = String(inp.value||'').replace(/^-/,''); }
-  _srExpPreview(screen);
+  _srExpPreview(screen);   // the field itself, label and placeholder never change — only re-check the math
 }
 function _srBuildHTML(){
   var booster=_srEsc(_srBooster());
