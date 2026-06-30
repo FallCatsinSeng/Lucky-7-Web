@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v426 — Staff List(직원 목록): 플레이어 컬럼을 시프트별 드롭 컬럼으로 분리(12H 주간/야간 · 8H S1/S2/S3 · 미배정). 상호 shift 해결=live PC > 수동. 카드를 시프트 컬럼간 드래그=수동 시프트 재배정(saveStaffState). 보드=가로 스크롤 플렉스 — 이전: v425 Supabase 부하 절감 --> 부하 대폭 절감(무료 유지): presence 가 더 이상 매 주기 avatar_url(base64) 를 전 직원에서 SELECT 하지 않음(PHOTOS 캐시 1회 시드 후 경량 컬럼만). heartbeat 45s->120s, online 임계 90s->180s, 무거운 poll 간격 연장(client/syncAll 6m, shift 4m, nav 3m) -->
+<!-- BUILD: v427 — Staff List(직원 목록): 플레이어 컬럼은 1개 유지 + 상단에 시프트 칩 필터(All · 12H 주/야 · 8H S1/2/3 · 미배정) 추가. 칩 탭=해당 시프트 플레이어만 표시. 시프트 해결=live PC > 수동. 시프트 배정은 직원 상세 패널의 드롭다운으로. 이전: v425 Supabase 부하 절감 --> 부하 대폭 절감(무료 유지): presence 가 더 이상 매 주기 avatar_url(base64) 를 전 직원에서 SELECT 하지 않음(PHOTOS 캐시 1회 시드 후 경량 컬럼만). heartbeat 45s->120s, online 임계 90s->180s, 무거운 poll 간격 연장(client/syncAll 6m, shift 4m, nav 3m) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3229,11 +3229,10 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .sf3-cards-v{display:flex;flex-direction:column;gap:10px}
 
 /* 직원 칸반 보드 (체크인 스타일) */
-.sf3-board{display:flex;gap:11px;margin-top:8px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin;scroll-snap-type:x proximity}
-.sf3-board::-webkit-scrollbar{height:9px}
-.sf3-board::-webkit-scrollbar-thumb{background:var(--br);border-radius:8px}
-@media (max-width:560px){.sf3-col{flex:0 0 200px!important;min-width:200px!important}}
-.sf3-col{flex:0 0 232px;min-width:232px;scroll-snap-align:start;background:var(--bg-c);border:1px solid var(--br);border-radius:13px;display:flex;flex-direction:column;overflow:hidden}
+.sf3-board{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:8px}
+@media (max-width:1080px){.sf3-board{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.sf3-board{grid-template-columns:1fr}}
+.sf3-col{background:var(--bg-c);border:1px solid var(--br);border-radius:13px;display:flex;flex-direction:column;overflow:hidden}
 .sf3-col.sf3-sec-over{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-bord)}
 .sf3-col-head{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--br);border-top:3px solid var(--col-c)}
 .sf3-col-name{font-size:12.5px;font-weight:700;color:var(--tx)}
@@ -8328,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v426';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v427';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -10773,7 +10772,7 @@ function shiftHourBadge(cs){
   const col = { '8':'#e0954a', '10':'#5fa3d9', '12':'#a98fd6' }[n] || 'var(--tx3)';
   return `<span class="shift-hbadge" style="background:color-mix(in srgb,${col} 18%,transparent);color:${col}" title="${sh.type} 시프트 · ${sh.label}">${n}</span>`;
 }
-// [v426] effective shift key for a member: live PC-assigned shift (matchShift) wins, else manual_shift.
+// [v427] effective shift key for a member: live PC-assigned shift (matchShift) wins, else manual_shift.
 function _matchShiftKey(cs){
   const sh = matchShift(cs); if(!sh) return null;
   return Object.keys(SHIFT_SCHEDULE).find(function(k){ return SHIFT_SCHEDULE[k] === sh; }) || null;
@@ -18631,7 +18630,8 @@ let staffView = 'cards';  // 'cards' | 'list'
 let staffSort = 'score';  // 'score' | 'name' | 'joined' | 'warnings'
 let staffSearch = '';
 let staffStatusFilter = 'all';  // all | online | break | offline | off
-let _showInactiveStaff = false;  // [v262] Staff List: reveal resigned/inactive staff (hidden by default)
+let _showInactiveStaff = false;
+let staffShiftFilter = 'all';  // [v427] Staff List shift chip filter: 'all' | shift key | '_none'  // [v262] Staff List: reveal resigned/inactive staff (hidden by default)
 
 // [v163] cached today-attendance status for the Staff List (refreshed in background, never blocks open)
 let _staffAttCache = null, _staffAttFetching = false;
@@ -18700,6 +18700,12 @@ async function renderStaff(){
   let filtered = enriched;
   if(staffSearch) filtered = filtered.filter(m => m.name.toLowerCase().includes(staffSearch.toLowerCase()));
   if(staffStatusFilter !== 'all') filtered = filtered.filter(m => m.status === staffStatusFilter);
+  // [v427] shift chip filter — narrows the Player pool only; non-players are untouched
+  if(staffShiftFilter !== 'all') filtered = filtered.filter(m => {
+    if(m.role !== 'player') return true;
+    const k = _effShiftKey(m);
+    return staffShiftFilter === '_none' ? !k : k === staffShiftFilter;
+  });
   // [v262] hide resigned/inactive staff unless the "Inactive" toggle is on
   const resignedN = enriched.filter(m => _staffResigned(m.id)).length;
   if(!_showInactiveStaff) filtered = filtered.filter(m => !_staffResigned(m.id));
@@ -18750,19 +18756,12 @@ async function renderStaff(){
   };
 
   // 역할별 그룹 + 드롭존 (어드민 / OPTEAM / 플레이어 리더 / 플레이어)
-    // [v426] Player column -> one drop-column per shift. Effective shift = live PC shift first, else manual.
-  const _PLBL = function(ko,en,id){ return _uiLang()==='ko'?ko:(_uiLang()==='id'?id:en); };
-  const _shiftCols = Object.keys(SHIFT_SCHEDULE).map(function(k){ const s2 = SHIFT_SCHEDULE[k]; return {
-    id:'pshift:'+k, label:s2.type+' '+s2.label, icon:s2.icon, color:s2.color, desc:s2.work, shiftKey:k,
-    match: function(m){ return m.role==='player' && !m.leader && _effShiftKey(m)===k; }
-  }; });
   const groups = [
     { id:'admin',         label:'어드민',      icon:'👑', color:'#b074ec', desc:'관리자 — 시스템 전체 권한', match: m => m.role==='admin' },
     { id:'op',            label:'OPTEAM',      icon:'⚙️', color:'#c2a04a', desc:'운영팀 — 일일 운영 관리', match: m => m.role==='op' },
-    { id:'player_leader', label:'플레이어 리더', icon:'⭐', color:'#5fa3d9', desc:'리더 — 팀 리딩 담당 플레이어', match: m => m.role==='player' && m.leader }
-  ].concat(_shiftCols).concat([
-    { id:'pshift:_none', label:_PLBL('미배정','No shift','Tanpa shift'), icon:'○', color:'#9aa3b0', desc:'', shiftKey:'_none', match: function(m){ return m.role==='player' && !m.leader && !_effShiftKey(m); } }
-  ]);
+    { id:'player_leader', label:'플레이어 리더', icon:'⭐', color:'#5fa3d9', desc:'리더 — 팀 리딩 담당 플레이어', match: m => m.role==='player' && m.leader },
+    { id:'player',        label:'플레이어',    icon:'🎮', color:'#3aa05a', desc:'플레이어 — 게임 운영 인력', match: m => m.role==='player' && !m.leader }
+  ];
 
   const canMove = canChangeRank();  // [v182] CEO-only by default, or roles granted "Rank Up/Down"
 
@@ -18786,6 +18785,16 @@ async function renderStaff(){
     </div>`;
   }).join('')}</div>`;
 
+  // [v427] shift chip filter row (player-centric, matches the Log·Stats shift groups)
+  const _players = enriched.filter(m => m.role === 'player');
+  const _shiftCount = function(k){ return _players.filter(function(m){ return _effShiftKey(m) === k; }).length; };
+  const _noneCount = _players.filter(function(m){ return !_effShiftKey(m); }).length;
+  const _SHIFT_PILL = { '12h_day':'☀️ 12H 주간', '12h_night':'🌙 12H 야간', '8h_s1':'🌅 8H S1', '8h_s2':'🌆 8H S2', '8h_s3':'🌃 8H S3' };
+  const shiftPills = `
+    <button class="tk-pill ${staffShiftFilter==='all'?'on':''}" onclick="staffShiftFilter='all';renderStaff()">${_uiLang()==='ko'?'전체':_uiLang()==='id'?'Semua':'All'} <span class="lg-count">${_players.length}</span></button>
+    ${Object.keys(SHIFT_SCHEDULE).map(function(k){ const sc=SHIFT_SCHEDULE[k]; const n=_shiftCount(k); const on=staffShiftFilter===k; return `<button class="tk-pill ${on?'on':''}" onclick="staffShiftFilter='${k}';renderStaff()" style="${on?('color:'+sc.color+';border-color:color-mix(in srgb,'+sc.color+' 45%,transparent)'):''}">${_SHIFT_PILL[k]} <span class="lg-count">${n}</span></button>`; }).join('')}
+    ${_noneCount>0?`<button class="tk-pill ${staffShiftFilter==='_none'?'on':''}" onclick="staffShiftFilter='_none';renderStaff()">❔ ${_uiLang()==='ko'?'미배정':_uiLang()==='id'?'Tanpa shift':'Unassigned'} <span class="lg-count">${_noneCount}</span></button>`:''}
+  `;
   const statusPills = `
     <button class="tk-pill ${staffStatusFilter==='all'?'on':''}" onclick="staffStatusFilter='all';renderStaff()">전체 <span class="lg-count">${enriched.length}</span></button>
     <button class="tk-pill ${staffStatusFilter==='online'?'on':''}" onclick="staffStatusFilter='online';renderStaff()">● 근무 중 <span class="lg-count">${onlineN}</span></button>
@@ -18804,6 +18813,8 @@ async function renderStaff(){
       <div class="tk-pills" style="flex:1">${statusPills}</div>
       <input class="lg-search" placeholder="🔍 이름 검색..." value="${staffSearch}" oninput="staffSearch=this.value;renderStaff()" style="min-width:200px">
     </div>
+
+    <div class="tk-pills sf3-shift-pills" style="margin-top:2px;margin-bottom:6px">${shiftPills}</div>
 
     ${sections || '<div class="tk-empty">해당 직원 없음</div>'}
   </div>`;
@@ -18843,48 +18854,25 @@ function sfCardDragLeave(e){
 async function sfCardDrop(e, role){
   e.preventDefault();
   e.currentTarget.classList.remove('sf3-sec-over');
-  if(!sfDragId || sfDragFrom === role){ sfDragId=null; sfDragFrom=null; return; }
-  // member name for dialogs (Supabase ids are UUIDs)
+  if(!canChangeRank()){ toast(_uiLang()==='ko'?'랭크 변경 권한 없음':'No permission to change rank', true); sfDragId=null; sfDragFrom=null; return; }
+  if(!sfDragId || sfDragFrom === role) return;
+  // [v216] show the member's name in the confirm (Supabase ids are UUIDs)
   let mName = sfDragId;
   try{ const tc = (_teamCache||[]).find(x => x.id === sfDragId); if(tc && tc.name) mName = tc.name; }catch(_){}
-
-  const isShift   = String(role).indexOf('pshift:') === 0;
-  const fromShift = String(sfDragFrom||'').indexOf('pshift:') === 0;
-
-  // ── A) Shift reassignment — a Player dragged between shift columns (no role change) ──
-  if(isShift && (fromShift || sfDragFrom === 'player')){
-    if(!_canSetShift()){ toast(_uiLang()==='ko'?'시프트 변경 권한 없음':'No permission to set shift', true); sfDragId=null; sfDragFrom=null; return; }
-    const key = String(role).slice(7);                 // shift key or '_none'
-    const realKey = (key === '_none') ? '' : key;
-    const sObj = realKey ? SHIFT_SCHEDULE[realKey] : null;
-    const sLbl = sObj ? (sObj.icon+' '+sObj.type+' '+sObj.label) : (_uiLang()==='ko'?'미배정':_uiLang()==='id'?'Tanpa shift':'No shift');
-    if(!confirm(_uiLang()==='ko' ? (mName+'의 시프트를 '+sLbl+'(으)로 변경할까요?') : _uiLang()==='id' ? ('Ubah shift '+mName+' ke '+sLbl+'?') : ('Change '+mName+"'s shift to "+sLbl+'?'))){ sfDragId=null; sfDragFrom=null; return; }
-    if(typeof STAFF_PROFILE !== 'undefined'){ if(!STAFF_PROFILE[sfDragId]) STAFF_PROFILE[sfDragId] = {}; STAFF_PROFILE[sfDragId].manual_shift = realKey; }
-    try{ saveStaffState(); }catch(_){}
-    try{ logAction('update', 'set shift → ' + (sObj ? (sObj.type+' '+sObj.label) : 'None'), sfDragId); }catch(_){}
-    if(_matchShiftKey((typeof STAFF_DETAILS!=='undefined' ? (STAFF_DETAILS[sfDragId]||{}) : {}).current_shift)){
-      toast(_uiLang()==='ko'?'✓ 시프트 배정됨 (PC 배정 시 PC 시프트 우선)':_uiLang()==='id'?'✓ Shift ditetapkan (shift PC tetap diutamakan saat di PC)':'✓ Shift set (live PC shift still wins on a PC)');
-    } else {
-      toast('✓ ' + (_uiLang()==='ko'?'시프트 배정됨':_uiLang()==='id'?'Shift ditetapkan':'Shift assigned'));
-    }
-    sfDragId = null; sfDragFrom = null;
-    renderStaff();
-    return;
-  }
-
-  // ── B) Role change — Admin / OPTEAM / Player-Leader, or a non-player dropped into a shift column ──
-  if(!canChangeRank()){ toast(_uiLang()==='ko'?'랭크 변경 권한 없음':'No permission to change rank', true); sfDragId=null; sfDragFrom=null; return; }
-  const targetRole = isShift ? 'player' : role;        // dropping a non-player into a shift column → Player
-  const roleLabel = ({admin:'어드민', op:'OPTEAM', player_leader:'플레이어 리더', player:'플레이어', staff:'Staff'})[targetRole];
-  if(!confirm(mName+'의 역할을 '+roleLabel+'(으)로 변경할까요?\n\n관련 시스템 권한이 자동 조정됩니다.')){
+  const roleLabel = ({admin:'어드민', op:'OPTEAM', player_leader:'플레이어 리더', player:'플레이어', staff:'Staff'})[role];
+  if(!confirm(`${mName}의 역할을 ${roleLabel}(으)로 변경할까요?\n\n관련 시스템 권한이 자동 조정됩니다.`)){
     sfDragId = null; sfDragFrom = null;
     return;
   }
-  const realRole = (targetRole === 'player_leader') ? 'player' : targetRole;
-  if(targetRole === 'player_leader') PLAYER_LEADERS.add(sfDragId);
+  // player_leader / player → 실제 role은 'player', leader 플래그로 구분
+  const realRole = (role === 'player_leader') ? 'player' : role;
+  if(role === 'player_leader') PLAYER_LEADERS.add(sfDragId);
   else PLAYER_LEADERS.delete(sfDragId);
   savePermState();
-  const dbRole = ({ admin:'admin', op:'op', player_leader:'leader', player:'staff' })[targetRole];
+  // [v216] persist the move to user_profiles so it survives reload and reaches every user.
+  // Before, only an in-memory list changed — moves reverted on refresh and never synced,
+  // and a blocked save failed silently. Now a failed save shows a red toast.
+  const dbRole = ({ admin:'admin', op:'op', player_leader:'leader', player:'staff' })[role];
   let dbSaved = true;
   if(sb && dbRole){
     try{
@@ -18892,23 +18880,20 @@ async function sfCardDrop(e, role){
       if(error){ dbSaved = false; toast('Role save FAILED: ' + error.message, true); }
     }catch(err){ dbSaved = false; toast('Role save FAILED: ' + ((err && err.message) || err), true); }
   }
+  // update the cached team list so the board reflects the new role instantly
   try{
     const tc = (_teamCache||[]).find(x => x.id === sfDragId);
     if(tc && dbSaved && dbRole){ tc.db_role = dbRole; tc.role = (typeof boardTeam==='function') ? boardTeam(dbRole) : realRole; }
   }catch(_){}
+  // Mock: TEAM_ATTENDANCE에서 role 변경
   if(typeof TEAM_ATTENDANCE !== 'undefined'){
     const t = TEAM_ATTENDANCE.find(x => x.name.toLowerCase() === sfDragId);
     if(t) t.role = realRole;
   }
+  // TRUST_DATA의 system도 자동 변경
   const td = TRUST_DATA[sfDragId];
   if(td) td.system = realRole === 'op' ? 'op' : realRole === 'player' ? 'player' : 'admin';
-  // [v426] dropped into a shift column → also assign that shift to the now-Player
-  if(isShift && dbSaved && _canSetShift()){
-    const key = String(role).slice(7); const realKey = (key === '_none') ? '' : key;
-    if(typeof STAFF_PROFILE !== 'undefined'){ if(!STAFF_PROFILE[sfDragId]) STAFF_PROFILE[sfDragId] = {}; STAFF_PROFILE[sfDragId].manual_shift = realKey; }
-    try{ saveStaffState(); }catch(_){}
-  }
-  toast(mName + ' → ' + roleLabel + ' 이동');
+  toast(`${mName} → ${roleLabel} 이동`);
   sfDragId = null; sfDragFrom = null;
   renderStaff();
 }
