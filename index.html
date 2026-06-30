@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v406 — 사이드바 편집(이름변경/삭제/순서)을 Supabase nav_state에 저장→모든 사용자 공유, 부팅 시 로드, 새 빌드의 신규 채널 자동 병합(삭제한 건 복원 안 함). 편집 권한 CEO/매니저(admin) 전용 — 비관리자는 편집 버튼 숨김+드래그 차단. ※ Supabase에 nav_state 테이블 생성 필요 -->
+<!-- BUILD: v407 — 사이드바 저장 버그 수정: Supabase 제한 초과/오류 시에도 localStorage에 즉시 저장(catch 블록에서 _navLoaded 설정, localStorage/Supabase 가드 분리). Egress 절감: 리쿠르트 백그라운드 새로고침 8초→10분 스로틀; _srGetCalc('reports') 90초 클라이언트 캐시(쓰기 시 자동 무효화) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v406';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v407';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -8969,7 +8969,7 @@ async function renderRecruit(){
       }
     } else {
       const _sig = _recruitSigLite(); if(_sig !== _recruitSig){ _recruitSig = _sig; saveRecruits(); _recruitCacheSave(); }
-      if(Date.now() - _recruitLastSync > 8000) _recruitBgRefresh();   // freshness on entry, non-blocking
+      if(Date.now() - _recruitLastSync > 600000) _recruitBgRefresh();   // [v407] throttle: at most once per 10 min (was 8s) — recruit blob has base64 CVs; the old 8s throttle was the main driver of Supabase egress
     }
   }
   if(purgeExpiredRejects() > 0){ saveRecruits(); _recruitSig = _recruitSigLite(); }
@@ -15517,6 +15517,7 @@ async function _srConfirm(){
 }
 // ───────── shift report: save to payroll + post Discord card ─────────
 var _SR_SERVER='https://buju-report-production.up.railway.app';   // report server (Railway). If the host ever moves, change ONLY this line.
+var _srCalcCache = {};   // [v407] short-term cache for _srGetCalc; key -> {ts, data}. Cuts repeated Supabase egress from multi-fetch per submit/load.
 var _srBusy=false;
 var _srLastMap='';   // [v316] last map the booster picked — kept across form re-renders so it can't snap back to default
 function _srKST(h){ return _srPad(h+2); }
@@ -15546,11 +15547,17 @@ async function _srFetchRetry(url, opts){
 }
 // CRITICAL: throw on a failed GET. Returning [] here would make a later save overwrite the whole
 // reports array with just the new record — silent data loss. The caller catches and shows an error.
-async function _srGetCalc(key){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key); if(!r.ok) throw new Error('GET '+key+' '+r.status); var j=await r.json(); return Array.isArray(j.value)?j.value:[]; }
-async function _srPutCalc(key,arr){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:arr})}); return r.ok; }
+async function _srGetCalc(key,_noCache){
+  var _ttl=(key==='reports'?90000:30000);   // [v407] reports: 90s TTL; others: 30s
+  if(!_noCache && _srCalcCache[key] && (Date.now()-_srCalcCache[key].ts)<_ttl) return _srCalcCache[key].data;
+  var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key); if(!r.ok) throw new Error('GET '+key+' '+r.status);
+  var j=await r.json(); var d=Array.isArray(j.value)?j.value:[];
+  _srCalcCache[key]={ts:Date.now(),data:d}; return d;
+}
+async function _srPutCalc(key,arr){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:arr})}); if(r.ok) delete _srCalcCache[key]; return r.ok; }   // [v407] invalidate cache on write
 // [v268] Append new items server-side — sends only the NEW records (small body, no size limit) instead of
 // re-uploading the whole reports array. Faster, and avoids the Express 100KB body cap that was blocking saves.
-async function _srAppendCalc(key,items){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key+'/append',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})}); return {ok:r.ok, status:r.status}; }
+async function _srAppendCalc(key,items){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key+'/append',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})}); if(r.ok) delete _srCalcCache[key]; return {ok:r.ok, status:r.status}; }   // [v407] invalidate cache on write
 // [v299] Push ERP character gear into the REPORT system's client list, so the bot's report shows
 // Class/Weapon/Armor/AC (it reads job/sword/armor/ac from that list, not the ERP editor's store).
 // SAFE BY DESIGN: it fetches the current list, fills ONLY the gear fields on each matching client
@@ -22041,13 +22048,13 @@ function _navPayload(){
   return { categories: CHANNEL_TREE.categories, knownIds: knownIds, ts: Date.now() };
 }
 function saveNavState(){
-  if(!_navLoaded || !_canEditNav()) return;   // never write before the team layout loaded (would clobber it); managers only
+  if(!_canEditNav()) return;   // [v407] role gate (CEO/Manager only)
   var p, sig;
   try{ p = _navPayload(); sig = JSON.stringify(p.categories); }catch(_){ return; }
-  if(sig === _navSig) return;                  // renderSidebar fires constantly — only write on a real change
+  if(sig === _navSig) return;   // only write on a real change
   _navSig = sig;
-  try{ localStorage.setItem('lucky7_nav_state', JSON.stringify(p)); }catch(_){}
-  try{ _dbUpsert('nav_state','default',p); }catch(_){}
+  try{ localStorage.setItem('lucky7_nav_state', JSON.stringify(p)); }catch(_){}   // [v407] always save to localStorage (works even when Supabase is throttled/offline)
+  if(_navLoaded) try{ _dbUpsert('nav_state','default',p); }catch(_){}   // [v407] only sync to Supabase once the team layout has been loaded (avoids clobbering)
 }
 function _applyNavPayload(p){
   try{
@@ -22078,7 +22085,7 @@ async function loadNavState(){
     if(r.error){ try{ console.warn('nav_state load:', r.error.message); }catch(_){} _navLoaded = true; return; }   // table missing -> allow first save
     if(r.data && r.data.data) _applyNavPayload(r.data.data);
     _navLoaded = true;
-  }catch(e){ try{ console.warn('nav_state load:', e && e.message); }catch(_){} }   // network error -> stay locked, retry on reload
+  }catch(e){ try{ console.warn('nav_state load:', e && e.message); }catch(_){} _navLoaded = true; }   // [v407] set _navLoaded even on network error; localStorage saves must still work when Supabase is throttled
 }
 
 function moveChannel(catId, idx, dir){
