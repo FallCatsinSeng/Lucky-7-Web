@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v416 — Lineage Ops / Maple Ops 가 실제 페이지로: 게임별 🗺 사냥터/맵 섹션 내장(옵션3). Lineage 는 MAP_GROUPS(클라우드 동기) 사용, Maple 은 MAPLE_MAP_GROUPS(빈 상태, 추후 입력). renderGameGuide+gg-style 추가, guide-lineage/guide-maple 라우팅. Map Info 채널은 이제 중복 — 사이드바 편집기로 삭제 가능. v415 resigned 유지 -->
+<!-- BUILD: v417 — Map Info(pl-maps) 채널을 사이드바에서 제거: 기본 트리에서 삭제 + REMOVED_CHANNEL_IDS 로 저장된 nav_state 에서도 매 로드 시 자동 제거. 맵 정보는 v416 Lineage/Maple Ops 페이지 안에 있음. v415/v416 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8137,7 +8137,6 @@ const CHANNEL_TREE = {
       channels:[
         { id:'pl-lineage-guide', name:'리니지 운영', icon:'sword', module:'guide-lineage', kind:'view' },
         { id:'pl-maple-guide',   name:'메이플 운영', icon:'leaf',  module:'guide-maple', kind:'view' },
-        { id:'pl-maps',          name:'맵 정보',     icon:'map',   module:'maps', kind:'view' },
         { id:'pl-exp-standard',  name:'성과 계산기',  icon:'target',module:'calc-embed', kind:'view' },
         { id:'pl-records',       name:'기록·통계',    icon:'scroll', module:'records', kind:'view', perms:['admin'] },
         { id:'pl-race',          name:'레이스',       icon:'trend',  module:'race', kind:'view', perms:['all'] },
@@ -8198,6 +8197,7 @@ const CHANNEL_TREE = {
 // future builds add into a saved custom layout WITHOUT re-adding ones the CEO deleted, and to recover if a
 // saved layout is invalid. Deep copy so later edits to CHANNEL_TREE never mutate it.
 const DEFAULT_CHANNEL_TREE = (function(){ try{ return JSON.parse(JSON.stringify(CHANNEL_TREE)); }catch(_){ return { categories: [] }; } })();
+const REMOVED_CHANNEL_IDS = { 'pl-maps': 1 };   // [v417] force-stripped from any saved nav_state — Map Info moved into Lineage/Maple Ops
 
 // ═══════════════════════════════════════════════════
 // RECRUIT MODULE — 채용 트래커 (Kanban + Detail + Comments)
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v416';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v417';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -22134,6 +22134,7 @@ function _applyNavPayload(p){
     if(!p || !Array.isArray(p.categories) || !p.categories.length) return;   // invalid -> keep current tree
     var known = {}; (p.knownIds||[]).forEach(function(id){ known[id]=1; });
     var merged = p.categories.map(function(c){ return Object.assign({}, c, { channels: (c.channels||[]).slice() }); });
+    try{ merged.forEach(function(c){ c.channels = (c.channels||[]).filter(function(ch){ return !(ch && REMOVED_CHANNEL_IDS[ch.id]); }); }); }catch(_){ }   // [v417] drop force-removed channels (Map Info) from saved layouts
     var catById = {}, have = {};
     merged.forEach(function(c){ catById[c.id]=c; (c.channels||[]).forEach(function(ch){ have[ch.id]=1; }); });
     // migrate in DEFAULT channels genuinely NEW since this layout was saved (not known, not present) so later
