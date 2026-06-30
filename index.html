@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v431 | Shift Report: shift is now changeable in the Update stage (switch shift mid-shift WITHOUT checking in again). | v430 Shift Report: added 'Day · 10h' (09:00-19:00) option (Claws still on 10h this month). | v429 Scoreboard PLAYER column gets the same shift chip filter as the Staff List. | v428 Staff List: single Player column + top shift CHIP filter (All / 12H Day-Night / 8H S1-2-3 / Unassigned); chip narrows to that shift; shift = live PC then manual. Attendance 'This month' now loads the full calendar month (no row cap). Fixed a v426/v427 head bug where a stray comment fragment leaked into the head, hiding the favicon. Base v425 perf: presence stopped SELECTing base64 avatars each cycle; heartbeat 45s->120s, online 90s->180s, heavy polls client/syncAll 6m, shift 4m, nav 3m. -->
+<!-- BUILD: v432 | Standard EXP tab + Resigned/Hidden strip localized to Korean (English mode unchanged; names/maps untouched). | v431 Shift Report: shift is now changeable in the Update stage (switch shift mid-shift WITHOUT checking in again). | v430 Shift Report: added 'Day · 10h' (09:00-19:00) option (Claws still on 10h this month). | v429 Scoreboard PLAYER column gets the same shift chip filter as the Staff List. | v428 Staff List: single Player column + top shift CHIP filter (All / 12H Day-Night / 8H S1-2-3 / Unassigned); chip narrows to that shift; shift = live PC then manual. Attendance 'This month' now loads the full calendar month (no row cap). Fixed a v426/v427 head bug where a stray comment fragment leaked into the head, hiding the favicon. Base v425 perf: presence stopped SELECTing base64 avatars each cycle; heartbeat 45s->120s, online 90s->180s, heavy polls client/syncAll 6m, shift 4m, nav 3m. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8327,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v431';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v432';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17226,7 +17226,7 @@ function _srRecCardHTML(data){
     }
     var chip=function(l,v){ return '<div class="sr-fchip"><span class="l">'+l+'</span><span class="v">'+v+'</span></div>'; };
     return '<div class="sr-card sr-rec-card" style="--gc:'+meta.gc+';--gcb:'+meta.gcb+'">'
-      +'<div class="sr-head"><h2>기록 · 통계</h2>'+((typeof _canEditNav==='function'&&_canEditNav())?('<button class="sr-train-tog'+(_isTrainingKey(curF,u.name)?' on':'')+'" onclick="_srToggleTrainingStaff(&#39;'+esc(curF)+'&#39;)">🎓 '+(_isTrainingKey(curF,u.name)?'TRAINING ON':'TRAINING')+'</button>'):'')+((typeof _canEditNav==='function'&&_canEditNav())?('<button class="sr-resign-tog" onclick="if(confirm(&#39;Remove from list? (resigned staff)&#39;))_srSetHidden(&#39;'+esc(curF)+'&#39;,true)">🚫 Resign</button>'):'')+'<span class="sr-badge sr-badge-lock">대표 · 매니저</span></div>'
+      +'<div class="sr-head"><h2>기록 · 통계</h2>'+((typeof _canEditNav==='function'&&_canEditNav())?('<button class="sr-train-tog'+(_isTrainingKey(curF,u.name)?' on':'')+'" onclick="_srToggleTrainingStaff(&#39;'+esc(curF)+'&#39;)">🎓 '+(_isTrainingKey(curF,u.name)?(_uiLang()==='ko'?'교육 ON':'TRAINING ON'):(_uiLang()==='ko'?'교육':'TRAINING'))+'</button>'):'')+((typeof _canEditNav==='function'&&_canEditNav())?('<button class="sr-resign-tog" onclick="if(confirm(&#39;Remove from list? (resigned staff)&#39;))_srSetHidden(&#39;'+esc(curF)+'&#39;,true)">'+(_uiLang()==='ko'?'🚫 퇴사':'🚫 Resign')+'</button>'):'')+'<span class="sr-badge sr-badge-lock">대표 · 매니저</span></div>'
       +'<button class="sr-focus-back" onclick="_srRecFilterBy(\'\')">← 전체 기록</button>'
       +'<div class="sr-focus-hd">'
         +'<div class="sr-focus-av" style="background:'+avColor(curF)+'">'+esc(avInit(u.name))+(LEADERS[curF]?'<span class="sr-crown">👑</span>':'')+'</div>'
@@ -17318,8 +17318,8 @@ function _srRecCardHTML(data){
     +'</div>';
   var _hidK=_hiddenKeys(); var resignedSec='';
   if(typeof _canEditNav==='function' && _canEditNav() && _hidK.length){
-    var _rchips=_hidK.map(function(k){ var nm=(universe[k]&&universe[k].name)||k; return '<span class="sr-resigned-chip">'+esc(nm)+'<button title="Restore" onclick="_srSetHidden(&#39;'+esc(k)+'&#39;,false)">↩</button></span>'; }).join('');
-    resignedSec='<div class="sr-resigned-sec"><div class="sr-resigned-hd">🚫 Resigned / hidden · '+_hidK.length+'</div><div class="sr-resigned-list">'+_rchips+'</div></div>';
+    var _rchips=_hidK.map(function(k){ var nm=(universe[k]&&universe[k].name)||k; return '<span class="sr-resigned-chip">'+esc(nm)+'<button title="'+(_uiLang()==='ko'?'복구':'Restore')+'" onclick="_srSetHidden(&#39;'+esc(k)+'&#39;,false)">↩</button></span>'; }).join('');
+    resignedSec='<div class="sr-resigned-sec"><div class="sr-resigned-hd">'+(_uiLang()==='ko'?'🚫 퇴사 / 숨김 · ':'🚫 Resigned / hidden · ')+_hidK.length+'</div><div class="sr-resigned-list">'+_rchips+'</div></div>';
   }
   var body = (mode==='clock')
     ? _clockBoardHTML(sessions)
@@ -17932,18 +17932,20 @@ async function renderCalcStandards(){
   try{ if(typeof _rcGetCache==='function' && typeof _rcSetCache==='function'){ var _ex=_rcGetCache()||{}; _rcSetCache(_ex.reports||[], Array.isArray(_csCalc)?_csCalc:[]); } }catch(_){}
 }
 
+function _csT(ko,en){ try{ return (_uiLang()==='ko')?ko:en; }catch(_){ return en; } }
+function _csJobKO(code){ var k=String(code||'').toLowerCase().trim(); var M={knight:'기사',mage:'법사',wizard:'법사',magician:'법사',lord:'군주',prince:'군주',royal:'군주',fairy:'요정',elf:'요정',darkelf:'다크엘프','dark elf':'다크엘프',warrior:'전사',illusionist:'환술사',dragonknight:'용기사','dragon knight':'용기사'}; return M[k]||code; }
 function _csRenderShell(otherView){
   if(!otherView) return;
   var togCls=_csTraining?'cs-train-tog on':'cs-train-tog';
-  var togSub=_csTraining?'ON · standards off (all base pay)':'OFF · standards applied';
-  var note=_csTraining?'<div class="cs-train-note">Training mode — standards not applied. Everyone is paid base, no penalties. (Standards are kept.)</div>':'';
+  var togSub=_csTraining?_csT('ON · 기준 미적용 (전원 기본급)','ON · standards off (all base pay)'):_csT('OFF · 기준 적용','OFF · standards applied');
+  var note=_csTraining?'<div class="cs-train-note">'+_csT('교육 모드 — 기준 미적용. 전원 기본급, 패널티 없음. (기준은 보존됩니다.)','Training mode — standards not applied. Everyone is paid base, no penalties. (Standards are kept.)')+'</div>':'';
   var isAdmin=(typeof currentUserRole!=='undefined' && currentUserRole==='admin');
-  var seedRow=isAdmin?'<div style="margin:-2px 0 14px;display:flex;align-items:center;gap:11px;flex-wrap:wrap"><button onclick="_csSeedStandards()" style="display:inline-flex;align-items:center;gap:7px;background:var(--ac,#c9963a);color:#1a1205;border:none;border-radius:10px;padding:9px 15px;font-weight:700;font-size:.85rem;cursor:pointer">⬇ Seed Standard EXP</button><span style="color:var(--tx3,#8a8a86);font-size:.8rem">Writes the 6-PC map targets to the report server · merges with existing · safe to re-run</span></div>':'';
-  otherView.innerHTML='<div class="cs-wrap"><div class="att-eyebrow">Game · Standard</div><div class="ph">EXP Standards</div>'
-    +'<div class="psub">Client &amp; PC from Lucky7 · maps editable, saved to the report server</div>'
-    +'<div class="cs-train-bar"><button class="'+togCls+'" onclick="_csToggleTraining()"><span class="cs-train-knob"></span><span class="cs-train-txt"><b>Training mode</b><small>'+togSub+'</small></span></button>'+note+'</div>'
+  var seedRow=isAdmin?'<div style="margin:-2px 0 14px;display:flex;align-items:center;gap:11px;flex-wrap:wrap"><button onclick="_csSeedStandards()" style="display:inline-flex;align-items:center;gap:7px;background:var(--ac,#c9963a);color:#1a1205;border:none;border-radius:10px;padding:9px 15px;font-weight:700;font-size:.85rem;cursor:pointer">⬇ '+_csT('기준 EXP 시드','Seed Standard EXP')+'</button><span style="color:var(--tx3,#8a8a86);font-size:.8rem">'+_csT('6개 PC 맵 목표를 리포트 서버에 기록 · 기존과 병합 · 재실행해도 안전','Writes the 6-PC map targets to the report server · merges with existing · safe to re-run')+'</span></div>':'';
+  otherView.innerHTML='<div class="cs-wrap"><div class="att-eyebrow">'+_csT('게임 · 기준','Game · Standard')+'</div><div class="ph">'+_csT('기준 EXP','EXP Standards')+'</div>'
+    +'<div class="psub">'+_csT('Lucky7의 고객 · PC · 맵 편집 가능, 리포트 서버에 저장','Client &amp; PC from Lucky7 · maps editable, saved to the report server')+'</div>'
+    +'<div class="cs-train-bar"><button class="'+togCls+'" onclick="_csToggleTraining()"><span class="cs-train-knob"></span><span class="cs-train-txt"><b>'+_csT('교육 모드','Training mode')+'</b><small>'+togSub+'</small></span></button>'+note+'</div>'
     +seedRow
-    +'<div class="cs-grid" id="cs-grid"><div class="cs-loading">Loading…</div></div>'
+    +'<div class="cs-grid" id="cs-grid"><div class="cs-loading">'+_csT('불러오는 중…','Loading…')+'</div></div>'
     +'<div class="cs-ed-bg" id="cs-ed-bg" onclick="if(event.target===this)_csEditClose()"><div class="cs-ed-modal" id="cs-ed-modal"></div></div></div>';
 }
 
@@ -17984,9 +17986,9 @@ function _csRenderGrid(calc){
     var sword=(c.weapon!=null&&c.weapon!=='')?c.weapon:((mc.sword!=null&&mc.sword!=='')?mc.sword:'');
     var armor=(c.armor_set!=null&&c.armor_set!=='')?c.armor_set:((mc.armor!=null&&mc.armor!=='')?mc.armor:'');
     var ac=(c.ac!=null&&c.ac!=='')?c.ac:((mc.ac!=null&&mc.ac!=='')?mc.ac:'');
-    var job=c.char_class?_srClassEN(c.char_class):(mc.job||'');
+    var job=c.char_class?(_uiLang()==='ko'?_csJobKO(c.char_class):_srClassEN(c.char_class)):(mc.job||'');
     var chips='<span class="cs-chip">Lv '+(esc(String(lv))||'\u2014')+'</span>';
-    if(sword!==''||armor!=='') chips+='<span class="cs-chip">Wpn '+(esc(String(sword))||'\u2014')+' / '+(esc(String(armor))||'\u2014')+' Armor</span>';
+    if(sword!==''||armor!==''){ var _sw=(esc(String(sword))||'\u2014'),_ar=(esc(String(armor))||'\u2014'); chips+='<span class="cs-chip">'+_csT('무기 '+_sw+' / 방어구 '+_ar,'Wpn '+_sw+' / '+_ar+' Armor')+'</span>'; }
     if(ac!=='') chips+='<span class="cs-chip">AC '+esc(String(ac))+'</span>';
     if(job!=='') chips+='<span class="cs-chip">'+esc(String(job))+'</span>';
     var maps=Array.isArray(mc.maps)?mc.maps:[];
@@ -17997,9 +17999,9 @@ function _csRenderGrid(calc){
       var _sh=(m.sh!=null&&m.sh!=='')?Number(m.sh):NaN, _sl=(m.sl!=null&&m.sl!=='')?Number(m.sl):NaN;
       var band=(isFinite(_sh)&&isFinite(_sl))?(' <span style="color:var(--tx3,#6c6b66);font-size:9.5px;font-weight:600">'+_sh.toFixed(2)+'~'+_sl.toFixed(2)+'</span>'):'';
       return '<div class="cs-map"><span class="cs-map-n">\uD83D\uDCCD '+mn+'</span><span class="cs-map-r">'+tgs+' <small>%/h</small>'+band+'</span></div>';
-    }).join('') : '<div class="cs-nomap">No maps yet. Tap Edit to add.</div>';
-    var train=_csIsTraining(nm); var tag=train?'<span class="cs-train-tag">TRAINING</span>':'';
-    return '<div class="cs-card'+(train?' train':'')+'"><div class="cs-card-top"><div class="cs-hd"><span class="cs-num">'+(i+1)+'.</span><span class="cs-name">'+esc(nm)+'</span>'+tag+'</div><button class="cs-edit" onclick="_csOpenEditor('+i+')">Edit \u270E</button></div><div class="cs-pc">'+pc+'</div><div class="cs-chips">'+chips+'</div><div class="cs-maps">'+mrows+'</div></div>';
+    }).join('') : '<div class="cs-nomap">'+_csT('아직 맵이 없어요. 편집을 눌러 추가하세요.','No maps yet. Tap Edit to add.')+'</div>';
+    var train=_csIsTraining(nm); var tag=train?'<span class="cs-train-tag">'+_csT('교육','TRAINING')+'</span>':'';
+    return '<div class="cs-card'+(train?' train':'')+'"><div class="cs-card-top"><div class="cs-hd"><span class="cs-num">'+(i+1)+'.</span><span class="cs-name">'+esc(nm)+'</span>'+tag+'</div><button class="cs-edit" onclick="_csOpenEditor('+i+')">'+_csT('편집','Edit')+' \u270E</button></div><div class="cs-pc">'+pc+'</div><div class="cs-chips">'+chips+'</div><div class="cs-maps">'+mrows+'</div></div>';
   }).join('');
   grid.innerHTML=cards;
 }
@@ -18030,24 +18032,24 @@ function _csEdShell(){
   var jobOpts=_CS_JOBS.map(function(j){ return '<option value="'+esc(j)+'"'+(String(e.job||'')===j?' selected':'')+'>'+esc(j)+'</option>'; }).join('');
   if(e.job && _CS_JOBS.indexOf(String(e.job))<0) jobOpts='<option value="'+esc(String(e.job))+'" selected>'+esc(String(e.job))+'</option>'+jobOpts;
   function step(field,label){ return '<div><span class="cs-ed-lbl">'+label+'</span><div class="cs-ed-step"><button onclick="_csEdStep(\''+field+'\',-1)">\u2212</button><input id="cs-ed-'+field+'" value="'+esc(String(e[field]!=null?e[field]:''))+'" inputmode="numeric" oninput="_csEdSet(\''+field+'\',this.value)"><button onclick="_csEdStep(\''+field+'\',1)">\uFF0B</button></div></div>'; }
-  return '<div class="cs-ed-hd"><div class="cs-ed-title">Edit client</div><button class="cs-ed-x" onclick="_csEditClose()">\u2715</button></div>'
+  return '<div class="cs-ed-hd"><div class="cs-ed-title">'+_csT('고객 편집','Edit client')+'</div><button class="cs-ed-x" onclick="_csEditClose()">\u2715</button></div>'
     +'<div class="cs-ed-body">'
-    +'<div class="cs-ed-g2"><div><span class="cs-ed-lbl">No. (client)</span><input class="cs-ed-inp" value="'+esc(String(e.no||''))+'" inputmode="numeric" oninput="_csEdSet(\'no\',this.value)"></div>'
-    +'<div><span class="cs-ed-lbl">PC number</span><input class="cs-ed-inp" value="'+esc(String(e.pc||''))+'" inputmode="numeric" oninput="_csEdSet(\'pc\',this.value)"></div></div>'
-    +'<div><span class="cs-ed-lbl">Client name</span><input class="cs-ed-inp" value="'+esc(String(e.name||''))+'" oninput="_csEdSet(\'name\',this.value)"></div>'
-    +'<div><span class="cs-ed-lbl">Game nickname</span><input class="cs-ed-inp" value="'+esc(String(e.nick||''))+'" oninput="_csEdSet(\'nick\',this.value)"></div>'
-    +'<div><span class="cs-ed-lbl">Job</span><select class="cs-ed-sel" onchange="_csEdSet(\'job\',this.value)">'+jobOpts+'</select></div>'
-    +'<div class="cs-ed-g4">'+step('lv','Level')+step('sword','Wpn')+step('armor','Armor')+step('ac','AC')+'</div>'
-    +'<div><div class="cs-ed-mhd2"><span class="cs-ed-mttl">Per-map hourly target (Korean / English + %/h)</span><span class="cs-ed-mexp">경험치</span></div>'
-    +'<div class="cs-ed-mcols"><span>Korean name</span><span>English name</span><span>Lv</span><span>Goal</span><span>Stb hi</span><span>Stb lo</span><span></span></div>'
+    +'<div class="cs-ed-g2"><div><span class="cs-ed-lbl">'+_csT('번호 (고객)','No. (client)')+'</span><input class="cs-ed-inp" value="'+esc(String(e.no||''))+'" inputmode="numeric" oninput="_csEdSet(\'no\',this.value)"></div>'
+    +'<div><span class="cs-ed-lbl">'+_csT('PC 번호','PC number')+'</span><input class="cs-ed-inp" value="'+esc(String(e.pc||''))+'" inputmode="numeric" oninput="_csEdSet(\'pc\',this.value)"></div></div>'
+    +'<div><span class="cs-ed-lbl">'+_csT('고객 이름','Client name')+'</span><input class="cs-ed-inp" value="'+esc(String(e.name||''))+'" oninput="_csEdSet(\'name\',this.value)"></div>'
+    +'<div><span class="cs-ed-lbl">'+_csT('게임 닉네임','Game nickname')+'</span><input class="cs-ed-inp" value="'+esc(String(e.nick||''))+'" oninput="_csEdSet(\'nick\',this.value)"></div>'
+    +'<div><span class="cs-ed-lbl">'+_csT('직업','Job')+'</span><select class="cs-ed-sel" onchange="_csEdSet(\'job\',this.value)">'+jobOpts+'</select></div>'
+    +'<div class="cs-ed-g4">'+step('lv',_csT('레벨','Level'))+step('sword',_csT('무기','Wpn'))+step('armor',_csT('방어구','Armor'))+step('ac','AC')+'</div>'
+    +'<div><div class="cs-ed-mhd2"><span class="cs-ed-mttl">'+_csT('맵별 시간당 목표 (한글 / 영어 + %/h)','Per-map hourly target (Korean / English + %/h)')+'</span><span class="cs-ed-mexp">경험치</span></div>'
+    +'<div class="cs-ed-mcols"><span>'+_csT('한글 이름','Korean name')+'</span><span>'+_csT('영어 이름','English name')+'</span><span>Lv</span><span>'+_csT('목표','Goal')+'</span><span>'+_csT('안정 상','Stb hi')+'</span><span>'+_csT('안정 하','Stb lo')+'</span><span></span></div>'
     +'<div id="cs-ed-maps">'+_csEdMapsHTML()+'</div>'
-    +'<button class="cs-ed-madd" onclick="_csEdAddMap()">\uFF0B Add map</button></div>'
+    +'<button class="cs-ed-madd" onclick="_csEdAddMap()">\uFF0B '+_csT('맵 추가','Add map')+'</button></div>'
     +'</div>'
-    +'<div class="cs-ed-ft"><button class="cs-ed-dele" onclick="_csEditDelete()">Delete client</button><button class="cs-ed-cancel" onclick="_csEditClose()">Cancel</button><button class="cs-ed-save" onclick="_csEditSave()">Save</button></div>';
+    +'<div class="cs-ed-ft"><button class="cs-ed-dele" onclick="_csEditDelete()">'+_csT('고객 삭제','Delete client')+'</button><button class="cs-ed-cancel" onclick="_csEditClose()">'+_csT('취소','Cancel')+'</button><button class="cs-ed-save" onclick="_csEditSave()">'+_csT('저장','Save')+'</button></div>';
 }
 function _csEdMapsHTML(){
   var e=_csEd||{}; var esc=_srEsc; var ms=e.maps||[];
-  if(!ms.length) return '<div class="cs-nomap" style="padding:6px 2px 10px">No maps yet. Add one below.</div>';
+  if(!ms.length) return '<div class="cs-nomap" style="padding:6px 2px 10px">'+_csT('아직 맵이 없어요. 아래에서 추가하세요.','No maps yet. Add one below.')+'</div>';
   return ms.map(function(m,j){
     return '<div class="cs-ed-mrow">'
       +'<input class="cs-ed-mc" value="'+esc(String(m.ko||''))+'" placeholder="개미굴" oninput="_csEdSetMap('+j+',\'ko\',this.value)">'
