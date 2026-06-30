@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v415 — 퇴사/숨김 직원(resigned): 목록·레이스·통계에서 완전 제외. 첫 로드 시 kun+ace 자동 숨김(이후 저장된 세트 우선). 직원 상세 헤더에 🚫 Resign 버튼 + By-Staff 하단 'Resigned/hidden' 복원 섹션. hidden_staff calc로 팀 공유. v414 training 유지 -->
+<!-- BUILD: v416 — Lineage Ops / Maple Ops 가 실제 페이지로: 게임별 🗺 사냥터/맵 섹션 내장(옵션3). Lineage 는 MAP_GROUPS(클라우드 동기) 사용, Maple 은 MAPLE_MAP_GROUPS(빈 상태, 추후 입력). renderGameGuide+gg-style 추가, guide-lineage/guide-maple 라우팅. Map Info 채널은 이제 중복 — 사이드바 편집기로 삭제 가능. v415 resigned 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v415';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v416';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15043,6 +15043,7 @@ function expDragLeave(el){ el.classList.remove('over'); }
 function expDrop(i){ if(EXP_DRAG===null||EXP_DRAG===i){EXP_DRAG=null;return;} const m=STANDARD_EXP.splice(EXP_DRAG,1)[0]; STANDARD_EXP.splice(i,0,m); EXP_DRAG=null; saveExpState(); renderExpStandard(); }
 // [v347] 맵 스탠다드 = 성과계산기(standard-calc v47) MAP_PRESETS 10존 그대로 이식 (full=한글존명·en 보존·short=칩용)
 const MAP_GROUPS={'경험치 맵':[{full:'말하는 섬 던전',en:'Talking Island Dungeon',short:'말섬던'},{full:'요정 숲 던전',en:'Elven Forest Dungeon',short:'요정숲'},{full:'글루디오 던전',en:'Gludio Dungeon',short:'글던'},{full:'사막 던전',en:'Desert Dungeon',short:'사막던'},{full:'개미굴',en:'Ant Cave',short:'개미굴'},{full:'기란 던전',en:'Giran Dungeon',short:'기란던'},{full:'용의 계곡 던전',en:'Dragon Valley Dungeon',short:'용계던'},{full:'에바 왕국',en:'Eva Kingdom',short:'에바'},{full:'오크 숲',en:'Orc Forest',short:'오크숲'},{full:'축복의 땅 (ATS ZONE)',en:'Blessed Lands (ATS Zone)',short:'축복ATS'}]};
+var MAPLE_MAP_GROUPS={};   // [v416] Maple Planet hunting grounds — starts empty; fill like MAP_GROUPS later
 const CLASS_KO={knight:'기사',mage:'법사',fairy:'요정',elf:'요정',darkelf:'다크엘프',prince:'군주',royal:'군주',warrior:'전사',illusionist:'환술사',dragonknight:'용기사'};
 function entrySpec(r){
   // [v296] Client comes LIVE from the PC's PC Status assignment (PC Status = source of truth),
@@ -22720,6 +22721,11 @@ function routeContent(){
     otherView.style.display = '';
     renderCalcEmbed();
     if(rightSb) rightSb.style.display = 'none';
+  } else if(ch && (ch.module === 'guide-lineage' || ch.module === 'guide-maple')){
+    pcView.style.display = 'none';
+    otherView.style.display = '';
+    renderGameGuide(ch.module === 'guide-maple' ? 'maple' : 'lineage');
+    if(rightSb) rightSb.style.display = 'none';
   } else if(ch && ch.module === 'race'){
     pcView.style.display = 'none';
     otherView.style.display = '';
@@ -22761,6 +22767,74 @@ function findChannelById(id){
   return null;
 }
 
+// [v416] GAME OPS pages (Lineage Ops / Maple Ops) — real pages with a Maps / hunting-ground section.
+//        Lineage maps come from MAP_GROUPS (live, cloud-synced); Maple from MAPLE_MAP_GROUPS (empty until filled).
+function _ggGroups(game){
+  var src=(game==='maple')?(typeof MAPLE_MAP_GROUPS!=='undefined'?MAPLE_MAP_GROUPS:null):(typeof MAP_GROUPS!=='undefined'?MAP_GROUPS:null);
+  var out=[];
+  try{ if(src){ Object.keys(src).forEach(function(g){
+    var maps=(src[g]||[]).filter(function(m){ var f=String((m&&(m.full||m.short))||'').toUpperCase(); return f && f!=='TEST'; });
+    if(maps.length) out.push({ name:g, maps:maps });
+  }); } }catch(_){ }
+  return out;
+}
+function _ggInjectCSS(){
+  if(document.getElementById('gg-style')) return;
+  var st=document.createElement('style'); st.id='gg-style';
+  st.textContent=[
+    ".gg-wrap{max-width:1100px;margin:0 auto;padding:6px 2px 48px}",
+    ".gg-head{display:flex;align-items:center;gap:13px;flex-wrap:wrap;padding:18px 20px;border-radius:16px;border:1px solid var(--br,#2c2c2b);background:linear-gradient(135deg,var(--gg-cb),transparent 70%);margin-bottom:18px}",
+    ".gg-ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--gg-cb);color:var(--gg-c);flex:none}",
+    ".gg-ic svg{width:24px;height:24px}",
+    ".gg-tt{font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--tx,#e6e5e2);line-height:1.15}",
+    ".gg-sub{font-size:12px;color:var(--tx3,#6c6b66);font-weight:600;margin-top:2px}",
+    ".gg-badge{font-size:10px;font-weight:800;letter-spacing:.05em;color:var(--gg-c);background:var(--gg-cb);border:1px solid var(--gg-c);padding:3px 9px;border-radius:999px;margin-left:auto}",
+    ".gg-sec{margin-bottom:20px}",
+    ".gg-sec-h{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:800;color:var(--tx,#e6e5e2);margin:0 2px 12px}",
+    ".gg-cnt{font-size:10px;font-weight:700;color:var(--tx3,#6c6b66);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);padding:1px 8px;border-radius:999px}",
+    ".gg-gline{flex:1;height:1px;background:var(--br,#242423)}",
+    ".gg-gname{font-size:11px;font-weight:700;color:var(--gg-c);text-transform:uppercase;letter-spacing:.05em;margin:14px 2px 9px}",
+    ".gg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}",
+    ".gg-map{border:1px solid var(--br,#2c2c2b);border-radius:12px;background:var(--bg-i,#1c1c1b);padding:12px 13px;transition:border-color .14s ease}",
+    ".gg-map:hover{border-color:var(--gg-c)}",
+    ".gg-map-code{display:inline-block;font-size:10px;font-weight:800;color:var(--gg-c);background:var(--gg-cb);border:1px solid var(--gg-c);border-radius:6px;padding:2px 7px;margin-bottom:8px;letter-spacing:.02em}",
+    ".gg-map-nm{font-size:14px;font-weight:700;color:var(--tx,#e6e5e2);line-height:1.25}",
+    ".gg-map-en{font-size:11px;color:var(--tx3,#6c6b66);margin-top:2px}",
+    ".gg-empty{border:1px dashed var(--br2,#33332f);border-radius:12px;background:var(--bg-c,#161616);padding:28px 18px;text-align:center;color:var(--tx3,#6c6b66);font-size:13px}",
+    ".gg-empty b{display:block;color:var(--tx2,#989792);font-size:14px;margin-bottom:5px}"
+  ].join("\n");
+  document.head.appendChild(st);
+}
+function renderGameGuide(game){
+  var ov=document.getElementById('ch-other'); if(!ov) return;
+  _ggInjectCSS();
+  var L=(typeof _uiLang==='function' && _uiLang()==='ko');
+  var META={ lineage:{ic:'sword',c:'#b074ec',cb:'rgba(176,116,236,.14)',tt:(L?'리니지 클래식':'Lineage Classic')},
+             maple:  {ic:'leaf', c:'#5fa3d9',cb:'rgba(95,163,217,.14)', tt:(L?'메이플 플래닛':'Maple Planet')} };
+  var m=META[game]||META.lineage;
+  var groups=_ggGroups(game);
+  var total=0; groups.forEach(function(g){ total+=g.maps.length; });
+  var icon=(typeof svgIcon==='function')?svgIcon(m.ic):'';
+  var gname=function(n){ return (n==='경험치 맵')?(L?'경험치 맵':'EXP Maps'):n; };
+  var _e=(typeof esc==='function')?esc:function(x){return String(x==null?'':x);};
+  var mapsHTML='';
+  if(total){
+    groups.forEach(function(g){
+      mapsHTML+='<div class="gg-gname">'+_e(gname(g.name))+'</div><div class="gg-grid">';
+      g.maps.forEach(function(mp){
+        var full=_e(mp.full||mp.short||''), en=_e(mp.en||''), short=_e(mp.short||mp.full||'');
+        mapsHTML+='<div class="gg-map"><span class="gg-map-code">'+short+'</span><div class="gg-map-nm">'+full+'</div>'+(en?'<div class="gg-map-en">'+en+'</div>':'')+'</div>';
+      });
+      mapsHTML+='</div>';
+    });
+  } else {
+    mapsHTML='<div class="gg-empty"><b>'+(L?'아직 맵 데이터가 없어요':'No map data yet')+'</b>'+(L?(m.tt+' 맵은 곧 추가됩니다.'):(m.tt+' maps will be added soon.'))+'</div>';
+  }
+  ov.innerHTML='<div class="gg-wrap" style="--gg-c:'+m.c+';--gg-cb:'+m.cb+'">'
+    +'<div class="gg-head"><span class="gg-ic">'+icon+'</span><div><div class="gg-tt">'+_e(m.tt)+'</div><div class="gg-sub">'+(L?'사냥터 · 맵 정보':'Hunting grounds · Map info')+'</div></div><span class="gg-badge">'+(L?'운영':'OPS')+'</span></div>'
+    +'<div class="gg-sec"><div class="gg-sec-h">🗺 '+(L?'사냥터 / 맵':'Hunting Grounds / Maps')+'<span class="gg-cnt">'+total+'</span><span class="gg-gline"></span></div>'+mapsHTML+'</div>'
+  +'</div>';
+}
 function renderPlaceholder(ch){
   if(!ch) return '<div class="ch-placeholder"><div class="ch-ph-name">페이지 없음</div></div>';
   const meta = CHANNEL_META[ch.id] || {};
