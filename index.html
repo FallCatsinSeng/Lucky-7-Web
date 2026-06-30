@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v428 | Staff List: single Player column + top shift CHIP filter (All / 12H Day-Night / 8H S1-2-3 / Unassigned); chip narrows to that shift; shift = live PC then manual. Attendance 'This month' now loads the full calendar month (no row cap). Fixed a v426/v427 head bug where a stray comment fragment leaked into the head, hiding the favicon. Base v425 perf: presence stopped SELECTing base64 avatars each cycle; heartbeat 45s->120s, online 90s->180s, heavy polls client/syncAll 6m, shift 4m, nav 3m. -->
+<!-- BUILD: v429 | Scoreboard PLAYER column gets the same shift chip filter as the Staff List. | v428 Staff List: single Player column + top shift CHIP filter (All / 12H Day-Night / 8H S1-2-3 / Unassigned); chip narrows to that shift; shift = live PC then manual. Attendance 'This month' now loads the full calendar month (no row cap). Fixed a v426/v427 head bug where a stray comment fragment leaked into the head, hiding the favicon. Base v425 perf: presence stopped SELECTing base64 avatars each cycle; heartbeat 45s->120s, online 90s->180s, heavy polls client/syncAll 6m, shift 4m, nav 3m. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8327,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v428';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v429';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -18639,7 +18639,8 @@ let staffSort = 'score';  // 'score' | 'name' | 'joined' | 'warnings'
 let staffSearch = '';
 let staffStatusFilter = 'all';  // all | online | break | offline | off
 let _showInactiveStaff = false;
-let staffShiftFilter = 'all';  // [v427] Staff List shift chip filter: 'all' | shift key | '_none'  // [v262] Staff List: reveal resigned/inactive staff (hidden by default)
+let staffShiftFilter = 'all';  // [v427] Staff List shift chip filter: 'all' | shift key | '_none'
+let trustShiftFilter = 'all';  // [v429] Scoreboard PLAYER shift chip filter  // [v262] Staff List: reveal resigned/inactive staff (hidden by default)
 
 // [v163] cached today-attendance status for the Staff List (refreshed in background, never blocks open)
 let _staffAttCache = null, _staffAttFetching = false;
@@ -19490,6 +19491,7 @@ async function renderTrust(){
       rank: t.rank || 'unranked',
       status: trustStatus(t, sys),
       protection_days: protectionDaysLeft(t),
+      current_shift: det.current_shift,
       shift_summary: det.current_shift || '—',
       current_pc: det.current_pc || '—',
       stat: det.status || 'offline'
@@ -19506,6 +19508,16 @@ async function renderTrust(){
   const opMembers = activeEnriched.filter(m => m.system === 'op').sort(sortFn);
   const leaderMembers = activeEnriched.filter(m => m.system === 'player' && m.leader).sort(sortFn);
   const playerMembers = activeEnriched.filter(m => m.system === 'player' && !m.leader).sort(sortFn);
+  // [v429] shift chip filter for the PLAYER column (live PC shift first, else manual)
+  const _trShiftCount = function(k){ return playerMembers.filter(function(m){ return _effShiftKey(m) === k; }).length; };
+  const _trNoneCount = playerMembers.filter(function(m){ return !_effShiftKey(m); }).length;
+  const playerMembersF = (trustShiftFilter==='all') ? playerMembers : playerMembers.filter(function(m){ const k=_effShiftKey(m); return trustShiftFilter==='_none' ? !k : k===trustShiftFilter; });
+  const _TR_SHIFT_PILL = { '12h_day':'☀️ 12H 주간', '12h_night':'🌙 12H 야간', '8h_s1':'🌅 8H S1', '8h_s2':'🌆 8H S2', '8h_s3':'🌃 8H S3' };
+  const trustShiftPills = `
+    <button class="tk-pill ${trustShiftFilter==='all'?'on':''}" onclick="trustShiftFilter='all';renderTrust()">${_uiLang()==='ko'?'전체':_uiLang()==='id'?'Semua':'All'} <span class="lg-count">${playerMembers.length}</span></button>
+    ${Object.keys(SHIFT_SCHEDULE).map(function(k){ const sc=SHIFT_SCHEDULE[k]; const n=_trShiftCount(k); const on=trustShiftFilter===k; return `<button class="tk-pill ${on?'on':''}" onclick="trustShiftFilter='${k}';renderTrust()" style="${on?('color:'+sc.color+';border-color:color-mix(in srgb,'+sc.color+' 45%,transparent)'):''}">${_TR_SHIFT_PILL[k]} <span class="lg-count">${n}</span></button>`; }).join('')}
+    ${_trNoneCount>0?`<button class="tk-pill ${trustShiftFilter==='_none'?'on':''}" onclick="trustShiftFilter='_none';renderTrust()">❔ ${_uiLang()==='ko'?'미배정':_uiLang()==='id'?'Tanpa shift':'Unassigned'} <span class="lg-count">${_trNoneCount}</span></button>`:''}
+  `;
 
   // summary stats reflect the ACTIVE team only (resigned excluded)
   const all = [...opMembers, ...leaderMembers, ...playerMembers];
@@ -19725,10 +19737,11 @@ async function renderTrust(){
       </div>
     </div>
 
+    <div class="tk-pills" style="margin:2px 0 14px">${trustShiftPills}</div>
     <div class="lb-board lb-board-3">
       ${buildSection('op', opMembers, { icon:'⚙️', label:'OPTEAM', desc:'운영 평가', color:'#c2a04a', bg:'rgba(194,160,74,.14)' })}
       ${buildSection('player_leader', leaderMembers, { icon:'🎖', label:'PLAYER LEADER', desc:'리더 평가', color:'#5fa3d9', bg:'rgba(95,163,217,.14)' })}
-      ${buildSection('player', playerMembers, { icon:'🎮', label:'PLAYER', desc:'게임 평가', color:'#3aa05a', bg:'rgba(58,160,90,.14)' })}
+      ${buildSection('player', playerMembersF, { icon:'🎮', label:'PLAYER', desc:'게임 평가', color:'#3aa05a', bg:'rgba(58,160,90,.14)' })}
     </div>
     ${(resignedMembers.length > 0 || canChangeRank()) ? buildResignStrip(resignedMembers) : ''}
   </div>`;
