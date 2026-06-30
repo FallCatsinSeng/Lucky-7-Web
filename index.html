@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v435 | Client Status: new Active/Passive toggle per client card (⏸/▶ button) — passive clients are NEVER deleted, just moved into their own dimmed 'Passive clients' section so they're easy to bring back later. -->
+<!-- BUILD: v436 | 버그수정: Active/Passive 토글 버튼이 안 눌리던 문제 — toggleClientActive 함수명이 PC현황의 기존 ON/OFF 토글과 충돌(나중 선언이 먼저 것을 덮어씀)해서 무반응이었음. toggleClientPassive로 이름 변경. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8336,7 +8336,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v435';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v436';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23571,8 +23571,8 @@ async function renderClients(){
     // 결제상태 좌측 바 (ADMIN만)
     const statusClass = (canSeeMoney ? ` cl-card-${c.payment.status}` : '') + (_passive ? ' cl-card-passive' : '');
     const toggleBtn = canOpenDetail ? (_passive
-      ? `<span class="cl-toggle-btn cl-toggle-reactivate" onclick="event.stopPropagation();toggleClientActive('${c.id}')" title="${_uiLang()==='ko'?'다시 활성화':'Reactivate'}">▶</span>`
-      : `<span class="cl-toggle-btn" onclick="event.stopPropagation();toggleClientActive('${c.id}')" title="${_uiLang()==='ko'?'비활성으로 전환 (삭제 아님)':'Set passive (not a delete)'}">⏸</span>`) : '';
+      ? `<span class="cl-toggle-btn cl-toggle-reactivate" onclick="event.stopPropagation();toggleClientPassive('${c.id}')" title="${_uiLang()==='ko'?'다시 활성화':'Reactivate'}">▶</span>`
+      : `<span class="cl-toggle-btn" onclick="event.stopPropagation();toggleClientPassive('${c.id}')" title="${_uiLang()==='ko'?'비활성으로 전환 (삭제 아님)':'Set passive (not a delete)'}">⏸</span>`) : '';
 
     const _cardHTML = `<div class="cl-card${statusClass}" data-cid="${c.id}" ${canOpenDetail ? `draggable="true" ondragstart="clDragStart(event,'${c.id}')" ondragend="clDragEnd(event)" ondragover="clDragOver(event)" ondragleave="clDragLeave(event)" ondrop="clDrop(event,'${c.id}')" onclick="clCardClick(event,'${c.id}')"` : 'style="cursor:default"'}>
       <div class="cl-card-top">
@@ -23725,10 +23725,15 @@ function removeClientAccount(cid){
   renderClients();
   try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
 }
-// [v435] Active/Passive toggle — unlike removeClientAccount this NEVER deletes anything: the client,
+// [v436] Active/Passive toggle — unlike removeClientAccount this NEVER deletes anything: the client,
 // its contract, PC links and history all stay exactly as-is. It just flips a flag so the card moves
 // into its own dimmed "Passive" section, for clients who paused service but might come back later.
-function toggleClientActive(cid){
+// NAMED toggleClientPassive (not toggleClientActive) — a DIFFERENT, unrelated toggleClientActive()
+// already exists for the PC-status pool's per-client ON/OFF (self-playing) chip, operating on the
+// CLIENTS pool via clientById(), not on CLIENT_ACCOUNTS. Reusing that name in v435 silently shadowed
+// this function (JS keeps only the later declaration), so the button called the wrong function and
+// did nothing — that's the "gak bisa di-klik" bug. Do not rename this back to toggleClientActive.
+function toggleClientPassive(cid){
   if(currentUserRole!=='admin' && currentUserRole!=='op'){ toast('No permission', true); return; }
   var c = CLIENT_ACCOUNTS.find(function(x){ return x.id === cid; });
   if(!c) return;
