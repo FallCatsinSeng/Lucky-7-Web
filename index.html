@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v413 — All 그룹뷰 compact band 더 촘촘하게(avatar/패딩/간격 축소), 모바일에서 gauge 타원으로 깨지던 버그 수정(flex:none), 헤더 타이틀 ellipsis로 잘림 방지. v404 dedup 주석 오타 수정(4분→실제 6시간) -->
+<!-- BUILD: v414 — 직원별 TRAINING 토글(CEO·매니저): 해당 직원은 레이스 제외 + 밴드 평균(소계/게이지)에서 제외. 목록에는 🎓 TRAINING 배지로 남아 으로 계속 관찰 가능. training_staff calc로 팀 공유, localStorage 즉시 반영. v413 compact 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v413';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v414';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15927,6 +15927,11 @@ function _srInjectCSS(){
 "#sr-app .sr-rec-tab{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);border-radius:11px;padding:7px 9px 6px;min-width:56px;cursor:pointer;transition:all .14s ease;}",
 "#sr-app .sr-rec-tab:hover{border-color:var(--tx3,#6c6b66);}",
 "#sr-app .sr-rec-tab.on{border-color:var(--ac,#c9963a);background:rgba(201,150,58,.10);}",
+"#sr-app .sr-rec-tab-train{border-style:dashed;border-color:var(--br2,#3a3a36);opacity:.92;}",
+"#sr-app .sr-pfp-train{background:rgba(86,130,232,.14);color:#7aa2f7;border:1px solid rgba(86,130,232,.32);min-width:auto;font-size:9px;letter-spacing:.03em;}",
+"#sr-app .sr-train-tog{background:var(--bg-i,#1c1c1b);color:var(--tx2,#989792);border:1px solid var(--br,#2c2c2b);font-size:10px;font-weight:800;letter-spacing:.04em;padding:4px 10px;border-radius:7px;cursor:pointer;margin:0 8px 0 auto;transition:all .14s ease;}",
+"#sr-app .sr-train-tog:hover{border-color:var(--tx3,#6c6b66);color:var(--tx,#e6e5e2);}",
+"#sr-app .sr-train-tog.on{background:rgba(86,130,232,.16);color:#7aa2f7;border-color:rgba(86,130,232,.4);}",
 "#sr-app .sr-rec-av{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;letter-spacing:.3px;flex:none;}",
 "#sr-app .sr-rec-tnm2{font-size:10px;font-weight:600;color:var(--tx,#e6e5e2);max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 "#sr-app .sr-rec-tperf{font-size:11px;font-weight:700;}",
@@ -17175,7 +17180,7 @@ function _srRecCardHTML(data){
     }
     var chip=function(l,v){ return '<div class="sr-fchip"><span class="l">'+l+'</span><span class="v">'+v+'</span></div>'; };
     return '<div class="sr-card sr-rec-card" style="--gc:'+meta.gc+';--gcb:'+meta.gcb+'">'
-      +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span></div>'
+      +'<div class="sr-head"><h2>기록 · 통계</h2>'+((typeof _canEditNav==='function'&&_canEditNav())?('<button class="sr-train-tog'+(_isTrainingKey(curF,u.name)?' on':'')+'" onclick="_srToggleTrainingStaff(&#39;'+esc(curF)+'&#39;)">🎓 '+(_isTrainingKey(curF,u.name)?'TRAINING ON':'TRAINING')+'</button>'):'')+'<span class="sr-badge sr-badge-lock">대표 · 매니저</span></div>'
       +'<button class="sr-focus-back" onclick="_srRecFilterBy(\'\')">← 전체 기록</button>'
       +'<div class="sr-focus-hd">'
         +'<div class="sr-focus-av" style="background:'+avColor(curF)+'">'+esc(avInit(u.name))+(LEADERS[curF]?'<span class="sr-crown">👑</span>':'')+'</div>'
@@ -17208,15 +17213,15 @@ function _srRecCardHTML(data){
   var bandHTML=function(g,compact){
     var meta=GMETA[g]||GMETA.un; var ks=(byG[g]||[]);
     var gGain=0,gQuota=0,gHours=0,recN=0;
-    ks.forEach(function(k){ var u=universe[k]; gGain+=u.gain; gQuota+=u.quota; gHours+=(u.hours||0); if(u.hasRec) recN++; });
+    ks.forEach(function(k){ var u=universe[k]; if(_isTrainingKey(k,u.name)) return;   /* [v414] training staff excluded from band average */ gGain+=u.gain; gQuota+=u.quota; gHours+=(u.hours||0); if(u.hasRec) recN++; });
     var gPerf=gQuota>0?Math.round(gGain/gQuota*100):null;
     var gActualH=gHours>0?(gGain/gHours):null;
     var ordered=ks.slice().sort(function(a,b){ var la=LEADERS[a]?1:0, lb=LEADERS[b]?1:0; if(la!==lb) return lb-la; var ua=universe[a],ub=universe[b]; var pa=ua.quota>0?ua.gain/ua.quota:(ua.hasRec?-1:-2); var pb=ub.quota>0?ub.gain/ub.quota:(ub.hasRec?-1:-2); if(pb!==pa) return pb-pa; return String(ua.name).localeCompare(String(ub.name)); });
-    var tabs=ordered.map(function(k){ var u=universe[k]; var p=u.quota>0?(u.gain/u.quota*100):null;
-      return '<button class="sr-rec-tab" style="--gc:'+meta.gc+'" data-staff="'+esc(k)+'" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))">'
+    var tabs=ordered.map(function(k){ var u=universe[k]; var p=u.quota>0?(u.gain/u.quota*100):null; var _tr=_isTrainingKey(k,u.name);
+      return '<button class="sr-rec-tab'+(_tr?' sr-rec-tab-train':'')+'" style="--gc:'+meta.gc+'" data-staff="'+esc(k)+'" onclick="_srRecFilterBy(this.getAttribute(\'data-staff\'))">'
         +'<span class="sr-rec-av gring" style="background:'+avColor(k)+';--gc:'+meta.gc+'">'+esc(avInit(u.name))+(LEADERS[k]?'<span class="sr-crown">👑</span>':'')+(u.flags>0?'<span class="sr-rec-flag" title="'+u.flags+'">!</span>':'')+'</span>'
         +'<span class="sr-rec-tnm2">'+esc(u.name)+'</span>'
-        +'<span class="sr-pfp '+pfCls(p)+'">'+(p!=null?Math.round(p)+'%':'—')+'</span>'
+        +(_tr?'<span class="sr-pfp sr-pfp-train">🎓 TRAINING</span>':'<span class="sr-pfp '+pfCls(p)+'">'+(p!=null?Math.round(p)+'%':'—')+'</span>')
         +'<span class="sr-tab-go">기록 보기 →</span></button>';
     }).join('') || '<div class="sr-tbl-empty">멤버 없음</div>';
     var rank={}; ordered.filter(function(k){return universe[k].hasRec;}).forEach(function(k,i){ rank[k]=i+1; });
@@ -17524,7 +17529,7 @@ function _raceAv(n){ var c=String(n||'').replace(/^mr\.?/i,'').trim(); return ((
 function _raceBuild(daily, sessions){
   // per-staff aggregate (clean = EXP 점프 제외, 공정한 급여 판정용)
   var agg={};
-  daily.forEach(function(r){ var k=r.key; if(!agg[k])agg[k]={key:k,name:r.name,gain:0,clean:0,quota:0,hours:0,flags:0}; var a=agg[k];
+  daily.forEach(function(r){ var k=r.key; if(_isTrainingKey(k,r.name)) return;   /* [v414] training staff out of race */ if(!agg[k])agg[k]={key:k,name:r.name,gain:0,clean:0,quota:0,hours:0,flags:0}; var a=agg[k];
     a.gain+=(r.gain||0); a.clean+=(r.cleanGain!=null?r.cleanGain:(r.gain||0)); a.quota+=(r.quota||0); a.hours+=(r.hours||0); a.flags+=(r.flags||0); });
   // latest client/map per staff
   var last={}; sessions.slice().sort(function(a,b){return (a.ms||0)-(b.ms||0);}).forEach(function(s){ if(!s.key)return; last[s.key]={client:s.client,map:s.map,lv:s.lv}; });
@@ -17604,6 +17609,7 @@ async function renderRace(silent){
     var reports=Array.isArray(byKey.reports)?byKey.reports:[];
     var clients=Array.isArray(byKey.clients)?byKey.clients:[];
     _rcSetCache(reports,clients);
+    try{ await _srLoadTrainingStaff(); }catch(_){ }
     var rec=_srRecCompute(reports, clients);
     try{ if(typeof _srGetCalc==='function'){ var _std=await _srGetCalc('race_std'); var m={},vf=false; if(Array.isArray(_std)) _std.forEach(function(x){ if(!x)return; if(x.verified)vf=true; if(x.lv>0&&x.eph>0)m[x.lv]=x.eph; }); window._raceStdMap=m; window._raceStdVerified=vf; } }catch(_){ }
     var html=_raceCardHTML(rec.daily||[], rec.sessions||[]);
@@ -17719,6 +17725,7 @@ async function renderRecords(silent){
     var reports=Array.isArray(byKey.reports)?byKey.reports:[];
     var clients=Array.isArray(byKey.clients)?byKey.clients:[];
     _rcSetCache(reports,clients);
+    try{ await _srLoadTrainingStaff(); }catch(_){ }
     var recRows=_srRecCompute(reports, clients);
     var app=otherView.querySelector('#sr-app.sr-app-wide');
     if(_bg && app){ app.innerHTML=_srRecCardHTML(recRows); }
@@ -17736,6 +17743,21 @@ async function renderRecords(silent){
 // FULL editor like the calculator: No., PC, name, game nickname, job, Level/Wpn/Armor/AC, and a per-map
 // table with Korean name + English name + Lv + %/h. Saving writes the whole record back to the report
 // server's `clients` calc_data (preserving every field), so the calculator + bot stay in sync.
+/* [v414] PER-STAFF TRAINING — a staff in training mode is excluded from the RACE and from team BAND AVERAGES.
+   Stored team-wide via calc key 'training_staff' (array of staff keys). Also honors the legacy name pattern. */
+var _TRAINING_SET=(function(){ try{ var s=localStorage.getItem('lucky7_training_staff'); if(s){ var a=JSON.parse(s); var o={}; if(Array.isArray(a)) a.forEach(function(k){ if(k!=null&&k!=='') o[String(k)]=true; }); return o; } }catch(_){ } return {}; })();
+function _isTrainingKey(key,name){ try{ if(_TRAINING_SET[String(key)]) return true; }catch(_){ } try{ if(/training|訓練|연습/i.test(String(name||''))) return true; }catch(_){ } return false; }
+function _trainingKeys(){ var a=[]; for(var k in _TRAINING_SET){ if(_TRAINING_SET[k]) a.push(k); } return a; }
+async function _srLoadTrainingStaff(){ try{ if(typeof _srGetCalc==='function'){ var arr=await _srGetCalc('training_staff'); if(Array.isArray(arr)){ var o={}; arr.forEach(function(k){ if(k!=null&&k!=='') o[String(k)]=true; }); _TRAINING_SET=o; try{ localStorage.setItem('lucky7_training_staff', JSON.stringify(arr)); }catch(_){ } } } }catch(_){ } }
+async function _srToggleTrainingStaff(key){ key=String(key||''); if(!key) return;
+  if(typeof _canEditNav==='function' && !_canEditNav()){ if(typeof toast==='function') toast('CEO · Manager only', true); return; }
+  if(_TRAINING_SET[key]) delete _TRAINING_SET[key]; else _TRAINING_SET[key]=true;
+  var on=!!_TRAINING_SET[key]; var keys=_trainingKeys();
+  try{ localStorage.setItem('lucky7_training_staff', JSON.stringify(keys)); }catch(_){ }
+  try{ if(typeof toast==='function') toast(on?'🎓 Training ON — excluded from race & averages':'Training OFF — back in race & averages', false); }catch(_){ }
+  try{ if(typeof _srRecReRender==='function') _srRecReRender(); }catch(_){ }
+  try{ if(typeof _srPutCalc==='function'){ var ok=await _srPutCalc('training_staff', keys); if(!ok && typeof toast==='function') toast('Save failed — try again', true); } }catch(_){ }
+}
 var _csTraining=false;
 var _csRows=[];            // index → {name, erp, calc} for the Edit buttons
 var _csEd=null;            // working copy of the record currently being edited
