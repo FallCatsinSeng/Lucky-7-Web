@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v417 — Map Info(pl-maps) 채널을 사이드바에서 제거: 기본 트리에서 삭제 + REMOVED_CHANNEL_IDS 로 저장된 nav_state 에서도 매 로드 시 자동 제거. 맵 정보는 v416 Lineage/Maple Ops 페이지 안에 있음. v415/v416 유지 -->
+<!-- BUILD: v418 — 운영(op-team)의 4개 채널(계정관리·계정성과·운영리포트·주간KPI)을 자료(resources/Materials) 카테고리로 이동: 기본 트리 이동 + FORCE_RELOCATE 로 저장된 nav_state 도 매 로드 시 자동 이동(이미 자료에 있으면 순서 유지). v417 Map Info 제거 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8126,10 +8126,6 @@ const CHANNEL_TREE = {
         { id:'pc-status',   name:'PC 현황',    icon:'monitor',   kind:'view', module:'pc-hub' },
         { id:'op-daily-board',name:'일일 업무',  icon:'check',    module:'tasks', kind:'view', unread:2, perms:['admin','op'] },
         { id:'op-schedule',   name:'스케줄',     icon:'calendar', module:'roster', kind:'view', perms:['admin','op'] },
-        { id:'op-accounts',     name:'계정 관리',   icon:'lock',   module:'accounts',     kind:'view', perms:['admin','op'] },
-        { id:'op-account-perf', name:'계정 성과',   icon:'trend',  module:'account-perf', kind:'view', perms:['admin','op'] },
-        { id:'op-analytics',    name:'운영 리포트', icon:'target', module:'analytics',    kind:'view', perms:['admin','op'] },
-        { id:'op-weekly-kpi', name:'주간 KPI',   icon:'target',   kind:'view', perms:['admin','op'] }
       ]
     },
     {
@@ -8174,7 +8170,11 @@ const CHANNEL_TREE = {
     {
       id:'resources', name:'자료', catIcon:'book', perms:['all'], collapsed:true,
       channels:[
-        { id:'res-sop', name:'SOP & 매뉴얼', icon:'book', module:'sop', kind:'view' }
+        { id:'res-sop', name:'SOP & 매뉴얼', icon:'book', module:'sop', kind:'view' },
+        { id:'op-accounts',     name:'계정 관리',   icon:'lock',   module:'accounts',     kind:'view', perms:['admin','op'] },
+        { id:'op-account-perf', name:'계정 성과',   icon:'trend',  module:'account-perf', kind:'view', perms:['admin','op'] },
+        { id:'op-analytics',    name:'운영 리포트', icon:'target', module:'analytics',    kind:'view', perms:['admin','op'] },
+        { id:'op-weekly-kpi', name:'주간 KPI',   icon:'target',   kind:'view', perms:['admin','op'] }
       ]
     },
     {
@@ -8198,6 +8198,7 @@ const CHANNEL_TREE = {
 // saved layout is invalid. Deep copy so later edits to CHANNEL_TREE never mutate it.
 const DEFAULT_CHANNEL_TREE = (function(){ try{ return JSON.parse(JSON.stringify(CHANNEL_TREE)); }catch(_){ return { categories: [] }; } })();
 const REMOVED_CHANNEL_IDS = { 'pl-maps': 1 };   // [v417] force-stripped from any saved nav_state — Map Info moved into Lineage/Maple Ops
+const FORCE_RELOCATE = { 'op-accounts':'resources', 'op-account-perf':'resources', 'op-analytics':'resources', 'op-weekly-kpi':'resources' };   // [v418] force-move these channels into the Materials(resources) category in any saved nav_state
 
 // ═══════════════════════════════════════════════════
 // RECRUIT MODULE — 채용 트래커 (Kanban + Detail + Comments)
@@ -8320,7 +8321,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v417';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v418';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -22129,6 +22130,24 @@ function saveNavState(){
   try{ localStorage.setItem('lucky7_nav_state', JSON.stringify(p)); }catch(_){}
   try{ _dbUpsert('nav_state','default',p); }catch(_){}
 }
+function _navForceRelocate(merged){
+  try{
+    if(typeof FORCE_RELOCATE==='undefined') return;
+    var ids=Object.keys(FORCE_RELOCATE); if(!ids.length) return;
+    var present={}; merged.forEach(function(c){ (c.channels||[]).forEach(function(ch){ if(ch && FORCE_RELOCATE[ch.id]===c.id) present[ch.id]=1; }); });
+    var grabbed={};
+    merged.forEach(function(c){ c.channels=(c.channels||[]).filter(function(ch){ if(ch && FORCE_RELOCATE[ch.id] && FORCE_RELOCATE[ch.id]!==c.id){ grabbed[ch.id]=ch; return false; } return true; }); });
+    ids.forEach(function(id){
+      if(present[id]) return;   // already in target category -> leave order untouched
+      var ch=grabbed[id];
+      if(!ch){ (DEFAULT_CHANNEL_TREE.categories||[]).forEach(function(dc){ (dc.channels||[]).forEach(function(d){ if(d.id===id) ch=JSON.parse(JSON.stringify(d)); }); }); }
+      if(!ch) return;
+      var tcId=FORCE_RELOCATE[id]; var tc=null; merged.forEach(function(c){ if(c.id===tcId) tc=c; });
+      if(!tc){ (DEFAULT_CHANNEL_TREE.categories||[]).forEach(function(dc){ if(dc.id===tcId) tc=Object.assign({},dc,{channels:[]}); }); if(tc) merged.push(tc); }
+      if(tc){ tc.channels=tc.channels||[]; if(!tc.channels.some(function(x){return x&&x.id===id;})) tc.channels.push(ch); }
+    });
+  }catch(_){ }
+}
 function _applyNavPayload(p){
   try{
     if(!p || !Array.isArray(p.categories) || !p.categories.length) return;   // invalid -> keep current tree
@@ -22150,6 +22169,7 @@ function _applyNavPayload(p){
     });
     var _nCh = 0; merged.forEach(function(c){ (c.channels||[]).forEach(function(ch){ if(ch && ch.kind!=='divider') _nCh++; }); });
     if(_nCh === 0){ try{ console.warn('nav apply: skipped empty/corrupt layout'); }catch(_){} return; }   // [v410] never blank the sidebar
+    _navForceRelocate(merged);   // [v418]
     CHANNEL_TREE.categories = merged;
   }catch(e){ try{ console.warn('nav apply:', e && e.message); }catch(_){} }
 }
