@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v418 — 운영(op-team)의 4개 채널(계정관리·계정성과·운영리포트·주간KPI)을 자료(resources/Materials) 카테고리로 이동: 기본 트리 이동 + FORCE_RELOCATE 로 저장된 nav_state 도 매 로드 시 자동 이동(이미 자료에 있으면 순서 유지). v417 Map Info 제거 유지 -->
+<!-- BUILD: v419 — 새 카테고리 RACE(race-cat)를 Operations와 Game 사이에 추가하고 Calculator·Records&Stats·Race·Standards(pl-exp-standard/pl-records/pl-race/pl-calc-std)를 Game에서 RACE로 이동. 기본 트리 이동 + NAV_NEW_CATS(카테고리 주입)+FORCE_RELOCATE 로 저장된 nav_state 에도 자동 반영(이름 rename 유지). v417/v418 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8129,14 +8129,19 @@ const CHANNEL_TREE = {
       ]
     },
     {
+      id:'race-cat', name:'RACE', catIcon:'trend', perms:['all'],
+      channels:[
+        { id:'pl-exp-standard',  name:'성과 계산기',  icon:'target',module:'calc-embed', kind:'view' },
+        { id:'pl-records',       name:'기록·통계',    icon:'scroll', module:'records', kind:'view', perms:['admin'] },
+        { id:'pl-race',          name:'레이스',       icon:'trend',  module:'race', kind:'view', perms:['all'] },
+        { id:'pl-calc-std',      name:'기준표',       icon:'target', module:'calc-standards', kind:'view', perms:['admin','op'] }
+      ]
+    },
+    {
       id:'game', name:'게임', catIcon:'gamepad', perms:['all'],
       channels:[
         { id:'pl-lineage-guide', name:'리니지 운영', icon:'sword', module:'guide-lineage', kind:'view' },
         { id:'pl-maple-guide',   name:'메이플 운영', icon:'leaf',  module:'guide-maple', kind:'view' },
-        { id:'pl-exp-standard',  name:'성과 계산기',  icon:'target',module:'calc-embed', kind:'view' },
-        { id:'pl-records',       name:'기록·통계',    icon:'scroll', module:'records', kind:'view', perms:['admin'] },
-        { id:'pl-race',          name:'레이스',       icon:'trend',  module:'race', kind:'view', perms:['all'] },
-        { id:'pl-calc-std',      name:'기준표',       icon:'target', module:'calc-standards', kind:'view', perms:['admin','op'] },
         { id:'pl-clients',       name:'클라이언트 현황', icon:'briefcase', module:'clients', kind:'view', perms:['player','staff'] }
       ]
     },
@@ -8198,7 +8203,8 @@ const CHANNEL_TREE = {
 // saved layout is invalid. Deep copy so later edits to CHANNEL_TREE never mutate it.
 const DEFAULT_CHANNEL_TREE = (function(){ try{ return JSON.parse(JSON.stringify(CHANNEL_TREE)); }catch(_){ return { categories: [] }; } })();
 const REMOVED_CHANNEL_IDS = { 'pl-maps': 1 };   // [v417] force-stripped from any saved nav_state — Map Info moved into Lineage/Maple Ops
-const FORCE_RELOCATE = { 'op-accounts':'resources', 'op-account-perf':'resources', 'op-analytics':'resources', 'op-weekly-kpi':'resources' };   // [v418] force-move these channels into the Materials(resources) category in any saved nav_state
+const FORCE_RELOCATE = { 'op-accounts':'resources', 'op-account-perf':'resources', 'op-analytics':'resources', 'op-weekly-kpi':'resources', 'pl-exp-standard':'race-cat', 'pl-records':'race-cat', 'pl-race':'race-cat', 'pl-calc-std':'race-cat' };   // [v418/v419] force-move channels into target categories in any saved nav_state
+const NAV_NEW_CATS = [ { id:'race-cat', afterId:'op-team' } ];   // [v419] inject the RACE category (right after Operations) into saved layouts that predate it
 
 // ═══════════════════════════════════════════════════
 // RECRUIT MODULE — 채용 트래커 (Kanban + Detail + Comments)
@@ -8321,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v418';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v419';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -22132,6 +22138,17 @@ function saveNavState(){
 }
 function _navForceRelocate(merged){
   try{
+    if(typeof NAV_NEW_CATS!=='undefined' && Array.isArray(NAV_NEW_CATS)){
+      NAV_NEW_CATS.forEach(function(spec){
+        if(!spec||!spec.id) return;
+        if(merged.some(function(c){ return c && c.id===spec.id; })) return;   // already present -> keep its place
+        var def=null; (DEFAULT_CHANNEL_TREE.categories||[]).forEach(function(dc){ if(dc.id===spec.id) def=dc; });
+        if(!def) return;
+        var shell=Object.assign({}, def, { channels: [] });   // empty; relocate fills it with the user's real channels
+        var idx=merged.length; if(spec.afterId){ for(var i=0;i<merged.length;i++){ if(merged[i] && merged[i].id===spec.afterId){ idx=i+1; break; } } }
+        merged.splice(idx, 0, shell);
+      });
+    }
     if(typeof FORCE_RELOCATE==='undefined') return;
     var ids=Object.keys(FORCE_RELOCATE); if(!ids.length) return;
     var present={}; merged.forEach(function(c){ (c.channels||[]).forEach(function(ch){ if(ch && FORCE_RELOCATE[ch.id]===c.id) present[ch.id]=1; }); });
