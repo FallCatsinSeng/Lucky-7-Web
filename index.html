@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v405 — 세션 로그 DIFF를 GOAL이 아닌 CUT BELOW(sl) 기준으로 계산: DIFF 음수=컷, 양수=안전(판정과 일치). 밴드 없으면 goal로 폴백. GOAL 표시/급여 계산은 그대로 -->
+<!-- BUILD: v406 — 사이드바 편집(이름변경/삭제/순서)을 Supabase nav_state에 저장→모든 사용자 공유, 부팅 시 로드, 새 빌드의 신규 채널 자동 병합(삭제한 건 복원 안 함). 편집 권한 CEO/매니저(admin) 전용 — 비관리자는 편집 버튼 숨김+드래그 차단. ※ Supabase에 nav_state 테이블 생성 필요 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8194,6 +8194,11 @@ const CHANNEL_TREE = {
   ]
 };
 
+// [v406] Pristine default tree captured BEFORE any cloud/edit overrides. Used to migrate NEW channels that
+// future builds add into a saved custom layout WITHOUT re-adding ones the CEO deleted, and to recover if a
+// saved layout is invalid. Deep copy so later edits to CHANNEL_TREE never mutate it.
+const DEFAULT_CHANNEL_TREE = (function(){ try{ return JSON.parse(JSON.stringify(CHANNEL_TREE)); }catch(_){ return { categories: [] }; } })();
+
 // ═══════════════════════════════════════════════════
 // RECRUIT MODULE — 채용 트래커 (Kanban + Detail + Comments)
 // ═══════════════════════════════════════════════════
@@ -8315,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v405';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v406';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21307,6 +21312,7 @@ function finishSignIn(){
   document.querySelectorAll('.rs-btn').forEach(b => b.classList.toggle('on', b.dataset.role === currentUserRole));
   try{ loadPCState().then(()=>{ try{ if(typeof render==='function') render(); }catch(_){} }); }catch(_){}
   try{ loadPermState().then(()=>{ try{ renderSidebar(); routeContent(); }catch(_){} }); }catch(_){}
+  try{ loadNavState().then(()=>{ try{ renderSidebar(); routeContent(); }catch(_){} }); }catch(_){}   // [v406] load the team-wide sidebar layout for everyone
   try{ syncExpFromCloud().then(()=>{ try{ reconcilePcExp(); }catch(_){} }); }catch(_){}
 }
 
@@ -22016,12 +22022,67 @@ let currentUserRole = 'admin';        // 기본 admin (Role Switcher로 변경)
 let collapsedCats = new Set();        // 접힌 카테고리 id 모음
 let sidebarEditMode = false;          // 사이드바 편집 모드
 
+function _canEditNav(){ return typeof currentUserRole !== 'undefined' && currentUserRole === 'admin'; }   // [v406] sidebar editing = CEO / Manager only (ceo/manager map to 'admin')
+
 function toggleSidebarEdit(){
+  if(!_canEditNav()){ try{ toast(_uiLang()==='ko'?'권한 없음 — CEO/매니저 전용':'No permission — CEO/Manager only', true); }catch(_){} return; }
   sidebarEditMode = !sidebarEditMode;
   renderSidebar();
 }
 
+// [v406] ───── shared sidebar layout: persist to Supabase so every user sees the same nav ─────
+// Mirrors perm_state: localStorage for instant paint + a tiny {id:'default', data} row in nav_state for the
+// team-wide source of truth. Saving is de-duped by _dbUpsert and gated to managers; LOADING runs for everyone
+// on boot. Degrades gracefully if the table doesn't exist (managers just can't persist until it's created).
+var _navLoaded = false, _navSig = '';
+function _navPayload(){
+  var knownIds = [];
+  try{ (DEFAULT_CHANNEL_TREE.categories||[]).forEach(function(c){ (c.channels||[]).forEach(function(ch){ knownIds.push(ch.id); }); }); }catch(_){}
+  return { categories: CHANNEL_TREE.categories, knownIds: knownIds, ts: Date.now() };
+}
+function saveNavState(){
+  if(!_navLoaded || !_canEditNav()) return;   // never write before the team layout loaded (would clobber it); managers only
+  var p, sig;
+  try{ p = _navPayload(); sig = JSON.stringify(p.categories); }catch(_){ return; }
+  if(sig === _navSig) return;                  // renderSidebar fires constantly — only write on a real change
+  _navSig = sig;
+  try{ localStorage.setItem('lucky7_nav_state', JSON.stringify(p)); }catch(_){}
+  try{ _dbUpsert('nav_state','default',p); }catch(_){}
+}
+function _applyNavPayload(p){
+  try{
+    if(!p || !Array.isArray(p.categories) || !p.categories.length) return;   // invalid -> keep current tree
+    var known = {}; (p.knownIds||[]).forEach(function(id){ known[id]=1; });
+    var merged = p.categories.map(function(c){ return Object.assign({}, c, { channels: (c.channels||[]).slice() }); });
+    var catById = {}, have = {};
+    merged.forEach(function(c){ catById[c.id]=c; (c.channels||[]).forEach(function(ch){ have[ch.id]=1; }); });
+    // migrate in DEFAULT channels genuinely NEW since this layout was saved (not known, not present) so later
+    // builds' features appear; deleted channels are 'known' so they are NOT re-added.
+    (DEFAULT_CHANNEL_TREE.categories||[]).forEach(function(dc){
+      (dc.channels||[]).forEach(function(ch){
+        if(!known[ch.id] && !have[ch.id]){
+          var tc = catById[dc.id];
+          if(!tc){ tc = Object.assign({}, dc, { channels: [] }); merged.push(tc); catById[dc.id]=tc; }
+          tc.channels.push(ch); have[ch.id]=1;
+        }
+      });
+    });
+    CHANNEL_TREE.categories = merged;
+  }catch(e){ try{ console.warn('nav apply:', e && e.message); }catch(_){} }
+}
+async function loadNavState(){
+  try{ var ls = localStorage.getItem('lucky7_nav_state'); if(ls) _applyNavPayload(JSON.parse(ls)); }catch(_){}
+  if(!sb){ _navLoaded = true; return; }
+  try{
+    var r = await sb.from('nav_state').select('data').eq('id','default').maybeSingle();
+    if(r.error){ try{ console.warn('nav_state load:', r.error.message); }catch(_){} _navLoaded = true; return; }   // table missing -> allow first save
+    if(r.data && r.data.data) _applyNavPayload(r.data.data);
+    _navLoaded = true;
+  }catch(e){ try{ console.warn('nav_state load:', e && e.message); }catch(_){} }   // network error -> stay locked, retry on reload
+}
+
 function moveChannel(catId, idx, dir){
+  if(!_canEditNav()) return;   // [v406] CEO/Manager only
   const cat = CHANNEL_TREE.categories.find(c => c.id === catId);
   if(!cat) return;
   const newIdx = idx + dir;
@@ -22033,6 +22094,7 @@ function moveChannel(catId, idx, dir){
 }
 
 function moveCategory(catId, dir){
+  if(!_canEditNav()) return;   // [v406] CEO/Manager only
   const idx = CHANNEL_TREE.categories.findIndex(c => c.id === catId);
   if(idx < 0) return;
   const newIdx = idx + dir;
@@ -22044,6 +22106,7 @@ function moveCategory(catId, dir){
 }
 
 function renameChannel(catId, idx){
+  if(!_canEditNav()) return;   // [v406] CEO/Manager only
   const cat = CHANNEL_TREE.categories.find(c => c.id === catId);
   if(!cat) return;
   const ch = cat.channels[idx];
@@ -22056,6 +22119,7 @@ function renameChannel(catId, idx){
 }
 
 function renameCategory(catId){
+  if(!_canEditNav()) return;   // [v406] CEO/Manager only
   const cat = CHANNEL_TREE.categories.find(c => c.id === catId);
   if(!cat) return;
   const newName = prompt(`카테고리 이름 변경`, cat.name);
@@ -22066,6 +22130,7 @@ function renameCategory(catId){
 }
 
 function deleteChannel(catId, idx){
+  if(!_canEditNav()) return;   // [v406] CEO/Manager only
   const cat = CHANNEL_TREE.categories.find(c => c.id === catId);
   if(!cat) return;
   const ch = cat.channels[idx];
@@ -22080,6 +22145,7 @@ let draggingCh = null;   // { catId, idx, el }
 let draggingCat = null;  // { id, el }
 
 function onChDragStart(e, catId, idx){
+  if(!_canEditNav()) return;   // [v406] CEO/Manager only
   e.stopPropagation();
   const chEl = e.currentTarget;
   draggingCh = { catId, idx, el: chEl };
@@ -22168,6 +22234,7 @@ function onChListDrop(e, catId){
 
 // 카테고리 드래그
 function onCatDragStart(e, catId){
+  if(!_canEditNav()) return;   // [v406] CEO/Manager only
   e.stopPropagation();
   const catHeadEl = e.currentTarget;
   const catEl = catHeadEl.closest('.cat');
@@ -22644,10 +22711,12 @@ document.addEventListener('click', function(e){
 }, true);
 
 function renderSidebar(){  // 편집 모드 토글 버튼 상태
+  if(!_canEditNav() && sidebarEditMode) sidebarEditMode = false;   // [v406] only managers stay in edit mode
   const editBtn = document.getElementById('sb-edit-btn');
-  if(editBtn) editBtn.classList.toggle('on', sidebarEditMode);
+  if(editBtn){ editBtn.style.display = _canEditNav() ? '' : 'none'; editBtn.classList.toggle('on', sidebarEditMode); }   // [v406] hide the editor for non-managers
   const sb = document.getElementById('sb');
   if(sb) sb.classList.toggle('edit-mode', sidebarEditMode);
+  try{ saveNavState(); }catch(_){}   // [v406] persist tree to team-wide nav_state (de-duped; managers only; never before load)
 
   const tree = visibleTree();
   const wrap = document.getElementById('sb-channels');
