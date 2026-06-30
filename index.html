@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v409 — 사이드바 저장 실제 수정: loadNavState()가 finishSignIn()에만 있어서 세션 캐시 reload(자동 로그인) 시 호출 안 됨 → 메인 부팅 Promise.all에 추가. 이제 reload해도 저장된 레이아웃 로드됨. v408 가드/v407 egress 유지 -->
+<!-- BUILD: v411 — Supabase egress 대폭 절감: (1)탭이 백그라운드(hidden)면 모든 폴링 중지+포커스 시 재개(visibilitychange), (2)폴링 주기 상향(pollSyncAll/client 90s→4m, logs/exp/ann/off/cal 2m→5m, shift 60s→2.5m), (3)recruit_state(base64 CV blob)는 채용 페이지 볼 때만 폴링. _pullShared에 hidden 가드. v410 사이드바 자가복구 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v409';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v411';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21130,6 +21130,7 @@ function _syncBusyUI(){
 }
 async function _pullShared(table, applyFn, rerenderFn, skipIf){
   if(!sb || !currentUser) return;
+  if(typeof document!=='undefined' && document.hidden) return;   // [v411] don't poll Supabase in a background tab
   try{
     const { data, error } = await sb.from(table).select('data').eq('id','default').maybeSingle();
     if(error || !data) return;
@@ -21159,7 +21160,8 @@ async function pollSyncAll(){
   await _pullShared('settlement_state',
     d => { if(d){ if(Array.isArray(d.manual)) MANUAL_PAYROLL = d.manual; if(d.sheet && typeof d.sheet === 'object') Object.keys(d.sheet).forEach(k => { PAYROLL_SHEET[k] = d.sheet[k]; }); } },
     () => { if(mod() === 'settlement'){ try{ renderSettlement(); }catch(_){} } });
-  // Recruiting (applicants + their specs/info edits)
+  // Recruiting (applicants + their specs/info edits) — [v411] heavy blob (base64 CVs): only pull when viewing recruit
+  if(mod() === 'recruit' || (typeof openApplicantId !== 'undefined' && openApplicantId))
   await _pullShared('recruit_state',
     d => { if(Array.isArray(d)){ APPLICANTS.length = 0; d.forEach(a => APPLICANTS.push(a)); } },
     () => { if(mod() === 'recruit'){ try{ renderRecruit(); }catch(_){} } if(typeof openApplicantId !== 'undefined' && openApplicantId){ try{ renderApplicantPanel(); }catch(_){} } },
@@ -21194,7 +21196,7 @@ function startPresence(){
   // [v130] live day-off sync — colleagues' requests appear without a manual refresh
   if(_offTimer) clearInterval(_offTimer);
   pollOffRequests();
-  _offTimer = setInterval(pollOffRequests, 120*1000);
+  _offTimer = setInterval(pollOffRequests, 300*1000);   // [v411] 2m->5m
   // [v139] auto-delete rejected applicants 1h after rejection (while recruiting is open)
   if(_recruitPurgeTimer) clearInterval(_recruitPurgeTimer);
   _recruitPurgeTimer = setInterval(() => {
@@ -21205,7 +21207,7 @@ function startPresence(){
   }, 60*1000);
   // [v145] live shared Responsibility Board sync
   if(_mtPollTimer) clearInterval(_mtPollTimer);
-  _mtPollTimer = setInterval(pollMTSystem, 90*1000);
+  _mtPollTimer = setInterval(pollMTSystem, 240*1000);   // [v411] 90s->4m
   // [v148] live attendance / staff-status refresh
   if(_attPollTimer) clearInterval(_attPollTimer);
   _attPollTimer = setInterval(() => {
@@ -21215,38 +21217,48 @@ function startPresence(){
     const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
     if(typing) return;
     try{ renderAttendance(); }catch(_){}
-  }, 20*1000);
+  }, 60*1000);   // [v411] attendance re-render 20s->60s
   // [v151] live shared notices sync
   if(_annPollTimer) clearInterval(_annPollTimer);
-  _annPollTimer = setInterval(pollAnnouncements, 120*1000);
+  _annPollTimer = setInterval(pollAnnouncements, 300*1000);   // [v411] 2m->5m
   // [v154] live shared system-log sync
   if(_logPollTimer) clearInterval(_logPollTimer);
   pollLogs();                                          // [v156] immediate load (also covers refresh)
-  _logPollTimer = setInterval(pollLogs, 120*1000);
+  _logPollTimer = setInterval(pollLogs, 300*1000);   // [v411] 2m->5m
   // [v154] live shared clients sync (Client page + PC pool)
   if(_clientPollTimer) clearInterval(_clientPollTimer);
   syncClientStateFromCloud().then(()=>{                // [v156] immediate load on refresh, then repaint
     try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
     try{ const mod=(typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null; if(mod==='clients') renderClients(); }catch(_){}
   });
-  _clientPollTimer = setInterval(pollClientState, 90*1000);  // [v211] 20s→10s so a paid/unpaid change reaches teammates faster
+  _clientPollTimer = setInterval(pollClientState, 240*1000);   // [v411] 90s->4m (client_state is a heavy blob)
   // [v166] live shared Standard-EXP sync
   if(_expPollTimer) clearInterval(_expPollTimer);
   pollExp();
-  _expPollTimer = setInterval(pollExp, 120*1000);
+  _expPollTimer = setInterval(pollExp, 300*1000);   // [v411] 2m->5m
   // [v211] live calendar/schedule sync — re-render the open calendar so another user's
   // day-offs, roster shifts, and contract/due changes appear without a manual refresh.
   if(_calPollTimer) clearInterval(_calPollTimer);
-  _calPollTimer = setInterval(pollCalendarSync, 120*1000);
+  _calPollTimer = setInterval(pollCalendarSync, 300*1000);   // [v411] 2m->5m
   // [v208] live cross-user sync for the remaining shared states (PC / Trust / Settlement / Recruiting / Permissions)
   if(_syncAllTimer) clearInterval(_syncAllTimer);
   pollSyncAll();
-  _syncAllTimer = setInterval(pollSyncAll, 90*1000);
+  _syncAllTimer = setInterval(pollSyncAll, 240*1000);   // [v411] 90s->4m (pulls 6 shared blobs)
   // [v298] live Shift-report dashboard refresh (admin view only; silent, so no flash and never wipes the form)
   if(_shiftPollTimer) clearInterval(_shiftPollTimer);
   pollShiftView();
-  _shiftPollTimer = setInterval(pollShiftView, 60*1000);
+  _shiftPollTimer = setInterval(pollShiftView, 150*1000);   // [v411] 60s->2.5m
 }
+// [v411] Background tabs re-fetching every shared blob every 1-2 min was the MAIN Supabase egress driver.
+// Stop every poll the moment the tab is hidden; restart with one fresh pull when it's focused again.
+function _stopAllPolls(){
+  [_presenceTimer,_offTimer,_recruitPurgeTimer,_mtPollTimer,_attPollTimer,_annPollTimer,_logPollTimer,_clientPollTimer,_expPollTimer,_calPollTimer,_syncAllTimer,_shiftPollTimer].forEach(function(t){ if(t) clearInterval(t); });
+  _presenceTimer=_offTimer=_recruitPurgeTimer=_mtPollTimer=_attPollTimer=_annPollTimer=_logPollTimer=_clientPollTimer=_expPollTimer=_calPollTimer=_syncAllTimer=_shiftPollTimer=null;
+}
+try{ document.addEventListener('visibilitychange', function(){
+  if(document.hidden){ try{ _stopAllPolls(); }catch(_){} }
+  else if(typeof currentUser!=='undefined' && currentUser){ try{ startPresence(); }catch(_){} }
+}); }catch(_){}
 let _calPollTimer = null;
 let _syncAllTimer = null; // [v213] FIX: was used in startPresence (read at if(_syncAllTimer)) but never declared — the ReferenceError was killing the entire boot sequence before PCs/render ran, leaving a blank board.
 let _shiftPollTimer = null; // [v298] live Shift-report dashboard refresh timer
@@ -22078,6 +22090,8 @@ function _applyNavPayload(p){
         }
       });
     });
+    var _nCh = 0; merged.forEach(function(c){ (c.channels||[]).forEach(function(ch){ if(ch && ch.kind!=='divider') _nCh++; }); });
+    if(_nCh === 0){ try{ console.warn('nav apply: skipped empty/corrupt layout'); }catch(_){} return; }   // [v410] never blank the sidebar
     CHANNEL_TREE.categories = merged;
   }catch(e){ try{ console.warn('nav apply:', e && e.message); }catch(_){} }
 }
@@ -22727,9 +22741,20 @@ function renderSidebar(){  // 편집 모드 토글 버튼 상태
   if(editBtn){ editBtn.style.display = _canEditNav() ? '' : 'none'; editBtn.classList.toggle('on', sidebarEditMode); }   // [v406] hide the editor for non-managers
   const sb = document.getElementById('sb');
   if(sb) sb.classList.toggle('edit-mode', sidebarEditMode);
+  let tree = visibleTree();
+  // [v410] SELF-HEAL: a CEO/Manager must ALWAYS see channels. An empty tree => the saved nav layout is corrupt
+  // (bad data cached during an earlier buggy build). Restore the built-in default, drop the poisoned cache,
+  // overwrite the cloud row so it can't come back, then re-render from the clean tree. Runs BEFORE saveNavState
+  // so the corrupt tree is never re-persisted.
+  if(_canEditNav() && (!tree.categories || !tree.categories.length) && DEFAULT_CHANNEL_TREE.categories && DEFAULT_CHANNEL_TREE.categories.length && !renderSidebar._healed){
+    renderSidebar._healed = true;
+    try{ CHANNEL_TREE.categories = JSON.parse(JSON.stringify(DEFAULT_CHANNEL_TREE.categories)); }catch(_){}
+    try{ localStorage.removeItem('lucky7_nav_state'); }catch(_){}
+    _navSig = '';
+    try{ if(_navLoaded) _dbUpsert('nav_state','default',_navPayload()); }catch(_){}
+    tree = visibleTree();
+  }
   try{ saveNavState(); }catch(_){}   // [v406] persist tree to team-wide nav_state (de-duped; managers only; never before load)
-
-  const tree = visibleTree();
   const wrap = document.getElementById('sb-channels');
   if(!wrap) return;
   const html = tree.categories.map((cat, catIdx) => {
