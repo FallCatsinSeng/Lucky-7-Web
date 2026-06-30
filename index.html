@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v421 — nav_state 저장 실패를 표면화: _dbUpsert 결과를 확인해 write 실패 시 CEO에게 toast+console.warn (이전엔 catch로 조용히 삼켜져 staff 미반영 원인을 못 봤음). 수정 시 nav_state 테이블/RLS 문제면 즉시 알림. v420 live poll 유지 -->
+<!-- BUILD: v422 — pollNavState 가 편집자(CEO/매니저)에겐 적용 안 됨: write 실패 시 stale 서버본이 편집을 되돌리던 버그 방지. 라이브 동기화는 staff(읽기 전용)에게만. v421 진단 toast 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8327,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v421';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v422';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21342,6 +21342,7 @@ async function pollNavState(){
     if(!sb || typeof currentUser==='undefined' || !currentUser) return;
     if(document.hidden) return;                                        // [v411] egress guard
     if(typeof sidebarEditMode!=='undefined' && sidebarEditMode) return; // don't clobber an active editor
+    if(typeof _canEditNav==='function' && _canEditNav()) return;       // [v422] editors are the source of truth — a stale server copy must never revert their edits (e.g. when a write fails)
     var r = await sb.from('nav_state').select('data').eq('id','default').maybeSingle();
     if(!r || r.error || !r.data || !r.data.data) return;
     var pl = r.data.data; if(!pl || !Array.isArray(pl.categories)) return;
