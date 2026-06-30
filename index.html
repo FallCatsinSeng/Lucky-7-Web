@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v408 — 사이드바 저장 버그 최종 수정: 부팅 시 sync renderSidebar()가 loadNavState() 실행 전에 localStorage를 덮어쓰는 문제 해결 → _navLoaded 가드를 localStorage와 Supabase 모두에 복원. catch 블록의 _navLoaded=true(v407)로 Supabase 오류 시에도 이후 저장은 정상 작동. Egress 절감(v407) 유지 -->
+<!-- BUILD: v409 — 사이드바 저장 실제 수정: loadNavState()가 finishSignIn()에만 있어서 세션 캐시 reload(자동 로그인) 시 호출 안 됨 → 메인 부팅 Promise.all에 추가. 이제 reload해도 저장된 레이아웃 로드됨. v408 가드/v407 egress 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v408';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v409';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -25715,6 +25715,7 @@ function showBootDiag(b){
     // load all independent cloud state in parallel (was a sequential Seoul round-trip waterfall)
     await Promise.all([
       __run('permState', loadPermState),
+      __run('navState', loadNavState),       // [v409] team-wide sidebar layout — MUST load here; on a cached-session reload finishSignIn() is skipped, so this was the only path missing it
       __run('staffState', loadStaffState),
       __run('staffPool', loadStaffPool),
       __run('pcState', loadPCState),
