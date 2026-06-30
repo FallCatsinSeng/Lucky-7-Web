@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v434 | Recruit pipeline stage chips/dropdown/tags now localized (KO labels added, was English-only). | Map Info (게임>맵 정보) title/subtitle now follows _uiLang() instead of always showing the Korean field as primary. -->
+<!-- BUILD: v435 | Client Status: new Active/Passive toggle per client card (⏸/▶ button) — passive clients are NEVER deleted, just moved into their own dimmed 'Passive clients' section so they're easy to bring back later. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2587,6 +2587,12 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .cl-stat-over{color:#e0504a !important}
 .cl-stat-unpaid{color:#e0a83a !important}
 .cl-card-pcline{font-size:11px;color:var(--tx2);font-weight:600;margin-top:10px;display:flex;align-items:center;gap:5px}
+.cl-card-passive{opacity:.52;filter:grayscale(.35)}
+.cl-card-passive:hover{opacity:.8}
+.cl-status-badge{font-size:10.5px;font-weight:800;padding:3px 10px;border-radius:7px;flex-shrink:0;align-self:flex-start;display:inline-flex;align-items:center;gap:4px;background:rgba(140,140,140,.16);color:var(--tx3,#8b93a1);border:1px solid rgba(140,140,140,.3)}
+.cl-toggle-btn{cursor:pointer;align-self:flex-start;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--br);color:var(--tx3);font-size:12px;line-height:1;background:var(--bg-h);transition:all .15s}
+.cl-toggle-btn:hover{color:#fff;background:var(--ac,#c9963a);border-color:var(--ac,#c9963a)}
+.cl-toggle-btn.cl-toggle-reactivate:hover{background:var(--gr,#3aa05a);border-color:var(--gr,#3aa05a)}
 @media (max-width:720px){.cl-summary{grid-template-columns:repeat(2,1fr)}.cl-board{grid-template-columns:1fr}}
 
 /* 클라이언트 상세 — 원형 시계 + 조정 */
@@ -8330,7 +8336,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v434';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v435';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23541,10 +23547,16 @@ async function renderClients(){
   const sorted = CLIENT_ACCOUNTS;
 
   const _isTrainClient = (nm)=>/training|훈련|연습/i.test(String(nm||''));
-  let _realCards='', _trainCards='', _realN=0, _trainN=0;
+  // [v435] Active/Passive toggle — c.active defaults to true when the field is missing (backward
+  // compatible with every client created before this feature). A passive client is kept (not deleted)
+  // so its data, contract and history survive if the client comes back later — it just moves into its
+  // own dimmed section instead of mixing with currently-running clients.
+  const _isPassive = (c)=> c.active === false;
+  let _realCards='', _trainCards='', _passiveCards='', _realN=0, _trainN=0, _passiveN=0;
   sorted.forEach((c, i) => {
+    const _passive = _isPassive(c);
     const _isTrain = _isTrainClient(c.name);
-    const num = _isTrain ? (++_trainN) : (++_realN);
+    const num = _passive ? (++_passiveN) : (_isTrain ? (++_trainN) : (++_realN));
     const pay = PAY_STATUS[c.payment.status] || PAY_STATUS.paid;
     const chars = clientChars(c.name);
     const pcs = clientPCs(c.name);
@@ -23557,7 +23569,10 @@ async function renderClients(){
     const clockColor = canSeeMoney ? pay.color : 'var(--ac)';
     const pcStr = pcs.length ? pcs.map(p=>'PC-'+String(p.id).padStart(2,'0')).join(', ') : '미배정';
     // 결제상태 좌측 바 (ADMIN만)
-    const statusClass = canSeeMoney ? ` cl-card-${c.payment.status}` : '';
+    const statusClass = (canSeeMoney ? ` cl-card-${c.payment.status}` : '') + (_passive ? ' cl-card-passive' : '');
+    const toggleBtn = canOpenDetail ? (_passive
+      ? `<span class="cl-toggle-btn cl-toggle-reactivate" onclick="event.stopPropagation();toggleClientActive('${c.id}')" title="${_uiLang()==='ko'?'다시 활성화':'Reactivate'}">▶</span>`
+      : `<span class="cl-toggle-btn" onclick="event.stopPropagation();toggleClientActive('${c.id}')" title="${_uiLang()==='ko'?'비활성으로 전환 (삭제 아님)':'Set passive (not a delete)'}">⏸</span>`) : '';
 
     const _cardHTML = `<div class="cl-card${statusClass}" data-cid="${c.id}" ${canOpenDetail ? `draggable="true" ondragstart="clDragStart(event,'${c.id}')" ondragend="clDragEnd(event)" ondragover="clDragOver(event)" ondragleave="clDragLeave(event)" ondrop="clDrop(event,'${c.id}')" onclick="clCardClick(event,'${c.id}')"` : 'style="cursor:default"'}>
       <div class="cl-card-top">
@@ -23566,7 +23581,8 @@ async function renderClients(){
           <div class="cl-card-name"><span class="cl-card-num">${num}</span>${c.name}</div>
           <div class="cl-card-time-big">${pad2(w.start)}:00–${pad2(w.end)}:00<span> · ${span}H</span></div>
         </div>
-        ${canSeeMoney ? `<div class="cl-pay-badge" style="background:${pay.bg};color:${pay.color}">${pay.icon} ${pay.label}</div>` : ''}
+        ${_passive ? `<div class="cl-status-badge">⏸ ${_uiLang()==='ko'?'비활성':'Passive'}</div>` : (canSeeMoney ? `<div class="cl-pay-badge" style="background:${pay.bg};color:${pay.color}">${pay.icon} ${pay.label}</div>` : '')}
+        ${toggleBtn}
         ${canOpenDetail ? `<span class="cl-card-del" onclick="event.stopPropagation();removeClientAccount('${c.id}')" title="${_uiLang()==='ko'?'클라이언트 삭제':'Delete client'}" style="margin-left:8px;cursor:pointer;align-self:flex-start;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--br);color:var(--tx3);font-size:14px;line-height:1;background:var(--bg-h);transition:all .15s" onmouseover="this.style.color='#fff';this.style.background='var(--re)';this.style.borderColor='var(--re)'" onmouseout="this.style.color='var(--tx3)';this.style.background='var(--bg-h)';this.style.borderColor='var(--br)'">\u2715</span>` : ''}
       </div>
       <div class="cl-card-stats">
@@ -23577,8 +23593,19 @@ async function renderClients(){
       </div>
       <div class="cl-card-pcline">🖥 ${pcStr}</div>
     </div>`;
-    if(_isTrain){ _trainCards += _cardHTML; } else { _realCards += _cardHTML; }
+    if(_passive){ _passiveCards += _cardHTML; } else if(_isTrain){ _trainCards += _cardHTML; } else { _realCards += _cardHTML; }
   });
+
+  const _realSec = `<div class="cl-grp-hd" style="display:flex;align-items:center;gap:8px;margin:18px 0 10px;font-size:12.5px;font-weight:700;color:var(--tx2,#b8bcc6);letter-spacing:.02em">👥 ${_uiLang()==='ko'?'리얼 클라이언트':'Real clients'}<span style="font-size:11px;font-weight:600;color:var(--tx3,#8b93a1);background:var(--bg-h);border:1px solid var(--br);border-radius:10px;padding:1px 8px">${_realN}</span><span style="flex:1;height:1px;background:var(--br)"></span></div>
+      <div class="cl-board">${_realCards}</div>`;
+  const _trainSec = _trainN > 0 ? `
+      <div class="cl-grp-hd" style="display:flex;align-items:center;gap:8px;margin:24px 0 10px;font-size:12.5px;font-weight:700;color:var(--ac,#c9963a);letter-spacing:.02em">🎓 ${_uiLang()==='ko'?'트레이닝':'Training'}<span style="font-size:11px;font-weight:600;color:var(--ac,#c9963a);background:rgba(201,150,58,.12);border:1px solid rgba(201,150,58,.3);border-radius:10px;padding:1px 8px">${_trainN}</span><span style="flex:1;height:1px;background:var(--br)"></span></div>
+      <div class="cl-board">${_trainCards}</div>` : '';
+  // [v435] Passive section always renders last (when non-empty), regardless of whether Training exists,
+  // so a client kept "just in case they come back" stays visible but clearly separated from active ones.
+  const _passiveSec = _passiveN > 0 ? `
+      <div class="cl-grp-hd" style="display:flex;align-items:center;gap:8px;margin:24px 0 10px;font-size:12.5px;font-weight:700;color:var(--tx3,#8b93a1);letter-spacing:.02em">⏸ ${_uiLang()==='ko'?'비활성 클라이언트':'Passive clients'}<span style="font-size:11px;font-weight:600;color:var(--tx3,#8b93a1);background:var(--bg-h);border:1px solid var(--br);border-radius:10px;padding:1px 8px">${_passiveN}</span><span style="flex:1;height:1px;background:var(--br)"></span></div>
+      <div class="cl-board">${_passiveCards}</div>` : '';
 
   otherView.innerHTML = `<div class="cl-page-wrap">
     <div class="att-eyebrow">운영</div>
@@ -23586,12 +23613,7 @@ async function renderClients(){
     <div class="psub">${canSeeMoney ? '고객 관리 · 작업 시간대 · 결제 · 계약' : canOpenDetail ? '고객 운영 · 작업 시간대 · PC 배정' : '고객 현황 · 작업 시간대 · PC 배정'}</div>
     ${summary}
     ${canOpenDetail ? `<div class="cl-actions" style="margin:14px 0 2px;display:flex;align-items:center;gap:10px"><button class="client-add-btn" onclick="addClientAccount()" title="${_uiLang()==='ko'?'새 클라이언트 추가':'Add new client'}">+ ${_uiLang()==='ko'?'클라이언트 추가':'Add client'}</button><span style="font-size:11px;color:var(--tx3)">⠿ ${_uiLang()==='ko'?'카드를 드래그해 순서 변경':'drag cards to reorder'}</span></div>` : ''}
-    ${_trainN > 0 ? `
-      <div class="cl-grp-hd" style="display:flex;align-items:center;gap:8px;margin:18px 0 10px;font-size:12.5px;font-weight:700;color:var(--tx2,#b8bcc6);letter-spacing:.02em">👥 ${_uiLang()==='ko'?'리얼 클라이언트':'Real clients'}<span style="font-size:11px;font-weight:600;color:var(--tx3,#8b93a1);background:var(--bg-h);border:1px solid var(--br);border-radius:10px;padding:1px 8px">${_realN}</span><span style="flex:1;height:1px;background:var(--br)"></span></div>
-      <div class="cl-board">${_realCards}</div>
-      <div class="cl-grp-hd" style="display:flex;align-items:center;gap:8px;margin:24px 0 10px;font-size:12.5px;font-weight:700;color:var(--ac,#c9963a);letter-spacing:.02em">🎓 ${_uiLang()==='ko'?'트레이닝':'Training'}<span style="font-size:11px;font-weight:600;color:var(--ac,#c9963a);background:rgba(201,150,58,.12);border:1px solid rgba(201,150,58,.3);border-radius:10px;padding:1px 8px">${_trainN}</span><span style="flex:1;height:1px;background:var(--br)"></span></div>
-      <div class="cl-board">${_trainCards}</div>
-    ` : `<div class="cl-board">${_realCards}</div>`}
+    ${_realSec}${_trainSec}${_passiveSec}
   </div>`;
 }
 
@@ -23655,7 +23677,7 @@ function addClientAccount(){
   var id = 'ca_'+Date.now().toString(36);
   var iso = new Date().toISOString().slice(0,10);
   CLIENT_ACCOUNTS.push({
-    id:id, name:nm, discord:'', joined:iso, work:{ start:9, end:19 },
+    id:id, name:nm, discord:'', joined:iso, work:{ start:9, end:19 }, active:true,
     payment:{ status:'unpaid', monthly:0, due_day:1, last_paid:null, invoices:[] },
     contract:{ start:iso, end:'', monthly_fee:0, note:'' }, comms:[]
   });
@@ -23702,6 +23724,22 @@ function removeClientAccount(cid){
   toast(c.name + (_uiLang()==='ko'?' 삭제됨':' removed'));
   renderClients();
   try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
+}
+// [v435] Active/Passive toggle — unlike removeClientAccount this NEVER deletes anything: the client,
+// its contract, PC links and history all stay exactly as-is. It just flips a flag so the card moves
+// into its own dimmed "Passive" section, for clients who paused service but might come back later.
+function toggleClientActive(cid){
+  if(currentUserRole!=='admin' && currentUserRole!=='op'){ toast('No permission', true); return; }
+  var c = CLIENT_ACCOUNTS.find(function(x){ return x.id === cid; });
+  if(!c) return;
+  var wasActive = c.active !== false;
+  c.active = !wasActive;
+  try{ logAction('update', wasActive?'set client passive':'reactivated client', c.name); }catch(_){}
+  saveClientState(true);
+  toast(c.name + (wasActive
+    ? (_uiLang()==='ko'?' 비활성으로 전환됨':' set to passive')
+    : (_uiLang()==='ko'?' 다시 활성화됨':' reactivated')));
+  renderClients();
 }
 // [v162] make the client detail panel editable — contract fields + communication log
 function setClientContract(cid, field, val){
