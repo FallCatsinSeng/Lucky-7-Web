@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
+<!-- BUILD: v442 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8336,7 +8336,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v441';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v442';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17152,13 +17152,14 @@ function _srRecCardHTML(data){
         var seq=0, last=null;
         asc.forEach(function(s){
           if(s.tag==='checkin'||s.flag||s.ms==null) return;
+          if((Number(s.gain)||0)<0){ last=null; return; }   // [v442] a death never merges — keep it standalone AND break the merge chain so the report after a death starts a fresh hour (a late check-in + back-to-back catch-up reports were merging the death into the next reading, hiding it)
           var mp=String(s.map||''), cl=String(s.client||'');
           if(!last||last.map!==mp||last.client!==cl||(s.ms-last.ms)>_SR_HOUR_GAP_MS) seq++;
           _bkOf[s.id]='b'+seq;
           last={map:mp,client:cl,ms:s.ms};
         });
       })();
-      var hourKey=function(s){ if(s.tag==='checkin'||s.flag) return null; if(s.ms==null) return null; return _bkOf[s.id]!=null?_bkOf[s.id]:null; };
+      var hourKey=function(s){ if(s.tag==='checkin'||s.flag||(Number(s.gain)||0)<0) return null; if(s.ms==null) return null; return _bkOf[s.id]!=null?_bkOf[s.id]:null; };
       var grps=[], gmap={}; rws.forEach(function(s){ var hk=hourKey(s); if(hk==null){ grps.push([s]); return; } if(gmap[hk]==null){ gmap[hk]=grps.length; grps.push([]); } grps[gmap[hk]].push(s); });
       var rowsHTML=grps.map(function(grp){
         if(grp.length===1) return slRow(grp[0]);
