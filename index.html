@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v401 — 직원별 로그: '일일 기록/전체 초기화' 라벨 EN 모드 영어로 정리, All 보기를 2열 그리드에서 세로 1열 리스트로 변경 -->
+<!-- BUILD: v402 — Discord 체크아웃 카드 수정: 전체 시프트 누적(체크인->체크아웃, +9.18%) 대신 직전 보고 이후 구간(+0.56%)으로 계산해 웹사이트 기록과 일치. 시간당 보고가 누적되어 중복 집계되던 문제 해결. 시간당 레코드/급여는 영향 없음 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v401';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v402';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15712,7 +15712,11 @@ async function _srSubmitReport(kind,screen){
       }
       cardType=(kind==='checkout')?'checkout':'hourly';
       if(kind==='checkout'){
-        // [v319] Full-shift summary for EVERY checkout route. A booster can check out two ways: the dedicated
+        // [v402] SUPERSEDES v319 below: check-out card now reports gain since the LAST report (prev -> check-out),
+        // identical to the website's per-report check-out row (e.g. 51.70%->52.26% = +0.56%). v319's check-in->now
+        // span DOUBLE-COUNTED every hourly status report already filed, so Discord (+9.18%) never matched Records (+0.56%).
+        // A booster who files no intermediate reports still has prev == check-in, so the full-shift gain falls out naturally.
+        // [v319] (superseded) Full-shift summary for EVERY checkout route. A booster can check out two ways: the dedicated
         // checkout screen (_co), OR straight from the update screen once the hourly window reaches shift end
         // (screen==='update', _co=false). v318 only widened the first route, so shifts ended from the update
         // screen still showed just the last hour — THIS is what kept "PC 2" wrong. Now any checkout spans the
@@ -15720,7 +15724,7 @@ async function _srSubmitReport(kind,screen){
         var _sLv =(sess.startLv   !=null?sess.startLv   :prev.lv);
         var _sExp=(sess.startExp  !=null?sess.startExp  :prev.exp);
         var _sAde=(sess.startAdena!=null?sess.startAdena:prev.adena);
-        cardFields=_srFields(name,pc,gear,_srKST(_srPlayStartH),_srKST(we),mapFull,_sLv,_sExp,calc.lv,calc.exp,_sAde,Math.round(endAde),nt2,date);
+        cardFields=_srFields(name,pc,gear,_srKST(ws),_srKST(we),mapFull,prev.lv,prev.exp,calc.lv,calc.exp,prev.adena,Math.round(endAde),nt2,date);   // [v402] gain since LAST report (matches website check-out row), not full-shift span
       } else {
         cardFields=_srFields(name,pc,gear,_srKST(ws),_srKST(we),mapFull,prev.lv,prev.exp,calc.lv,calc.exp,prev.adena,Math.round(endAde),nt2,date);
       }
@@ -16469,7 +16473,7 @@ async function renderShiftAdmin(silent){
       for(i=allRs.length-1;i>=0;i--){ if(allRs[i].tag==='checkin'){ci=allRs[i];break;} if(allRs[i].tag==='checkout'){break;} }
 
       var sGain=0,sQuota=0,sHours=0, _shb={};   // [v384] count by real ROLLING-GAP hour run (createdAt), not a fixed clock grid — see _SR_HOUR_GAP_MS
-      if(ci){ var ciMs=reportMs(ci); var _sLastMs=null,_sSeq=0; allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ var _sms=reportMs(r); var _shk; if(_sms!=null){ if(_sLastMs==null||(_sms-_sLastMs)>_SR_HOUR_GAP_MS)_sSeq++; _sLastMs=_sms; _shk='h'+_sSeq; } else { _shk='r'+r.id; } if(!_shb[_shk])_shb[_shk]={tgt:0,gain:0}; _shb[_shk].gain+=(segGain[r.id]||0); var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_shb[_shk].tgt=Number(mo.target); } }); sHours=0;sGain=0;sQuota=0; Object.keys(_shb).forEach(function(_k){ var b=_shb[_k]; if(b.tgt>0){ sHours++; sGain+=(b.gain||0); sQuota+=(b.tgt||0); } }); }
+      if(ci){ var ciMs=reportMs(ci); var _sLastMs=null,_sSeq=0; allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); var _sms=reportMs(r); var _shk; if(_sms!=null){ if(_sLastMs==null||(_sms-_sLastMs)>_SR_HOUR_GAP_MS)_sSeq++; _sLastMs=_sms; _shk='h'+_sSeq; } else { _shk='r'+r.id; } if(!_shb[_shk])_shb[_shk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_shb[_shk].tgt=Number(mo.target); } }); sHours=Object.keys(_shb).length; Object.keys(_shb).forEach(function(_k){ sQuota+=(_shb[_k].tgt||0); }); }
       var sPct=sQuota>0?(sGain/sQuota*100):0;
 
       // [v259] Anchor each report to its shift's CHECK-IN date (same as payroll's shiftDateOf), so a night
@@ -16862,8 +16866,7 @@ function _srRecCompute(reports, clients){
           // genuinely separate ~1h reports landing in the same calendar-hour cell, e.g. one submitted late.)
           var _hk;
           if(_rms!=null){ var _hs=_hourSeqByDate[_rd]||(_hourSeqByDate[_rd]={lastMs:null,seq:0}); if(_hs.lastMs==null||(_rms-_hs.lastMs)>_SR_HOUR_GAP_MS)_hs.seq++; _hs.lastMs=_rms; _hk='h'+_hs.seq; } else { _hk='r'+r.id; }
-          if(!_ra.hb[_hk]) _ra.hb[_hk]={tgt:0,gain:0,cg:0};
-          _ra.hb[_hk].gain+=(_gain||0); if(!_flag)_ra.hb[_hk].cg+=(_gain||0);
+          if(!_ra.hb[_hk]) _ra.hb[_hk]={tgt:0};
           if(_tgt) _ra.hb[_hk].tgt=_tgt;          // target for this clock-hour (last seen wins)
           if(_flag) _ra.flags++;
         }
@@ -16871,7 +16874,7 @@ function _srRecCompute(reports, clients){
     });
   });
   var daily=[];
-  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; var _hb=a.hb||{}; var sH=0,sG=0,sQ=0,sC=0; Object.keys(_hb).forEach(function(_hk){ var b=_hb[_hk]; if(b.tgt>0){ sH++; sG+=(b.gain||0); sQ+=(b.tgt||0); sC+=(b.cg||0); } }); a.hours=sH; a.gain=sG; a.quota=sQ; a.cleanGain=sC; if(!(sH>0)) return; var perH=sG/sH; var targetH=(sQ>0?sQ/sH:0); var perf=(sQ>0?(sG/sQ*100):null); var cleanPerf=(sQ>0?(sC/sQ*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:sH,gain:sG,quota:sQ,perH:perH,targetH:targetH,perf:perf,flags:(a.flags||0),cleanGain:sC,cleanPerf:cleanPerf,hoursFlag:(sH>16),minMs:a.minMs,maxMs:a.maxMs}); }); });
+  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; var _hb=a.hb||{}; a.hours=Object.keys(_hb).length; a.quota=0; Object.keys(_hb).forEach(function(_hk){ a.quota+=(_hb[_hk].tgt||0); }); if(!(a.hours>0)) return; var perH=(a.hours>0?a.gain/a.hours:0); var targetH=(a.hours>0&&a.quota>0?a.quota/a.hours:0); var perf=(a.quota>0?(a.gain/a.quota*100):null); var cleanPerf=(a.quota>0?((a.cleanGain||0)/a.quota*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,quota:a.quota,perH:perH,targetH:targetH,perf:perf,flags:(a.flags||0),cleanGain:(a.cleanGain||0),cleanPerf:cleanPerf,hoursFlag:(a.hours>16),minMs:a.minMs,maxMs:a.maxMs}); }); });
   daily.sort(function(a,b){ if(a.date!==b.date) return a.date<b.date?1:-1; return a.name<b.name?-1:(a.name>b.name?1:0); });
   sessions.sort(function(a,b){ return (b.ms||0)-(a.ms||0); });
   return { daily:daily, sessions:sessions };
@@ -17072,8 +17075,8 @@ function _srRecCardHTML(data){
     var _reps=(o._reps||[]).slice().sort(function(a,b){ return (a.ms||0)-(b.ms||0); });
     var _bk={}, _seq=0, _last=null, _ri=0;
     _reps.forEach(function(r){ var hk; if(r.ms!=null){ if(_last==null||(r.ms-_last)>_SR_HOUR_GAP_MS) _seq++; _last=r.ms; hk='h'+_seq; } else { hk='r'+(_ri++); } if(!_bk[hk]) _bk[hk]={tgt:0,gain:0}; _bk[hk].gain+=(Number(r.gain)||0); if(r.target!=null&&Number(r.target)>0) _bk[hk].tgt=Number(r.target); });
-    var _hrs=0, _quota=0, _hg=0;
-    Object.keys(_bk).forEach(function(k){ if(_bk[k].tgt>0){ _hrs++; _quota+=_bk[k].tgt; _hg+=_bk[k].gain; } });
+    var _hrs=Object.keys(_bk).length, _quota=0, _hg=0;
+    Object.keys(_bk).forEach(function(k){ _quota+=_bk[k].tgt; _hg+=_bk[k].gain; });
     var actualH=_hrs>0?(_hg/_hrs):null; var perf=_quota>0?(_hg/_quota*100):null; var targetH=(_hrs>0&&_quota>0)?(_quota/_hrs):null;
     return {avg:avg,perf:perf,actualH:actualH,targetH:targetH,hours:_hrs,nStaff:Object.keys(o.staff).length,maps:Object.keys(o.maps)}; };
   // [v390] Sort client cards by PC number (matching the PC Status board order) instead of alphabetically —
@@ -20115,8 +20118,10 @@ async function renderMyPerformance(){
     const byDate = {}; days.forEach(d => byDate[d] = { gain:0, quota:0, hours:0, ade:0 });
     settleRs.forEach(r => { const d=shiftDateOf(r); if(!byDate[d]) return;
       const mo=findMap(clients,r); const tg=mo&&Number(mo.target)>0?Number(mo.target):null;
+      byDate[d].gain  += (segGain[r.id]!=null?segGain[r.id]:0);
       byDate[d].ade   += (segAde[r.id]||0);
-      if(tg!=null){ byDate[d].gain += (segGain[r.id]!=null?segGain[r.id]:0); byDate[d].hours += 1; byDate[d].quota += tg; }
+      byDate[d].hours += 1;
+      if(tg!=null) byDate[d].quota += tg;
     });
 
     let tGain=0, tQuota=0, tHours=0, tAde=0;
