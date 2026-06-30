@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v436 | 버그수정: Active/Passive 토글 버튼이 안 눌리던 문제 — toggleClientActive 함수명이 PC현황의 기존 ON/OFF 토글과 충돌(나중 선언이 먼저 것을 덮어씀)해서 무반응이었음. toggleClientPassive로 이름 변경. -->
+<!-- BUILD: v437 | Shift Report: added a 💀 'Died this hour' toggle next to EXP now — booster types a plain POSITIVE loss % instead of having to remember to prefix a minus sign. Same underlying calc, just a clearer input. The Adena-jump warning (⚠ unrelated, pre-existing since v302) is explained to the CEO separately, not changed. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8336,7 +8336,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v436';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v437';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15431,7 +15431,7 @@ function _srExpPreview(screen){
   if(!el||!inp) return;
   var prev=_srPrev();
   if(!prev){ el.className='sr-exp-prev'; el.textContent='\u2192 check in first'; return; }
-  var raw=inp.value.trim();
+  var raw=_srDeathRaw(screen);   // [v437] applies the "Died this hour" sign automatically
   if(raw===''){ el.className='sr-exp-prev'; el.textContent='\u2192 was Lv '+prev.lv+' @ '+(Number(prev.exp).toFixed(2))+'%'; return; }
   var r=_srApplyExp(prev.lv,prev.exp,raw);
   if(!r.valid){ el.className='sr-exp-prev sr-bad'; el.textContent='\u26a0 '+r.error; return; }
@@ -15494,7 +15494,7 @@ function _srReadScreen(which){
     shot: !!_srShots[which],
     pc: (root.querySelector('[data-sr-pc]')||{}).textContent||'',
     map: (root.querySelector('[data-sr-map]')||{}).textContent||'' };
-  if(live){ o.expRaw=live.value; } else { var exps=root.querySelectorAll('.sr-exp .sr-inp'); o.lv=exps[0]?exps[0].value:''; o.expv=exps[1]?exps[1].value:''; }
+  if(live){ o.expRaw=_srDeathRaw(which); } else { var exps=root.querySelectorAll('.sr-exp .sr-inp'); o.lv=exps[0]?exps[0].value:''; o.expv=exps[1]?exps[1].value:''; }
   return o;
 }
 function _srRecapHTML(d,calc){
@@ -15823,7 +15823,8 @@ async function _srFinishSubmit(kind,screen){
     _srToast('Saved · '+_srKST(_srWinStart)+'–'+_srKST(_srWinEnd)+' KST');
     _srWinStart=_srWinEnd; _srWinEnd=Math.min(_srWinStart+1,_srShiftEndH); _srRenderWin();
     _srSetShot('update',null);
-    var li=document.querySelector('#sr-s-update .sr-exp-live'); if(li) li.value='';
+    var li=document.querySelector('#sr-s-update .sr-exp-live'); if(li){ li.value=''; li.placeholder='0.00'; }
+    var dcb=document.querySelector('#sr-s-update .sr-death-cb'); if(dcb && dcb.checked){ dcb.checked=false; _srDeathToggle('update'); }
     var ad=document.querySelector('#sr-s-update [data-sr-adena]'); if(ad) ad.value='';
     var nt=document.querySelector('#sr-s-update [data-sr-note]'); if(nt) nt.value='';
     _srExpPreview('update'); _srSaveSession();
@@ -15953,6 +15954,10 @@ function _srInjectCSS(){
 "#sr-app .sr-exp-prev{font-size:12px;color:var(--tx3,#6c6b66);margin-top:7px;}",
 "#sr-app .sr-exp-prev.sr-good{color:var(--gr,#4d9a8a);}",
 "#sr-app .sr-exp-prev.sr-bad{color:var(--re,#c46a6a);font-weight:500;}",
+"#sr-app .sr-death-tog{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--tx3,#6c6b66);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#33332f);border-radius:8px;padding:5px 10px;cursor:pointer;margin:6px 0 0;user-select:none;transition:all .14s ease;}",
+"#sr-app .sr-death-tog:hover{border-color:var(--re,#c46a6a);}",
+"#sr-app .sr-death-tog input{margin:0;accent-color:var(--re,#c46a6a);}",
+"#sr-app .sr-death-tog.on{color:var(--re,#c46a6a);background:rgba(196,106,106,.12);border-color:var(--re,#c46a6a);}",
 "#sr-app .sr-exp-live{flex:1;}",
 "#sr-app .sr-shot-prev{margin-top:10px;}",
 "#sr-app .sr-shot-prev img{max-width:100%;max-height:170px;border-radius:9px;border:1px solid var(--br2,#33332f);display:block;}",
@@ -16212,13 +16217,41 @@ function _srInjectCSS(){
   document.head.appendChild(s);
 }
 
+// [v437] "Died this hour" toggle — previously a booster who died had to manually type a MINUS-prefixed
+// number representing how much % they lost (e.g. "-16.99"), which was confusing and easy to get wrong
+// (forgetting the "-" silently submits a huge fake EXP gain instead of a loss). Now they just tap the
+// 💀 toggle and type a plain POSITIVE number for how much they lost — the minus sign is applied for them.
 function _srExpRow(prefix,mode,screen){
   if(mode==='live'){
-    return '<div class="sr-row"><label class="sr-lab">EXP now <span style="color:var(--tx3,#6c6b66);font-weight:400">· type the % on your bar — use − if it dropped</span></label>'
-      +'<div class="sr-exp"><input class="sr-inp sr-exp-live" value="" inputmode="text" placeholder="0.00" oninput="_srExpPreview(\''+screen+'\')"><span class="sr-u">%</span></div>'
+    return '<div class="sr-row"><label class="sr-lab" id="sr-explab-'+screen+'">EXP now <span style="color:var(--tx3,#6c6b66);font-weight:400">· type the % on your bar</span></label>'
+      +'<div class="sr-exp"><input class="sr-inp sr-exp-live" value="" inputmode="decimal" placeholder="0.00" oninput="_srExpPreview(\''+screen+'\')"><span class="sr-u">%</span></div>'
+      +'<label class="sr-death-tog" id="sr-deathtog-'+screen+'"><input type="checkbox" class="sr-death-cb" onchange="_srDeathToggle(\''+screen+'\')"> 💀 Died this hour</label>'
       +'<div class="sr-exp-prev" id="sr-prev-'+screen+'">→ enter your EXP</div></div>';
   }
   return '<div class="sr-row"><label class="sr-lab">'+prefix+' EXP</label><div class="sr-exp"><span class="sr-u">Lv</span><input class="sr-inp sr-lv" value="" inputmode="numeric" placeholder="35"><input class="sr-inp" value="" inputmode="decimal" placeholder="0.00"><span class="sr-u">%</span></div></div>';
+}
+// Returns the input's value already normalized to what _srApplyExp expects: when "Died this hour" is
+// checked, a plain positive loss amount (e.g. "16.99") becomes "-16.99"; any "-" the booster might still
+// type themselves is stripped first so it can never become a double-negative.
+function _srDeathRaw(screen){
+  var inp=document.querySelector('#sr-s-'+screen+' .sr-exp-live'); if(!inp) return '';
+  var cb=document.querySelector('#sr-s-'+screen+' .sr-death-cb');
+  var raw=String(inp.value||'').trim();
+  if(cb && cb.checked){ raw=raw.replace(/^-/,''); if(raw!=='') raw='-'+raw; }
+  return raw;
+}
+function _srDeathToggle(screen){
+  var cb=document.querySelector('#sr-s-'+screen+' .sr-death-cb');
+  var tog=document.getElementById('sr-deathtog-'+screen);
+  var lab=document.getElementById('sr-explab-'+screen);
+  var inp=document.querySelector('#sr-s-'+screen+' .sr-exp-live');
+  var on=!!(cb&&cb.checked);
+  if(tog) tog.classList.toggle('on',on);
+  if(lab) lab.innerHTML = on
+    ? 'EXP lost <span style="color:var(--tx3,#6c6b66);font-weight:400">· type how much % you lost (just the number, no minus needed)</span>'
+    : 'EXP now <span style="color:var(--tx3,#6c6b66);font-weight:400">· type the % on your bar</span>';
+  if(inp){ inp.placeholder = on ? 'e.g. 16.99' : '0.00'; if(on) inp.value = String(inp.value||'').replace(/^-/,''); }
+  _srExpPreview(screen);
 }
 function _srBuildHTML(){
   var booster=_srEsc(_srBooster());
