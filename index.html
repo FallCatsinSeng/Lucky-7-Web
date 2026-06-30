@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v412 — CHECK OUT 카드 EXP를 다시 FULL-SHIFT(check-in→check-out)로 복원: EXP GAINED=전체 shift 합계, /HOUR=합계÷시간 (Image-2 형식). v402의 prev→now(마지막 구간)은 3시간 shift를 과소보고했음. dedup(v403/v404) 유지로 double-card 여전히 방지. v411 egress 절감 유지 -->
+<!-- BUILD: v413 — All 그룹뷰 compact band 더 촘촘하게(avatar/패딩/간격 축소), 모바일에서 gauge 타원으로 깨지던 버그 수정(flex:none), 헤더 타이틀 ellipsis로 잘림 방지. v404 dedup 주석 오타 수정(4분→실제 6시간) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v412';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v413';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15754,7 +15754,8 @@ async function _srSubmitReport(kind,screen){
     cardFields.postId = (newRecs[0] && newRecs[0].id) ? newRecs[0].id : ('post-'+base);
     // [v404] Prevent the "final hourly update + check-out" DOUBLE card permanently. _srLastCard resets at check-in
     // and tracks the last hourly/checkout, so within a shift a check-out posting the same end-EXP/Lv
-    // a report just posted (within 4 min), the booster already reported this final state — skip the redundant
+    // a report just posted (within 6h — generous on purpose, since the signature itself is exact: same
+    // booster+PC+EXP+Lv), the booster already reported this final state — skip the redundant
     // Discord card. The per-hour record + shift finalize are untouched, so the website still shows the check-out.
     var _cardSig=(sess?sess.booster:_srBooster())+'|'+String(name)+'|'+String(pc)+'|'+String(cardFields.exp)+'|'+String(cardFields.lv);
     if(kind==='checkout' && _srLastCard && _srLastCard.sig===_cardSig && (Date.now()-_srLastCard.t)<21600000){
@@ -15920,14 +15921,14 @@ function _srInjectCSS(){
 "#sr-app .sr-rec-card{margin-top:16px;}",
 "#sr-app .sr-badge-lock{background:var(--bg-i,#202020);color:var(--tx3,#6c6b66);border:1px solid var(--br,#2c2c2b);font-size:9.5px;padding:3px 8px;border-radius:6px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;}",
 "#sr-app .sr-rec-sub{font-size:11.5px;color:var(--tx3,#6c6b66);margin:-6px 0 14px;line-height:1.4;}",
-"#sr-app .sr-rec-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;align-items:stretch;-webkit-overflow-scrolling:touch;}",
+"#sr-app .sr-rec-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;align-items:stretch;-webkit-overflow-scrolling:touch;}",
 "#sr-app .sr-rec-tabs::-webkit-scrollbar{height:5px;}",
 "#sr-app .sr-rec-tabs::-webkit-scrollbar-thumb{background:var(--br2,#33332f);border-radius:3px;}",
-"#sr-app .sr-rec-tab{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);border-radius:13px;padding:10px 12px 9px;min-width:68px;cursor:pointer;transition:all .14s ease;}",
+"#sr-app .sr-rec-tab{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);border-radius:11px;padding:7px 9px 6px;min-width:56px;cursor:pointer;transition:all .14s ease;}",
 "#sr-app .sr-rec-tab:hover{border-color:var(--tx3,#6c6b66);}",
 "#sr-app .sr-rec-tab.on{border-color:var(--ac,#c9963a);background:rgba(201,150,58,.10);}",
-"#sr-app .sr-rec-av{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;letter-spacing:.3px;flex:none;}",
-"#sr-app .sr-rec-tnm2{font-size:11px;font-weight:600;color:var(--tx,#e6e5e2);max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
+"#sr-app .sr-rec-av{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;letter-spacing:.3px;flex:none;}",
+"#sr-app .sr-rec-tnm2{font-size:10px;font-weight:600;color:var(--tx,#e6e5e2);max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 "#sr-app .sr-rec-tperf{font-size:11px;font-weight:700;}",
 "#sr-app .sr-rec-allbig{width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--tx,#e6e5e2);}",
 "#sr-app .sr-rec-tn{font-size:11px;font-weight:700;color:var(--tx3,#6c6b66);}",
@@ -15989,23 +15990,24 @@ function _srInjectCSS(){
 "#sr-app .sr-gseg button.on[data-g=un]{color:var(--gun);background:var(--gun-bg);}",
 "#sr-app .sr-gband{border:1px solid var(--br,#232322);border-radius:16px;overflow:hidden;margin-bottom:18px;background:var(--bg-c,#161616);}",
 "#sr-app .sr-gband.hide{display:none;}",
-"#sr-app .sr-gband-grid{display:grid;grid-template-columns:1fr;gap:12px;align-items:stretch;margin-top:2px;}",
+"#sr-app .sr-gband-grid{display:grid;grid-template-columns:1fr;gap:8px;align-items:stretch;margin-top:2px;}",
 "#sr-app .sr-gband-compact{margin-bottom:0;}",
 "#sr-app .sr-gband-compact .sr-gband-hd{transition:filter .14s ease;}",
 "#sr-app .sr-gband-compact .sr-gband-hd:hover{filter:brightness(1.18);}",
 "#sr-app .sr-gband-go{font-size:15px;font-weight:800;color:var(--gc,#c2a04a);margin-left:10px;flex:none;opacity:.7;}",
-"#sr-app .sr-gband-hd{display:flex;align-items:center;gap:12px;padding:13px 16px;border-left:4px solid var(--gc,#c2a04a);background:linear-gradient(90deg,var(--gcb,transparent),transparent 62%);border-bottom:1px solid var(--br,#232322);}",
-"#sr-app .sr-gband-ic{font-size:18px;line-height:1;}",
-"#sr-app .sr-gband-tt{font-size:15px;font-weight:800;color:var(--gc,#c2a04a);letter-spacing:-.01em;}",
-"#sr-app .sr-gband-cnt{font-size:11px;font-weight:700;color:var(--tx2,#989792);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);padding:2px 8px;border-radius:7px;}",
+    "@media (max-width:640px){ #sr-app .sr-gband-stat-l{display:none;} #sr-app .sr-gband-stat-v{font-size:12px;} #sr-app .sr-gband-cnt{display:none;} #sr-app .sr-gband-tt{min-width:54px;} }",
+"#sr-app .sr-gband-hd{display:flex;align-items:center;gap:9px;padding:9px 13px;border-left:4px solid var(--gc,#c2a04a);background:linear-gradient(90deg,var(--gcb,transparent),transparent 62%);border-bottom:1px solid var(--br,#232322);}",
+"#sr-app .sr-gband-ic{font-size:15px;line-height:1;flex:none;}",
+"#sr-app .sr-gband-tt{font-size:13px;font-weight:800;color:var(--gc,#c2a04a);letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:20px;flex:1 1 auto;}",
+"#sr-app .sr-gband-cnt{font-size:10px;font-weight:700;color:var(--tx2,#989792);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);padding:1px 7px;border-radius:6px;flex:none;}",
 "#sr-app .sr-gband-sp{flex:1;}",
-"#sr-app .sr-gband-stat{text-align:right;line-height:1.1;}",
-"#sr-app .sr-gband-stat-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--tx3,#5f5e5a);}",
-"#sr-app .sr-gband-stat-v{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;}",
-"#sr-app .sr-gauge{--p:0;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--gc,#c2a04a) calc(var(--p)*1%),var(--br,#232322) 0);position:relative;}",
-"#sr-app .sr-gauge::before{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--bg-c,#161616);}",
-"#sr-app .sr-gauge span{position:relative;font-size:10.5px;font-weight:800;color:var(--gc,#c2a04a);}",
-"#sr-app .sr-gband .sr-rec-tabs{padding:13px 14px;border-bottom:1px solid var(--br,#232322);margin:0;display:flex;gap:9px;overflow-x:auto;}",
+"#sr-app .sr-gband-stat{text-align:right;line-height:1.1;flex:none;white-space:nowrap;}",
+"#sr-app .sr-gband-stat-l{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx3,#5f5e5a);}",
+"#sr-app .sr-gband-stat-v{font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums;}",
+"#sr-app .sr-gauge{--p:0;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--gc,#c2a04a) calc(var(--p)*1%),var(--br,#232322) 0);position:relative;flex:none;}",
+"#sr-app .sr-gauge::before{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--bg-c,#161616);}",
+"#sr-app .sr-gauge span{position:relative;font-size:9px;font-weight:800;color:var(--gc,#c2a04a);}",
+"#sr-app .sr-gband .sr-rec-tabs{padding:9px 12px;border-bottom:1px solid var(--br,#232322);margin:0;display:flex;gap:6px;overflow-x:auto;}",
 "#sr-app .sr-gband-body{padding:6px 12px 12px;}",
 "#sr-app .sr-rec-av.gring{box-shadow:0 0 0 2px var(--bg-i,#1a1a1a),0 0 0 4px var(--gc,#c2a04a);}",
 "#sr-app .sr-rec-tab.gsel{box-shadow:0 0 0 1px var(--gc,#c2a04a) inset;}",
