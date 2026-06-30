@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v404 — 체크아웃 중복 카드 방지 강화: 가드를 체크인마다 리셋(시프트 단위)하고 직전 카드 기준으로 비교, 4분 제한 제거(시프트 전체 백스톱). 같은 EXP면 체크아웃 카드 항상 1개. 세션 로그 누적 EXP% 표시 유지 -->
+<!-- BUILD: v405 — 세션 로그 DIFF를 GOAL이 아닌 CUT BELOW(sl) 기준으로 계산: DIFF 음수=컷, 양수=안전(판정과 일치). 밴드 없으면 goal로 폴백. GOAL 표시/급여 계산은 그대로 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v404';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v405';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17016,7 +17016,7 @@ function _srRecCardHTML(data){
         var hasBand=(s.sh!=null&&s.sl!=null);
         var stableCell=hasBand?('<span style="color:var(--ye)">'+s.sh.toFixed(2)+'~'+s.sl.toFixed(2)+'%</span>'):'<span class="sr-mut">—</span>';
         var cutCell=hasBand?('<span style="color:var(--re)">&lt;'+s.sl.toFixed(2)+'%</span>'):'<span class="sr-mut">—</span>';
-        var hasDiff=(s.tag!=='checkin'&&s.target!=null); var dv=hasDiff?(s.gain-s.target):0;
+        var hasDiff=(s.tag!=='checkin'&&s.target!=null); var _diffBase=(s.sl!=null?s.sl:s.target); var dv=hasDiff?(s.gain-_diffBase):0;   // [v405] DIFF measured from the CUT BELOW line (sl), not the goal → negative DIFF now means "cut", matching the verdict; falls back to goal if no band
         var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
         var rid=esc(String(s.id||'')); var cls=[]; if(s.flag)cls.push('sr-sl-flag'); if(isAdmin&&!opt.noEdit)cls.push('sr-sl-row'); if(opt.cls)cls.push(opt.cls);
         var onclk=(opt.onclick!=null)?opt.onclick:((isAdmin&&!opt.noEdit)?('onclick="_srRecEditReport(\''+rid+'\')"'):'');
