@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v414 — 직원별 TRAINING 토글(CEO·매니저): 해당 직원은 레이스 제외 + 밴드 평균(소계/게이지)에서 제외. 목록에는 🎓 TRAINING 배지로 남아 으로 계속 관찰 가능. training_staff calc로 팀 공유, localStorage 즉시 반영. v413 compact 유지 -->
+<!-- BUILD: v415 — 퇴사/숨김 직원(resigned): 목록·레이스·통계에서 완전 제외. 첫 로드 시 kun+ace 자동 숨김(이후 저장된 세트 우선). 직원 상세 헤더에 🚫 Resign 버튼 + By-Staff 하단 'Resigned/hidden' 복원 섹션. hidden_staff calc로 팀 공유. v414 training 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v414';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v415';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15932,6 +15932,14 @@ function _srInjectCSS(){
 "#sr-app .sr-train-tog{background:var(--bg-i,#1c1c1b);color:var(--tx2,#989792);border:1px solid var(--br,#2c2c2b);font-size:10px;font-weight:800;letter-spacing:.04em;padding:4px 10px;border-radius:7px;cursor:pointer;margin:0 8px 0 auto;transition:all .14s ease;}",
 "#sr-app .sr-train-tog:hover{border-color:var(--tx3,#6c6b66);color:var(--tx,#e6e5e2);}",
 "#sr-app .sr-train-tog.on{background:rgba(86,130,232,.16);color:#7aa2f7;border-color:rgba(86,130,232,.4);}",
+"#sr-app .sr-resign-tog{background:var(--bg-i,#1c1c1b);color:var(--tx2,#989792);border:1px solid var(--br,#2c2c2b);font-size:10px;font-weight:800;letter-spacing:.04em;padding:4px 10px;border-radius:7px;cursor:pointer;margin-right:8px;transition:all .14s ease;}",
+"#sr-app .sr-resign-tog:hover{border-color:rgba(217,102,92,.5);color:#d9665c;}",
+"#sr-app .sr-resigned-sec{margin-top:14px;padding:11px 13px;border:1px dashed var(--br2,#33332f);border-radius:11px;background:var(--bg-c,#161616);}",
+"#sr-app .sr-resigned-hd{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3,#6c6b66);margin-bottom:8px;}",
+"#sr-app .sr-resigned-list{display:flex;flex-wrap:wrap;gap:7px;}",
+"#sr-app .sr-resigned-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--tx2,#989792);background:var(--bg-i,#1c1c1b);border:1px solid var(--br,#2c2c2b);border-radius:8px;padding:3px 4px 3px 10px;}",
+"#sr-app .sr-resigned-chip button{background:rgba(54,198,107,.13);color:#36c66b;border:1px solid rgba(54,198,107,.3);border-radius:6px;cursor:pointer;font-size:11px;line-height:1;padding:2px 6px;}",
+"#sr-app .sr-resigned-chip button:hover{background:rgba(54,198,107,.22);}",
 "#sr-app .sr-rec-av{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;letter-spacing:.3px;flex:none;}",
 "#sr-app .sr-rec-tnm2{font-size:10px;font-weight:600;color:var(--tx,#e6e5e2);max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}",
 "#sr-app .sr-rec-tperf{font-size:11px;font-weight:700;}",
@@ -17180,7 +17188,7 @@ function _srRecCardHTML(data){
     }
     var chip=function(l,v){ return '<div class="sr-fchip"><span class="l">'+l+'</span><span class="v">'+v+'</span></div>'; };
     return '<div class="sr-card sr-rec-card" style="--gc:'+meta.gc+';--gcb:'+meta.gcb+'">'
-      +'<div class="sr-head"><h2>기록 · 통계</h2>'+((typeof _canEditNav==='function'&&_canEditNav())?('<button class="sr-train-tog'+(_isTrainingKey(curF,u.name)?' on':'')+'" onclick="_srToggleTrainingStaff(&#39;'+esc(curF)+'&#39;)">🎓 '+(_isTrainingKey(curF,u.name)?'TRAINING ON':'TRAINING')+'</button>'):'')+'<span class="sr-badge sr-badge-lock">대표 · 매니저</span></div>'
+      +'<div class="sr-head"><h2>기록 · 통계</h2>'+((typeof _canEditNav==='function'&&_canEditNav())?('<button class="sr-train-tog'+(_isTrainingKey(curF,u.name)?' on':'')+'" onclick="_srToggleTrainingStaff(&#39;'+esc(curF)+'&#39;)">🎓 '+(_isTrainingKey(curF,u.name)?'TRAINING ON':'TRAINING')+'</button>'):'')+((typeof _canEditNav==='function'&&_canEditNav())?('<button class="sr-resign-tog" onclick="if(confirm(&#39;Remove from list? (resigned staff)&#39;))_srSetHidden(&#39;'+esc(curF)+'&#39;,true)">🚫 Resign</button>'):'')+'<span class="sr-badge sr-badge-lock">대표 · 매니저</span></div>'
       +'<button class="sr-focus-back" onclick="_srRecFilterBy(\'\')">← 전체 기록</button>'
       +'<div class="sr-focus-hd">'
         +'<div class="sr-focus-av" style="background:'+avColor(curF)+'">'+esc(avInit(u.name))+(LEADERS[curF]?'<span class="sr-crown">👑</span>':'')+'</div>'
@@ -17204,9 +17212,9 @@ function _srRecCardHTML(data){
 
   // ════════════════ OVERVIEW (그룹 밴드) ════════════════
   var byG={d12:[],n12:[],s1:[],s2:[],s3:[],un:[]};
-  Object.keys(universe).forEach(function(k){ var g=universe[k].grp||'un'; (byG[g]=byG[g]||[]).push(k); });
+  Object.keys(universe).forEach(function(k){ if(_isHiddenKey(k)) return;   /* [v415] resigned/hidden staff out of every band */ var g=universe[k].grp||'un'; (byG[g]=byG[g]||[]).push(k); });
   var grpCount=function(g){ return (byG[g]||[]).length; };
-  var segBtn=function(g,label){ var on=(curG===g); var n=(g==='all')?Object.keys(universe).length:grpCount(g); var st=(on&&g!=='all'&&GMETA[g])?(' style="color:'+GMETA[g].gc+';background:'+GMETA[g].gcb+'"'):''; return '<button class="'+(on?'on':'')+'" data-g="'+g+'"'+st+' onclick="_srRecGroupBy(\''+g+'\')">'+label+' <span class="n">'+n+'</span></button>'; };
+  var segBtn=function(g,label){ var on=(curG===g); var n=(g==='all')?Object.keys(universe).filter(function(_k){return !_isHiddenKey(_k);}).length:grpCount(g); var st=(on&&g!=='all'&&GMETA[g])?(' style="color:'+GMETA[g].gc+';background:'+GMETA[g].gcb+'"'):''; return '<button class="'+(on?'on':'')+'" data-g="'+g+'"'+st+' onclick="_srRecGroupBy(\''+g+'\')">'+label+' <span class="n">'+n+'</span></button>'; };
   var seg='<div class="sr-gseg">'+segBtn('all','전체')+segBtn('d12','☀️ 12H 주간')+segBtn('n12','🌙 12H 야간')+segBtn('s1','🌅 8H S1')+segBtn('s2','🌆 8H S2')+segBtn('s3','🌃 8H S3')+(grpCount('un')?segBtn('un','❔ 미배정'):'')+'</div>';
   var dailyByKey={}; daily.forEach(function(r){ (dailyByKey[r.key]=dailyByKey[r.key]||[]).push(r); });
 
@@ -17270,11 +17278,16 @@ function _srRecCardHTML(data){
     +'<button class="'+(_period==='month'?'on':'')+'" onclick="_srRecPeriodBy(\'month\')">이번 달</button>'
     +'<button class="'+(_period==='all'?'on':'')+'" onclick="_srRecPeriodBy(\'all\')">전체</button>'
     +'</div>';
+  var _hidK=_hiddenKeys(); var resignedSec='';
+  if(typeof _canEditNav==='function' && _canEditNav() && _hidK.length){
+    var _rchips=_hidK.map(function(k){ var nm=(universe[k]&&universe[k].name)||k; return '<span class="sr-resigned-chip">'+esc(nm)+'<button title="Restore" onclick="_srSetHidden(&#39;'+esc(k)+'&#39;,false)">↩</button></span>'; }).join('');
+    resignedSec='<div class="sr-resigned-sec"><div class="sr-resigned-hd">🚫 Resigned / hidden · '+_hidK.length+'</div><div class="sr-resigned-list">'+_rchips+'</div></div>';
+  }
   var body = (mode==='clock')
     ? _clockBoardHTML(sessions)
     : (mode==='client')
     ? (periodTab+'<div class="sr-clgrid">'+clientCards+'</div>'+(_trainN?('<div class="sr-cltrain-hd">'+(_uiLang()==='ko'?'\ud83c\udf93 \ud2b8\ub808\uc774\ub2dd \ud074\ub77c · 기준 없음':'\ud83c\udf93 Training · no standard')+'<span class="sr-cltrain-cnt">'+_trainN+'</span></div><div class="sr-clgrid">'+_trainCards+'</div>'):''))
-    : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">'+(_uiLang()==='ko'?'일일 기록':'Daily log')+' · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">'+(_uiLang()==='ko'?'🗑 전체 초기화':'🗑 Reset all')+'</button></span></div>'+bands);
+    : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">'+(_uiLang()==='ko'?'일일 기록':'Daily log')+' · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">'+(_uiLang()==='ko'?'🗑 전체 초기화':'🗑 Reset all')+'</button></span></div>'+bands+resignedSec);
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span><span class="sr-badge">실시간</span></div>'
     +'<div class="sr-rec-sub">'+(_uiLang()==='ko'?'전 직원·클라이언트 기록 — 시프트 그룹(12H 주/야 · 8H S1·2·3) 또는 클라별. 항목을 누르면 상세가 펼쳐집니다.':'All staff · client log — shift group (12H Day/Night · 8H S1·2·3) or by client. Tap an item to expand.')+'</div>'
@@ -17529,7 +17542,7 @@ function _raceAv(n){ var c=String(n||'').replace(/^mr\.?/i,'').trim(); return ((
 function _raceBuild(daily, sessions){
   // per-staff aggregate (clean = EXP 점프 제외, 공정한 급여 판정용)
   var agg={};
-  daily.forEach(function(r){ var k=r.key; if(_isTrainingKey(k,r.name)) return;   /* [v414] training staff out of race */ if(!agg[k])agg[k]={key:k,name:r.name,gain:0,clean:0,quota:0,hours:0,flags:0}; var a=agg[k];
+  daily.forEach(function(r){ var k=r.key; if(_isTrainingKey(k,r.name)||_isHiddenKey(k)) return;   /* [v414] training + [v415] resigned/hidden out of race */ if(!agg[k])agg[k]={key:k,name:r.name,gain:0,clean:0,quota:0,hours:0,flags:0}; var a=agg[k];
     a.gain+=(r.gain||0); a.clean+=(r.cleanGain!=null?r.cleanGain:(r.gain||0)); a.quota+=(r.quota||0); a.hours+=(r.hours||0); a.flags+=(r.flags||0); });
   // latest client/map per staff
   var last={}; sessions.slice().sort(function(a,b){return (a.ms||0)-(b.ms||0);}).forEach(function(s){ if(!s.key)return; last[s.key]={client:s.client,map:s.map,lv:s.lv}; });
@@ -17610,6 +17623,7 @@ async function renderRace(silent){
     var clients=Array.isArray(byKey.clients)?byKey.clients:[];
     _rcSetCache(reports,clients);
     try{ await _srLoadTrainingStaff(); }catch(_){ }
+    try{ await _srLoadHiddenStaff(); }catch(_){ }
     var rec=_srRecCompute(reports, clients);
     try{ if(typeof _srGetCalc==='function'){ var _std=await _srGetCalc('race_std'); var m={},vf=false; if(Array.isArray(_std)) _std.forEach(function(x){ if(!x)return; if(x.verified)vf=true; if(x.lv>0&&x.eph>0)m[x.lv]=x.eph; }); window._raceStdMap=m; window._raceStdVerified=vf; } }catch(_){ }
     var html=_raceCardHTML(rec.daily||[], rec.sessions||[]);
@@ -17726,6 +17740,7 @@ async function renderRecords(silent){
     var clients=Array.isArray(byKey.clients)?byKey.clients:[];
     _rcSetCache(reports,clients);
     try{ await _srLoadTrainingStaff(); }catch(_){ }
+    try{ await _srLoadHiddenStaff(); }catch(_){ }
     var recRows=_srRecCompute(reports, clients);
     var app=otherView.querySelector('#sr-app.sr-app-wide');
     if(_bg && app){ app.innerHTML=_srRecCardHTML(recRows); }
@@ -17757,6 +17772,23 @@ async function _srToggleTrainingStaff(key){ key=String(key||''); if(!key) return
   try{ if(typeof toast==='function') toast(on?'🎓 Training ON — excluded from race & averages':'Training OFF — back in race & averages', false); }catch(_){ }
   try{ if(typeof _srRecReRender==='function') _srRecReRender(); }catch(_){ }
   try{ if(typeof _srPutCalc==='function'){ var ok=await _srPutCalc('training_staff', keys); if(!ok && typeof toast==='function') toast('Save failed — try again', true); } }catch(_){ }
+}
+/* [v415] RESIGNED / HIDDEN STAFF — fully removed from the records list, the race, and team stats.
+   Team-wide via calc 'hidden_staff'. Seeded with kun + ace (resigned) on first load until you save your own set.
+   Restore from the 'Resigned / hidden' section at the bottom of the By-Staff log. */
+var _HIDDEN_SET=(function(){ try{ var s=localStorage.getItem('lucky7_hidden_staff'); if(s){ var a=JSON.parse(s); var o={}; if(Array.isArray(a)) a.forEach(function(k){ if(k!=null&&k!=='') o[String(k)]=true; }); return o; } }catch(_){ } return { kun:true, ace:true }; })();
+function _isHiddenKey(key){ try{ return !!_HIDDEN_SET[String(key)]; }catch(_){ return false; } }
+function _hiddenKeys(){ var a=[]; for(var k in _HIDDEN_SET){ if(_HIDDEN_SET[k]) a.push(k); } return a; }
+async function _srLoadHiddenStaff(){ try{ if(typeof _srGetCalc==='function'){ var arr=await _srGetCalc('hidden_staff'); if(Array.isArray(arr)){ var o={}; arr.forEach(function(k){ if(k!=null&&k!=='') o[String(k)]=true; }); _HIDDEN_SET=o; try{ localStorage.setItem('lucky7_hidden_staff', JSON.stringify(arr)); }catch(_){ } } } }catch(_){ } }
+async function _srSetHidden(key,on){ key=String(key||''); if(!key) return;
+  if(typeof _canEditNav==='function' && !_canEditNav()){ if(typeof toast==='function') toast('CEO · Manager only', true); return; }
+  if(on) _HIDDEN_SET[key]=true; else delete _HIDDEN_SET[key];
+  var keys=_hiddenKeys();
+  try{ localStorage.setItem('lucky7_hidden_staff', JSON.stringify(keys)); }catch(_){ }
+  try{ if(typeof toast==='function') toast(on?'Removed from list (resigned)':'Restored to list', false); }catch(_){ }
+  try{ window._srRecFilter=''; }catch(_){ }
+  try{ if(typeof _srRecReRender==='function') _srRecReRender(); }catch(_){ }
+  try{ if(typeof _srPutCalc==='function'){ var ok=await _srPutCalc('hidden_staff', keys); if(!ok && typeof toast==='function') toast('Save failed — try again', true); } }catch(_){ }
 }
 var _csTraining=false;
 var _csRows=[];            // index → {name, erp, calc} for the Edit buttons
