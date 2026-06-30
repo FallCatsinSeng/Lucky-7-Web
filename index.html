@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v427 — Staff List(직원 목록): 플레이어 컬럼은 1개 유지 + 상단에 시프트 칩 필터(All · 12H 주/야 · 8H S1/2/3 · 미배정) 추가. 칩 탭=해당 시프트 플레이어만 표시. 시프트 해결=live PC > 수동. 시프트 배정은 직원 상세 패널의 드롭다운으로. 이전: v425 Supabase 부하 절감 --> 부하 대폭 절감(무료 유지): presence 가 더 이상 매 주기 avatar_url(base64) 를 전 직원에서 SELECT 하지 않음(PHOTOS 캐시 1회 시드 후 경량 컬럼만). heartbeat 45s->120s, online 임계 90s->180s, 무거운 poll 간격 연장(client/syncAll 6m, shift 4m, nav 3m) -->
+<!-- BUILD: v428 | Staff List: single Player column + top shift CHIP filter (All / 12H Day-Night / 8H S1-2-3 / Unassigned); chip narrows to that shift; shift = live PC then manual. Attendance 'This month' now loads the full calendar month (no row cap). Fixed a v426/v427 head bug where a stray comment fragment leaked into the head, hiding the favicon. Base v425 perf: presence stopped SELECTing base64 avatars each cycle; heartbeat 45s->120s, online 90s->180s, heavy polls client/syncAll 6m, shift 4m, nav 3m. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8327,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v427';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v428';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -10496,9 +10496,17 @@ async function renderAttendance(){
   let historyData = [];
   if(sb){
     try{
+      // [v428] scope the fetch to the selected view's date range so 'This month' loads the WHOLE month.
+      // Before, a flat .limit(100) capped rows BEFORE the month filter — with ~28 staff/day that was
+      // only ~3-6 days, so the month view stopped around the 25th. Now we lower-bound by date server-side.
+      const _attLower = attView==='today'   ? todayIso
+                      : attView==='weekly'  ? (function(){ const wk=new Date(); wk.setDate(wk.getDate()-(wk.getDay()+6)%7); return wk.toISOString().slice(0,10); })()
+                      : attView==='monthly' ? (todayIso.slice(0,7)+'-01')
+                      : null;   // yearly / All → no lower bound
       let query = sb.from('attendance').select('*');
       if(!isManager && currentUser?.id) query = query.eq('user_id', currentUser.id);
-      const { data } = await query.order('date', { ascending: false }).limit(100);
+      if(_attLower) query = query.gte('date', _attLower);
+      const { data } = await query.order('date', { ascending: false }).limit(attView==='yearly' ? 5000 : 2000);
       historyData = data || [];
     }catch(e){ console.warn('history load failed:', e); }
   }
