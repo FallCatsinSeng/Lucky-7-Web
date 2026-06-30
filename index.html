@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v433 | EXP Standards grid: map names now follow _uiLang() too (KO shows m.ko, EN shows m.en) — previously always showed m.en regardless of language mode. -->
+<!-- BUILD: v434 | Recruit pipeline stage chips/dropdown/tags now localized (KO labels added, was English-only). | Map Info (게임>맵 정보) title/subtitle now follows _uiLang() instead of always showing the Korean field as primary. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8210,13 +8210,16 @@ const NAV_NEW_CATS = [ { id:'race-cat', afterId:'op-team' } ];   // [v419] injec
 // RECRUIT MODULE — 채용 트래커 (Kanban + Detail + Comments)
 // ═══════════════════════════════════════════════════
 const RECRUIT_STAGES = [
-  { id:'applied',   name:'Applied',       short:'Applied',  color:'#9a9a9a', bg:'rgba(154,154,154,.12)' },
-  { id:'doc_pass',  name:'Document Pass', short:'Doc Pass', color:'#4a8fd9', bg:'rgba(74,143,217,.13)' },
-  { id:'first_int', name:'1st Interview', short:'1st Int',  color:'#e0a040', bg:'rgba(224,160,64,.14)' },
-  { id:'second_int',name:'2nd Interview', short:'2nd Int',  color:'#b074ec', bg:'rgba(176,116,236,.14)' },
-  { id:'pass',      name:'Pass',          short:'Pass',     color:'#3aa05a', bg:'rgba(58,160,90,.13)' },
-  { id:'reject',    name:'Reject',        short:'Reject',   color:'#e05555', bg:'rgba(224,85,85,.13)' }
+  { id:'applied',   name:'Applied',       short:'Applied',  nameKo:'지원',      shortKo:'지원',      color:'#9a9a9a', bg:'rgba(154,154,154,.12)' },
+  { id:'doc_pass',  name:'Document Pass', short:'Doc Pass', nameKo:'서류 통과', shortKo:'서류 통과', color:'#4a8fd9', bg:'rgba(74,143,217,.13)' },
+  { id:'first_int', name:'1st Interview', short:'1st Int',  nameKo:'1차 인터뷰', shortKo:'1차',      color:'#e0a040', bg:'rgba(224,160,64,.14)' },
+  { id:'second_int',name:'2nd Interview', short:'2nd Int',  nameKo:'2차 인터뷰', shortKo:'2차',      color:'#b074ec', bg:'rgba(176,116,236,.14)' },
+  { id:'pass',      name:'Pass',          short:'Pass',     nameKo:'합격',      shortKo:'합격',      color:'#3aa05a', bg:'rgba(58,160,90,.13)' },
+  { id:'reject',    name:'Reject',        short:'Reject',   nameKo:'거절',      shortKo:'거절',      color:'#e05555', bg:'rgba(224,85,85,.13)' }
 ];
+// [v434] Recruit stage labels now follow the UI language toggle — see _rsName/_rsShort below.
+function _rsName(s){ if(!s) return ''; try{ return (typeof _uiLang==='function' && _uiLang()==='ko') ? (s.nameKo||s.name) : s.name; }catch(_){ return s.name; } }
+function _rsShort(s){ if(!s) return ''; try{ return (typeof _uiLang==='function' && _uiLang()==='ko') ? (s.shortKo||s.short||s.nameKo||s.name) : (s.short||s.name); }catch(_){ return s.short||s.name; } }
 // Kanban에 보이는 단계 (reject는 별도 영역으로 빠짐)
 const KANBAN_STAGES = RECRUIT_STAGES.filter(s => s.id !== 'reject');
 
@@ -8327,7 +8330,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v433';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v434';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -8666,7 +8669,7 @@ function applicantCardHTML(a){  const stage = getStageById(a.stage);
       ${a.applied_shift && APPLY_SHIFTS[a.applied_shift] ? `<span class="ap-shift-tag" style="color:${APPLY_SHIFTS[a.applied_shift].color};background:color-mix(in srgb, ${APPLY_SHIFTS[a.applied_shift].color} 14%, transparent)" title="${APPLY_SHIFTS[a.applied_shift].name} · ${APPLY_SHIFTS[a.applied_shift].range}">${shortShiftLabel(a.applied_shift)}</span>` : ''}
       ${a.stage === 'pass' && a.business
         ? `<span class="ap-stage-tag" style="color:${BUSINESSES[a.business].color};background:color-mix(in srgb, ${BUSINESSES[a.business].color} 16%, transparent)">${BUSINESSES[a.business].name}</span>`
-        : `<span class="ap-stage-tag" style="color:${stage.color};background:${stage.bg}">${stage.short || stage.name}</span>`}
+        : `<span class="ap-stage-tag" style="color:${stage.color};background:${stage.bg}">${_rsShort(stage)}</span>`}
     </div>
   </div>`;
 }
@@ -8956,7 +8959,7 @@ function onApDropToReject(e, fromStage){
   a.rejected_at = Date.now();
   a.business = null; // 비즈니스 배치 해제
   a.updated = new Date().toISOString().slice(0,10);
-  const stageName = KANBAN_STAGES.find(s => s.id === fromStage)?.name || fromStage;
+  const stageName = _rsName(KANBAN_STAGES.find(s => s.id === fromStage)) || fromStage;
   toast(`${a.name} 거절 · ${stageName}에서 탈락`);
   renderRecruit();
 }
@@ -9119,7 +9122,7 @@ async function renderRecruit(){
       <div class="rf-group">
         <span class="rf-label">단계</span>
         <button class="rf-pill ${recruitStageFilter==='all'?'on':''}" onclick="setRecruitFilter('stage','all')">All</button>
-        ${RECRUIT_STAGES.map(s => `<button class="rf-pill ${recruitStageFilter===s.id?'on':''}" onclick="setRecruitFilter('stage','${s.id}')">${s.name}</button>`).join('')}
+        ${RECRUIT_STAGES.map(s => `<button class="rf-pill ${recruitStageFilter===s.id?'on':''}" onclick="setRecruitFilter('stage','${s.id}')">${_rsName(s)}</button>`).join('')}
       </div>
       <div class="rf-right">
         <input id="recruit-search" class="rf-search" type="text" placeholder="🔍 이름 검색 / Search name…" value="${recruitSearch||''}" oninput="setRecruitSearch(this.value)">
@@ -9311,7 +9314,7 @@ function renderApplicantPanel(){
       <div class="ap-reject-row">
         <span class="ap-reject-icon">!</span>
         <div class="ap-reject-meta">
-          <div class="ap-reject-label">탈락 — ${(RECRUIT_STAGES.find(s=>s.id===a.rejected_from)||{}).name || a.rejected_from || ''} 단계</div>
+          <div class="ap-reject-label">탈락 — ${_rsName(RECRUIT_STAGES.find(s=>s.id===a.rejected_from)) || a.rejected_from || ''} 단계</div>
           ${a.rejected_by ? `<div class="ap-reject-by">${a.rejected_by} · ${a.rejected_date||''}</div>` : ''}
         </div>
       </div>
@@ -9375,7 +9378,7 @@ function renderApplicantPanel(){
     <div class="ap-panel-stage">
       <label>단계</label>
       <select onchange="setApplicantStage('${a.id}',this.value)">
-        ${RECRUIT_STAGES.map(s => `<option value="${s.id}" ${a.stage===s.id?'selected':''}>${s.name}</option>`).join('')}
+        ${RECRUIT_STAGES.map(s => `<option value="${s.id}" ${a.stage===s.id?'selected':''}>${_rsName(s)}</option>`).join('')}
       </select>
     </div>
     <div class="ap-panel-body">
@@ -22960,7 +22963,16 @@ function renderGameGuide(game){
       mapsHTML+='<div class="gg-gname">'+_e(gname(g.name))+'</div><div class="gg-grid">';
       g.maps.forEach(function(mp){
         var full=_e(mp.full||mp.short||''), en=_e(mp.en||''), short=_e(mp.short||mp.full||'');
-        mapsHTML+='<div class="gg-map"><span class="gg-map-code">'+short+'</span><div class="gg-map-nm">'+full+'</div>'+(en?'<div class="gg-map-en">'+en+'</div>':'')+'</div>';
+        // [v434] Title now follows _uiLang(): EN mode prefers mp.en as the bold title (falling back to full
+        // if no en is set), with the other name as the small subtitle. Previously full (the Korean field on
+        // the original 10 curated zones) was ALWAYS the bold title regardless of language, so EN mode showed
+        // a Korean headline with English underneath — backwards. Note: rows whose `full` itself was typed in
+        // English with no separate Korean field (e.g. ad-hoc entries added via 맵 관리) have no Korean text to
+        // show in KO mode either way — that's a data gap, not something this swap can fix; the CEO needs to
+        // retype those rows' "전체 이름" field in Korean via the Manage Maps editor.
+        var primary = (!L && en) ? en : full;
+        var secondary = (!L && en) ? full : en;
+        mapsHTML+='<div class="gg-map"><span class="gg-map-code">'+short+'</span><div class="gg-map-nm">'+primary+'</div>'+((secondary&&secondary!==primary)?('<div class="gg-map-en">'+secondary+'</div>'):'')+'</div>';
       });
       mapsHTML+='</div>';
     });
