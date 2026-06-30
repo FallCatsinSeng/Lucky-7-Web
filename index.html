@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v402 — Discord 체크아웃 카드 수정: 전체 시프트 누적(체크인->체크아웃, +9.18%) 대신 직전 보고 이후 구간(+0.56%)으로 계산해 웹사이트 기록과 일치. 시간당 보고가 누적되어 중복 집계되던 문제 해결. 시간당 레코드/급여는 영향 없음 -->
+<!-- BUILD: v404 — 체크아웃 중복 카드 방지 강화: 가드를 체크인마다 리셋(시프트 단위)하고 직전 카드 기준으로 비교, 4분 제한 제거(시프트 전체 백스톱). 같은 EXP면 체크아웃 카드 항상 1개. 세션 로그 누적 EXP% 표시 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8315,7 +8315,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v402';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v404';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15190,6 +15190,7 @@ var _SR_SHIFTS=[
   {name:'Night · 8h (3)', time:'01:00 → 09:00', s:1, e:9}
 ];
 var _srShiftStartH=7, _srShiftEndH=19, _srWinStart=7, _srWinEnd=8, _srPlayStartH=7, _srOnOk=null, _srShiftLocked=false;
+var _srLastCard={sig:'',t:0};   // [v403] dedup guard: a final hourly update + an immediate check-out post the SAME end-EXP twice; remember the last card so the redundant check-out card is skipped
 var _srCoStart=18, _srCoEnd=19;   // [v301] editable checkout "final stretch" window (WIB hours)
 
 function _srGo(name){
@@ -15688,6 +15689,7 @@ async function _srSubmitReport(kind,screen){
       for(var k in o) r[k]=o[k]; return r;
     }
     if(kind==='checkin'){
+      _srLastCard={sig:'',t:0};   // [v404] new shift starts clean so a check-out can only match THIS shift's reports
       var sLv=sess.startLv, sExp=sess.startExp, sAde=sess.startAdena, nt=_srNote('checkin');
       newRecs.push(mkRec({ tag:'checkin', start:_srKST(_srPlayStartH), end:_srKST(_srShiftEndH),
         lvBefore:sLv, expBefore:sExp, lvAfter:sLv, expAfter:sExp, adena:sAde, prevAdena:sAde, note:nt }));
@@ -15738,6 +15740,16 @@ async function _srSubmitReport(kind,screen){
     // Discord card posts in the background; server handles rate-limit retries itself.
     // postId keeps retries idempotent so a background retry can't duplicate the card.
     cardFields.postId = (newRecs[0] && newRecs[0].id) ? newRecs[0].id : ('post-'+base);
+    // [v404] Prevent the "final hourly update + check-out" DOUBLE card permanently. _srLastCard resets at check-in
+    // and tracks the last hourly/checkout, so within a shift a check-out posting the same end-EXP/Lv
+    // a report just posted (within 4 min), the booster already reported this final state — skip the redundant
+    // Discord card. The per-hour record + shift finalize are untouched, so the website still shows the check-out.
+    var _cardSig=(sess?sess.booster:_srBooster())+'|'+String(name)+'|'+String(pc)+'|'+String(cardFields.exp)+'|'+String(cardFields.lv);
+    if(kind==='checkout' && _srLastCard && _srLastCard.sig===_cardSig && (Date.now()-_srLastCard.t)<21600000){
+      try{ console.log('[checkout] skipped duplicate Discord card — final state already posted as an hourly report: '+_cardSig); }catch(_){}
+      return true;
+    }
+    if(kind!=='checkin') _srLastCard={sig:_cardSig,t:Date.now()};
     _srPostCard(cardType,cardFields,shot).then(function(ok){
       if(!ok) _srToast('Saved \u2014 Discord card didn\u2019t post (data is safe)');
     }).catch(function(){ _srToast('Saved \u2014 Discord card didn\u2019t post (data is safe)'); });
@@ -16071,6 +16083,7 @@ function _srInjectCSS(){
 "#sr-app .sr-sl-expi:hover{border-color:var(--br2,#2f2f2d);}",
 "#sr-app .sr-sl-expi:focus{outline:none;border-color:var(--ac,#c9963a);background:var(--bg-i,#1a1a1a);color:var(--tx,#e6e5e2);}",
 "#sr-app .sr-sl-expi.sr-jump{color:var(--re,#c46a6a);font-weight:700;}",
+"#sr-app .sr-sl-cum{font-size:9.5px;color:var(--tx3,#6c6b66);font-variant-numeric:tabular-nums;margin-top:2px;}",
 "#sr-app .sr-sec-hint{font-weight:600;text-transform:none;letter-spacing:0;font-size:10.5px;color:var(--tx3,#5f5e5a);}",
 "#sr-app .sr-clmaps{font-size:12.5px;color:var(--tx2,#989792);padding:2px 2px 4px;}",
 "#sr-app .sr-tl-tbl td{padding:9px;}",
@@ -17018,7 +17031,7 @@ function _srRecCardHTML(data){
           +'<td>'+tagB(s.tag)+'</td><td>'+esc(s.client)+badge+'</td>'
           +'<td>'+esc(String(s.pc==null?'':s.pc))+'</td><td>'+esc(String(s.lv==null?'':s.lv))+'</td>'
           +'<td>'+esc(s.map)+'</td>'
-          +'<td class="sr-num">'+actCell+'</td><td class="sr-num">'+tgt+'</td>'
+          +'<td class="sr-num">'+actCell+((s.tag!=='checkin'&&s.expAt!=null)?'<div class="sr-sl-cum">→'+Number(s.expAt).toFixed(2)+'%</div>':'')+'</td><td class="sr-num">'+tgt+'</td>'
           +'<td class="sr-num">'+stableCell+'</td><td class="sr-num">'+cutCell+'</td>'
           +'<td class="sr-num '+(hasDiff?dcls(dv):'')+'">'+diff+'</td>'
           +'<td class="sr-num">'+sres(s)+'</td>'
