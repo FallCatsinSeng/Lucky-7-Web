@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v419 — 새 카테고리 RACE(race-cat)를 Operations와 Game 사이에 추가하고 Calculator·Records&Stats·Race·Standards(pl-exp-standard/pl-records/pl-race/pl-calc-std)를 Game에서 RACE로 이동. 기본 트리 이동 + NAV_NEW_CATS(카테고리 주입)+FORCE_RELOCATE 로 저장된 nav_state 에도 자동 반영(이름 rename 유지). v417/v418 유지 -->
+<!-- BUILD: v420 — 사이드바(nav_state) 실시간 전파: CEO/매니저 편집이 전 직원 화면에 reload 없이 반영. startPresence 에 pollNavState(90s) 추가(탭 백그라운드 시 정지/포커스 시 재개, sig 변경 시에만 재렌더, 편집 중이면 스킵). loadNavState 가 _navSig 세팅. v417~v419 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8327,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v419';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v420';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21312,12 +21312,16 @@ function startPresence(){
   if(_shiftPollTimer) clearInterval(_shiftPollTimer);
   pollShiftView();
   _shiftPollTimer = setInterval(pollShiftView, 150*1000);   // [v411] 60s->2.5m
+  // [v420] live sidebar sync — CEO/Manager edits reach every staff without a manual reload
+  if(_navPollTimer) clearInterval(_navPollTimer);
+  pollNavState();
+  _navPollTimer = setInterval(pollNavState, 90*1000);
 }
 // [v411] Background tabs re-fetching every shared blob every 1-2 min was the MAIN Supabase egress driver.
 // Stop every poll the moment the tab is hidden; restart with one fresh pull when it's focused again.
 function _stopAllPolls(){
-  [_presenceTimer,_offTimer,_recruitPurgeTimer,_mtPollTimer,_attPollTimer,_annPollTimer,_logPollTimer,_clientPollTimer,_expPollTimer,_calPollTimer,_syncAllTimer,_shiftPollTimer].forEach(function(t){ if(t) clearInterval(t); });
-  _presenceTimer=_offTimer=_recruitPurgeTimer=_mtPollTimer=_attPollTimer=_annPollTimer=_logPollTimer=_clientPollTimer=_expPollTimer=_calPollTimer=_syncAllTimer=_shiftPollTimer=null;
+  [_presenceTimer,_offTimer,_recruitPurgeTimer,_mtPollTimer,_attPollTimer,_annPollTimer,_logPollTimer,_clientPollTimer,_expPollTimer,_calPollTimer,_syncAllTimer,_shiftPollTimer,_navPollTimer].forEach(function(t){ if(t) clearInterval(t); });
+  _presenceTimer=_offTimer=_recruitPurgeTimer=_mtPollTimer=_attPollTimer=_annPollTimer=_logPollTimer=_clientPollTimer=_expPollTimer=_calPollTimer=_syncAllTimer=_shiftPollTimer=_navPollTimer=null;
 }
 try{ document.addEventListener('visibilitychange', function(){
   if(document.hidden){ try{ _stopAllPolls(); }catch(_){} }
@@ -21326,11 +21330,28 @@ try{ document.addEventListener('visibilitychange', function(){
 let _calPollTimer = null;
 let _syncAllTimer = null; // [v213] FIX: was used in startPresence (read at if(_syncAllTimer)) but never declared — the ReferenceError was killing the entire boot sequence before PCs/render ran, leaving a blank board.
 let _shiftPollTimer = null; // [v298] live Shift-report dashboard refresh timer
+let _navPollTimer = null;   // [v420] live sidebar (nav_state) propagation timer
 // [v243] stop every poll timer — called when the tab is hidden so background tabs stop querying Supabase
 function stopPolling(){
-  [_presenceTimer,_offTimer,_recruitPurgeTimer,_mtPollTimer,_attPollTimer,_annPollTimer,_logPollTimer,_clientPollTimer,_expPollTimer,_calPollTimer,_syncAllTimer,_shiftPollTimer]
+  [_presenceTimer,_offTimer,_recruitPurgeTimer,_mtPollTimer,_attPollTimer,_annPollTimer,_logPollTimer,_clientPollTimer,_expPollTimer,_calPollTimer,_syncAllTimer,_shiftPollTimer,_navPollTimer]
     .forEach(t => { if(t) clearInterval(t); });
-  _presenceTimer=_offTimer=_recruitPurgeTimer=_mtPollTimer=_attPollTimer=_annPollTimer=_logPollTimer=_clientPollTimer=_expPollTimer=_calPollTimer=_syncAllTimer=_shiftPollTimer=null;
+  _presenceTimer=_offTimer=_recruitPurgeTimer=_mtPollTimer=_attPollTimer=_annPollTimer=_logPollTimer=_clientPollTimer=_expPollTimer=_calPollTimer=_syncAllTimer=_shiftPollTimer=_navPollTimer=null;
+}
+async function pollNavState(){
+  try{
+    if(!sb || typeof currentUser==='undefined' || !currentUser) return;
+    if(document.hidden) return;                                        // [v411] egress guard
+    if(typeof sidebarEditMode!=='undefined' && sidebarEditMode) return; // don't clobber an active editor
+    var r = await sb.from('nav_state').select('data').eq('id','default').maybeSingle();
+    if(!r || r.error || !r.data || !r.data.data) return;
+    var pl = r.data.data; if(!pl || !Array.isArray(pl.categories)) return;
+    var sig; try{ sig = JSON.stringify(pl.categories); }catch(_){ return; }
+    if(sig === _navSig) return;                                        // unchanged since last apply
+    _navSig = sig;
+    try{ localStorage.setItem('lucky7_nav_state', JSON.stringify(pl)); }catch(_){ }
+    _applyNavPayload(pl);
+    if(typeof renderSidebar==='function') renderSidebar();
+  }catch(_){ }
 }
 async function pollCalendarSync(){
   if(!currentUser) return;
@@ -22196,7 +22217,7 @@ async function loadNavState(){
   try{
     var r = await sb.from('nav_state').select('data').eq('id','default').maybeSingle();
     if(r.error){ try{ console.warn('nav_state load:', r.error.message); }catch(_){} _navLoaded = true; return; }   // table missing -> allow first save
-    if(r.data && r.data.data) _applyNavPayload(r.data.data);
+    if(r.data && r.data.data){ _applyNavPayload(r.data.data); try{ _navSig = JSON.stringify(r.data.data.categories); }catch(_){ } }
     _navLoaded = true;
   }catch(e){ try{ console.warn('nav_state load:', e && e.message); }catch(_){} _navLoaded = true; }   // [v407] set _navLoaded even on network error; localStorage saves must still work when Supabase is throttled
 }
