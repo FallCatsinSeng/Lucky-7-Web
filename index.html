@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v422 — pollNavState 가 편집자(CEO/매니저)에겐 적용 안 됨: write 실패 시 stale 서버본이 편집을 되돌리던 버그 방지. 라이브 동기화는 staff(읽기 전용)에게만. v421 진단 toast 유지 -->
+<!-- BUILD: v423 — Report Edit 맵 변경이 기본적으로 해당 보고 하나에만 적용. '맵을 이 근무 전체에 적용' 체크박스(기본 OFF)를 켜면 예전처럼 근무 전체(체크인~체크아웃)에 적용 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8327,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v422';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v423';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -16607,6 +16607,9 @@ function _srRecInjectEditCSS(){
     +'.sr-rec-edit-cancel{background:transparent;border-color:var(--br2,#2a3142);color:var(--tx2,#b8bcc6)}'
     +'.sr-rec-edit-save{background:var(--ac,#c9963a);color:#1a1206}'
     +'.sr-rec-edit-save:disabled{opacity:.6;cursor:default}'
+    +'.sr-rec-edit-mapall-l{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--tx2,#b8bcc6);margin:10px 0 2px;cursor:pointer;user-select:none;line-height:1.35}'
+    +'.sr-rec-edit-mapall-l input{width:15px;height:15px;accent-color:var(--ac,#c9963a);cursor:pointer;flex:none;margin-top:1px}'
+    +'.sr-rec-edit-mapall-l span{color:var(--tx3,#8b93a1)}'
     +'.sr-map-wrap{position:relative}'
     +'.sr-map-input{padding-right:30px!important}'
     +'.sr-map-caret{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:22px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:var(--tx3,#8b93a1);cursor:pointer;font-size:12px;padding:0;border-radius:6px}'
@@ -16706,7 +16709,8 @@ function _srRecEditReport(id){
       +'<button type="button" class="sr-map-caret" tabindex="-1" onclick="_srMapToggle()">▾</button>'
       +'<div class="sr-map-list" id="sr-rec-edit-maplist"></div>'
     +'</div>'
-    +'<div class="sr-rec-edit-note">플레이어가 잘못 입력한 레벨·EXP·맵을 고칩니다. <b>맵을 바꾸면 해당 근무 전체</b>(체크인부터 체크아웃까지 모든 보고)에 적용되고, 레벨·EXP는 이 보고 하나만 바뀝니다. 통계와 목표치가 다시 계산됩니다.</div>'
+    +'<div class="sr-rec-edit-note">플레이어가 잘못 입력한 레벨·EXP·맵을 고칩니다. 기본적으로 <b>이 보고 하나만</b> 바뀌며, 통계와 목표치가 다시 계산됩니다.</div>'
+    +'<label class="sr-rec-edit-mapall-l"><input type="checkbox" id="sr-rec-edit-mapall"> 맵을 이 근무 전체에 적용 <span>(체크인~체크아웃 모든 보고)</span></label>'
     +'<div class="sr-rec-edit-btns"><button class="sr-rec-edit-cancel" onclick="_srRecCloseEdit()">취소</button>'
     +'<button id="sr-rec-edit-save" class="sr-rec-edit-save" data-rid="'+esc(String(id))+'" onclick="_srRecSaveReport(this.getAttribute(\'data-rid\'))">저장</button></div>'
     +'</div>';
@@ -16730,7 +16734,8 @@ async function _srRecSaveReport(id){
     var mapChanged=(mp!=null)&&(mp!==oldMap);
     // [v324] resolve the shift peers from the ORIGINAL array (before we touch any map) so a map fix lands on
     // the player's whole shift — check-in, every hourly status, and the checkout — not just this one row.
-    var peerIds=mapChanged?_srShiftPeerIds(reports, id):[String(id)];
+    var _mapAllEl=document.getElementById('sr-rec-edit-mapall'); var applyAll=!!(_mapAllEl&&_mapAllEl.checked);  // [v423] default OFF = only this report; tick to apply the map across the whole shift
+    var peerIds=(mapChanged&&applyAll)?_srShiftPeerIds(reports, id):[String(id)];
     reports[idx].lvAfter=lv; reports[idx].expAfter=exp;
     if(mp!=null) reports[idx].map=mp;
     if(String(reports[idx].tag||'')==='checkin'){ reports[idx].lvBefore=lv; reports[idx].expBefore=exp; }
