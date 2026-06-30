@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v424 — Client Status: 'TRAINING' 클라이언트를 별도 섹션으로 분리(리얼 클라이언트 / 트레이닝). 이름에 TRAINING 포함 시 트레이닝 그룹으로. 드래그 순서변경 유지 -->
+<!-- BUILD: v425 — Supabase 부하 대폭 절감(무료 유지): presence 가 더 이상 매 주기 avatar_url(base64) 를 전 직원에서 SELECT 하지 않음(PHOTOS 캐시 1회 시드 후 경량 컬럼만). heartbeat 45s->120s, online 임계 90s->180s, 무거운 poll 간격 연장(client/syncAll 6m, shift 4m, nav 3m) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8327,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v424';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v425';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21103,9 +21103,10 @@ async function signIn(){
 // MOCK now (so the widget is visible without real accounts).
 // To go live later: flip the two TODO(Supabase) functions below.
 // ─────────────────────────────────────────────────────────────
-const PRESENCE_ONLINE_MS = 90 * 1000;       // seen within 90s  → online
+const PRESENCE_ONLINE_MS = 180 * 1000;      // [v425] seen within 3min → online (heartbeat slowed to 120s)
 const PRESENCE_IDLE_MS   = 5 * 60 * 1000;   // seen within 5min → idle
 let _presenceTimer = null;
+let _presenceAvatarsSeeded = false;   // [v425] seed PHOTOS once, then stop pulling base64 avatars every presence cycle
 
 // MOCK store — remove when Supabase is wired
 let _presenceCache = [];
@@ -21118,15 +21119,20 @@ async function pingPresence(){
       await sb.from('user_profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
     }catch(e){ console.warn('presence write failed:', e && e.message); }
     try{
-      const { data, error } = await sb.from('user_profiles').select('name, role, avatar_url, last_seen');
+      // [v425] Presence used to SELECT avatar_url (base64 photos) from every staff every cycle — the #1 egress / Disk-IO drain.
+      // Seed the PHOTOS cache once, then pull only the tiny presence columns. Avatars come from the cache afterwards.
+      var _seedAv = !_presenceAvatarsSeeded;
+      var _cols = _seedAv ? 'name, role, avatar_url, last_seen' : 'name, role, last_seen';
+      const { data, error } = await sb.from('user_profiles').select(_cols);
       if(!error && data){
+        if(_seedAv){ try{ if(typeof PHOTOS!=='undefined'){ data.forEach(function(pp){ if(pp && pp.avatar_url && pp.name) PHOTOS[pp.name.toLowerCase().trim()] = pp.avatar_url; }); } }catch(_){} _presenceAvatarsSeeded = true; }
         _presenceCache = data
           .filter(r => r.last_seen)
           .map(r => ({
             name: r.name || '?',
             role: (typeof mapRoleToAppRole==='function') ? mapRoleToAppRole(r.role) : r.role,
             db_role: r.role,
-            avatar: r.avatar_url || null,
+            avatar: (typeof PHOTOS!=='undefined' && r.name) ? (PHOTOS[r.name.toLowerCase().trim()] || r.avatar_url || null) : (r.avatar_url || null),
             seen: new Date(r.last_seen).getTime()
           }));
       }
@@ -21261,7 +21267,7 @@ async function pollShiftView(){
 function startPresence(){
   if(_presenceTimer) clearInterval(_presenceTimer);
   pingPresence();                                      // render immediately
-  _presenceTimer = setInterval(pingPresence, 45*1000); // heartbeat every 30s
+  _presenceTimer = setInterval(pingPresence, 120*1000); // [v425] heartbeat 45s->120s (write no longer rewrites the avatar-bloated row as often)
   // [v130] live day-off sync — colleagues' requests appear without a manual refresh
   if(_offTimer) clearInterval(_offTimer);
   pollOffRequests();
@@ -21300,7 +21306,7 @@ function startPresence(){
     try{ if(document.getElementById('client-pool') && typeof renderPools==='function') renderPools(); }catch(_){}
     try{ const mod=(typeof findChannelById==='function')?(findChannelById(activeChannelId)||{}).module:null; if(mod==='clients') renderClients(); }catch(_){}
   });
-  _clientPollTimer = setInterval(pollClientState, 240*1000);   // [v411] 90s->4m (client_state is a heavy blob)
+  _clientPollTimer = setInterval(pollClientState, 360*1000);   // [v425] 4m->6m (heavy blob)
   // [v166] live shared Standard-EXP sync
   if(_expPollTimer) clearInterval(_expPollTimer);
   pollExp();
@@ -21312,15 +21318,15 @@ function startPresence(){
   // [v208] live cross-user sync for the remaining shared states (PC / Trust / Settlement / Recruiting / Permissions)
   if(_syncAllTimer) clearInterval(_syncAllTimer);
   pollSyncAll();
-  _syncAllTimer = setInterval(pollSyncAll, 240*1000);   // [v411] 90s->4m (pulls 6 shared blobs)
+  _syncAllTimer = setInterval(pollSyncAll, 360*1000);   // [v425] 4m->6m (pulls shared blobs)
   // [v298] live Shift-report dashboard refresh (admin view only; silent, so no flash and never wipes the form)
   if(_shiftPollTimer) clearInterval(_shiftPollTimer);
   pollShiftView();
-  _shiftPollTimer = setInterval(pollShiftView, 150*1000);   // [v411] 60s->2.5m
+  _shiftPollTimer = setInterval(pollShiftView, 240*1000);   // [v425] 2.5m->4m
   // [v420] live sidebar sync — CEO/Manager edits reach every staff without a manual reload
   if(_navPollTimer) clearInterval(_navPollTimer);
   pollNavState();
-  _navPollTimer = setInterval(pollNavState, 90*1000);
+  _navPollTimer = setInterval(pollNavState, 180*1000);   // [v425] 90s->3m (nav rarely changes)
 }
 // [v411] Background tabs re-fetching every shared blob every 1-2 min was the MAIN Supabase egress driver.
 // Stop every poll the moment the tab is hidden; restart with one fresh pull when it's focused again.
