@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v411 — Supabase egress 대폭 절감: (1)탭이 백그라운드(hidden)면 모든 폴링 중지+포커스 시 재개(visibilitychange), (2)폴링 주기 상향(pollSyncAll/client 90s→4m, logs/exp/ann/off/cal 2m→5m, shift 60s→2.5m), (3)recruit_state(base64 CV blob)는 채용 페이지 볼 때만 폴링. _pullShared에 hidden 가드. v410 사이드바 자가복구 유지 -->
+<!-- BUILD: v412 — CHECK OUT 카드 EXP를 다시 FULL-SHIFT(check-in→check-out)로 복원: EXP GAINED=전체 shift 합계, /HOUR=합계÷시간 (Image-2 형식). v402의 prev→now(마지막 구간)은 3시간 shift를 과소보고했음. dedup(v403/v404) 유지로 double-card 여전히 방지. v411 egress 절감 유지 -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8320,7 +8320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v411';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v412';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15738,7 +15738,7 @@ async function _srSubmitReport(kind,screen){
         var _sLv =(sess.startLv   !=null?sess.startLv   :prev.lv);
         var _sExp=(sess.startExp  !=null?sess.startExp  :prev.exp);
         var _sAde=(sess.startAdena!=null?sess.startAdena:prev.adena);
-        cardFields=_srFields(name,pc,gear,_srKST(ws),_srKST(we),mapFull,prev.lv,prev.exp,calc.lv,calc.exp,prev.adena,Math.round(endAde),nt2,date);   // [v402] gain since LAST report (matches website check-out row), not full-shift span
+        cardFields=_srFields(name,pc,gear,_srKST(_srPlayStartH),_srKST(we),mapFull,_sLv,_sExp,calc.lv,calc.exp,_sAde,Math.round(endAde),nt2,date);   // [v412] REVERT to FULL-SHIFT summary (check-in → check-out): EXP GAINED = whole-shift total, /HOUR = total÷hours (Image-2 format). prev→now (v402) under-reported. Website per-report check-out row may differ; dedup (v403/v404) still blocks the manual final-hourly+checkout double card.
       } else {
         cardFields=_srFields(name,pc,gear,_srKST(ws),_srKST(we),mapFull,prev.lv,prev.exp,calc.lv,calc.exp,prev.adena,Math.round(endAde),nt2,date);
       }
