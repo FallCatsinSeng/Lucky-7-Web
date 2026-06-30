@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v430 | Shift Report: added 'Day · 10h' (09:00-19:00) option (Claws still on 10h this month). | v429 Scoreboard PLAYER column gets the same shift chip filter as the Staff List. | v428 Staff List: single Player column + top shift CHIP filter (All / 12H Day-Night / 8H S1-2-3 / Unassigned); chip narrows to that shift; shift = live PC then manual. Attendance 'This month' now loads the full calendar month (no row cap). Fixed a v426/v427 head bug where a stray comment fragment leaked into the head, hiding the favicon. Base v425 perf: presence stopped SELECTing base64 avatars each cycle; heartbeat 45s->120s, online 90s->180s, heavy polls client/syncAll 6m, shift 4m, nav 3m. -->
+<!-- BUILD: v431 | Shift Report: shift is now changeable in the Update stage (switch shift mid-shift WITHOUT checking in again). | v430 Shift Report: added 'Day · 10h' (09:00-19:00) option (Claws still on 10h this month). | v429 Scoreboard PLAYER column gets the same shift chip filter as the Staff List. | v428 Staff List: single Player column + top shift CHIP filter (All / 12H Day-Night / 8H S1-2-3 / Unassigned); chip narrows to that shift; shift = live PC then manual. Attendance 'This month' now loads the full calendar month (no row cap). Fixed a v426/v427 head bug where a stray comment fragment leaked into the head, hiding the favicon. Base v425 perf: presence stopped SELECTing base64 avatars each cycle; heartbeat 45s->120s, online 90s->180s, heavy polls client/syncAll 6m, shift 4m, nav 3m. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8327,7 +8327,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v430';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v431';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15249,8 +15249,12 @@ function _srApplyShiftIdx(i){
   _srShiftStartH=sh.s; _srShiftEndH=sh.e; _srPlayStartH=_srNowInShift();   // [v379] default to real current hour (editable)
   var nm=document.getElementById('sr-shift-name'); if(nm) nm.textContent=sh.name;
   var tm=document.getElementById('sr-shift-time'); if(tm) tm.textContent=sh.time;
+  var nmu=document.getElementById('sr-shift-name-up'); if(nmu) nmu.textContent=sh.name;   // [v431] mirror to the Update-stage selector
+  var tmu=document.getElementById('sr-shift-time-up'); if(tmu) tmu.textContent=sh.time;
   var lst=document.querySelectorAll('#sr-dd-shift .sr-dd-opt'); for(var k=0;k<lst.length;k++) lst[k].classList.toggle('sel',k===i);
+  var lstu=document.querySelectorAll('#sr-dd-shift-up .sr-dd-opt'); for(var k2=0;k2<lstu.length;k2++) lstu[k2].classList.toggle('sel',k2===i);
   _srRenderCIStart(); _srSyncWin();
+  try{ if(_srSession) _srSaveSession(); }catch(_){}   // [v431] persist the new shift window so a mid-shift switch survives reload
   return true;
 }
 // [v328] Resolve THIS player's assigned shift key. Mirrors _srThread()'s profile resolver so it survives an
@@ -16252,6 +16256,7 @@ function _srBuildHTML(){
   +'<div class="sr-s" id="sr-s-update" style="display:none;">'
   +  '<div class="sr-chips"><span class="sr-chip">👤 '+booster+'</span><span class="sr-chip edit" onclick="_srGo(\'checkin\')">🖥 <span data-sr-pc>'+_srEsc(firstPC)+'</span></span></div>'
   +  '<p class="sr-sub">Name &amp; PC carry over from check-in · tap PC to change</p>'
+  +  '<div class="sr-row"><label class="sr-lab">Shift <span style="color:var(--tx3,#6c6b66);font-weight:400;">· switch without checking in again</span></label><div class="sr-dd" id="sr-dd-shift-up"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-shift-up\')"><span><span class="ttl" id="sr-shift-name-up">'+_srEsc(sh0.name)+'</span><span class="meta" id="sr-shift-time-up">'+_srEsc(sh0.time)+'</span></span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+shiftOpts+'</div></div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Map <span style="color:var(--tx3,#6c6b66);font-weight:400;">· change it if you moved hunting zone</span></label><div class="sr-dd" id="sr-dd-map-up"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-map-up\')"><span class="ttl" data-sr-map>'+_srEsc(firstMapLabel)+'</span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+mapOpts+'</div></div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Hour reported</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBump(\'s\',-1)">−</button><span class="sr-t" id="sr-w1">07:00</span><button onclick="_srBump(\'s\',1)">+</button></span><span class="sr-arr">→</span><span class="sr-t" id="sr-w2">08:00</span><span class="sr-auto">1 hour<br>auto-rolls</span></div><p class="sr-sub" style="margin:7px 0 0;">Client sees <b id="sr-up-kst">09:00 → 10:00</b> KST</p></div>'
   +  _srExpRow('','live','update')
