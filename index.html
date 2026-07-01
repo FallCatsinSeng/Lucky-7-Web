@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v472 | BUG FIX: moving an applicant to the Backup pool didn't remove them from the Pass column after all. _apMoveToBackup removed the applicant from local APPLICANTS but never added their id to _recruitDeletedIds, so the v467 merge-before-save safety (built to STOP data loss) treated the removal as staleness rather than an intentional delete and quietly re-added them back in from the stale server copy it fetches before writing — undoing the move both on the server and in the local view, every single time. BACKUP_APPLICANTS itself saved correctly (separate store, unaffected), which is why the person correctly showed on the Backup page while ALSO still showing in Pass. Fixed by pushing the id into _recruitDeletedIds, mirroring how deleteApplicant() already does it. Verified with a merge simulation reproducing the exact bug and confirming the fix. | v471 | New feature: Backup Applicants pool. Marking a recruit Pass now asks 'hire directly' vs 'move to backup pool' (no open slot yet) via a small choice modal (setApplicantStage intercepts stageId==='pass'). Backup entries capture desired shift (12H Day/Night, 8H Shift 1/2/3, or Flexible = willing to take any shift) and a readiness state (ready now / pick a date / TBD), and carry over the applicant's full record (interviews, evaluations, files) so nothing is lost. New sidebar channel under HR: 백업 지원자 / Backup applicants (admin/op, inherits the HR category's perms). Stored as its own recruit_state row (id='backup_applicants') with the same merge-before-save safety built for the main recruiting board in v467. Promoting a backup applicant re-inserts them into APPLICANTS as a Pass, reusing the existing 'add to staff pool' flow unchanged. All new UI text is fully Korean in KO mode and fully English in EN mode (no mixed-language labels). | v470 | CRITICAL FIX: the v469 BUILD comment was accidentally closed early with a stray HTML comment-close marker right after its own note text, which orphaned the ENTIRE rest of the accumulated build-history comment (v468 downward) as literal visible page content — it would render as raw text at the top of the page instead of staying invisible inside a comment. Rejoined it back into one continuous comment ending at the original, correct closing tag. Verified byte by byte: exactly one comment-close marker now closes the whole BUILD comment, immediately followed by the next real tag. LESSON LEARNED: never type the literal 3-char HTML comment-close sequence (dash dash angle-bracket) inside build-note text describing this bug, even in quotes — it closes the comment just the same regardless of quoting, which is exactly how this happened in the first place. No functional/JS changes in this build — this is a head-only text fix. | v469 | Staff List Discord ID field now ACTUALLY links the bot: saving it writes straight to Supabase user_profiles.discord_id (confirmed via CSV inspection to be the exact column the Discord bot's check-in link-check reads — user_profiles is populated via the ERP's own signUp()+invite-code flow, and staffId throughout the Staff List IS user_profiles.id already, so no email/name matching needed). Previously (v468) it only saved to the ERP's own staff_state blob, which looked like it worked but did nothing for the bot. Both the edit form and the read-only info panel now prefill/display the REAL live value from user_profiles (not a stale local copy), so it's accurate even for staff who already had discord_id set before this field existed. | v468 | Staff List: added a 'Discord ID' field to the personal-info panel/edit form, right above Discord Thread, so the CEO can note/copy each staff member's Discord user ID for reference. IMPORTANT: this writes to STAFF_PROFILE/staff_state (the ERP's own personal-info blob) — it is a SEPARATE store from the Supabase `staff` table's own discord_id/role_id columns that the Discord bot actually reads for its check-in/link check, so filling this in does NOT by itself fix a 'not linked' bot error. Added an explicit on-screen note saying so, to avoid the CEO assuming this field wires up the bot. Root cause of the actual bot-linking issue investigated this session: every staff member created since ~June 22 has a NULL role_id in the `staff` table (works fine before that date) even though discord_id is present — role_id is never written by index.html at all, so it must be set manually in Supabase; recommended value for 'player' team is the same role_id already used by 8 existing player-team staff. | v467 | Recruiting: fixed applicants/edits sometimes vanishing when two staff (e.g. HR adding a new applicant + Manager reviewing) had the board open at once. Root cause: the whole board is ONE JSON blob (recruit_state) and background refresh only runs once per 10 min (v407, egress cost) — so a second staff member's stale local copy could silently overwrite someone else's just-added applicant/CV before it ever synced down. Fix: _doSaveRecruits now pulls the CURRENT server copy right before writing and MERGES it with the local copy (local wins per-applicant-id, anything on the server but missing locally is kept — never silently dropped — and only this-session explicit deletes are actually removed). Client-side merge, no server.js change needed (unlike v459's report-append fix). | v466 | Race layout-editor controls (the Edit dock + GRID READY/Light dock) are now CEO/Manager only. They were showing to everyone on the Race tab even though they only edit the bento layout. Gated by currentUserRole==='admin' at the point the docks are appended to the host (the grid-editor runs inside __kbInit, which fires on Race mount AFTER login, so the role is real, not the pre-auth default). The Ctrl/Cmd+E edit-mode shortcut is likewise admin-gated. The saved layout still applies for ALL roles (applyCSS runs regardless) so non-admins see the CEO-arranged grid; they just can't see or use the edit tools. | v465 | Load-time fix: the head had two render-blocking requests that delayed first paint of the boot splash. (1) Google Fonts (Inter) is now loaded non-blocking via media=print onload swap + noscript fallback (splash uses Georgia, so no dependency). (2) The Supabase CDN script was moved out of the head: head now only PRELOADS it (rel=preload as=script, early non-blocking fetch), and the actual blocking script tag now sits right before its first use (the sb=createClient block), so the splash + app shell + CSS paint without waiting for the Supabase round-trip, while the preload means it is already cached when execution reaches it. Net: head has no render-blocker, splash appears sooner. No JS logic changed. | v464 | (1) Race grid-edit docks (.mt-editdock = Edit, .mt-dock = GRID READY/Light) are now draggable anywhere via pointer-drag with a 5px click/drag threshold; position saved to localStorage (l7_kb_editdock_pos / l7_kb_dock_pos) and restored (clamped on-screen) on each Race mount. Button clicks still work; a real drag swallows the trailing click. (2) Race language unified with the ERP: LANG now reads _uiLang() (KO/EN) at mount instead of its own site_lang, and the Race KO/EN toggle button (#langBtn / .lang-toggle) is hidden. ERP has no Indonesian (toggle is KO/EN only, _uiLang collapses id->ko), so Race follows KO/EN. setLang reloads, so switching ERP language re-inits Race in the new language. | v463 | Race (King Bounty) grid-edit dev docks were floating over content: the 'Edit' button (.mt-editdock) sat bottom-left overlapping the sidebar, and the GRID READY + Light toggle (.mt-dock) sat bottom-center over the money-rain card. Both moved to the top-right corner, stacked (Edit on top at top:70px, GRID READY/Light below at top:112px), and faded to .55 opacity when idle (full opacity on hover) so they stay reachable but out of the way. Still functional. | v462 | Fixed the intermittent full-screen '❠ 대시보드 로드 오류 / Cannot set properties of null (setting textContent)'. Cause was PRE-EXISTING (present since the King Bounty native port, NOT the payslip change): the King Bounty HUD clock + race animation timers inside window.__kbInit keep firing after you leave the Race tab, but the #kb-race node is detached, so a re-queried $('id') returned null and $('id').textContent=... threw OUTSIDE any try/catch → the global error handler painted the fatal overlay over the dashboard. Made the King Bounty $() helper return a harmless no-op stub when the element is missing, so stray post-unmount paints become no-ops. Race, when actually mounted, is unaffected. | v461 | My Payslip is now month-aware: a ‹ [Month Year] › navigation bar lets staff browse PAST months' payslips, not just the current one. Past months load from a new per-month settlement archive (settlement_state id='YYYY-MM'), which is snapshotted automatically every time settlement is saved. The end-of-month reveal lock now applies ONLY to the current month; past months are always shown. A past month with no archive shows a friendly empty state, and admins get a 'Save current salary as this month' button there to seed pre-feature months (e.g. June). | v460 | Session log ✕ button now DELETES the report (with a confirm) instead of opening the edit modal — the ✕ was wired to _srRecEditReport, which is why editing popped up. Editing a report is still available by tapping the row itself. New _srRecDeleteReport removes the record from the reports array and saves. | v459 | Root cause of the vanishing 10:02 report FOUND + fixed in server.js: the /api/calc-data/:key/append handler did a non-atomic read-modify-write, so two reports landing close together both read the same array and the second overwrote the first (it had already posted to Discord → saved-looking but lost). Now an optimistic-lock retry serialises appends so nothing is dropped. ERP side: added a CEO/Manager '+ Add report' button in the Session Log to manually re-insert a lost/missing report (clones the shift's check-in for correct identity, then sets time/EXP; saved via the race-safe append). | v458 | Check-out full-shift GAINED is now bulletproof: it derives the shift start from the SAVED check-in record (source of truth) instead of only sess.startExp, so a recovered/reset session no longer collapses the card to prev→checkout (e.g. it now shows 59.83→63.44 = full shift, not 62.30→63.44). expHour (last-hour /HOUR) still sent for the bot. NOTE: the Discord card + /HOUR only reflect this once BOTH index.html v458 AND the patched server.js are deployed. | v457 | Seed Standard EXP now matches records the SAME way the grid does — normalized name (honorifics/spaces stripped) OR pc number — and updates EVERY match. Fixes PC2 ('Owen 라인님') silently not updating (old exact-=== match missed it when the stored name differed by a space/honorific/duplicate). Also primes the local grid cache after save so the change shows immediately. | v456 | Seed Standard EXP updated per the new 6-PC 기준표: PC2 (Owen) → Dragon Valley 0.70/0.60/0.53 · Gludio 0.60/0.51/0.45 · Totem 0.43/0.36/0.32; PC6 (마석도) → Dragon Valley 0.80/0.73/0.67 · Gludio 0.70/0.60/0.53 · Orc Forest 0.50/0.43/0.38 (added Gludio Dungeon + Orc Forest; sl = Cut Line / cut-below). PC1/7/8/9 unchanged. Merge is by zone so it relabels/revalues in place; run the CEO 'Seed Standard EXP' button to apply. | v455 | Check-out card: EXP GAINED is now the FULL shift (check-in → check-out) again, and the ERP now ALSO sends expHour/adenaHour = the last-hour delta (previous report → check-out) so the Discord "EXP / HOUR" line can show the real last hour (e.g. 88.98%→89.61% = 0.63) instead of full-shift÷hours (0.88). REQUIRES a matching 1-line change in the Railway report bot to display fields.expHour for check-out. | v454 | King Bounty edge-to-edge: the remaining gap was <main>'s own padding (var(--s7/6/8)) plus the dashboard's inner 16px — both now removed while #kb-race is mounted (main:has + .bento padding 0), so it truly fills the frame with no border. Other tabs keep their padding. | v453 | King Bounty full-frame: the outer container had .content{max-width:1320px} AND a 380px #sb-right sidebar eating the width — now, ONLY while #kb-race is mounted, .content max-width is removed and #sb-right is hidden (via :has), so the dashboard truly fills edge-to-edge. Other tabs unaffected. | v452 | King Bounty native: removed the mockup's max-width:1240px cap on the .bento grid so the dashboard now fills the full Race tab width (was leaving a big empty area on the right). | v451 | King Bounty is now NATIVE in the Race tab (no iframe): CSS scoped to #kb-race so it can't touch the ERP, body inlined, all ~620 mockup globals isolated inside window.__kbInit, overlays re-homed into #kb-race, node persisted across tab switches. Still NOT wired to backend (runs the mockup's embedded demo data). | v450 | Race King Bounty mockup now feels native: the isolated iframe fills the tab edge-to-edge (borderless, transparent bg) and auto-fits height (grows to content, no inner-iframe scrollbar) so it reads as one page instead of a site-in-a-site. Still NOT wired to live data. | v449 | Race tab now displays the 888 KING BOUNTY mockup inside an ISOLATED iframe (srcdoc) — pure visual, NOT wired to Supabase/reports/live data (renderRace early-returns before any fetch). Real Race code untouched below the guard; delete the one guard line to restore it. | v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
+<!-- BUILD: v479 | Removed the visible "표 기준 적용" overwrite button from PC Status. PC board/timeline stay read-only to live saved assignments, and Discord copy remains available without adding a data-overwrite control. | v477 | PC Status board/timeline display cleanup: normalize staff/client labels on the live PC cards and clock timeline, hide default MANJI leader spam on PC cards/timeline, keep special leaders such as KAIJI/BRUCE visible, and preserve the locked Discord USE-format copy table. | v476 | PC Status Discord copy v476: lock compact 98-char separator, force KAIJI assignment notes to start with 모니터링, keep BRUCE assistant note, and preserve PC Timeline tab while using the same PC Status data. | v475 | PC Status Discord copy format locked to the latest pasted compact table: 108-char separators, Open 03h wording, KAIJI note shows 모니터링, and unassigned KYROS/SINGGIH stay together as the 12H training block. | v474 | PC Status Discord copy now uses the compact USE-format table (Name/Shift/W/TP/St/P-Date/USE/PC-Time), calculates Full/Open hours from assignments vs shift length, moves BRUCE/KAIJI special-role rows into a clean bottom block, and keeps the PC Timeline tab intact. | v473 | PC Status now has an internal PC Timeline tab that reuses the Records clock board as a read-only 24H operating view, driven by the live PC Status assignments/clients/leaders while leaving the original PC board untouched. Discord/clock client display normalizes common client nicknames such as 고고형 지인 → 순수쌤. | v472 | BUG FIX: moving an applicant to the Backup pool didn't remove them from the Pass column after all. _apMoveToBackup removed the applicant from local APPLICANTS but never added their id to _recruitDeletedIds, so the v467 merge-before-save safety (built to STOP data loss) treated the removal as staleness rather than an intentional delete and quietly re-added them back in from the stale server copy it fetches before writing — undoing the move both on the server and in the local view, every single time. BACKUP_APPLICANTS itself saved correctly (separate store, unaffected), which is why the person correctly showed on the Backup page while ALSO still showing in Pass. Fixed by pushing the id into _recruitDeletedIds, mirroring how deleteApplicant() already does it. Verified with a merge simulation reproducing the exact bug and confirming the fix. | v471 | New feature: Backup Applicants pool. Marking a recruit Pass now asks 'hire directly' vs 'move to backup pool' (no open slot yet) via a small choice modal (setApplicantStage intercepts stageId==='pass'). Backup entries capture desired shift (12H Day/Night, 8H Shift 1/2/3, or Flexible = willing to take any shift) and a readiness state (ready now / pick a date / TBD), and carry over the applicant's full record (interviews, evaluations, files) so nothing is lost. New sidebar channel under HR: 백업 지원자 / Backup applicants (admin/op, inherits the HR category's perms). Stored as its own recruit_state row (id='backup_applicants') with the same merge-before-save safety built for the main recruiting board in v467. Promoting a backup applicant re-inserts them into APPLICANTS as a Pass, reusing the existing 'add to staff pool' flow unchanged. All new UI text is fully Korean in KO mode and fully English in EN mode (no mixed-language labels). | v470 | CRITICAL FIX: the v469 BUILD comment was accidentally closed early with a stray HTML comment-close marker right after its own note text, which orphaned the ENTIRE rest of the accumulated build-history comment (v468 downward) as literal visible page content — it would render as raw text at the top of the page instead of staying invisible inside a comment. Rejoined it back into one continuous comment ending at the original, correct closing tag. Verified byte by byte: exactly one comment-close marker now closes the whole BUILD comment, immediately followed by the next real tag. LESSON LEARNED: never type the literal 3-char HTML comment-close sequence (dash dash angle-bracket) inside build-note text describing this bug, even in quotes — it closes the comment just the same regardless of quoting, which is exactly how this happened in the first place. No functional/JS changes in this build — this is a head-only text fix. | v469 | Staff List Discord ID field now ACTUALLY links the bot: saving it writes straight to Supabase user_profiles.discord_id (confirmed via CSV inspection to be the exact column the Discord bot's check-in link-check reads — user_profiles is populated via the ERP's own signUp()+invite-code flow, and staffId throughout the Staff List IS user_profiles.id already, so no email/name matching needed). Previously (v468) it only saved to the ERP's own staff_state blob, which looked like it worked but did nothing for the bot. Both the edit form and the read-only info panel now prefill/display the REAL live value from user_profiles (not a stale local copy), so it's accurate even for staff who already had discord_id set before this field existed. | v468 | Staff List: added a 'Discord ID' field to the personal-info panel/edit form, right above Discord Thread, so the CEO can note/copy each staff member's Discord user ID for reference. IMPORTANT: this writes to STAFF_PROFILE/staff_state (the ERP's own personal-info blob) — it is a SEPARATE store from the Supabase `staff` table's own discord_id/role_id columns that the Discord bot actually reads for its check-in/link check, so filling this in does NOT by itself fix a 'not linked' bot error. Added an explicit on-screen note saying so, to avoid the CEO assuming this field wires up the bot. Root cause of the actual bot-linking issue investigated this session: every staff member created since ~June 22 has a NULL role_id in the `staff` table (works fine before that date) even though discord_id is present — role_id is never written by index.html at all, so it must be set manually in Supabase; recommended value for 'player' team is the same role_id already used by 8 existing player-team staff. | v467 | Recruiting: fixed applicants/edits sometimes vanishing when two staff (e.g. HR adding a new applicant + Manager reviewing) had the board open at once. Root cause: the whole board is ONE JSON blob (recruit_state) and background refresh only runs once per 10 min (v407, egress cost) — so a second staff member's stale local copy could silently overwrite someone else's just-added applicant/CV before it ever synced down. Fix: _doSaveRecruits now pulls the CURRENT server copy right before writing and MERGES it with the local copy (local wins per-applicant-id, anything on the server but missing locally is kept — never silently dropped — and only this-session explicit deletes are actually removed). Client-side merge, no server.js change needed (unlike v459's report-append fix). | v466 | Race layout-editor controls (the Edit dock + GRID READY/Light dock) are now CEO/Manager only. They were showing to everyone on the Race tab even though they only edit the bento layout. Gated by currentUserRole==='admin' at the point the docks are appended to the host (the grid-editor runs inside __kbInit, which fires on Race mount AFTER login, so the role is real, not the pre-auth default). The Ctrl/Cmd+E edit-mode shortcut is likewise admin-gated. The saved layout still applies for ALL roles (applyCSS runs regardless) so non-admins see the CEO-arranged grid; they just can't see or use the edit tools. | v465 | Load-time fix: the head had two render-blocking requests that delayed first paint of the boot splash. (1) Google Fonts (Inter) is now loaded non-blocking via media=print onload swap + noscript fallback (splash uses Georgia, so no dependency). (2) The Supabase CDN script was moved out of the head: head now only PRELOADS it (rel=preload as=script, early non-blocking fetch), and the actual blocking script tag now sits right before its first use (the sb=createClient block), so the splash + app shell + CSS paint without waiting for the Supabase round-trip, while the preload means it is already cached when execution reaches it. Net: head has no render-blocker, splash appears sooner. No JS logic changed. | v464 | (1) Race grid-edit docks (.mt-editdock = Edit, .mt-dock = GRID READY/Light) are now draggable anywhere via pointer-drag with a 5px click/drag threshold; position saved to localStorage (l7_kb_editdock_pos / l7_kb_dock_pos) and restored (clamped on-screen) on each Race mount. Button clicks still work; a real drag swallows the trailing click. (2) Race language unified with the ERP: LANG now reads _uiLang() (KO/EN) at mount instead of its own site_lang, and the Race KO/EN toggle button (#langBtn / .lang-toggle) is hidden. ERP has no Indonesian (toggle is KO/EN only, _uiLang collapses id->ko), so Race follows KO/EN. setLang reloads, so switching ERP language re-inits Race in the new language. | v463 | Race (King Bounty) grid-edit dev docks were floating over content: the 'Edit' button (.mt-editdock) sat bottom-left overlapping the sidebar, and the GRID READY + Light toggle (.mt-dock) sat bottom-center over the money-rain card. Both moved to the top-right corner, stacked (Edit on top at top:70px, GRID READY/Light below at top:112px), and faded to .55 opacity when idle (full opacity on hover) so they stay reachable but out of the way. Still functional. | v462 | Fixed the intermittent full-screen '❠ 대시보드 로드 오류 / Cannot set properties of null (setting textContent)'. Cause was PRE-EXISTING (present since the King Bounty native port, NOT the payslip change): the King Bounty HUD clock + race animation timers inside window.__kbInit keep firing after you leave the Race tab, but the #kb-race node is detached, so a re-queried $('id') returned null and $('id').textContent=... threw OUTSIDE any try/catch → the global error handler painted the fatal overlay over the dashboard. Made the King Bounty $() helper return a harmless no-op stub when the element is missing, so stray post-unmount paints become no-ops. Race, when actually mounted, is unaffected. | v461 | My Payslip is now month-aware: a ‹ [Month Year] › navigation bar lets staff browse PAST months' payslips, not just the current one. Past months load from a new per-month settlement archive (settlement_state id='YYYY-MM'), which is snapshotted automatically every time settlement is saved. The end-of-month reveal lock now applies ONLY to the current month; past months are always shown. A past month with no archive shows a friendly empty state, and admins get a 'Save current salary as this month' button there to seed pre-feature months (e.g. June). | v460 | Session log ✕ button now DELETES the report (with a confirm) instead of opening the edit modal — the ✕ was wired to _srRecEditReport, which is why editing popped up. Editing a report is still available by tapping the row itself. New _srRecDeleteReport removes the record from the reports array and saves. | v459 | Root cause of the vanishing 10:02 report FOUND + fixed in server.js: the /api/calc-data/:key/append handler did a non-atomic read-modify-write, so two reports landing close together both read the same array and the second overwrote the first (it had already posted to Discord → saved-looking but lost). Now an optimistic-lock retry serialises appends so nothing is dropped. ERP side: added a CEO/Manager '+ Add report' button in the Session Log to manually re-insert a lost/missing report (clones the shift's check-in for correct identity, then sets time/EXP; saved via the race-safe append). | v458 | Check-out full-shift GAINED is now bulletproof: it derives the shift start from the SAVED check-in record (source of truth) instead of only sess.startExp, so a recovered/reset session no longer collapses the card to prev→checkout (e.g. it now shows 59.83→63.44 = full shift, not 62.30→63.44). expHour (last-hour /HOUR) still sent for the bot. NOTE: the Discord card + /HOUR only reflect this once BOTH index.html v458 AND the patched server.js are deployed. | v457 | Seed Standard EXP now matches records the SAME way the grid does — normalized name (honorifics/spaces stripped) OR pc number — and updates EVERY match. Fixes PC2 ('Owen 라인님') silently not updating (old exact-=== match missed it when the stored name differed by a space/honorific/duplicate). Also primes the local grid cache after save so the change shows immediately. | v456 | Seed Standard EXP updated per the new 6-PC 기준표: PC2 (Owen) → Dragon Valley 0.70/0.60/0.53 · Gludio 0.60/0.51/0.45 · Totem 0.43/0.36/0.32; PC6 (마석도) → Dragon Valley 0.80/0.73/0.67 · Gludio 0.70/0.60/0.53 · Orc Forest 0.50/0.43/0.38 (added Gludio Dungeon + Orc Forest; sl = Cut Line / cut-below). PC1/7/8/9 unchanged. Merge is by zone so it relabels/revalues in place; run the CEO 'Seed Standard EXP' button to apply. | v455 | Check-out card: EXP GAINED is now the FULL shift (check-in → check-out) again, and the ERP now ALSO sends expHour/adenaHour = the last-hour delta (previous report → check-out) so the Discord "EXP / HOUR" line can show the real last hour (e.g. 88.98%→89.61% = 0.63) instead of full-shift÷hours (0.88). REQUIRES a matching 1-line change in the Railway report bot to display fields.expHour for check-out. | v454 | King Bounty edge-to-edge: the remaining gap was <main>'s own padding (var(--s7/6/8)) plus the dashboard's inner 16px — both now removed while #kb-race is mounted (main:has + .bento padding 0), so it truly fills the frame with no border. Other tabs keep their padding. | v453 | King Bounty full-frame: the outer container had .content{max-width:1320px} AND a 380px #sb-right sidebar eating the width — now, ONLY while #kb-race is mounted, .content max-width is removed and #sb-right is hidden (via :has), so the dashboard truly fills edge-to-edge. Other tabs unaffected. | v452 | King Bounty native: removed the mockup's max-width:1240px cap on the .bento grid so the dashboard now fills the full Race tab width (was leaving a big empty area on the right). | v451 | King Bounty is now NATIVE in the Race tab (no iframe): CSS scoped to #kb-race so it can't touch the ERP, body inlined, all ~620 mockup globals isolated inside window.__kbInit, overlays re-homed into #kb-race, node persisted across tab switches. Still NOT wired to backend (runs the mockup's embedded demo data). | v450 | Race King Bounty mockup now feels native: the isolated iframe fills the tab edge-to-edge (borderless, transparent bg) and auto-fits height (grows to content, no inner-iframe scrollbar) so it reads as one page instead of a site-in-a-site. Still NOT wired to live data. | v449 | Race tab now displays the 888 KING BOUNTY mockup inside an ISOLATED iframe (srcdoc) — pure visual, NOT wired to Supabase/reports/live data (renderRace early-returns before any fetch). Real Race code untouched below the guard; delete the one guard line to restore it. | v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7729,6 +7729,69 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
   .perms-title{font-size:22px}
   .ppc-head-row,.pcs-head-row{flex-wrap:wrap;gap:10px}
 }
+
+
+/* ═══════════════════════════════════════════════════
+   PC 현황 · 24H 타임라인 탭 (Records clock board reuse)
+   기존 PC 보드 레이아웃을 건드리지 않고 별도 패널로만 표시
+   ═══════════════════════════════════════════════════ */
+.pcx-view-tabs{display:flex;align-items:center;gap:6px;margin:16px 0 14px;padding:4px;background:var(--bg-c);border:1px solid var(--br);border-radius:13px;width:max-content;max-width:100%;}
+.pcx-tab{appearance:none;border:0;background:transparent;color:var(--tx3);font:inherit;font-size:12.5px;font-weight:800;padding:9px 16px;border-radius:10px;cursor:pointer;transition:all .15s var(--ease);white-space:nowrap;}
+.pcx-tab:hover{color:var(--tx);background:var(--bg-h);}
+.pcx-tab.on{background:var(--ac);color:#191506;box-shadow:0 3px 12px rgba(194,160,74,.22);}
+.pcx-tab-hint{font-size:11px;color:var(--tx3);font-weight:600;padding:0 10px 0 4px;white-space:nowrap;}
+.pcx-panel{animation:fade-in .18s var(--ease);}
+.pcx-tl-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap;}
+.pcx-tl-title{font-size:14px;font-weight:900;color:var(--tx);letter-spacing:-.01em;}
+.pcx-tl-sub{font-size:11.5px;color:var(--tx3);font-weight:600;}
+.pcx-tl-chip{font-size:10px;font-weight:800;color:var(--ac);background:var(--ac-bg);border:1px solid var(--ac-bord);padding:3px 9px;border-radius:999px;}
+.pcx-loading{padding:34px 18px;text-align:center;border:1px dashed var(--br2);border-radius:16px;color:var(--tx3);font-size:12.5px;background:var(--bg-c);}
+#pc-timeline-panel .ck-wrap{margin-top:6px;}
+#pc-timeline-panel .ck-bar{background:var(--bg-c);border:1px solid var(--br);border-radius:16px;padding:14px 16px;margin-bottom:16px;}
+#pc-timeline-panel .ck-bar-l{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+#pc-timeline-panel .ck-scrub{position:relative;height:24px;display:flex;align-items:center;cursor:pointer;touch-action:none;}
+#pc-timeline-panel .ck-scrub-tr{position:absolute;left:0;right:0;height:4px;border-radius:3px;background:var(--bg-i);}
+#pc-timeline-panel .ck-scrub-fl{position:absolute;left:0;height:4px;border-radius:3px;background:linear-gradient(90deg,rgba(194,160,74,.5),var(--ac));width:0;}
+#pc-timeline-panel .ck-scrub-hd{position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:50%;transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(0,0,0,.5),0 0 0 4px rgba(194,160,74,.18);left:0;}
+#pc-timeline-panel .ck-axis{display:flex;justify-content:space-between;margin-top:6px;font-size:9.5px;color:var(--tx3);font-weight:600;}
+#pc-timeline-panel .ck-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;}
+#pc-timeline-panel .ck-card{background:var(--bg-c);border:1px solid var(--br);border-radius:18px;padding:14px 14px 12px;transition:border-color .16s var(--ease),transform .16s var(--ease),box-shadow .16s var(--ease);}
+#pc-timeline-panel .ck-card:hover{border-color:var(--ac-bord);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.18);}
+#pc-timeline-panel .ck-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
+#pc-timeline-panel .ck-pcid{font-size:14px;font-weight:800;color:var(--tx);}
+#pc-timeline-panel .ck-pcid span{color:var(--tx3);font-weight:700;}
+#pc-timeline-panel .ck-top-r{display:flex;align-items:center;gap:7px;}
+#pc-timeline-panel .ck-crown{color:var(--ac);font-size:12px;}
+#pc-timeline-panel .ck-exp{font-size:12px;font-weight:900;font-variant-numeric:tabular-nums;color:var(--tx3);}
+#pc-timeline-panel .ck-clock{position:relative;width:100%;max-width:188px;aspect-ratio:1;margin:6px auto 10px;}
+#pc-timeline-panel .ck-clock svg{position:absolute;inset:0;}
+#pc-timeline-panel .ck-ring{transition:opacity .25s ease;}
+#pc-timeline-panel .ck-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+#pc-timeline-panel .ck-center .hh{font-size:25px;font-weight:900;letter-spacing:-.03em;line-height:.9;color:var(--tx);}
+#pc-timeline-panel .ck-center .hh span{font-size:13px;font-weight:700;color:var(--tx3);}
+#pc-timeline-panel .ck-center .lab{font-size:9.5px;font-weight:700;color:var(--tx3);margin-top:5px;letter-spacing:.05em;}
+#pc-timeline-panel .ck-lg{display:flex;align-items:center;gap:8px;padding:5px 2px;font-size:12px;}
+#pc-timeline-panel .ck-lg+.ck-lg{border-top:1px solid var(--bg-i);}
+#pc-timeline-panel .ck-sw{width:8px;height:8px;border-radius:50%;flex:none;}
+#pc-timeline-panel .ck-nm{font-weight:700;color:var(--tx);}
+#pc-timeline-panel .ck-tm{margin-left:auto;font-size:11px;color:var(--tx3);font-weight:600;}
+#pc-timeline-panel .ck-lg-empty{font-size:11.5px;color:var(--tx3);padding:6px 2px;}
+#pc-timeline-panel .ck-lg-go{cursor:pointer;border-radius:8px;margin:0 -4px;padding-left:4px;padding-right:4px;}
+#pc-timeline-panel .ck-lg-go:hover{background:rgba(255,255,255,.04);}
+#pc-timeline-panel .ck-lg-go .ck-go-ar{opacity:0;color:var(--ac);font-weight:900;margin-left:4px;transition:opacity .15s;}
+#pc-timeline-panel .ck-lg-go:hover .ck-go-ar{opacity:1;}
+#pc-timeline-panel .ck-client{margin-top:9px;padding-top:9px;border-top:1px solid var(--br);font-size:11.5px;font-weight:700;color:var(--ac);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px;}
+#pc-timeline-panel .ck-client.none{color:var(--tx3);font-weight:600;}
+#pc-timeline-panel .ck-bdg{font-size:9.5px;font-weight:900;border-radius:999px;padding:2px 8px;margin-left:auto;flex:none;}
+#pc-timeline-panel .ck-bdg.ok{color:#36c66b;background:rgba(54,198,107,.13);}
+#pc-timeline-panel .ck-bdg.gap{color:#d9665c;background:rgba(217,102,92,.14);}
+#pc-timeline-panel .ck-bdg.unset{color:var(--tx3);background:var(--bg-i);}
+#pc-timeline-panel .ck-reqt{font-size:10.5px;color:var(--tx3);font-weight:700;margin-top:6px;display:flex;align-items:center;gap:7px;}
+#pc-timeline-panel .ck-reqbtn{appearance:none;border:1px solid var(--br2);background:var(--bg-i);color:var(--tx2);font:inherit;font-size:10px;font-weight:800;padding:3px 8px;border-radius:7px;cursor:pointer;}
+#pc-timeline-panel .ck-reqbtn:hover{color:var(--ac);border-color:var(--ac-bord);}
+#pc-timeline-panel .ck-reqbtn.full{margin-top:8px;width:100%;padding:7px;font-size:11px;}
+@media (max-width:720px){.pcx-view-tabs{width:100%;}.pcx-tab{flex:1}.pcx-tab-hint{display:none;}#pc-timeline-panel .ck-grid{grid-template-columns:1fr;}}
+
 </style>
 <style id="kb-race-css">
 .content:has(#kb-race){max-width:none!important;margin:0!important;padding:0!important}
@@ -10309,6 +10372,25 @@ body:has(#kb-race) #sb-right{display:none!important}
           <div class="pcs-met"><div class="pcs-met-label">직원 가용</div><div class="pcs-met-val tab-nums" id="m-staff-free">—</div><div class="pcs-met-sub" id="m-staff-free-sub">— / — H 잔여</div></div>
         </div>
 
+        <div class="pcx-view-tabs fade-in" style="animation-delay:85ms">
+          <button class="pcx-tab on" id="pcx-tab-board" onclick="setPCHubView('board')">PC 보드</button>
+          <button class="pcx-tab" id="pcx-tab-clock" onclick="setPCHubView('clock')">PC 타임라인</button>
+          <span class="pcx-tab-hint">기존 보드는 그대로, 24H 운영 시계만 별도 보기</span>
+        </div>
+
+        <div id="pc-timeline-panel" class="pcx-panel fade-in" style="display:none;animation-delay:100ms">
+          <div class="pcx-tl-head">
+            <div>
+              <div class="pcx-tl-title">PC 24H 타임라인</div>
+              <div class="pcx-tl-sub">PC 현황의 직원 배정·클라이언트·리더 상태를 읽어서 하루 운영 흐름으로 보여줍니다.</div>
+            </div>
+            <span class="pcx-tl-chip">PC 현황 연동 · 읽기 전용</span>
+          </div>
+          <div id="pc-timeline-host" class="pcx-loading">PC 타임라인 준비 중…</div>
+        </div>
+
+        <div id="pc-board-panel">
+
       <div id="day-picker-host" class="fade-in" style="animation-delay:90ms"></div>
 
       <div class="legend fade-in" style="animation-delay:120ms">
@@ -10359,6 +10441,8 @@ body:has(#kb-race) #sb-right{display:none!important}
         </div>
         <div id="tl-body"></div>
       </div>
+
+        </div><!-- /pc-board-panel -->
 
       </div>
     </div>
@@ -20332,8 +20416,8 @@ function _ckCoverGap(req, assigns){ if(!req||req.s==null||req.e==null) return nu
 function _ckH2(h){ return String(((Math.round(((h%24)+24)%24))%24)).padStart(2,'0'); }
 
 // 시프트 시간이 없으면(start=len=0) 클라/직원만 표시. 직원 id→이름 해석.
-function _ckStaffName(id){ try{ if(typeof staffById==='function'){ var s=staffById(id); if(s&&s.name) return s.name; } }catch(_){} return String(id||''); }
-function _ckClientName(p){ try{ if(p.clients&&p.clients.length&&typeof clientById==='function'){ var c=clientById(p.clients[0]); if(c&&c.name) return c.name; } }catch(_){} return ''; }
+function _ckStaffName(id){ try{ if(typeof staffById==='function'){ var s=staffById(id); if(s&&(s.name||s.full_name)) return (typeof _pcFriendlyStaffName==='function'?_pcFriendlyStaffName(s.full_name||s.name):(s.full_name||s.name)); } }catch(_){} return String(id||''); }
+function _ckClientName(p){ try{ if(p.clients&&p.clients.length&&typeof clientById==='function'){ var c=clientById(p.clients[0]); if(c&&c.name) return (typeof _pcFriendlyClientName==='function' ? _pcFriendlyClientName(c.name) : c.name); } }catch(_){} return ''; }
 
 function _ckClockSVG(pc, assigns){
   var g='';
@@ -20384,7 +20468,7 @@ function _clockBoardHTML(sessions){
     +'<div class="race-read" id="ck-read">'+(exp.date?(_L?('재생을 누르면 하루가 흐르며 근무 시프트와 그 시간까지 올린 EXP%가 같이 표시됩니다. · 기준일 '+exp.date):('Press play to watch the day unfold with shift hours and EXP% gained up to that point. \u00B7 As of '+exp.date)):(_L?'세션 데이터가 없어 EXP 오버레이는 비활성화. 시프트만 표시됩니다.':'No session data, so the EXP overlay is disabled. Showing shifts only.'))+'</div></div>';
 
   var grid=ckPCS.map(function(p){
-    var crown=p.leader?('<span class="ck-crown" title="'+(_L?'감독':'Supervisor')+'">♔</span>'):'';
+    var _leadObj=(p.leader&&typeof staffById==='function')?staffById(p.leader):null; var crown=(p.leader && (!_leadObj || (typeof _pcShowLeaderRow!=='function' || _pcShowLeaderRow(_leadObj))))?('<span class="ck-crown" title="'+(_L?'감독':'Supervisor')+'">♔</span>'):'';
     var leg=p.assigns.length?p.assigns.map(function(a,ai){ var rng=a.len>0?(_ckH2(a.start)+'–'+_ckH2(a.start+a.len)+' · '+a.len+'h'):(_L?'시간 미설정':'Time not set');
       return '<div class="ck-lg ck-lg-go" onclick="_ckToStaffIdx('+p.id+','+ai+')" title="'+(_L?'이 직원 EXP 기록 열기':'Open this staff\u2019s EXP record')+'"><span class="ck-sw" style="background:'+_ckColor(a.name)+'"></span><span class="ck-nm">'+_srEsc(a.name)+'</span><span class="ck-tm">'+rng+'</span><span class="ck-go-ar">→</span></div>'; }).join(''):'<div class="ck-lg-empty">'+(_L?'직원 미배정':'Staff unassigned')+'</div>';
     var rq=_ckReqOf(p.id); var cov=_ckCoverGap(rq,p.assigns);
@@ -27679,12 +27763,12 @@ function renderPosLegend(){
 
 
 // ─────────────────────────────────────────────────────────────
-// PC Status → Discord copy text
+// PC Status → Discord copy text · compact operations format
 // 현재 PCS / STAFF / CLIENTS / TRUST_DATA를 다시 읽어서 Discord에 바로 붙여넣는 표를 만든다.
 // 카드 DOM을 긁지 않으므로 PC 카드 디자인을 바꿔도 복붙 포맷은 유지된다.
 function _dcWidth(v){
   return Array.from(String(v == null ? '' : v)).reduce(function(n,ch){
-    // Discord codeblocks render Korean/CJK wide, but symbols like ● / — behave closer to 1 cell.
+    // Discord codeblocks render Korean/CJK wide, but symbols like -- behave closer to 1 cell.
     return n + (/[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch) ? 2 : 1);
   }, 0);
 }
@@ -27692,6 +27776,10 @@ function _dcPad(v, len){
   var out = String(v == null ? '' : v);
   while(_dcWidth(out) < len) out += ' ';
   return out;
+}
+function _dcPad2(n){
+  n = Math.max(0, Math.round(Number(n) || 0));
+  return String(n).padStart(2, '0');
 }
 function _dcFmtWarn(v){
   var n = Number(v || 0);
@@ -27709,15 +27797,15 @@ function _dcDateMMDD(v){
   if(!isNaN(d.getTime())) return pad2(d.getMonth()+1) + '/' + pad2(d.getDate());
   return String(v);
 }
-function _dcKoHour(h){
+function _dcKoHourCompact(h){
   h = ((Number(h)||0) % 24 + 24) % 24;
   var mer = h < 12 ? '오전' : '오후';
   var hh = h % 12; if(hh === 0) hh = 12;
-  return mer + ' ' + hh + '시';
+  return mer + hh;
 }
 function _dcTimeRange(start, len){
   start = Number(start)||0; len = Number(len)||0;
-  return _dcKoHour(start) + ' ~ ' + _dcKoHour((start + len) % 24);
+  return _dcKoHourCompact(start) + '-' + _dcKoHourCompact((start + len) % 24);
 }
 function _dcIsNight(start, len){
   start = ((Number(start)||0) % 24 + 24) % 24;
@@ -27747,11 +27835,11 @@ function _dcShiftOrder(start, len){
 function _dcShiftFromKey(key){
   key = String(key || '').toLowerCase();
   var map = {
-    '12h_day':   { shift:'Day 12',   tag:'Shift 1', order:20, group:10 },
-    '12h_night': { shift:'Night 12', tag:'Shift 2', order:40, group:20 },
-    '8h_s1':     { shift:'Day 8',    tag:'Shift 1', order:10, group:10 },
-    '8h_s2':     { shift:'Night 8',  tag:'Shift 2', order:30, group:20 },
-    '8h_s3':     { shift:'Night 8',  tag:'Shift 3', order:50, group:30 }
+    '12h_day':   { shift:'Day 12',   tag:'', order:20, group:10 },
+    '12h_night': { shift:'Night 12', tag:'', order:40, group:20 },
+    '8h_s1':     { shift:'Day 8',    tag:'', order:10, group:10 },
+    '8h_s2':     { shift:'Night 8',  tag:'', order:30, group:20 },
+    '8h_s3':     { shift:'Night 8',  tag:'', order:50, group:30 }
   };
   return map[key] || null;
 }
@@ -27769,8 +27857,8 @@ function _dcTrustRow(s){
   return {
     warn: _dcFmtWarn(t.warn_pts),
     tp: _dcFmtTP(t.trust_pts),
-    status: '● ' + label,
-    protected: t.protected_until ? ('until ' + _dcDateMMDD(t.protected_until)) : '—'
+    status: label,
+    pdate: t.protected_until ? _dcDateMMDD(t.protected_until) : '--'
   };
 }
 function _dcStaffShiftInfo(s, a){
@@ -27778,44 +27866,63 @@ function _dcStaffShiftInfo(s, a){
   if(sh) return sh;
   var len = (s && Number(s.shiftLen)) || (a && Number(a.len)) || 0;
   var start = (a && Number(a.start)) || 0;
-  return { shift:_dcShiftLabel(start, len), tag:_dcShiftNo(start, len), order:_dcShiftOrder(start, len) };
+  return { shift:_dcShiftLabel(start, len), tag:_dcShiftNo(start, len), order:_dcShiftOrder(start, len), group:_dcIsNight(start, len) ? 20 : 10 };
+}
+function _dcContractHours(s, a, si){
+  var m = String(si && si.shift || '').match(/(?:Day|Night)\s*(\d+)/i);
+  if(m) return Number(m[1]) || 0;
+  if(s && Number(s.shiftLen)) return Number(s.shiftLen);
+  if(a && Number(a.len)) return Number(a.len);
+  return 0;
+}
+function _dcUseInfo(s, a, si){
+  if(!a || !a.staff) return 'Unassigned';
+  var used = Number(a.len) || 0;
+  var max = _dcContractHours(s, a, si) || used;
+  var open = Math.max(0, max - used);
+  var label = open > 0 ? ('Open ' + _dcPad2(open) + 'h') : 'Full';
+  return _dcPad2(used) + '/' + _dcPad2(max) + ' ' + label;
 }
 function _dcClientNames(p){
   var names = [];
   try{
     (p.clients || []).forEach(function(cid){
       var c = clientById(cid);
-      if(c && c.name && names.indexOf(c.name) < 0) names.push(c.name);
+      var nm = c && c.name ? (typeof _pcFriendlyClientName === 'function' ? _pcFriendlyClientName(c.name) : c.name) : '';
+      if(nm && names.indexOf(nm) < 0) names.push(nm);
     });
   }catch(_){}
   return names.length ? names.join(' / ') : '클라이언트 미배정';
 }
 function _dcStaffName(s){
-  var name = String((s && (s.name || s.full_name)) || 'UNKNOWN').trim();
-  // Discord copy table uses clean staff names only: MR.SIL / Mr Jeff -> SIL / JEFF
+  var name = String((s && (s.full_name || s.name)) || s || 'UNKNOWN').trim();
+  if(typeof _pcFriendlyStaffName === 'function') return String(_pcFriendlyStaffName(name)).toUpperCase();
   name = name.replace(/^\s*(mr|mrs|ms|miss|sir|madam|mister)[\.\s_-]+/i, '');
   name = name.replace(/^\s*mr(?=[A-Z가-힣])/i, '');
   return name.trim().toUpperCase();
 }
-function _dcLeaderRolePrefix(s){
-  var nm = _dcStaffName(s);
-  // Discord copy must NOT print a generic "팀 리더" row for every PC.
-  // Only special operating labels are exported. Normal leaders stay visible on the website only.
+function _dcSpecialRoleLabelByName(name){
+  var nm = String(name || '').toUpperCase();
   if(nm === 'KAIJI') return '모니터링';
   if(nm === 'BRUCE') return '교육 / 신입 조교';
   return '';
 }
+function _dcIsSpecialStaffName(name){ return !!_dcSpecialRoleLabelByName(name); }
+function _dcIsTrainingName(name){
+  var n = String(name || '').replace(/[^A-Z0-9]/g,'');
+  return ['BOB','LUKE','KYROS','SAN','BIN','SINGGIH','HANA','MIRU','DITT'].indexOf(n) >= 0;
+}
 function _dcRolePrefixForAssignment(p, s, a){
-  if(!s) return '';
-  var role = _dcLeaderRolePrefix(s);
-  if(role) return role + ' / ';
+  var nm = _dcStaffName(s);
+  if(nm === 'BRUCE') return '교육 / 신입 조교 / ';
+  if(nm === 'KAIJI') return '모니터링 / ';
   return '';
 }
 function _dcLeaderOnlyRow(p){
   if(!p || !p.leader) return null;
   var s = staffById(p.leader);
   if(!s) return null;
-  var role = _dcLeaderRolePrefix(s);
+  var role = _dcSpecialRoleLabelByName(_dcStaffName(s));
   // No generic team-leader rows in Discord output. Otherwise MANJI becomes a plague across every PC.
   if(!role) return null;
   var alreadyInShift = (p.assignments || []).some(function(a){ return a && a.staff === p.leader; });
@@ -27824,92 +27931,93 @@ function _dcLeaderOnlyRow(p){
   var si = _dcStaffShiftInfo(s, null);
   var nm = _dcStaffName(s);
   if(nm === 'KAIJI' && Number(s.shiftLen || 0) >= 10 && !_dcStaffShiftKey(s)){
-    si = {shift:'Night ' + Number(s.shiftLen || 12), tag:'', order:20};
+    si = {shift:'Night ' + Number(s.shiftLen || 12), tag:'', order:20, group:90};
   }
   if(nm === 'BRUCE' && Number(s.shiftLen || 0) >= 10 && !_dcStaffShiftKey(s)){
-    si = {shift:'Day ' + Number(s.shiftLen || 12), tag:'', order:10};
+    si = {shift:'Day ' + Number(s.shiftLen || 12), tag:'', order:10, group:90};
   }
-  var prot = tr.protected + (si.tag ? '  ' + si.tag : '');
   return {
-    name: _dcStaffName(s),
+    name: nm,
     shift: si.shift || '',
     warn: tr.warn,
     tp: tr.tp,
     status: tr.status,
-    protected: prot,
-    note: role + ' / PC ' + p.id + ' ' + _dcClientNames(p),
+    pdate: tr.pdate,
+    use: 'Unassigned',
+    note: role + ' / PC' + p.id + ' ' + _dcClientNames(p),
     start: -1,
     isNight: false,
     order: -100,
-    leaderOnly: true
+    group:90,
+    special:true,
+    leaderOnly:true
   };
 }
 function _dcAssignmentRow(p, a){
   var s = staffById(a.staff);
   var tr = _dcTrustRow(s || {});
   var si = _dcStaffShiftInfo(s, a);
-  var prot = tr.protected + (si.tag ? '  ' + si.tag : '');
-  var period = _dcIsNight(a.start, a.len) ? '야간' : '주간';
   var notePrefix = _dcRolePrefixForAssignment(p, s, a);
+  var nm = _dcStaffName(s);
+  // v476 hard guard: if the staff name normalizes to KAIJI/BRUCE, the Discord line must carry the role prefix.
+  // This is intentionally duplicated here instead of trusting upstream role fields, because upstream data likes cosplaying as soup.
+  if(nm === 'KAIJI') notePrefix = '모니터링 / ';
+  if(nm === 'BRUCE') notePrefix = '교육 / 신입 조교 / ';
   return {
-    name: _dcStaffName(s),
+    name: nm,
     shift: si.shift,
     warn: tr.warn,
     tp: tr.tp,
     status: tr.status,
-    protected: prot,
-    note: notePrefix + 'PC ' + p.id + ' ' + _dcClientNames(p) + ' / ' + period + ' ' + _dcTimeRange(a.start, a.len),
+    pdate: tr.pdate,
+    use: _dcUseInfo(s, a, si),
+    note: notePrefix + 'PC' + p.id + ' ' + _dcClientNames(p) + ' / ' + _dcTimeRange(a.start, a.len),
     start: ((Number(a.start)||0) % 24 + 24) % 24,
     isNight: _dcIsNight(a.start, a.len),
-    order: 0
+    order: 0,
+    group: si.group || 99,
+    special: _dcIsSpecialStaffName(nm)
   };
 }
 function _dcHasNight12(p){
   return (p.assignments || []).some(function(a){ return Number(a.len) >= 10 && _dcIsNight(a.start, a.len); });
 }
-function _dcHasLongDayEndingNightStart(p){
-  return (p.assignments || []).some(function(a){
-    var len = Number(a.len)||0, start = Number(a.start)||0, end = (start + len) % 24;
-    return len >= 10 && !_dcIsNight(start, len) && (end === 21 || start >= 8 && start <= 12);
-  });
-}
 function _dcExpectedEmptyRows(p){
   var rows = [];
   var clientNames = _dcClientNames(p);
-  // Show a 21:00~09:00 empty slot only when the PC has a long day shift ending at 21:00
-  // and no night assignment. This avoids false "Empty" rows on PCs that already have
-  // partial night/early-morning coverage. Because apparently tables need parenting too.
   var hasDayEndsAt21 = (p.assignments || []).some(function(a){
     var len = Number(a.len)||0, start = Number(a.start)||0, end = (start + len) % 24;
     return len >= 10 && !_dcIsNight(start, len) && end === 21;
   });
   if(hasDayEndsAt21 && !_dcHasNight12(p)){
     rows.push({
-      name:'', shift:'', warn:'', tp:'—', status:'Empty', protected:'—',
-      note:'PC ' + p.id + ' ' + clientNames + ' / 야간 ' + _dcTimeRange(21, 12) + ' / 남는 쉬프트',
+      name:'', shift:'', warn:'', tp:'', status:'Empty', pdate:'--', use:'Unassigned',
+      note:'PC' + p.id + ' ' + clientNames + ' / ' + _dcTimeRange(21, 12) + ' / 남는 쉬프트',
       start:21,
       isNight:true,
-      order:21
+      order:21,
+      group:80
     });
   }
   return rows;
 }
 function _dcLine(row){
-  return _dcPad(row.name,14)
-    + _dcPad(row.shift,12)
-    + _dcPad(row.warn,8)
-    + _dcPad(row.tp,5)
-    + _dcPad(row.status,13)
-    + _dcPad(row.protected,23)
+  return _dcPad(row.name,10)
+    + _dcPad(row.shift,11)
+    + _dcPad(row.warn,6)
+    + _dcPad(row.tp,3)
+    + _dcPad(row.status,5)
+    + _dcPad(row.pdate,8)
+    + _dcPad(row.use,17)
     + (row.note || '');
 }
 function _dcHeader(){
-  return _dcPad('Name',14) + _dcPad('Shift',12) + _dcPad('Warn',8) + _dcPad('TP',6) + _dcPad('Status',13) + 'Protected';
+  return 'Name      Shift        W  TP  St   P-Date  USE              PC / Time';
 }
-function _dcSeparator(){ return '─'.repeat(108); }
+function _dcSeparator(){ return '─'.repeat(98); }
 function _dcTrainingOrderName(name){
   var n = String(name || '').replace(/[^A-Z0-9]/g,'');
-  var pref = ['BOB','LUKE','KYROS','SAN','BIN','SINGGIH','MIRU','DITT'];
+  var pref = ['BOB','LUKE','KYROS','SAN','BIN','SINGGIH','HANA','MIRU','DITT'];
   var idx = pref.indexOf(n);
   return idx < 0 ? 999 : idx;
 }
@@ -27919,16 +28027,35 @@ function _dcUnassignedRows(assigned){
     STAFF.forEach(function(s){
       if(!s || assigned.has(s.id)) return;
       if(typeof _staffResigned === 'function' && _staffResigned(s.id)) return;
-      if(typeof staffCategory === 'function' && staffCategory(s) !== 'player') return;
+      var nm = _dcStaffName(s);
+      var role = _dcSpecialRoleLabelByName(nm);
+      var isPlayer = true;
+      try{ isPlayer = (typeof staffCategory !== 'function' || staffCategory(s) === 'player'); }catch(_){ isPlayer = true; }
+      if(!isPlayer && !role) return;
       var key = _dcStaffShiftKey(s);
       var sh = _dcShiftFromKey(key);
-      if(!sh) return;
+      if(!sh){
+        var fakeStart = nm === 'BRUCE' ? 11 : (nm === 'KAIJI' ? 2 : 0);
+        var fake = {start:fakeStart, len:Number(s.shiftLen)||0};
+        if(fake.len) sh = _dcStaffShiftInfo(s, fake);
+      }
+      if(!sh || !sh.shift) return;
       var tr = _dcTrustRow(s);
-      var nm = _dcStaffName(s);
+      var extraGroup = role ? 90 : (sh.group || 99);
+      if(!role && (nm === 'KYROS' || nm === 'SINGGIH')) extraGroup = 25;
       rows.push({
-        name:nm, shift:sh.shift, warn:tr.warn, tp:tr.tp,
-        status:tr.status, protected:tr.protected + (sh.tag ? '  ' + sh.tag : ''),
-        note:'트레이닝', order:sh.order, group:sh.group || 99, nameOrder:_dcTrainingOrderName(nm)
+        name:nm,
+        shift:sh.shift,
+        warn:tr.warn,
+        tp:tr.tp,
+        status:tr.status,
+        pdate:tr.pdate,
+        use:'Unassigned',
+        note: role || '트레이닝',
+        order:sh.order,
+        group:extraGroup,
+        nameOrder:_dcTrainingOrderName(nm),
+        special:!!role
       });
     });
   }catch(_){}
@@ -27940,36 +28067,61 @@ function buildPCScheduleDiscordText(){
   try{ normalizePCs(); }catch(_){}
   var lines = [_dcHeader(), _dcSeparator()];
   var assigned = new Set();
-  var pcs = (Array.isArray(PCS) ? PCS.slice() : []).sort(function(a,b){ return Number(a.id) - Number(b.id); });
+  var specialRows = [];
+  var blocks = [];
+  var pcs = (Array.isArray(PCS) ? PCS.slice() : []);
   pcs.forEach(function(p){
     var rows = [];
     if(p.leader) assigned.add(p.leader);
     var leaderRow = _dcLeaderOnlyRow(p);
-    if(leaderRow) rows.push(leaderRow);
+    if(leaderRow){ specialRows.push(leaderRow); if(p.leader) assigned.add(p.leader); }
     (p.assignments || []).forEach(function(a){
       if(a && a.staff) assigned.add(a.staff);
-      rows.push(_dcAssignmentRow(p, a || {}));
+      var row = _dcAssignmentRow(p, a || {});
+      if(row.special) specialRows.push(row);
+      else rows.push(row);
     });
     rows = rows.concat(_dcExpectedEmptyRows(p));
-    var pcHasDay = rows.some(function(r){ return !r.isNight; });
+    var hasLongDay = rows.some(function(r){ return /^Day\s*1[02]/i.test(String(r.shift || '')); });
     rows.forEach(function(r){
-      if(r.leaderOnly){ r.order = -100; return; }
       var st = Number(r.start || 0);
-      r.order = pcHasDay ? st : ((st - 18 + 24) % 24);
+      // Long day contracts are the visual anchor of a PC block, so show them first.
+      // Otherwise keep a natural clock order. Yes, this much work for columns of text. Humanity.
+      r.order = (hasLongDay && /^Day\s*1[02]/i.test(String(r.shift || ''))) ? -100 : st;
     });
     rows.sort(function(a,b){ return a.order - b.order || String(a.name).localeCompare(String(b.name)); });
     if(!rows.length) return;
-    rows.forEach(function(r){ lines.push(_dcLine(r)); });
+    var workerRows = rows.filter(function(r){ return r.name; });
+    var trainingOnly = workerRows.length > 0 && workerRows.every(function(r){ return _dcIsTrainingName(r.name); });
+    blocks.push({ pc:Number(p.id)||0, training:trainingOnly, rows:rows });
+  });
+  blocks.sort(function(a,b){
+    if(a.training !== b.training) return a.training ? 1 : -1;
+    return a.training ? (a.pc - b.pc) : (b.pc - a.pc);
+  });
+  blocks.forEach(function(block){
+    block.rows.forEach(function(r){ lines.push(_dcLine(r)); });
     lines.push(_dcSeparator());
   });
   var extra = _dcUnassignedRows(assigned);
-  if(extra.length){
+  var normalExtra = extra.filter(function(r){ return !r.special; });
+  var extraSpecial = extra.filter(function(r){ return r.special; });
+  if(normalExtra.length){
     var lastGroup = null;
-    extra.forEach(function(r){
+    normalExtra.forEach(function(r){
       if(lastGroup !== null && r.group !== lastGroup) lines.push(_dcSeparator());
       lines.push(_dcLine(r));
       lastGroup = r.group;
     });
+    lines.push(_dcSeparator());
+  }
+  specialRows = specialRows.concat(extraSpecial).sort(function(a,b){
+    var ao = a.name === 'BRUCE' ? 1 : a.name === 'KAIJI' ? 2 : 9;
+    var bo = b.name === 'BRUCE' ? 1 : b.name === 'KAIJI' ? 2 : 9;
+    return ao - bo || Number(a.start || 0) - Number(b.start || 0) || a.name.localeCompare(b.name);
+  });
+  if(specialRows.length){
+    specialRows.forEach(function(r){ lines.push(_dcLine(r)); });
     lines.push(_dcSeparator());
   }
   while(lines.length && lines[lines.length-1] === _dcSeparator() && lines[lines.length-2] === _dcSeparator()) lines.pop();
@@ -28002,6 +28154,128 @@ function copyPCScheduleDiscord(){
   }
 }
 
+
+
+
+/* ─────────────────────────────────────────────────────────────
+   PC Status internal tabs · Board / 24H Timeline
+   Timeline reuses the Records clock renderer but lives inside PC Status,
+   so the old board UI remains untouched. Humanity survives, barely.
+*/
+window._pcHubView = window._pcHubView || 'board';
+function _pcFriendlyClientName(name){
+  var s = String(name || '').trim();
+  if(!s) return s;
+  s = s.replace(/고고형\s*지인(쌤|님)?/g, '순수쌤');
+  s = s.replace(/오웬\s*라인님/g, '오웬라인쌤');
+  s = s.replace(/경상도님/g, '경상도쌤');
+  s = s.replace(/마석도님/g, '석도쌤');
+  s = s.replace(/아귀님/g, '고고형님');
+  return s;
+}
+function _pcCanonName(name){
+  var s = String(name || '').trim();
+  if(!s) return '';
+  s = s.replace(/^\s*(mr|mrs|ms|miss|sir|madam|mister)[\.\s_-]+/i, '');
+  s = s.replace(/^\s*mr(?=[A-Z가-힣])/i, '');
+  var k = s.replace(/[^A-Za-z0-9가-힣]/g, '').toUpperCase();
+  var map = {
+    CLAWSMUSK:'CLAWS', CLAWS:'CLAWS', SIL:'SIL', RON:'RON', ERICSON:'ERICSON', EL:'EL',
+    JEFF:'JEFF', VICI:'VICI', HANA:'HANA', PROD:'PROD', KAIJI:'KAIJI', SID:'SID', BRUCE:'BRUCE',
+    BOB:'BOB', SAN:'SAN', DITT:'DITT', LUKE:'LUKE', KYROS:'KYROS', SINGGIH:'SINGGIH', BIN:'BIN', MIRU:'MIRU', MANJI:'MANJI'
+  };
+  return map[k] || s.trim();
+}
+function _pcFriendlyStaffName(name){
+  return _pcCanonName(name);
+}
+function _pcStaffKey(name){
+  return String(_pcCanonName(name)).replace(/[^A-Za-z0-9가-힣]/g, '').toUpperCase();
+}
+function _pcSpecialRoleLabelByStaff(staff){
+  var nm = _pcStaffKey((staff && (staff.name || staff.full_name)) || staff || '');
+  if(nm === 'KAIJI') return '모니터링';
+  if(nm === 'BRUCE') return '교육 / 신입 조교';
+  return '';
+}
+function _pcShowLeaderRow(staff){
+  if(!staff) return false;
+  var nm = _pcStaffKey(staff.name || staff.full_name || '');
+  // MANJI is often stored as the default admin leader on every PC. Showing it everywhere makes the board useless.
+  // Keep real special-duty leaders visible, hide the default MANJI noise.
+  if(nm === 'MANJI' && !_pcSpecialRoleLabelByStaff(staff)) return false;
+  return true;
+}
+function setPCHubView(view){
+  view = view === 'clock' ? 'clock' : 'board';
+  window._pcHubView = view;
+  var board = document.getElementById('pc-board-panel');
+  var panel = document.getElementById('pc-timeline-panel');
+  var b1 = document.getElementById('pcx-tab-board');
+  var b2 = document.getElementById('pcx-tab-clock');
+  if(board) board.style.display = view === 'board' ? '' : 'none';
+  if(panel) panel.style.display = view === 'clock' ? '' : 'none';
+  if(b1) b1.classList.toggle('on', view === 'board');
+  if(b2) b2.classList.toggle('on', view === 'clock');
+  if(view === 'clock') renderPCHubTimeline();
+  else { try{ if(typeof _ckStop === 'function') _ckStop(); }catch(_){} }
+}
+function _pcTimelinePaint(reports, clients){
+  var host = document.getElementById('pc-timeline-host');
+  if(!host) return;
+  try{ normalizePCs(); }catch(_){}
+  var sessions = [];
+  try{
+    if(typeof _srRecCompute === 'function'){
+      var rec = _srRecCompute(Array.isArray(reports)?reports:[], Array.isArray(clients)?clients:[]);
+      sessions = (rec && rec.sessions) || [];
+    }
+  }catch(e){ sessions = []; }
+  try{ if(typeof _raceInjectCSS === 'function') _raceInjectCSS(); }catch(_){}
+  host.className = '';
+  host.innerHTML = (typeof _clockBoardHTML === 'function')
+    ? _clockBoardHTML(sessions)
+    : '<div class="pcx-loading">타임라인 렌더러를 찾지 못했어요.</div>';
+  try{ if(typeof _ckInit === 'function') setTimeout(_ckInit, 0); }catch(_){}
+}
+async function renderPCHubTimeline(silent){
+  if(window._pcHubView !== 'clock') return;
+  var host = document.getElementById('pc-timeline-host');
+  if(!host) return;
+  var cache = null;
+  try{ if(typeof _rcGetCache === 'function') cache = _rcGetCache(); }catch(_){}
+  if(cache && Array.isArray(cache.reports)){
+    _pcTimelinePaint(cache.reports, cache.clients || []);
+    if(silent) return;
+  }else if(!silent){
+    host.className = 'pcx-loading';
+    host.textContent = '기록 데이터를 불러오는 중…';
+  }
+  if(window._pcTimelineLoading) return;
+  window._pcTimelineLoading = true;
+  try{
+    var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
+    var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+    var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
+    var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr,cache:'no-store'});
+    var rows=await res.json().catch(function(){return [];});
+    var byKey={}; if(Array.isArray(rows)) rows.forEach(function(r){ byKey[r.key]=(r.value!==undefined?r.value:r.data); });
+    var reports=Array.isArray(byKey.reports)?byKey.reports:[];
+    var clients=Array.isArray(byKey.clients)?byKey.clients:[];
+    try{ if(typeof _rcSetCache === 'function') _rcSetCache(reports, clients); }catch(_){}
+    _pcTimelinePaint(reports, clients);
+  }catch(e){
+    if(!cache){
+      // Network failed? Still show the PC schedule. Data should degrade gracefully, unlike most human plans.
+      _pcTimelinePaint([], []);
+    }
+  }finally{
+    window._pcTimelineLoading = false;
+  }
+}
+
+
+
 function renderPCs(){
   try{ normalizePCs(); }catch(_){}
   const q = (document.getElementById('q').value||'').toLowerCase();
@@ -28015,7 +28289,9 @@ function renderPCs(){
     if(p.leader && staffById(p.leader)?.name.toLowerCase().includes(q)) return true;
     return p.assignments.some(a => staffById(a.staff)?.name.toLowerCase().includes(q));
   });
-  document.getElementById('pc-grid').innerHTML = list.map(pcCardHTML).join('');
+  var _pcGridEl = document.getElementById('pc-grid');
+  if(_pcGridEl) _pcGridEl.innerHTML = list.map(pcCardHTML).join('');
+  try{ if(window._pcHubView === 'clock' && typeof renderPCHubTimeline === 'function') renderPCHubTimeline(true); }catch(_){}
 }
 
 function pcCardHTML(p){
@@ -28025,17 +28301,18 @@ function pcCardHTML(p){
   const sel = selectedPC===p.id ? 'selected' : '';
   const clients = (p.clients||[]).map(cid => clientById(cid)).filter(Boolean);
   const leader = p.leader ? staffById(p.leader) : null;
+  const showLeader = leader ? _pcShowLeaderRow(leader) : true;
 
-  // Leader row
+  // Leader row. Default MANJI leader spam is display-hidden, but special leaders still show.
   const dragLeader = canEdit ? `ondragover="dragOverLeader(event,${p.id})" ondragleave="dragLeaveLeader(event)" ondrop="dropOnPC(event,${p.id},'leader')"` : '';
-  const leaderHTML = leader
+  const leaderHTML = (leader && showLeader)
     ? `<div class="leader-row filled" ${dragLeader}>
          <span class="crown">👑</span>
-         <span class="nm">${leader.full_name||leader.name}</span>
+         <span class="nm">${_pcFriendlyStaffName(leader.full_name||leader.name)}${_pcSpecialRoleLabelByStaff(leader)?` · ${_pcSpecialRoleLabelByStaff(leader)}`:''}</span>
          <span class="pos-mini" style="background:${rankColor(leader.position)}33;color:${rankColor(leader.position)}">${rankShort(leader.position)}</span>
          ${canEdit?`<span class="unx" onclick="event.stopPropagation();unassignLeader(${p.id})">✕</span>`:''}
        </div>`
-    : (canEdit
+    : ((!leader && canEdit)
       ? `<div class="leader-row empty" ${dragLeader}>
            <span class="crown">👑</span>
            <span class="nm" style="color:var(--tx3)">+ Leader 드래그</span>
@@ -28052,7 +28329,7 @@ function pcCardHTML(p){
   const clientSlotsHTML = clients.map(c => {
     const offBadge = c.active === false ? `<span class="slot-pos" style="background:var(--re-bg);color:var(--re)" title="본인 플레이 중 — OFF">OFF</span>` : '';
     return `<div class="slot client filled${c.active===false?' c-off':''}" ${canEdit?`ondragover="dragOverSlot(event,${p.id},'client')" ondragleave="dragLeaveSlot(event)" ondrop="dropOnPC(event,${p.id},'client')"`:''}>
-       <div class="slot-r1"><span class="slot-av" style="background:var(--ac);color:#fff">★</span><span class="slot-nm">${c.name}${c.label?` <span style="opacity:.65;font-weight:500">· ${c.label}</span>`:''}</span>${offBadge}${canEdit?`<span class="slot-unx" onclick="event.stopPropagation();unassignClient(${p.id},'${c.id}')">✕</span>`:''}</div>
+       <div class="slot-r1"><span class="slot-av" style="background:var(--ac);color:#fff">★</span><span class="slot-nm">${_pcFriendlyClientName(c.name)}${c.label?` <span style="opacity:.65;font-weight:500">· ${c.label}</span>`:''}</span>${offBadge}${canEdit?`<span class="slot-unx" onclick="event.stopPropagation();unassignClient(${p.id},'${c.id}')">✕</span>`:''}</div>
        <div class="slot-sched">${clientSchedHTML(c)}</div>
      </div>`;
   }).join('');
@@ -28065,7 +28342,7 @@ function pcCardHTML(p){
   // 보기 모드에선 빈 그룹 숨김 (현황판 스타일 — 배정된 것만)
   const hasStaff = !!(slotsHTML || emptyDrop);
   const hasClient = !!(clientSlotsHTML || clientEmptyDrop);
-  const isBlank = !hasStaff && !hasClient && !leader;
+  const isBlank = !hasStaff && !hasClient && !leaderHTML;
   return `<div class="pc ${gc} ${sel}${isPcOff?' pc-off':''}" data-st="${p.status}" data-id="${p.id}" onclick="selectPC(${p.id})">
     <div class="pc-head">
       <span class="pc-num">PC-${pad2(p.id)}</span>
@@ -28112,14 +28389,15 @@ function staffSlotHTML(p, a, idx){
   }
   const endH = (a.start + a.len) % 24;
   const rc = rankColor(s.position);
+  const dispName = _pcFriendlyStaffName(s.full_name || s.name);
   const g = shiftGame(a, p);
   const gLbl = g === 'lineage' ? 'L' : 'M';
   const gOther = g === 'lineage' ? 'Maple' : 'Lineage';
   const dragAttr = canEdit ? `ondragover="dragOverSlot(event,${p.id},'staff')" ondragleave="dragLeaveSlot(event)" ondrop="dropOnPC(event,${p.id},'staff',${idx})"` : '';
   return `<div class="slot staff filled" style="--rank-color:${rc}" ${dragAttr}>
     <div class="slot-r1">
-      <span class="slot-av" style="${avatarBg(s.name, initials(s.name), rc)}">${initials(s.name)}</span>
-      <span class="slot-nm">${s.name}</span>
+      <span class="slot-av" style="${avatarBg(dispName, initials(dispName), rc)}">${initials(dispName)}</span>
+      <span class="slot-nm">${dispName}</span>
       <span class="slot-pos" style="background:${rc}33;color:${rc}">${rankShort(s.position)}</span>
       ${canEdit?`<span class="slot-unx" onclick="event.stopPropagation();unassignStaff(${p.id},${idx})">✕</span>`:''}
     </div>
