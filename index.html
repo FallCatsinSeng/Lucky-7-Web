@@ -10296,6 +10296,7 @@ body:has(#kb-race) #sb-right{display:none!important}
           </div>
           <div class="pcs-head-actions">
             <span class="pcs-admin-badge">⚙️ 컨트롤 모드 · 배정 가능</span>
+            <button class="btn btn-add btn-sm" onclick="copyPCScheduleDiscord()" title="현재 PC 현황을 Discord 코드블럭으로 복사">📋 Discord 복사</button>
             <button class="btn btn-sm" onclick="resetAll()" title="데모 데이터로 초기화">↻ Reset demo</button>
             <button class="btn btn-add btn-sm" onclick="addPC()">+ Add PC</button>
           </div>
@@ -27674,6 +27675,331 @@ function renderPosLegend(){
     const pips = g.items.map(p=>`<span class="pos-pip"><span class="pp" style="background:${POSITIONS[p].color}"></span>${POSITIONS[p].label}</span>`).join('');
     return `<div class="pos-legend-group">${pips}</div>` + (i<groups.length-1?'<div class="pos-legend-sep"></div>':'');
   }).join('');
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// PC Status → Discord copy text
+// 현재 PCS / STAFF / CLIENTS / TRUST_DATA를 다시 읽어서 Discord에 바로 붙여넣는 표를 만든다.
+// 카드 DOM을 긁지 않으므로 PC 카드 디자인을 바꿔도 복붙 포맷은 유지된다.
+function _dcWidth(v){
+  return Array.from(String(v == null ? '' : v)).reduce(function(n,ch){
+    // Discord codeblocks render Korean/CJK wide, but symbols like ● / — behave closer to 1 cell.
+    return n + (/[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch) ? 2 : 1);
+  }, 0);
+}
+function _dcPad(v, len){
+  var out = String(v == null ? '' : v);
+  while(_dcWidth(out) < len) out += ' ';
+  return out;
+}
+function _dcFmtWarn(v){
+  var n = Number(v || 0);
+  return n.toFixed(1).replace(/\.0$/, '.0');
+}
+function _dcFmtTP(v){
+  var n = Number(v || 0);
+  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, '');
+}
+function _dcDateMMDD(v){
+  if(!v) return '';
+  var m = String(v).match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return m[2] + '/' + m[3];
+  var d = new Date(v);
+  if(!isNaN(d.getTime())) return pad2(d.getMonth()+1) + '/' + pad2(d.getDate());
+  return String(v);
+}
+function _dcKoHour(h){
+  h = ((Number(h)||0) % 24 + 24) % 24;
+  var mer = h < 12 ? '오전' : '오후';
+  var hh = h % 12; if(hh === 0) hh = 12;
+  return mer + ' ' + hh + '시';
+}
+function _dcTimeRange(start, len){
+  start = Number(start)||0; len = Number(len)||0;
+  return _dcKoHour(start) + ' ~ ' + _dcKoHour((start + len) % 24);
+}
+function _dcIsNight(start, len){
+  start = ((Number(start)||0) % 24 + 24) % 24;
+  len = Number(len)||0;
+  var end = (start + len) % 24;
+  return start >= 18 || start < 6 || end <= 9 || (start + len) > 24;
+}
+function _dcShiftNo(start, len){
+  start = ((Number(start)||0) % 24 + 24) % 24;
+  len = Number(len)||0;
+  if(len !== 8) return '';
+  if(start >= 8 && start <= 13) return 'Shift 1';
+  if(start >= 17 && start <= 23) return 'Shift 2';
+  return 'Shift 3';
+}
+function _dcShiftLabel(start, len){
+  return (_dcIsNight(start, len) ? 'Night ' : 'Day ') + (Number(len)||0);
+}
+function _dcShiftOrder(start, len){
+  var no = _dcShiftNo(start, len);
+  if(Number(len) >= 10) return _dcIsNight(start, len) ? 20 : 10;
+  if(no === 'Shift 2') return 30;
+  if(no === 'Shift 3') return 40;
+  if(no === 'Shift 1') return 50;
+  return 60 + (((Number(start)||0) + 24) % 24);
+}
+function _dcShiftFromKey(key){
+  key = String(key || '').toLowerCase();
+  var map = {
+    '12h_day':   { shift:'Day 12',   tag:'Shift 1', order:20, group:10 },
+    '12h_night': { shift:'Night 12', tag:'Shift 2', order:40, group:20 },
+    '8h_s1':     { shift:'Day 8',    tag:'Shift 1', order:10, group:10 },
+    '8h_s2':     { shift:'Night 8',  tag:'Shift 2', order:30, group:20 },
+    '8h_s3':     { shift:'Night 8',  tag:'Shift 3', order:50, group:30 }
+  };
+  return map[key] || null;
+}
+function _dcStaffShiftKey(s){
+  if(!s) return '';
+  try{ if(STAFF_PROFILE && STAFF_PROFILE[s.id] && STAFF_PROFILE[s.id].manual_shift) return STAFF_PROFILE[s.id].manual_shift; }catch(_){}
+  return s.manual_shift || s.pref_shift || s.shift || '';
+}
+function _dcTrustRow(s){
+  var t = (s && typeof TRUST_DATA !== 'undefined' && TRUST_DATA[s.id]) ? TRUST_DATA[s.id] : {};
+  var system = (t && t.system) || (s && (s.role === 'op' ? 'op' : s.role === 'player' ? 'player' : 'player')) || 'player';
+  var st = (typeof trustStatus === 'function') ? trustStatus(t, system) : {label:'Good'};
+  var label = (st && st.label) || 'Good';
+  if(label === 'Stable') label = 'Good';
+  return {
+    warn: _dcFmtWarn(t.warn_pts),
+    tp: _dcFmtTP(t.trust_pts),
+    status: '● ' + label,
+    protected: t.protected_until ? ('until ' + _dcDateMMDD(t.protected_until)) : '—'
+  };
+}
+function _dcStaffShiftInfo(s, a){
+  var sh = _dcShiftFromKey(_dcStaffShiftKey(s));
+  if(sh) return sh;
+  var len = (s && Number(s.shiftLen)) || (a && Number(a.len)) || 0;
+  var start = (a && Number(a.start)) || 0;
+  return { shift:_dcShiftLabel(start, len), tag:_dcShiftNo(start, len), order:_dcShiftOrder(start, len) };
+}
+function _dcClientNames(p){
+  var names = [];
+  try{
+    (p.clients || []).forEach(function(cid){
+      var c = clientById(cid);
+      if(c && c.name && names.indexOf(c.name) < 0) names.push(c.name);
+    });
+  }catch(_){}
+  return names.length ? names.join(' / ') : '클라이언트 미배정';
+}
+function _dcStaffName(s){
+  var name = String((s && (s.name || s.full_name)) || 'UNKNOWN').trim();
+  // Discord copy table uses clean staff names only: MR.SIL / Mr Jeff -> SIL / JEFF
+  name = name.replace(/^\s*(mr|mrs|ms|miss|sir|madam|mister)[\.\s_-]+/i, '');
+  name = name.replace(/^\s*mr(?=[A-Z가-힣])/i, '');
+  return name.trim().toUpperCase();
+}
+function _dcLeaderRolePrefix(s){
+  var nm = _dcStaffName(s);
+  // Discord copy must NOT print a generic "팀 리더" row for every PC.
+  // Only special operating labels are exported. Normal leaders stay visible on the website only.
+  if(nm === 'KAIJI') return '모니터링';
+  if(nm === 'BRUCE') return '교육 / 신입 조교';
+  return '';
+}
+function _dcRolePrefixForAssignment(p, s, a){
+  if(!s) return '';
+  var role = _dcLeaderRolePrefix(s);
+  if(role) return role + ' / ';
+  return '';
+}
+function _dcLeaderOnlyRow(p){
+  if(!p || !p.leader) return null;
+  var s = staffById(p.leader);
+  if(!s) return null;
+  var role = _dcLeaderRolePrefix(s);
+  // No generic team-leader rows in Discord output. Otherwise MANJI becomes a plague across every PC.
+  if(!role) return null;
+  var alreadyInShift = (p.assignments || []).some(function(a){ return a && a.staff === p.leader; });
+  if(alreadyInShift) return null;
+  var tr = _dcTrustRow(s || {});
+  var si = _dcStaffShiftInfo(s, null);
+  var nm = _dcStaffName(s);
+  if(nm === 'KAIJI' && Number(s.shiftLen || 0) >= 10 && !_dcStaffShiftKey(s)){
+    si = {shift:'Night ' + Number(s.shiftLen || 12), tag:'', order:20};
+  }
+  if(nm === 'BRUCE' && Number(s.shiftLen || 0) >= 10 && !_dcStaffShiftKey(s)){
+    si = {shift:'Day ' + Number(s.shiftLen || 12), tag:'', order:10};
+  }
+  var prot = tr.protected + (si.tag ? '  ' + si.tag : '');
+  return {
+    name: _dcStaffName(s),
+    shift: si.shift || '',
+    warn: tr.warn,
+    tp: tr.tp,
+    status: tr.status,
+    protected: prot,
+    note: role + ' / PC ' + p.id + ' ' + _dcClientNames(p),
+    start: -1,
+    isNight: false,
+    order: -100,
+    leaderOnly: true
+  };
+}
+function _dcAssignmentRow(p, a){
+  var s = staffById(a.staff);
+  var tr = _dcTrustRow(s || {});
+  var si = _dcStaffShiftInfo(s, a);
+  var prot = tr.protected + (si.tag ? '  ' + si.tag : '');
+  var period = _dcIsNight(a.start, a.len) ? '야간' : '주간';
+  var notePrefix = _dcRolePrefixForAssignment(p, s, a);
+  return {
+    name: _dcStaffName(s),
+    shift: si.shift,
+    warn: tr.warn,
+    tp: tr.tp,
+    status: tr.status,
+    protected: prot,
+    note: notePrefix + 'PC ' + p.id + ' ' + _dcClientNames(p) + ' / ' + period + ' ' + _dcTimeRange(a.start, a.len),
+    start: ((Number(a.start)||0) % 24 + 24) % 24,
+    isNight: _dcIsNight(a.start, a.len),
+    order: 0
+  };
+}
+function _dcHasNight12(p){
+  return (p.assignments || []).some(function(a){ return Number(a.len) >= 10 && _dcIsNight(a.start, a.len); });
+}
+function _dcHasLongDayEndingNightStart(p){
+  return (p.assignments || []).some(function(a){
+    var len = Number(a.len)||0, start = Number(a.start)||0, end = (start + len) % 24;
+    return len >= 10 && !_dcIsNight(start, len) && (end === 21 || start >= 8 && start <= 12);
+  });
+}
+function _dcExpectedEmptyRows(p){
+  var rows = [];
+  var clientNames = _dcClientNames(p);
+  // Show a 21:00~09:00 empty slot only when the PC has a long day shift ending at 21:00
+  // and no night assignment. This avoids false "Empty" rows on PCs that already have
+  // partial night/early-morning coverage. Because apparently tables need parenting too.
+  var hasDayEndsAt21 = (p.assignments || []).some(function(a){
+    var len = Number(a.len)||0, start = Number(a.start)||0, end = (start + len) % 24;
+    return len >= 10 && !_dcIsNight(start, len) && end === 21;
+  });
+  if(hasDayEndsAt21 && !_dcHasNight12(p)){
+    rows.push({
+      name:'', shift:'', warn:'', tp:'—', status:'Empty', protected:'—',
+      note:'PC ' + p.id + ' ' + clientNames + ' / 야간 ' + _dcTimeRange(21, 12) + ' / 남는 쉬프트',
+      start:21,
+      isNight:true,
+      order:21
+    });
+  }
+  return rows;
+}
+function _dcLine(row){
+  return _dcPad(row.name,14)
+    + _dcPad(row.shift,12)
+    + _dcPad(row.warn,8)
+    + _dcPad(row.tp,5)
+    + _dcPad(row.status,13)
+    + _dcPad(row.protected,23)
+    + (row.note || '');
+}
+function _dcHeader(){
+  return _dcPad('Name',14) + _dcPad('Shift',12) + _dcPad('Warn',8) + _dcPad('TP',6) + _dcPad('Status',13) + 'Protected';
+}
+function _dcSeparator(){ return '─'.repeat(108); }
+function _dcTrainingOrderName(name){
+  var n = String(name || '').replace(/[^A-Z0-9]/g,'');
+  var pref = ['BOB','LUKE','KYROS','SAN','BIN','SINGGIH','MIRU','DITT'];
+  var idx = pref.indexOf(n);
+  return idx < 0 ? 999 : idx;
+}
+function _dcUnassignedRows(assigned){
+  var rows = [];
+  try{
+    STAFF.forEach(function(s){
+      if(!s || assigned.has(s.id)) return;
+      if(typeof _staffResigned === 'function' && _staffResigned(s.id)) return;
+      if(typeof staffCategory === 'function' && staffCategory(s) !== 'player') return;
+      var key = _dcStaffShiftKey(s);
+      var sh = _dcShiftFromKey(key);
+      if(!sh) return;
+      var tr = _dcTrustRow(s);
+      var nm = _dcStaffName(s);
+      rows.push({
+        name:nm, shift:sh.shift, warn:tr.warn, tp:tr.tp,
+        status:tr.status, protected:tr.protected + (sh.tag ? '  ' + sh.tag : ''),
+        note:'트레이닝', order:sh.order, group:sh.group || 99, nameOrder:_dcTrainingOrderName(nm)
+      });
+    });
+  }catch(_){}
+  return rows.sort(function(a,b){
+    return (a.group - b.group) || (a.nameOrder - b.nameOrder) || (a.order - b.order) || a.name.localeCompare(b.name);
+  });
+}
+function buildPCScheduleDiscordText(){
+  try{ normalizePCs(); }catch(_){}
+  var lines = [_dcHeader(), _dcSeparator()];
+  var assigned = new Set();
+  var pcs = (Array.isArray(PCS) ? PCS.slice() : []).sort(function(a,b){ return Number(a.id) - Number(b.id); });
+  pcs.forEach(function(p){
+    var rows = [];
+    if(p.leader) assigned.add(p.leader);
+    var leaderRow = _dcLeaderOnlyRow(p);
+    if(leaderRow) rows.push(leaderRow);
+    (p.assignments || []).forEach(function(a){
+      if(a && a.staff) assigned.add(a.staff);
+      rows.push(_dcAssignmentRow(p, a || {}));
+    });
+    rows = rows.concat(_dcExpectedEmptyRows(p));
+    var pcHasDay = rows.some(function(r){ return !r.isNight; });
+    rows.forEach(function(r){
+      if(r.leaderOnly){ r.order = -100; return; }
+      var st = Number(r.start || 0);
+      r.order = pcHasDay ? st : ((st - 18 + 24) % 24);
+    });
+    rows.sort(function(a,b){ return a.order - b.order || String(a.name).localeCompare(String(b.name)); });
+    if(!rows.length) return;
+    rows.forEach(function(r){ lines.push(_dcLine(r)); });
+    lines.push(_dcSeparator());
+  });
+  var extra = _dcUnassignedRows(assigned);
+  if(extra.length){
+    var lastGroup = null;
+    extra.forEach(function(r){
+      if(lastGroup !== null && r.group !== lastGroup) lines.push(_dcSeparator());
+      lines.push(_dcLine(r));
+      lastGroup = r.group;
+    });
+    lines.push(_dcSeparator());
+  }
+  while(lines.length && lines[lines.length-1] === _dcSeparator() && lines[lines.length-2] === _dcSeparator()) lines.pop();
+  return lines.join('\n');
+}
+function _dcCopyFallback(text){
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly','');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    toast('PC 현황 Discord 복사 완료');
+  }catch(e){ toast('복사 실패 — 브라우저 권한을 확인하세요', true); }
+}
+function copyPCScheduleDiscord(){
+  var body = buildPCScheduleDiscordText();
+  if(!body || !body.trim()){ toast('복사할 PC 현황이 없어요', true); return; }
+  var text = '```text\n' + body + '\n```';
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){
+      toast('PC 현황 Discord 복사 완료');
+    }).catch(function(){ _dcCopyFallback(text); });
+  }else{
+    _dcCopyFallback(text);
+  }
 }
 
 function renderPCs(){
