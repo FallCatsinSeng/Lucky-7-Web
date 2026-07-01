@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
+<!-- BUILD: v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8336,7 +8336,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v447';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v448';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15046,7 +15046,7 @@ async function pollExp(){
     if(mod==='exp-standard'){ try{ renderExpStandard(); }catch(_){} }
   }catch(_){}
 }
-function expLabel(r){ const m=_mapToKo((r.map||'').trim()); const spec=('LV.'+(r.lv||'-')+' '+(r.cls||'')+' 검 +'+(r.we||0)+' 방 +'+(r.ae||0)).replace(/\s+/g,' ').trim(); return m ? (m+' · '+spec) : spec; }
+function expLabel(r){ const m=_mapDisp((r.map||'').trim()); const spec=('LV.'+(r.lv||'-')+' '+(r.cls||'')+' 검 +'+(r.we||0)+' 방 +'+(r.ae||0)).replace(/\s+/g,' ').trim(); return m ? (m+' · '+spec) : spec; }
 function setExpStd(i,f,v){ const r=STANDARD_EXP[i]; if(!r) return;
   if(f==='target') r.target=parseFloat(String(v).replace(/[^0-9.]/g,''))||0;
   else if(f==='lv'||f==='we'||f==='ae'||f==='pc') r[f]=String(v).replace(/[^0-9]/g,'');
@@ -15082,6 +15082,10 @@ var MAPLE_MAP_GROUPS={};   // [v416] Maple Planet hunting grounds — starts emp
 // [v443] English → Korean map name translation. Built from MAP_GROUPS + extra known aliases (seed data, common in-game names).
 var _MAP_EN2KO=(function(){var m={};for(var g in MAP_GROUPS){MAP_GROUPS[g].forEach(function(e){if(e.en)m[e.en.toLowerCase()]=e.full;});}var ex={'dream island':'드림 아일랜드','oren snowfield':'오렌 설원','totem field':'토템 필드','dragon valley dungeon f1':'드래곤 밸리 던전 1층','dragon valley dungeon 1f':'드래곤 밸리 던전 1층','ivory tower':'상아탑','fire valley':'불의 계곡','death knight dungeon':'데스나이트 던전','forgotten island':'잊혀진 섬','windawood':'윈다우드','dragon valley cave':'용의 계곡 동굴'};for(var k in ex){if(!m[k])m[k]=ex[k];}return m;})();
 function _mapToKo(name){if(!name)return name;var s=String(name).trim();if(/[\uAC00-\uD7AF\u3131-\u3163]/.test(s))return s;var hit=_MAP_EN2KO[s.toLowerCase()];return hit||s;}
+// [v448] Korean -> English map name (reverse of _mapToKo) so EN mode shows English map names.
+var _MAP_KO2EN=(function(){var m={};for(var g in MAP_GROUPS){MAP_GROUPS[g].forEach(function(e){if(e.en&&e.full)m[String(e.full).toLowerCase()]=e.en;});}var ex={'드림 아일랜드':'Dream Island','오렌 설원':'Oren Snowfield','토템 필드':'Totem Field','드래곤 밸리 던전 1층':'Dragon Valley Dungeon 1F','상아탑':'Ivory Tower','불의 계곡':'Fire Valley','데스나이트 던전':'Death Knight Dungeon','잊혀진 섬':'Forgotten Island','윈다우드':'Windawood','용의 계곡 동굴':'Dragon Valley Cave','축복의 땅 (ats zone)':'Blessed Lands (ATS Zone)','축복의 땅':'Blessed Lands','글루디오 던전':'Gludio Dungeon','오크발 토템':'Orc Barracks Totem'};for(var k in ex){var kk=k.toLowerCase();if(!m[kk])m[kk]=ex[k];}return m;})();
+function _mapToEn(name){if(!name)return name;var s=String(name).trim();if(!/[\uAC00-\uD7AF\u3131-\u3163]/.test(s))return s;var hit=_MAP_KO2EN[s.toLowerCase()];return hit||s;}
+function _mapDisp(name){try{return (typeof _uiLang==='function'&&_uiLang()==='ko')?_mapToKo(name):_mapToEn(name);}catch(_){return _mapToKo(name);}}
 const CLASS_KO={knight:'기사',mage:'법사',fairy:'요정',elf:'요정',darkelf:'다크엘프',prince:'군주',royal:'군주',warrior:'전사',illusionist:'환술사',dragonknight:'용기사'};
 function entrySpec(r){
   // [v296] Client comes LIVE from the PC's PC Status assignment (PC Status = source of truth),
@@ -15523,7 +15527,7 @@ function _srRecapHTML(d,calc){
   var expLine = calc ? ('Lv '+calc.lv+' @ '+calc.exp.toFixed(2)+'%'+(calc.leveledUp?' ↑':'')) : ('Lv '+_srEsc(d.lv)+' · '+_srEsc(d.expv)+'%');
   var gainLine = calc ? ('<div class="sr-rrow"><span class="sr-rl">Gain</span><span class="sr-rv '+(calc.typo?'sr-re':(calc.gain<0?'':'sr-ok'))+'">'+(calc.gain>=0?'+':'')+calc.gain.toFixed(2)+'%'+((calc.isDeath&&calc.gain<0)?' (lost)':'')+'</span></div>') : '';
   return '<div class="sr-rrow"><span class="sr-rl">Client · PC</span><span class="sr-rv">'+_srEsc(d.pc)+'</span></div>'
-    +'<div class="sr-rrow"><span class="sr-rl">Map</span><span class="sr-rv">'+_srEsc(_mapToKo(d.map))+'</span></div>'
+    +'<div class="sr-rrow"><span class="sr-rl">Map</span><span class="sr-rv">'+_srEsc(_mapDisp(d.map))+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">Time</span><span class="sr-rv">'+_srEsc(d.t1)+' → '+_srEsc(d.t2)+'</span></div>'
     +'<div class="sr-rrow"><span class="sr-rl">EXP</span><span class="sr-rv">'+expLine+'</span></div>'
     +gainLine
@@ -16291,7 +16295,7 @@ function _srBuildHTML(){
     });
   });
   if(!mapOpts) mapOpts='<div class="sr-empty">No maps yet — add them in Map Info</div>';
-  var firstMapLabel = _mapToKo(defMap) || '\u2014';
+  var firstMapLabel = _mapDisp(defMap) || '\u2014';
 
   var checkin=''
   +'<div class="sr-s" id="sr-s-checkin">'
@@ -16385,7 +16389,7 @@ function _srResumeUpdate(){
   var s=_srSession; if(!s) return;
   var pcLbl=(s.pc!=null&&String(s.pc)!=='?'&&String(s.pc)!=='')?('PC'+s.pc):'PC?';
   document.querySelectorAll('#sr-app [data-sr-pc]').forEach(function(x){ x.textContent=pcLbl+' \u00b7 '+s.client; });
-  document.querySelectorAll('#sr-app [data-sr-map]').forEach(function(x){ x.textContent=_mapToKo(s.map)||''; });
+  document.querySelectorAll('#sr-app [data-sr-map]').forEach(function(x){ x.textContent=_mapDisp(s.map)||''; });
   document.querySelectorAll('#sr-app .sr-pc-card').forEach(function(c){ c.classList.toggle('sel', c.getAttribute('data-name')===s.client && String(c.getAttribute('data-pc'))===String(s.pc)); });
   _srShots={checkin:null,update:null,checkout:null};
   var st=document.getElementById('sr-step-checkin'); if(st) st.classList.add('done');
@@ -16507,7 +16511,7 @@ function _srDetailHTML(reps){
     var op = isDupRow ? 'opacity:.45;' : '';
     return '<div style="display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:6px 9px;margin:3px 0;border-left:2px solid var(--br2);font-size:12px;'+op+'">'
       +timeHTML
-      +'<span style="color:var(--tx2);flex:1;min-width:120px">'+_srEsc(_mapToKo(r.map)||'\u2014')+'</span>'
+      +'<span style="color:var(--tx2);flex:1;min-width:120px">'+_srEsc(_mapDisp(r.map)||'\u2014')+'</span>'
       +'<span style="color:'+tagCol+';font-size:10.5px;letter-spacing:.04em;text-transform:uppercase">'+tg+(isDupRow?' \u00B7 dup':'')+'</span>'
       +(gain?'<span style="color:var(--ac);font-weight:600;min-width:56px;text-align:right">'+gain+'</span>':'<span style="min-width:56px"></span>')
       +'<span style="color:var(--tx3);font-size:11px">Lv'+(r.lv!=null?_srEsc(String(r.lv)):'?')+(r.exp!=null?' \u00B7 '+Number(r.exp).toFixed(1)+'%':'')+'</span>'
@@ -16632,7 +16636,7 @@ async function renderShiftAdmin(silent){
 
     var liveHTML = liveCards.length ? liveCards.map(function(c){
       return '<div class="sr-live-card"><div class="sr-live-top"><span class="sr-live-name">'+_srEsc(c.name)+'</span><span class="sr-live-rt"><span class="sr-live-ago">'+agoTxt(c.lastMs)+'</span><button class="sr-live-x" data-nm="'+_srEsc(c.name)+'" data-ms="'+(c.lastMs||0)+'" onclick="_srDismissOnShift(this)" title="Close — remove from On shift now">\u2715</button></span></div>'
-        +'<div class="sr-live-meta">🖥 PC'+_srEsc(c.pc)+' · '+_srEsc(c.client)+'  ·  📍 '+_srEsc(_mapToKo(c.map))+'</div>'
+        +'<div class="sr-live-meta">🖥 PC'+_srEsc(c.pc)+' · '+_srEsc(c.client)+'  ·  📍 '+_srEsc(_mapDisp(c.map))+'</div>'
         +'<div class="sr-live-perf"><span class="sr-live-pct '+pctCls(c.pct,c.quota)+'">'+(c.quota>0?c.pct.toFixed(0)+'%':'—')+'</span><span class="sr-live-sub">'+c.gain.toFixed(1)+'% gain · '+c.hours+'h this shift</span></div></div>';
     }).join('') : '<div class="sr-empty">No one is on shift right now.</div>';
 
@@ -17175,7 +17179,7 @@ function _srRecCardHTML(data){
           +'<td class="sr-sl-t">'+(opt.caret||'')+(krMode?'<b>KR</b> ':'')+fmtT(s.ms)+'</td>'
           +'<td>'+tagB(s.tag)+'</td><td>'+esc(s.client)+badge+'</td>'
           +'<td>'+esc(String(s.pc==null?'':s.pc))+'</td><td>'+esc(String(s.lv==null?'':s.lv))+'</td>'
-          +'<td>'+esc(_mapToKo(s.map))+'</td>'
+          +'<td>'+esc(_mapDisp(s.map))+'</td>'
           +'<td class="sr-num">'+actCell+((s.tag!=='checkin'&&s.expAt!=null)?'<div class="sr-sl-cum">→'+Number(s.expAt).toFixed(2)+'%</div>':'')+'</td><td class="sr-num">'+tgt+'</td>'
           +'<td class="sr-num">'+stableCell+'</td><td class="sr-num">'+cutCell+'</td>'
           +'<td class="sr-num '+(hasDiff?dcls(dv):'')+'">'+diff+'</td>'
@@ -17281,7 +17285,7 @@ function _srRecCardHTML(data){
         +'</div>'
         +'<div class="sr-sec-h">⏱ '+(_L?'투입 타임라인':'Deployment Timeline')+'<span class="ln"></span><span style="font-weight:700;color:var(--tx3)">'+tord.length+'</span></div>'
         +tlTbl
-        +'<div class="sr-sec-h">🗺 사냥터<span class="ln"></span></div><div class="sr-clmaps">'+(cst.maps.length?cst.maps.map(function(x){return esc(_mapToKo(x));}).join(' · '):'—')+'</div>'
+        +'<div class="sr-sec-h">🗺 사냥터<span class="ln"></span></div><div class="sr-clmaps">'+(cst.maps.length?cst.maps.map(function(x){return esc(_mapDisp(x));}).join(' · '):'—')+'</div>'
         +'<div class="sr-sec-h">🧾 세션 기록 <span class="sr-sec-hint">· 행을 눌러 수동 조정</span><span class="ln"></span>'+krPill+'</div>'
         +buildSessionTable(crows)
         +'</div>';
@@ -17785,7 +17789,7 @@ function _raceCardHTML(daily, sessions){
   if(king){ var kv=_raceVerdict(king.idx);
     kingCard='<div class="race-king"><div class="race-king-av" style="background:'+king.color+'">'+esc(_raceAv(king.name))+'</div>'
       +'<div class="race-king-info"><div class="race-king-lab">👑 선두 · KING</div><div class="race-king-nm">'+esc(king.name)+'</div>'
-      +'<div class="race-king-sub">'+(king.client?esc(king.client)+' · ':'')+(king.map?esc(_mapToKo(king.map)):'')+(king.lv!=null?' · Lv'+esc(String(king.lv)):'')+'</div></div>'
+      +'<div class="race-king-sub">'+(king.client?esc(king.client)+' · ':'')+(king.map?esc(_mapDisp(king.map)):'')+(king.lv!=null?' · Lv'+esc(String(king.lv)):'')+'</div></div>'
       +'<div class="race-king-idx"><b>'+Math.round(king.idx)+'%</b><span>표준 대비</span></div></div>';
   }
 
@@ -17809,7 +17813,7 @@ function _raceCardHTML(daily, sessions){
     return '<tr'+(me?' class="me"':'')+'>'
       +'<td class="race-rk'+(p.rank<=3?' top':'')+'">'+p.rank+'</td>'
       +'<td><div class="race-nmcell"><span class="dot" style="background:'+p.color+'"></span>'+esc(p.name)+(me?' <span style="color:var(--ac);font-size:10px;font-weight:800">· 나</span>':'')+'</div></td>'
-      +'<td>'+(p.client?esc(p.client):'<span style="color:var(--tx3)">—</span>')+(p.map?'<span style="color:var(--tx3);font-size:11px"> · '+esc(_mapToKo(p.map))+'</span>':'')+'</td>'
+      +'<td>'+(p.client?esc(p.client):'<span style="color:var(--tx3)">—</span>')+(p.map?'<span style="color:var(--tx3);font-size:11px"> · '+esc(_mapDisp(p.map))+'</span>':'')+'</td>'
       +'<td class="num">'+(p.perH!=null?(p.perH>=0?'+':'')+p.perH.toFixed(2)+'%':'—')+'</td>'
       +'<td class="num">'+(p.tgtH!=null?'+'+p.tgtH.toFixed(2)+'%':'—')+'</td>'
       +'<td class="num race-idx" style="color:'+(p.idx!=null?p.color:'var(--tx3)')+'">'+(p.idx!=null?(Math.round(p.idx)+'%'+(p.stdMode?'<span class="race-std" title="레벨 표준(데모) 기준">L'+p.lv+'</span>':'')):'—')+'</td>'
@@ -18491,7 +18495,7 @@ function renderExpStandard(){
     return `<div class="pcb-tile ${gcls}" onclick="expOpenPC(${i})">
       <div class="pcb-t-top"><span class="pcb-t-pc">PC ${r.pc||(i+1)}</span><span class="pcb-t-dot on"></span></div>
       <div class="pcb-t-client">${clientLine}</div>
-      <div class="pcb-t-map" title="${(_mapToKo(r.map)||'').replace(/"/g,'&quot;')}">📍 ${shortOf(r.map)||'맵 미설정'}</div>
+      <div class="pcb-t-map" title="${(_mapDisp(r.map)||'').replace(/"/g,'&quot;')}">📍 ${shortOf(r.map)||'맵 미설정'}</div>
       <div class="pcb-t-cls">LV${r.lv||s.lv||'-'} · ${s.cls||'-'}</div>
       <div class="pcb-t-gear"><span class="pcb-chip">검<b>+${s.we||0}</b></span><span class="pcb-chip">방<b>+${s.ae||0}</b></span></div>
       <div class="pcb-t-foot"><span class="pcb-t-flbl">평균치</span><span class="pcb-t-avg">${r.target||0}<small>%/h</small></span></div>
