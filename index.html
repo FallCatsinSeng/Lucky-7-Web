@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v458 | Check-out full-shift GAINED is now bulletproof: it derives the shift start from the SAVED check-in record (source of truth) instead of only sess.startExp, so a recovered/reset session no longer collapses the card to prev→checkout (e.g. it now shows 59.83→63.44 = full shift, not 62.30→63.44). expHour (last-hour /HOUR) still sent for the bot. NOTE: the Discord card + /HOUR only reflect this once BOTH index.html v458 AND the patched server.js are deployed. | v457 | Seed Standard EXP now matches records the SAME way the grid does — normalized name (honorifics/spaces stripped) OR pc number — and updates EVERY match. Fixes PC2 ('Owen 라인님') silently not updating (old exact-=== match missed it when the stored name differed by a space/honorific/duplicate). Also primes the local grid cache after save so the change shows immediately. | v456 | Seed Standard EXP updated per the new 6-PC 기준표: PC2 (Owen) → Dragon Valley 0.70/0.60/0.53 · Gludio 0.60/0.51/0.45 · Totem 0.43/0.36/0.32; PC6 (마석도) → Dragon Valley 0.80/0.73/0.67 · Gludio 0.70/0.60/0.53 · Orc Forest 0.50/0.43/0.38 (added Gludio Dungeon + Orc Forest; sl = Cut Line / cut-below). PC1/7/8/9 unchanged. Merge is by zone so it relabels/revalues in place; run the CEO 'Seed Standard EXP' button to apply. | v455 | Check-out card: EXP GAINED is now the FULL shift (check-in → check-out) again, and the ERP now ALSO sends expHour/adenaHour = the last-hour delta (previous report → check-out) so the Discord "EXP / HOUR" line can show the real last hour (e.g. 88.98%→89.61% = 0.63) instead of full-shift÷hours (0.88). REQUIRES a matching 1-line change in the Railway report bot to display fields.expHour for check-out. | v454 | King Bounty edge-to-edge: the remaining gap was <main>'s own padding (var(--s7/6/8)) plus the dashboard's inner 16px — both now removed while #kb-race is mounted (main:has + .bento padding 0), so it truly fills the frame with no border. Other tabs keep their padding. | v453 | King Bounty full-frame: the outer container had .content{max-width:1320px} AND a 380px #sb-right sidebar eating the width — now, ONLY while #kb-race is mounted, .content max-width is removed and #sb-right is hidden (via :has), so the dashboard truly fills edge-to-edge. Other tabs unaffected. | v452 | King Bounty native: removed the mockup's max-width:1240px cap on the .bento grid so the dashboard now fills the full Race tab width (was leaving a big empty area on the right). | v451 | King Bounty is now NATIVE in the Race tab (no iframe): CSS scoped to #kb-race so it can't touch the ERP, body inlined, all ~620 mockup globals isolated inside window.__kbInit, overlays re-homed into #kb-race, node persisted across tab switches. Still NOT wired to backend (runs the mockup's embedded demo data). | v450 | Race King Bounty mockup now feels native: the isolated iframe fills the tab edge-to-edge (borderless, transparent bg) and auto-fits height (grows to content, no inner-iframe scrollbar) so it reads as one page instead of a site-in-a-site. Still NOT wired to live data. | v449 | Race tab now displays the 888 KING BOUNTY mockup inside an ISOLATED iframe (srcdoc) — pure visual, NOT wired to Supabase/reports/live data (renderRace early-returns before any fetch). Real Race code untouched below the guard; delete the one guard line to restore it. | v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
+<!-- BUILD: v459 | Root cause of the vanishing 10:02 report FOUND + fixed in server.js: the /api/calc-data/:key/append handler did a non-atomic read-modify-write, so two reports landing close together both read the same array and the second overwrote the first (it had already posted to Discord → saved-looking but lost). Now an optimistic-lock retry serialises appends so nothing is dropped. ERP side: added a CEO/Manager '+ Add report' button in the Session Log to manually re-insert a lost/missing report (clones the shift's check-in for correct identity, then sets time/EXP; saved via the race-safe append). | v458 | Check-out full-shift GAINED is now bulletproof: it derives the shift start from the SAVED check-in record (source of truth) instead of only sess.startExp, so a recovered/reset session no longer collapses the card to prev→checkout (e.g. it now shows 59.83→63.44 = full shift, not 62.30→63.44). expHour (last-hour /HOUR) still sent for the bot. NOTE: the Discord card + /HOUR only reflect this once BOTH index.html v458 AND the patched server.js are deployed. | v457 | Seed Standard EXP now matches records the SAME way the grid does — normalized name (honorifics/spaces stripped) OR pc number — and updates EVERY match. Fixes PC2 ('Owen 라인님') silently not updating (old exact-=== match missed it when the stored name differed by a space/honorific/duplicate). Also primes the local grid cache after save so the change shows immediately. | v456 | Seed Standard EXP updated per the new 6-PC 기준표: PC2 (Owen) → Dragon Valley 0.70/0.60/0.53 · Gludio 0.60/0.51/0.45 · Totem 0.43/0.36/0.32; PC6 (마석도) → Dragon Valley 0.80/0.73/0.67 · Gludio 0.70/0.60/0.53 · Orc Forest 0.50/0.43/0.38 (added Gludio Dungeon + Orc Forest; sl = Cut Line / cut-below). PC1/7/8/9 unchanged. Merge is by zone so it relabels/revalues in place; run the CEO 'Seed Standard EXP' button to apply. | v455 | Check-out card: EXP GAINED is now the FULL shift (check-in → check-out) again, and the ERP now ALSO sends expHour/adenaHour = the last-hour delta (previous report → check-out) so the Discord "EXP / HOUR" line can show the real last hour (e.g. 88.98%→89.61% = 0.63) instead of full-shift÷hours (0.88). REQUIRES a matching 1-line change in the Railway report bot to display fields.expHour for check-out. | v454 | King Bounty edge-to-edge: the remaining gap was <main>'s own padding (var(--s7/6/8)) plus the dashboard's inner 16px — both now removed while #kb-race is mounted (main:has + .bento padding 0), so it truly fills the frame with no border. Other tabs keep their padding. | v453 | King Bounty full-frame: the outer container had .content{max-width:1320px} AND a 380px #sb-right sidebar eating the width — now, ONLY while #kb-race is mounted, .content max-width is removed and #sb-right is hidden (via :has), so the dashboard truly fills edge-to-edge. Other tabs unaffected. | v452 | King Bounty native: removed the mockup's max-width:1240px cap on the .bento grid so the dashboard now fills the full Race tab width (was leaving a big empty area on the right). | v451 | King Bounty is now NATIVE in the Race tab (no iframe): CSS scoped to #kb-race so it can't touch the ERP, body inlined, all ~620 mockup globals isolated inside window.__kbInit, overlays re-homed into #kb-race, node persisted across tab switches. Still NOT wired to backend (runs the mockup's embedded demo data). | v450 | Race King Bounty mockup now feels native: the isolated iframe fills the tab edge-to-edge (borderless, transparent bg) and auto-fits height (grows to content, no inner-iframe scrollbar) so it reads as one page instead of a site-in-a-site. Still NOT wired to live data. | v449 | Race tab now displays the 888 KING BOUNTY mockup inside an ISOLATED iframe (srcdoc) — pure visual, NOT wired to Supabase/reports/live data (renderRace early-returns before any fetch). Real Race code untouched below the guard; delete the one guard line to restore it. | v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10738,7 +10738,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v458';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v459';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19219,6 +19219,97 @@ function _srRecEditReport(id){
   var li=document.getElementById('sr-rec-edit-lv'); if(li){ li.focus(); try{ li.select(); }catch(_){} }
 }
 function _srRecCloseEdit(){ var ov=document.getElementById('sr-rec-edit-ov'); if(ov&&ov.parentNode) ov.parentNode.removeChild(ov); }
+// [v459] CEO/Manager: manually insert a missing report into a shift (e.g. one lost to the old append race).
+// It CLONES the shift's check-in record so all identity fields (booster/client/pc/gear/name/date) stay correct,
+// then overrides tag/time/EXP. Saved via the (now race-safe) append endpoint.
+function _srRecAddClose(){ var ov=document.getElementById('sr-rec-add-ov'); if(ov&&ov.parentNode) ov.parentNode.removeChild(ov); }
+function _srRecAddOpen(){
+  if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ toast(_uiLang()==='ko'?'권한 없음 — 대표/매니저 전용':'CEO/Manager only', true); return; }
+  _srRecInjectEditCSS(); _srRecCloseEdit(); _srRecAddClose();
+  var esc=_srEsc, ko=(_uiLang()==='ko');
+  var sess=[]; try{ sess=(window._srRecAll&&window._srRecAll.sessions)||[]; }catch(_){ sess=[]; }
+  var cis=sess.filter(function(s){ return s.tag==='checkin'; }).slice().sort(function(a,b){ return (b.ms||0)-(a.ms||0); });
+  if(!cis.length){ toast(ko?'근무(체크인) 기록이 없어요':'No check-in shifts found', true); return; }
+  var opts=cis.map(function(s){ var lbl=(s.name||s.key||'?')+' · '+(s.client||'?')+' · '+(s.date||'')+' · PC'+(s.pc==null?'?':s.pc); return '<option value="'+esc(String(s.id))+'">'+esc(lbl)+'</option>'; }).join('');
+  var ov=document.createElement('div'); ov.id='sr-rec-add-ov'; ov.className='sr-rec-edit-ov';
+  ov.onclick=function(e){ if(e.target===ov) _srRecAddClose(); };
+  ov.innerHTML='<div class="sr-rec-edit">'
+    +'<div class="sr-rec-edit-h">'+(ko?'리포트 추가':'Add report')+'</div>'
+    +'<div class="sr-rec-edit-meta">'+(ko?'누락된 리포트를 이 근무에 직접 넣습니다':'Insert a missing report into a shift')+'</div>'
+    +'<label class="sr-rec-edit-l">'+(ko?'근무 (체크인)':'Shift (check-in)')+'</label>'
+    +'<select id="sr-add-shift" class="sr-rec-edit-i" onchange="_srRecAddPrefill()">'+opts+'</select>'
+    +'<label class="sr-rec-edit-l">'+(ko?'시각 (한국시간 HH:MM)':'Time (KST HH:MM)')+'</label>'
+    +'<input id="sr-add-time" class="sr-rec-edit-i" type="text" inputmode="numeric" placeholder="11:00">'
+    +'<label class="sr-rec-edit-l">'+(ko?'레벨':'LV')+'</label>'
+    +'<input id="sr-add-lv" class="sr-rec-edit-i" type="number" min="1" max="99" step="1">'
+    +'<label class="sr-rec-edit-l">'+(ko?'EXP 시작 %':'EXP from %')+'</label>'
+    +'<input id="sr-add-from" class="sr-rec-edit-i" type="number" min="0" max="100" step="0.01" placeholder="59.83">'
+    +'<label class="sr-rec-edit-l">'+(ko?'EXP 종료 %':'EXP to %')+'</label>'
+    +'<input id="sr-add-to" class="sr-rec-edit-i" type="number" min="0" max="100" step="0.01" placeholder="61.06">'
+    +'<label class="sr-rec-edit-l">'+(ko?'맵 / 사냥터':'Map')+'</label>'
+    +'<input id="sr-add-map" class="sr-rec-edit-i" type="text" placeholder="Dream Island">'
+    +'<div class="sr-rec-edit-note">'+(ko?'gain = 종료 − 시작 (예: 59.83 → 61.06 = +1.23%). 시각은 한국시간 기준이며, 기존 리포트 사이에 자동으로 끼워집니다.':'Gain = to − from (e.g. 59.83 → 61.06 = +1.23%). Time is KST; it slots between the existing reports.')+'</div>'
+    +'<div class="sr-rec-edit-btns"><button class="sr-rec-edit-cancel" onclick="_srRecAddClose()">'+(ko?'취소':'Cancel')+'</button>'
+    +'<button id="sr-add-save" class="sr-rec-edit-save" onclick="_srRecAddSave()">'+(ko?'추가':'Add')+'</button></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  _srRecAddPrefill();
+  var t=document.getElementById('sr-add-time'); if(t){ t.focus(); }
+}
+function _srRecAddPrefill(){
+  try{
+    var sel=document.getElementById('sr-add-shift'); if(!sel) return;
+    var id=sel.value, sess=(window._srRecAll&&window._srRecAll.sessions)||[], ci=null;
+    for(var i=0;i<sess.length;i++){ if(String(sess[i].id)===String(id)){ ci=sess[i]; break; } }
+    if(!ci) return;
+    var lv=document.getElementById('sr-add-lv'); if(lv) lv.value=(ci.lv==null?'':ci.lv);
+    var mp=document.getElementById('sr-add-map'); if(mp) mp.value=(ci.map==null?'':ci.map);
+    // suggest "from" = the latest EXP already recorded in this shift, so the chain continues cleanly
+    var best=null; sess.forEach(function(s){ if(s.key===ci.key && String(s.client||'')===String(ci.client||'') && s.date===ci.date && s.tag!=='checkin'){ if(!best||(s.ms||0)>(best.ms||0)) best=s; } });
+    var f=(best&&best.expAt!=null)?best.expAt:ci.expAt;
+    var from=document.getElementById('sr-add-from'); if(from && f!=null) from.placeholder=Number(f).toFixed(2);
+  }catch(_){}
+}
+async function _srRecAddSave(){
+  if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ toast('CEO/Manager only', true); return; }
+  var ko=(_uiLang()==='ko');
+  var sel=document.getElementById('sr-add-shift'), tEl=document.getElementById('sr-add-time'), lvEl=document.getElementById('sr-add-lv'),
+      frEl=document.getElementById('sr-add-from'), toEl=document.getElementById('sr-add-to'), mpEl=document.getElementById('sr-add-map'), btn=document.getElementById('sr-add-save');
+  var sid=sel?sel.value:'', tm=tEl?String(tEl.value||'').trim():'', lv=lvEl?parseInt(lvEl.value,10):NaN,
+      fr=frEl?parseFloat(frEl.value):NaN, to=toEl?parseFloat(toEl.value):NaN, mp=mpEl?String(mpEl.value||'').trim():'';
+  var tmm=/^(\d{1,2}):(\d{2})$/.exec(tm);
+  if(!sid){ toast(ko?'근무를 선택하세요':'Pick a shift', true); return; }
+  if(!tmm){ toast(ko?'시각을 HH:MM 형식으로':'Time as HH:MM', true); if(tEl)tEl.focus(); return; }
+  if(!isFinite(fr)||fr<0||fr>100){ toast(ko?'EXP 시작 % 확인':'Check EXP from %', true); if(frEl)frEl.focus(); return; }
+  if(!isFinite(to)||to<0||to>100){ toast(ko?'EXP 종료 % 확인':'Check EXP to %', true); if(toEl)toEl.focus(); return; }
+  if(!isFinite(lv)||lv<1||lv>99) lv=null;
+  if(btn){ btn.disabled=true; btn.textContent=ko?'추가 중…':'Adding…'; }
+  try{
+    var reports=await _srGetCalc('reports'); if(!Array.isArray(reports)) reports=[];
+    var ci=null; for(var i=0;i<reports.length;i++){ if(String(reports[i].id)===String(sid)){ ci=reports[i]; break; } }
+    if(!ci){ toast(ko?'근무를 찾을 수 없어요 — 새로고침 후 다시':'Shift not found — refresh', true); if(btn){btn.disabled=false;btn.textContent=ko?'추가':'Add';} return; }
+    var HH=parseInt(tmm[1],10), MM=parseInt(tmm[2],10);
+    var pad=function(n){ return (n<10?'0':'')+n; };
+    var createdAt=Date.parse(String(ci.date||'').trim()+'T'+pad(HH)+':'+pad(MM)+':00+09:00');
+    if(!isFinite(createdAt)) createdAt=(ci.createdAt||Date.now())+3600000;
+    var lvF=(lv!=null?lv:(ci.lvAfter!=null?Number(ci.lvAfter):(ci.lvBefore!=null?Number(ci.lvBefore):44)));
+    var kst=function(h){ h=((h%24)+24)%24; return pad(h)+':00'; };
+    var rec={}; for(var k in ci){ rec[k]=ci[k]; }   // clone identity (booster/client/no/pc/threadId/gear/name/date)
+    rec.id='rpt-'+createdAt+'-'+Math.floor(Math.random()*10000);
+    rec.createdAt=createdAt; rec.tag='status';
+    rec.map=(mp||ci.map); rec.start=kst(HH); rec.end=kst(HH+1);
+    rec.lvBefore=lvF; rec.expBefore=Number(fr.toFixed(2));
+    rec.lvAfter=lvF;  rec.expAfter=Number(to.toFixed(2));
+    rec.dead=0; rec.potion=0; rec.drop=0; rec.note='(manual add)';
+    var editor='admin'; try{ editor=(currentUser&&currentUser.name)||'admin'; }catch(_){ } rec.editedBy=editor; rec.editedAt=Date.now();
+    delete rec.adena; delete rec.prevAdena;
+    var ap=await _srAppendCalc('reports',[rec]);
+    if(!ap.ok){ toast(ko?'추가 실패 — 다시':'Add failed — retry', true); if(btn){btn.disabled=false;btn.textContent=ko?'추가':'Add';} return; }
+    toast(ko?'✓ 리포트 추가됨':'✓ Report added');
+    _srRecAddClose();
+    try{ renderRecords(); }catch(_){ }
+  }catch(e){ toast(ko?'오류 — 다시':'Error — retry', true); if(btn){btn.disabled=false;btn.textContent=ko?'추가':'Add';} }
+}
 async function _srRecSaveReport(id){
   if(typeof currentUserRole==='undefined' || currentUserRole!=='admin'){ toast('권한 없음', true); return; }
   var liEl=document.getElementById('sr-rec-edit-lv'), exEl=document.getElementById('sr-rec-edit-exp'), mpEl=document.getElementById('sr-rec-edit-map'), btn=document.getElementById('sr-rec-edit-save');
@@ -19545,7 +19636,7 @@ function _srRecCardHTML(data){
   var fmtHM=function(ms){ if(!ms) return '—'; var off=krMode?9:7; var d=new Date(ms+off*3600000); var p=function(x){return(x<10?'0':'')+x;}; return p(d.getUTCHours())+':'+p(d.getUTCMinutes()); };
   var WD_EN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MO_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var dayLabelKo=function(dd){ var dt=new Date(dd+'T00:00:00Z'); if(isNaN(dt.getTime())) return esc(dd); if(_uiLang()==='ko') return (dt.getUTCMonth()+1)+'월 '+dt.getUTCDate()+'일 ('+WD[dt.getUTCDay()]+')'; return MO_EN[dt.getUTCMonth()]+' '+dt.getUTCDate()+' ('+WD_EN[dt.getUTCDay()]+')'; };
-  var krPill='<button class="sr-kr'+(krMode?' on':'')+'" onclick="_srRecToggleKR()"><b>KR</b> '+(krMode?'한국시간':'로컬시간')+' ⇄</button>';
+  var krPill='<button class="sr-kr'+(krMode?' on':'')+'" onclick="_srRecToggleKR()"><b>KR</b> '+(krMode?'한국시간':'로컬시간')+' ⇄</button>'+(isAdmin?('<button class="sr-kr" style="margin-left:8px;border-color:var(--ac,#c9963a);color:var(--ac,#c9963a);font-weight:700" onclick="_srRecAddOpen()">+ '+(_uiLang()==='ko'?'리포트 추가':'Add report')+'</button>'):'');
   var tagB=function(t){ if(t==='checkin') return '<span class="sr-sb sr-sb-in">체크인</span>'; if(t==='checkout') return '<span class="sr-sb sr-sb-out">체크아웃</span>'; return '<span class="sr-sb sr-sb-st">현황 리포트</span>'; };
   // [v388] Verdict now pivots on the Stable band (sh/sl), not the headline Goal number — matching the
   // wage engine's own tier rule (EXP>=sh -> Goal, sl<=EXP<sh -> Stable, EXP<sl -> Cut). sr-rb-un (amber)
