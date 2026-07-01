@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v460 | Session log ✕ button now DELETES the report (with a confirm) instead of opening the edit modal — the ✕ was wired to _srRecEditReport, which is why editing popped up. Editing a report is still available by tapping the row itself. New _srRecDeleteReport removes the record from the reports array and saves. | v459 | Root cause of the vanishing 10:02 report FOUND + fixed in server.js: the /api/calc-data/:key/append handler did a non-atomic read-modify-write, so two reports landing close together both read the same array and the second overwrote the first (it had already posted to Discord → saved-looking but lost). Now an optimistic-lock retry serialises appends so nothing is dropped. ERP side: added a CEO/Manager '+ Add report' button in the Session Log to manually re-insert a lost/missing report (clones the shift's check-in for correct identity, then sets time/EXP; saved via the race-safe append). | v458 | Check-out full-shift GAINED is now bulletproof: it derives the shift start from the SAVED check-in record (source of truth) instead of only sess.startExp, so a recovered/reset session no longer collapses the card to prev→checkout (e.g. it now shows 59.83→63.44 = full shift, not 62.30→63.44). expHour (last-hour /HOUR) still sent for the bot. NOTE: the Discord card + /HOUR only reflect this once BOTH index.html v458 AND the patched server.js are deployed. | v457 | Seed Standard EXP now matches records the SAME way the grid does — normalized name (honorifics/spaces stripped) OR pc number — and updates EVERY match. Fixes PC2 ('Owen 라인님') silently not updating (old exact-=== match missed it when the stored name differed by a space/honorific/duplicate). Also primes the local grid cache after save so the change shows immediately. | v456 | Seed Standard EXP updated per the new 6-PC 기준표: PC2 (Owen) → Dragon Valley 0.70/0.60/0.53 · Gludio 0.60/0.51/0.45 · Totem 0.43/0.36/0.32; PC6 (마석도) → Dragon Valley 0.80/0.73/0.67 · Gludio 0.70/0.60/0.53 · Orc Forest 0.50/0.43/0.38 (added Gludio Dungeon + Orc Forest; sl = Cut Line / cut-below). PC1/7/8/9 unchanged. Merge is by zone so it relabels/revalues in place; run the CEO 'Seed Standard EXP' button to apply. | v455 | Check-out card: EXP GAINED is now the FULL shift (check-in → check-out) again, and the ERP now ALSO sends expHour/adenaHour = the last-hour delta (previous report → check-out) so the Discord "EXP / HOUR" line can show the real last hour (e.g. 88.98%→89.61% = 0.63) instead of full-shift÷hours (0.88). REQUIRES a matching 1-line change in the Railway report bot to display fields.expHour for check-out. | v454 | King Bounty edge-to-edge: the remaining gap was <main>'s own padding (var(--s7/6/8)) plus the dashboard's inner 16px — both now removed while #kb-race is mounted (main:has + .bento padding 0), so it truly fills the frame with no border. Other tabs keep their padding. | v453 | King Bounty full-frame: the outer container had .content{max-width:1320px} AND a 380px #sb-right sidebar eating the width — now, ONLY while #kb-race is mounted, .content max-width is removed and #sb-right is hidden (via :has), so the dashboard truly fills edge-to-edge. Other tabs unaffected. | v452 | King Bounty native: removed the mockup's max-width:1240px cap on the .bento grid so the dashboard now fills the full Race tab width (was leaving a big empty area on the right). | v451 | King Bounty is now NATIVE in the Race tab (no iframe): CSS scoped to #kb-race so it can't touch the ERP, body inlined, all ~620 mockup globals isolated inside window.__kbInit, overlays re-homed into #kb-race, node persisted across tab switches. Still NOT wired to backend (runs the mockup's embedded demo data). | v450 | Race King Bounty mockup now feels native: the isolated iframe fills the tab edge-to-edge (borderless, transparent bg) and auto-fits height (grows to content, no inner-iframe scrollbar) so it reads as one page instead of a site-in-a-site. Still NOT wired to live data. | v449 | Race tab now displays the 888 KING BOUNTY mockup inside an ISOLATED iframe (srcdoc) — pure visual, NOT wired to Supabase/reports/live data (renderRace early-returns before any fetch). Real Race code untouched below the guard; delete the one guard line to restore it. | v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
+<!-- BUILD: v461 | My Payslip is now month-aware: a ‹ [Month Year] › navigation bar lets staff browse PAST months' payslips, not just the current one. Past months load from a new per-month settlement archive (settlement_state id='YYYY-MM'), which is snapshotted automatically every time settlement is saved. The end-of-month reveal lock now applies ONLY to the current month; past months are always shown. A past month with no archive shows a friendly empty state, and admins get a 'Save current salary as this month' button there to seed pre-feature months (e.g. June). | v460 | Session log ✕ button now DELETES the report (with a confirm) instead of opening the edit modal — the ✕ was wired to _srRecEditReport, which is why editing popped up. Editing a report is still available by tapping the row itself. New _srRecDeleteReport removes the record from the reports array and saves. | v459 | Root cause of the vanishing 10:02 report FOUND + fixed in server.js: the /api/calc-data/:key/append handler did a non-atomic read-modify-write, so two reports landing close together both read the same array and the second overwrote the first (it had already posted to Discord → saved-looking but lost). Now an optimistic-lock retry serialises appends so nothing is dropped. ERP side: added a CEO/Manager '+ Add report' button in the Session Log to manually re-insert a lost/missing report (clones the shift's check-in for correct identity, then sets time/EXP; saved via the race-safe append). | v458 | Check-out full-shift GAINED is now bulletproof: it derives the shift start from the SAVED check-in record (source of truth) instead of only sess.startExp, so a recovered/reset session no longer collapses the card to prev→checkout (e.g. it now shows 59.83→63.44 = full shift, not 62.30→63.44). expHour (last-hour /HOUR) still sent for the bot. NOTE: the Discord card + /HOUR only reflect this once BOTH index.html v458 AND the patched server.js are deployed. | v457 | Seed Standard EXP now matches records the SAME way the grid does — normalized name (honorifics/spaces stripped) OR pc number — and updates EVERY match. Fixes PC2 ('Owen 라인님') silently not updating (old exact-=== match missed it when the stored name differed by a space/honorific/duplicate). Also primes the local grid cache after save so the change shows immediately. | v456 | Seed Standard EXP updated per the new 6-PC 기준표: PC2 (Owen) → Dragon Valley 0.70/0.60/0.53 · Gludio 0.60/0.51/0.45 · Totem 0.43/0.36/0.32; PC6 (마석도) → Dragon Valley 0.80/0.73/0.67 · Gludio 0.70/0.60/0.53 · Orc Forest 0.50/0.43/0.38 (added Gludio Dungeon + Orc Forest; sl = Cut Line / cut-below). PC1/7/8/9 unchanged. Merge is by zone so it relabels/revalues in place; run the CEO 'Seed Standard EXP' button to apply. | v455 | Check-out card: EXP GAINED is now the FULL shift (check-in → check-out) again, and the ERP now ALSO sends expHour/adenaHour = the last-hour delta (previous report → check-out) so the Discord "EXP / HOUR" line can show the real last hour (e.g. 88.98%→89.61% = 0.63) instead of full-shift÷hours (0.88). REQUIRES a matching 1-line change in the Railway report bot to display fields.expHour for check-out. | v454 | King Bounty edge-to-edge: the remaining gap was <main>'s own padding (var(--s7/6/8)) plus the dashboard's inner 16px — both now removed while #kb-race is mounted (main:has + .bento padding 0), so it truly fills the frame with no border. Other tabs keep their padding. | v453 | King Bounty full-frame: the outer container had .content{max-width:1320px} AND a 380px #sb-right sidebar eating the width — now, ONLY while #kb-race is mounted, .content max-width is removed and #sb-right is hidden (via :has), so the dashboard truly fills edge-to-edge. Other tabs unaffected. | v452 | King Bounty native: removed the mockup's max-width:1240px cap on the .bento grid so the dashboard now fills the full Race tab width (was leaving a big empty area on the right). | v451 | King Bounty is now NATIVE in the Race tab (no iframe): CSS scoped to #kb-race so it can't touch the ERP, body inlined, all ~620 mockup globals isolated inside window.__kbInit, overlays re-homed into #kb-race, node persisted across tab switches. Still NOT wired to backend (runs the mockup's embedded demo data). | v450 | Race King Bounty mockup now feels native: the isolated iframe fills the tab edge-to-edge (borderless, transparent bg) and auto-fits height (grows to content, no inner-iframe scrollbar) so it reads as one page instead of a site-in-a-site. Still NOT wired to live data. | v449 | Race tab now displays the 888 KING BOUNTY mockup inside an ISOLATED iframe (srcdoc) — pure visual, NOT wired to Supabase/reports/live data (renderRace early-returns before any fetch). Real Race code untouched below the guard; delete the one guard line to restore it. | v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10738,7 +10738,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v460';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v461';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17058,6 +17058,8 @@ function saveSettlementState(immediate){
     try{
       const { error } = await _dbUpsert('settlement_state', 'default', { manual: MANUAL_PAYROLL, sheet: PAYROLL_SHEET });
       if(error){ console.warn('settlement_state save:', error.message); toast('Settlement save FAILED: ' + error.message, true); }
+      // [v461] also snapshot THIS month under id="YYYY-MM" so My Payslip can show it later as a past month.
+      try{ const _d=new Date(); const _ym=_d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0'); await _dbUpsert('settlement_state', _ym, { manual: MANUAL_PAYROLL, sheet: PAYROLL_SHEET, archivedAt: Date.now() }); }catch(_){}
     }catch(e){ console.warn('settlement_state save:', e && e.message); }
     finally{ setTimeout(() => { _settlementSaving = false; }, 300); }
   };
@@ -21331,6 +21333,33 @@ function openPaystub(staffId){
   requestAnimationFrame(() => panel.classList.add('open'));
 }
 
+// [v461] ── My Payslip month archive helpers ──
+function _psCurYM(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+async function _psLoadMonthSheet(ym){
+  if(!sb) return null;
+  try{ const { data } = await sb.from('settlement_state').select('data').eq('id', ym).maybeSingle();
+    if(data && data.data && data.data.sheet) return data.data; return null;
+  }catch(_){ return null; }
+}
+function _psNavMonth(delta){
+  try{
+    const cur = window._psViewYM || _psCurYM();
+    let y=parseInt(cur.slice(0,4),10), m=parseInt(cur.slice(5,7),10)-1;
+    m += delta; while(m<0){ m+=12; y--; } while(m>11){ m-=12; y++; }
+    const ny = y+'-'+String(m+1).padStart(2,'0');
+    if(ny > _psCurYM()) return;   // never go past the current month
+    window._psViewYM = ny;
+    renderMyPaystub();
+  }catch(_){}
+}
+async function _psArchiveCurrentAs(ym){
+  if(currentUserRole!=='admin') return;
+  if(!sb){ toast('Server needed', true); return; }
+  const ko=_uiLang()==='ko';
+  try{ await _dbUpsert('settlement_state', ym, { manual: MANUAL_PAYROLL, sheet: PAYROLL_SHEET, archivedAt: Date.now() });
+    toast(ko?'✓ 이 달로 저장됨':'✓ Archived for this month'); renderMyPaystub();
+  }catch(e){ toast(ko?'저장 실패':'Archive failed', true); }
+}
 // 직원 본인 페이슬립
 async function renderMyPaystub(){
   const otherView = document.getElementById('ch-other');
@@ -21343,35 +21372,50 @@ async function renderMyPaystub(){
   const sheet = key ? PAYROLL_SHEET[key] : null;
   const sh = (typeof STAFF_DETAILS !== 'undefined' && STAFF_DETAILS[myName]) ? matchShift(STAFF_DETAILS[myName].current_shift) : null;
 
-  let bodyHTML, takeHome;
-  if(sheet && sheet.items && sheet.items.length){
-    bodyHTML = sheet.items.map(it => {
+  // [v461] ── month-aware payslip: current month = live sheet; past months = settlement archive ──
+  const _curYM = _psCurYM();
+  if(window._psViewYM===undefined) window._psViewYM = _curYM;
+  let _viewYM = window._psViewYM || _curYM;
+  if(_viewYM > _curYM){ _viewYM = _curYM; window._psViewYM = _curYM; }
+  const _vy = parseInt(_viewYM.slice(0,4),10), _vm0 = parseInt(_viewYM.slice(5,7),10)-1;
+  const _isCurMonth = (_viewYM === _curYM);
+
+  // resolve this staff's sheet entry for the viewed month
+  let _sheetEntry = null;
+  if(_isCurMonth){ _sheetEntry = sheet; }
+  else {
+    const _arch = await _psLoadMonthSheet(_viewYM);
+    if(_arch && _arch.sheet){ _sheetEntry = _arch.sheet[key] || (myName?_arch.sheet[myName]:null) || null; }
+  }
+
+  let bodyHTML='', takeHome=0, _hasData=true;
+  if(_sheetEntry && _sheetEntry.items && _sheetEntry.items.length){
+    bodyHTML = _sheetEntry.items.map(it => {
       const neg = (it.negative!==undefined) ? it.negative : (it.amount<0);
       const amt = Math.abs(it.amount||0);
       return `<div class="ps-line"><span>${_sLbl(it.label)}${it.note?` <span style="opacity:.5;font-size:11px">· ${it.note}</span>`:''}</span><b style="${neg?'color:var(--re)':''}">${neg?'− ':''}${fmtMoney(amt)}</b></div>`;
     }).join('');
-    takeHome = payrollTotal(key);
-  } else {
+    takeHome = _sheetEntry.items.reduce((s,it)=>s+(it.amount||0),0);
+  } else if(_isCurMonth){
     const s = calcSalary(myName, role);
     bodyHTML = (s.type === 'perf')
       ? `<div class="ps-line"><span>기본급</span><b>${fmtMoney(s.base)}</b></div>
          <div class="ps-line"><span>성과 배율</span><b style="color:${s.rate>=100?'var(--gr)':s.rate<=75?'var(--re)':'var(--ye)'}">${s.rate}%</b></div>`
       : `<div class="ps-line"><span>기본급 (고정)</span><b>${fmtMoney(s.base)}</b></div>`;
     takeHome = s.net;
-  }
+  } else { _hasData = false; }
 
 // [v219] My Payslip reveals on the LAST DAY of the month — always end of month, whatever it is
 // (30, 31, 28, or 29 on a leap year). Staff see a locked card with a countdown until then;
-// admins always see it (with a preview note) so payroll can be verified before staff do.
+// admins always see it (with a preview note). [v461] The lock applies ONLY to the current month —
+// any past month is already settled and always shown.
 
   const _now = new Date();
   const _lastDay = new Date(_now.getFullYear(), _now.getMonth() + 1, 0).getDate();
-  const _revealDay = _lastDay;   // always the final day of the current month
-  const _revealed = _now.getDate() >= _revealDay;
+  const _revealDay = _lastDay;   // final day of the current month
+  const _revealed = !_isCurMonth || (_now.getDate() >= _revealDay);
   const _isAdminView = currentUserRole === 'admin';
   const _mLabel = (_now.getMonth() + 1) + '/' + _revealDay;
-  // [v224] localize the lock-card strings at the source — they interpolate ${_mLabel}/${_dLeft}
-  // in one text node, so the i18n dictionary can't translate them. Branch on the UI language here.
   const _psL = _uiLang();
   const _psTitle = _psL==='en' ? 'Payslip is released at the end of the month'
                  : _psL==='id' ? 'Slip gaji dirilis di akhir bulan'
@@ -21380,40 +21424,56 @@ async function renderMyPaystub(){
                  : _psL==='id' ? 'Slip gaji terbuka di akhir bulan'
                  :               '매월 말일에 공개돼요';
   const _psPillPrefix = _psL==='en' ? 'Unlocks ' : _psL==='id' ? 'Terbuka ' : '';
-  const _psPillSuffix = _psL==='ko' ? ' 공개' : '';   // Korean puts the word after the date
+  const _psPillSuffix = _psL==='ko' ? ' 공개' : '';
   const _psAdminNote  = _psL==='en' ? `Admin preview — staff see it on ${_mLabel}`
                       : _psL==='id' ? `Pratinjau admin — staf melihatnya pada ${_mLabel}`
                       :               `관리자 미리보기 — 직원에게는 ${_mLabel} 공개`;
 
-  if(!_revealed && !_isAdminView){
+  // month navigation bar (‹ prev · label · next › — next disabled at the current month)
+  const _moLabel = _fmtYM(_vy, _vm0);
+  const _navBtn = (dir,dis)=>`<button onclick="_psNavMonth(${dir})" ${dis?'disabled':''} style="background:var(--card2,#151515);border:1px solid var(--br);color:var(--tx);border-radius:9px;width:34px;height:34px;font-size:16px;line-height:1;${dis?'opacity:.3;cursor:not-allowed':'cursor:pointer'}">${dir<0?'‹':'›'}</button>`;
+  const _navBar = `<div style="display:flex;align-items:center;justify-content:center;gap:14px;margin:14px 0 2px">${_navBtn(-1,false)}<div style="min-width:150px;text-align:center;font-weight:800;font-size:14.5px;color:var(--tx)">${_moLabel}</div>${_navBtn(1,_isCurMonth)}</div>`;
+
+  const _wrap = (inner)=>`<div class="set-page-wrap" style="max-width:560px">
+    <div class="att-eyebrow">${_psL==='en'?'MY PAGE':_psL==='id'?'HALAMAN SAYA':'내 페이지'}</div>
+    <div class="ph">${_psL==='en'?'My Payslip':_psL==='id'?'Slip Gaji Saya':'내 페이슬립'}</div>
+    <div class="psub">${_moLabel} ${_psL==='en'?'Payslip':_psL==='id'?'Slip Gaji':'급여 명세'}</div>
+    ${_navBar}
+    ${inner}
+  </div>`;
+
+  // current month, not yet revealed, non-admin → locked card
+  if(_isCurMonth && !_revealed && !_isAdminView){
     const _dLeft = _revealDay - _now.getDate();
-    otherView.innerHTML = `<div class="set-page-wrap" style="max-width:560px">
-      <div class="att-eyebrow">내 페이지</div>
-      <div class="ph">내 페이슬립</div>
-      <div class="psub">${_fmtYM(_now.getFullYear(), _now.getMonth())} 급여 명세</div>
-      <div class="ps-card" style="margin-top:20px;text-align:center;padding:40px 24px">
+    otherView.innerHTML = _wrap(`<div class="ps-card" style="margin-top:16px;text-align:center;padding:40px 24px">
         <div style="font-size:34px;margin-bottom:12px">🔒</div>
         <div style="font-size:15px;font-weight:700;color:var(--tx)">${_psTitle}</div>
         <div style="font-size:12px;color:var(--tx3);margin-top:6px">${_psSub}</div>
         <div style="margin-top:18px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--br);border-radius:999px;padding:7px 16px;font-size:12.5px;color:var(--tx2)">📅 ${_psPillPrefix}${_mLabel}${_psPillSuffix} · <b style="color:var(--ac)">D-${_dLeft}</b></div>
-      </div>
-    </div>`;
+      </div>`);
     return;
   }
 
-  otherView.innerHTML = `<div class="set-page-wrap" style="max-width:560px">
-    <div class="att-eyebrow">내 페이지</div>
-    <div class="ph">내 페이슬립</div>
-    <div class="psub">${_fmtYM(_now.getFullYear(), _now.getMonth())} 급여 명세</div>
-    ${(!_revealed && _isAdminView) ? `<div style="margin-top:14px;display:inline-flex;align-items:center;gap:7px;border:1px dashed var(--br);border-radius:9px;padding:7px 12px;font-size:11.5px;color:var(--tx3)">👁 ${_psAdminNote}</div>` : ''}
-    <div class="ps-card" style="margin-top:20px">
-      <div class="ps-card-h">급여 명세</div>
+  // past month with no archived payslip → friendly empty state (+ admin can seed it from current data)
+  if(!_hasData){
+    otherView.innerHTML = _wrap(`<div class="ps-card" style="margin-top:16px;text-align:center;padding:34px 24px">
+        <div style="font-size:30px;margin-bottom:10px">🗓️</div>
+        <div style="font-size:14px;font-weight:700;color:var(--tx)">${_psL==='en'?'No payslip recorded for this month':_psL==='id'?'Belum ada slip gaji untuk bulan ini':'이 달의 급여 명세가 없어요'}</div>
+        <div style="font-size:12px;color:var(--tx3);margin-top:6px">${_psL==='en'?'Only months settled after this feature was added appear here.':_psL==='id'?'Hanya bulan yang disimpan setelah fitur ini yang muncul di sini.':'이 기능 추가 이후 정산된 달만 표시됩니다.'}</div>
+        ${_isAdminView?`<button onclick="_psArchiveCurrentAs('${_viewYM}')" style="margin-top:16px;background:var(--ac,#c9963a);color:#1a1a1a;border:none;border-radius:9px;padding:9px 16px;font-size:12.5px;font-weight:800;cursor:pointer">${_psL==='en'?'Save current salary as this month':_psL==='id'?'Simpan gaji saat ini sebagai bulan ini':'현재 급여를 이 달로 저장'}</button>`:''}
+      </div>`);
+    return;
+  }
+
+  otherView.innerHTML = _wrap(`
+    ${(_isCurMonth && !_revealed && _isAdminView) ? `<div style="margin-top:12px;display:inline-flex;align-items:center;gap:7px;border:1px dashed var(--br);border-radius:9px;padding:7px 12px;font-size:11.5px;color:var(--tx3)">👁 ${_psAdminNote}</div>` : ''}
+    <div class="ps-card" style="margin-top:16px">
+      <div class="ps-card-h">${_psL==='en'?'PAYSLIP':_psL==='id'?'SLIP GAJI':'급여 명세'}</div>
       ${bodyHTML}
-      ${sh ? `<div class="ps-line"><span>시프트</span><b>${sh.icon} ${sh.type} ${sh.label} · ${sh.work}</b></div>` : ''}
+      ${(_isCurMonth && sh) ? `<div class="ps-line"><span>${_psL==='en'?'Shift':_psL==='id'?'Shift':'시프트'}</span><b>${sh.icon} ${sh.type} ${sh.label} · ${sh.work}</b></div>` : ''}
       <div class="ps-divider"></div>
-      <div class="ps-net"><span>실수령액</span><b>${fmtMoney(takeHome)}</b></div>
-    </div>
-  </div>`;
+      <div class="ps-net"><span>${_psL==='en'?'Take-home':_psL==='id'?'Diterima':'실수령액'}</span><b>${fmtMoney(takeHome)}</b></div>
+    </div>`);
 }
 function perfCard(staffId){
   const p = PERF_DATA[staffId];
