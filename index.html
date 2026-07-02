@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v481 | (1) Backup applicants merged INTO the Recruiting page as internal tabs (Pipeline | Backup applicants, with a live count badge) — the separate HR sidebar channel is removed (filtered even from saved nav_state; the old module route still works and opens the backup tab). (2) Self-heal for pipeline/backup duplicates: anyone present in BOTH lists (moved to backup before the v472 fix was deployed, e.g. Vania) is auto-removed from the pipeline on next open — the full record stays in the backup pool. (3) HR edit-loss fix: every applicant edit now stamps updatedAt (ms), and the pre-save merge picks the NEWER copy per applicant, so a colleague's stale open tab can no longer silently overwrite a fresher edit on save; legacy records without timestamps behave exactly as before. | v480 | FIX: the 'New version v479 is available' banner kept reappearing after every Refresh. Root cause: the two lockstep version spots diverged during v473-v479 — the BUILD comment was bumped to v479 but the _APP_BUILD JS variable was left at 'v472', so the checker (which reads the deployed file's BUILD comment and compares it to the running _APP_BUILD) always saw 479 > 472 and re-showed the banner ~6s after every reload, forever; no refresh could fix it because the file itself was internally inconsistent. Both spots now say v480. Also hardened the banner's Refresh button: it now navigates to a cache-busted URL (?v=timestamp) instead of a plain location.reload(), because GitHub Pages serves HTML with ~10-min CDN caching, so a plain reload right after a deploy could re-serve the stale copy and re-trigger the banner even with correct versions. | v479 | Removed the visible "표 기준 적용" overwrite button from PC Status. PC board/timeline stay read-only to live saved assignments, and Discord copy remains available without adding a data-overwrite control. | v477 | PC Status board/timeline display cleanup: normalize staff/client labels on the live PC cards and clock timeline, hide default MANJI leader spam on PC cards/timeline, keep special leaders such as KAIJI/BRUCE visible, and preserve the locked Discord USE-format copy table. | v476 | PC Status Discord copy v476: lock compact 98-char separator, force KAIJI assignment notes to start with 모니터링, keep BRUCE assistant note, and preserve PC Timeline tab while using the same PC Status data. | v475 | PC Status Discord copy format locked to the latest pasted compact table: 108-char separators, Open 03h wording, KAIJI note shows 모니터링, and unassigned KYROS/SINGGIH stay together as the 12H training block. | v474 | PC Status Discord copy now uses the compact USE-format table (Name/Shift/W/TP/St/P-Date/USE/PC-Time), calculates Full/Open hours from assignments vs shift length, moves BRUCE/KAIJI special-role rows into a clean bottom block, and keeps the PC Timeline tab intact. | v473 | PC Status now has an internal PC Timeline tab that reuses the Records clock board as a read-only 24H operating view, driven by the live PC Status assignments/clients/leaders while leaving the original PC board untouched. Discord/clock client display normalizes common client nicknames such as 고고형 지인 → 순수쌤. | v472 | BUG FIX: moving an applicant to the Backup pool didn't remove them from the Pass column after all. _apMoveToBackup removed the applicant from local APPLICANTS but never added their id to _recruitDeletedIds, so the v467 merge-before-save safety (built to STOP data loss) treated the removal as staleness rather than an intentional delete and quietly re-added them back in from the stale server copy it fetches before writing — undoing the move both on the server and in the local view, every single time. BACKUP_APPLICANTS itself saved correctly (separate store, unaffected), which is why the person correctly showed on the Backup page while ALSO still showing in Pass. Fixed by pushing the id into _recruitDeletedIds, mirroring how deleteApplicant() already does it. Verified with a merge simulation reproducing the exact bug and confirming the fix. | v471 | New feature: Backup Applicants pool. Marking a recruit Pass now asks 'hire directly' vs 'move to backup pool' (no open slot yet) via a small choice modal (setApplicantStage intercepts stageId==='pass'). Backup entries capture desired shift (12H Day/Night, 8H Shift 1/2/3, or Flexible = willing to take any shift) and a readiness state (ready now / pick a date / TBD), and carry over the applicant's full record (interviews, evaluations, files) so nothing is lost. New sidebar channel under HR: 백업 지원자 / Backup applicants (admin/op, inherits the HR category's perms). Stored as its own recruit_state row (id='backup_applicants') with the same merge-before-save safety built for the main recruiting board in v467. Promoting a backup applicant re-inserts them into APPLICANTS as a Pass, reusing the existing 'add to staff pool' flow unchanged. All new UI text is fully Korean in KO mode and fully English in EN mode (no mixed-language labels). | v470 | CRITICAL FIX: the v469 BUILD comment was accidentally closed early with a stray HTML comment-close marker right after its own note text, which orphaned the ENTIRE rest of the accumulated build-history comment (v468 downward) as literal visible page content — it would render as raw text at the top of the page instead of staying invisible inside a comment. Rejoined it back into one continuous comment ending at the original, correct closing tag. Verified byte by byte: exactly one comment-close marker now closes the whole BUILD comment, immediately followed by the next real tag. LESSON LEARNED: never type the literal 3-char HTML comment-close sequence (dash dash angle-bracket) inside build-note text describing this bug, even in quotes — it closes the comment just the same regardless of quoting, which is exactly how this happened in the first place. No functional/JS changes in this build — this is a head-only text fix. | v469 | Staff List Discord ID field now ACTUALLY links the bot: saving it writes straight to Supabase user_profiles.discord_id (confirmed via CSV inspection to be the exact column the Discord bot's check-in link-check reads — user_profiles is populated via the ERP's own signUp()+invite-code flow, and staffId throughout the Staff List IS user_profiles.id already, so no email/name matching needed). Previously (v468) it only saved to the ERP's own staff_state blob, which looked like it worked but did nothing for the bot. Both the edit form and the read-only info panel now prefill/display the REAL live value from user_profiles (not a stale local copy), so it's accurate even for staff who already had discord_id set before this field existed. | v468 | Staff List: added a 'Discord ID' field to the personal-info panel/edit form, right above Discord Thread, so the CEO can note/copy each staff member's Discord user ID for reference. IMPORTANT: this writes to STAFF_PROFILE/staff_state (the ERP's own personal-info blob) — it is a SEPARATE store from the Supabase `staff` table's own discord_id/role_id columns that the Discord bot actually reads for its check-in/link check, so filling this in does NOT by itself fix a 'not linked' bot error. Added an explicit on-screen note saying so, to avoid the CEO assuming this field wires up the bot. Root cause of the actual bot-linking issue investigated this session: every staff member created since ~June 22 has a NULL role_id in the `staff` table (works fine before that date) even though discord_id is present — role_id is never written by index.html at all, so it must be set manually in Supabase; recommended value for 'player' team is the same role_id already used by 8 existing player-team staff. | v467 | Recruiting: fixed applicants/edits sometimes vanishing when two staff (e.g. HR adding a new applicant + Manager reviewing) had the board open at once. Root cause: the whole board is ONE JSON blob (recruit_state) and background refresh only runs once per 10 min (v407, egress cost) — so a second staff member's stale local copy could silently overwrite someone else's just-added applicant/CV before it ever synced down. Fix: _doSaveRecruits now pulls the CURRENT server copy right before writing and MERGES it with the local copy (local wins per-applicant-id, anything on the server but missing locally is kept — never silently dropped — and only this-session explicit deletes are actually removed). Client-side merge, no server.js change needed (unlike v459's report-append fix). | v466 | Race layout-editor controls (the Edit dock + GRID READY/Light dock) are now CEO/Manager only. They were showing to everyone on the Race tab even though they only edit the bento layout. Gated by currentUserRole==='admin' at the point the docks are appended to the host (the grid-editor runs inside __kbInit, which fires on Race mount AFTER login, so the role is real, not the pre-auth default). The Ctrl/Cmd+E edit-mode shortcut is likewise admin-gated. The saved layout still applies for ALL roles (applyCSS runs regardless) so non-admins see the CEO-arranged grid; they just can't see or use the edit tools. | v465 | Load-time fix: the head had two render-blocking requests that delayed first paint of the boot splash. (1) Google Fonts (Inter) is now loaded non-blocking via media=print onload swap + noscript fallback (splash uses Georgia, so no dependency). (2) The Supabase CDN script was moved out of the head: head now only PRELOADS it (rel=preload as=script, early non-blocking fetch), and the actual blocking script tag now sits right before its first use (the sb=createClient block), so the splash + app shell + CSS paint without waiting for the Supabase round-trip, while the preload means it is already cached when execution reaches it. Net: head has no render-blocker, splash appears sooner. No JS logic changed. | v464 | (1) Race grid-edit docks (.mt-editdock = Edit, .mt-dock = GRID READY/Light) are now draggable anywhere via pointer-drag with a 5px click/drag threshold; position saved to localStorage (l7_kb_editdock_pos / l7_kb_dock_pos) and restored (clamped on-screen) on each Race mount. Button clicks still work; a real drag swallows the trailing click. (2) Race language unified with the ERP: LANG now reads _uiLang() (KO/EN) at mount instead of its own site_lang, and the Race KO/EN toggle button (#langBtn / .lang-toggle) is hidden. ERP has no Indonesian (toggle is KO/EN only, _uiLang collapses id->ko), so Race follows KO/EN. setLang reloads, so switching ERP language re-inits Race in the new language. | v463 | Race (King Bounty) grid-edit dev docks were floating over content: the 'Edit' button (.mt-editdock) sat bottom-left overlapping the sidebar, and the GRID READY + Light toggle (.mt-dock) sat bottom-center over the money-rain card. Both moved to the top-right corner, stacked (Edit on top at top:70px, GRID READY/Light below at top:112px), and faded to .55 opacity when idle (full opacity on hover) so they stay reachable but out of the way. Still functional. | v462 | Fixed the intermittent full-screen '❠ 대시보드 로드 오류 / Cannot set properties of null (setting textContent)'. Cause was PRE-EXISTING (present since the King Bounty native port, NOT the payslip change): the King Bounty HUD clock + race animation timers inside window.__kbInit keep firing after you leave the Race tab, but the #kb-race node is detached, so a re-queried $('id') returned null and $('id').textContent=... threw OUTSIDE any try/catch → the global error handler painted the fatal overlay over the dashboard. Made the King Bounty $() helper return a harmless no-op stub when the element is missing, so stray post-unmount paints become no-ops. Race, when actually mounted, is unaffected. | v461 | My Payslip is now month-aware: a ‹ [Month Year] › navigation bar lets staff browse PAST months' payslips, not just the current one. Past months load from a new per-month settlement archive (settlement_state id='YYYY-MM'), which is snapshotted automatically every time settlement is saved. The end-of-month reveal lock now applies ONLY to the current month; past months are always shown. A past month with no archive shows a friendly empty state, and admins get a 'Save current salary as this month' button there to seed pre-feature months (e.g. June). | v460 | Session log ✕ button now DELETES the report (with a confirm) instead of opening the edit modal — the ✕ was wired to _srRecEditReport, which is why editing popped up. Editing a report is still available by tapping the row itself. New _srRecDeleteReport removes the record from the reports array and saves. | v459 | Root cause of the vanishing 10:02 report FOUND + fixed in server.js: the /api/calc-data/:key/append handler did a non-atomic read-modify-write, so two reports landing close together both read the same array and the second overwrote the first (it had already posted to Discord → saved-looking but lost). Now an optimistic-lock retry serialises appends so nothing is dropped. ERP side: added a CEO/Manager '+ Add report' button in the Session Log to manually re-insert a lost/missing report (clones the shift's check-in for correct identity, then sets time/EXP; saved via the race-safe append). | v458 | Check-out full-shift GAINED is now bulletproof: it derives the shift start from the SAVED check-in record (source of truth) instead of only sess.startExp, so a recovered/reset session no longer collapses the card to prev→checkout (e.g. it now shows 59.83→63.44 = full shift, not 62.30→63.44). expHour (last-hour /HOUR) still sent for the bot. NOTE: the Discord card + /HOUR only reflect this once BOTH index.html v458 AND the patched server.js are deployed. | v457 | Seed Standard EXP now matches records the SAME way the grid does — normalized name (honorifics/spaces stripped) OR pc number — and updates EVERY match. Fixes PC2 ('Owen 라인님') silently not updating (old exact-=== match missed it when the stored name differed by a space/honorific/duplicate). Also primes the local grid cache after save so the change shows immediately. | v456 | Seed Standard EXP updated per the new 6-PC 기준표: PC2 (Owen) → Dragon Valley 0.70/0.60/0.53 · Gludio 0.60/0.51/0.45 · Totem 0.43/0.36/0.32; PC6 (마석도) → Dragon Valley 0.80/0.73/0.67 · Gludio 0.70/0.60/0.53 · Orc Forest 0.50/0.43/0.38 (added Gludio Dungeon + Orc Forest; sl = Cut Line / cut-below). PC1/7/8/9 unchanged. Merge is by zone so it relabels/revalues in place; run the CEO 'Seed Standard EXP' button to apply. | v455 | Check-out card: EXP GAINED is now the FULL shift (check-in → check-out) again, and the ERP now ALSO sends expHour/adenaHour = the last-hour delta (previous report → check-out) so the Discord "EXP / HOUR" line can show the real last hour (e.g. 88.98%→89.61% = 0.63) instead of full-shift÷hours (0.88). REQUIRES a matching 1-line change in the Railway report bot to display fields.expHour for check-out. | v454 | King Bounty edge-to-edge: the remaining gap was <main>'s own padding (var(--s7/6/8)) plus the dashboard's inner 16px — both now removed while #kb-race is mounted (main:has + .bento padding 0), so it truly fills the frame with no border. Other tabs keep their padding. | v453 | King Bounty full-frame: the outer container had .content{max-width:1320px} AND a 380px #sb-right sidebar eating the width — now, ONLY while #kb-race is mounted, .content max-width is removed and #sb-right is hidden (via :has), so the dashboard truly fills edge-to-edge. Other tabs unaffected. | v452 | King Bounty native: removed the mockup's max-width:1240px cap on the .bento grid so the dashboard now fills the full Race tab width (was leaving a big empty area on the right). | v451 | King Bounty is now NATIVE in the Race tab (no iframe): CSS scoped to #kb-race so it can't touch the ERP, body inlined, all ~620 mockup globals isolated inside window.__kbInit, overlays re-homed into #kb-race, node persisted across tab switches. Still NOT wired to backend (runs the mockup's embedded demo data). | v450 | Race King Bounty mockup now feels native: the isolated iframe fills the tab edge-to-edge (borderless, transparent bg) and auto-fits height (grows to content, no inner-iframe scrollbar) so it reads as one page instead of a site-in-a-site. Still NOT wired to live data. | v449 | Race tab now displays the 888 KING BOUNTY mockup inside an ISOLATED iframe (srcdoc) — pure visual, NOT wired to Supabase/reports/live data (renderRace early-returns before any fetch). Real Race code untouched below the guard; delete the one guard line to restore it. | v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
+<!-- BUILD: v482 | Notices overhaul: (1) Rich-text notice body — a small editor toolbar (heading, bold, italic, bullet list, callout box, link) writes sanitized HTML (whitelisted tags only, defensive XSS strip), so long formatted rules like the Blackout/Sick-leave doc render cleanly instead of as a plain wall of text; legacy plain-text notices still render fine. (2) Attachments — attach PDFs/images (base64, <=4MB each) shown as downloadable cards in the reader and the must-read modal. (3) Must-read acknowledgement — a new 'Must read' toggle; opening such a notice no longer counts as read, the reader shows an explicit 'I have read and understood' button, and at login/resume any outstanding must-read notice is forced via a full-screen modal (one at a time). (4) New 'Rules/규정' category + amber tag. (5) Full KO/EN i18n across the whole Notices UI — category labels, editor, read-status headers, badges, and the must-read modal all follow the language toggle (Korean stays Korean, English stays English). | v481 | (1) Backup applicants merged INTO the Recruiting page as internal tabs (Pipeline | Backup applicants, with a live count badge) — the separate HR sidebar channel is removed (filtered even from saved nav_state; the old module route still works and opens the backup tab). (2) Self-heal for pipeline/backup duplicates: anyone present in BOTH lists (moved to backup before the v472 fix was deployed, e.g. Vania) is auto-removed from the pipeline on next open — the full record stays in the backup pool. (3) HR edit-loss fix: every applicant edit now stamps updatedAt (ms), and the pre-save merge picks the NEWER copy per applicant, so a colleague's stale open tab can no longer silently overwrite a fresher edit on save; legacy records without timestamps behave exactly as before. | v480 | FIX: the 'New version v479 is available' banner kept reappearing after every Refresh. Root cause: the two lockstep version spots diverged during v473-v479 — the BUILD comment was bumped to v479 but the _APP_BUILD JS variable was left at 'v472', so the checker (which reads the deployed file's BUILD comment and compares it to the running _APP_BUILD) always saw 479 > 472 and re-showed the banner ~6s after every reload, forever; no refresh could fix it because the file itself was internally inconsistent. Both spots now say v480. Also hardened the banner's Refresh button: it now navigates to a cache-busted URL (?v=timestamp) instead of a plain location.reload(), because GitHub Pages serves HTML with ~10-min CDN caching, so a plain reload right after a deploy could re-serve the stale copy and re-trigger the banner even with correct versions. | v479 | Removed the visible "표 기준 적용" overwrite button from PC Status. PC board/timeline stay read-only to live saved assignments, and Discord copy remains available without adding a data-overwrite control. | v477 | PC Status board/timeline display cleanup: normalize staff/client labels on the live PC cards and clock timeline, hide default MANJI leader spam on PC cards/timeline, keep special leaders such as KAIJI/BRUCE visible, and preserve the locked Discord USE-format copy table. | v476 | PC Status Discord copy v476: lock compact 98-char separator, force KAIJI assignment notes to start with 모니터링, keep BRUCE assistant note, and preserve PC Timeline tab while using the same PC Status data. | v475 | PC Status Discord copy format locked to the latest pasted compact table: 108-char separators, Open 03h wording, KAIJI note shows 모니터링, and unassigned KYROS/SINGGIH stay together as the 12H training block. | v474 | PC Status Discord copy now uses the compact USE-format table (Name/Shift/W/TP/St/P-Date/USE/PC-Time), calculates Full/Open hours from assignments vs shift length, moves BRUCE/KAIJI special-role rows into a clean bottom block, and keeps the PC Timeline tab intact. | v473 | PC Status now has an internal PC Timeline tab that reuses the Records clock board as a read-only 24H operating view, driven by the live PC Status assignments/clients/leaders while leaving the original PC board untouched. Discord/clock client display normalizes common client nicknames such as 고고형 지인 → 순수쌤. | v472 | BUG FIX: moving an applicant to the Backup pool didn't remove them from the Pass column after all. _apMoveToBackup removed the applicant from local APPLICANTS but never added their id to _recruitDeletedIds, so the v467 merge-before-save safety (built to STOP data loss) treated the removal as staleness rather than an intentional delete and quietly re-added them back in from the stale server copy it fetches before writing — undoing the move both on the server and in the local view, every single time. BACKUP_APPLICANTS itself saved correctly (separate store, unaffected), which is why the person correctly showed on the Backup page while ALSO still showing in Pass. Fixed by pushing the id into _recruitDeletedIds, mirroring how deleteApplicant() already does it. Verified with a merge simulation reproducing the exact bug and confirming the fix. | v471 | New feature: Backup Applicants pool. Marking a recruit Pass now asks 'hire directly' vs 'move to backup pool' (no open slot yet) via a small choice modal (setApplicantStage intercepts stageId==='pass'). Backup entries capture desired shift (12H Day/Night, 8H Shift 1/2/3, or Flexible = willing to take any shift) and a readiness state (ready now / pick a date / TBD), and carry over the applicant's full record (interviews, evaluations, files) so nothing is lost. New sidebar channel under HR: 백업 지원자 / Backup applicants (admin/op, inherits the HR category's perms). Stored as its own recruit_state row (id='backup_applicants') with the same merge-before-save safety built for the main recruiting board in v467. Promoting a backup applicant re-inserts them into APPLICANTS as a Pass, reusing the existing 'add to staff pool' flow unchanged. All new UI text is fully Korean in KO mode and fully English in EN mode (no mixed-language labels). | v470 | CRITICAL FIX: the v469 BUILD comment was accidentally closed early with a stray HTML comment-close marker right after its own note text, which orphaned the ENTIRE rest of the accumulated build-history comment (v468 downward) as literal visible page content — it would render as raw text at the top of the page instead of staying invisible inside a comment. Rejoined it back into one continuous comment ending at the original, correct closing tag. Verified byte by byte: exactly one comment-close marker now closes the whole BUILD comment, immediately followed by the next real tag. LESSON LEARNED: never type the literal 3-char HTML comment-close sequence (dash dash angle-bracket) inside build-note text describing this bug, even in quotes — it closes the comment just the same regardless of quoting, which is exactly how this happened in the first place. No functional/JS changes in this build — this is a head-only text fix. | v469 | Staff List Discord ID field now ACTUALLY links the bot: saving it writes straight to Supabase user_profiles.discord_id (confirmed via CSV inspection to be the exact column the Discord bot's check-in link-check reads — user_profiles is populated via the ERP's own signUp()+invite-code flow, and staffId throughout the Staff List IS user_profiles.id already, so no email/name matching needed). Previously (v468) it only saved to the ERP's own staff_state blob, which looked like it worked but did nothing for the bot. Both the edit form and the read-only info panel now prefill/display the REAL live value from user_profiles (not a stale local copy), so it's accurate even for staff who already had discord_id set before this field existed. | v468 | Staff List: added a 'Discord ID' field to the personal-info panel/edit form, right above Discord Thread, so the CEO can note/copy each staff member's Discord user ID for reference. IMPORTANT: this writes to STAFF_PROFILE/staff_state (the ERP's own personal-info blob) — it is a SEPARATE store from the Supabase `staff` table's own discord_id/role_id columns that the Discord bot actually reads for its check-in/link check, so filling this in does NOT by itself fix a 'not linked' bot error. Added an explicit on-screen note saying so, to avoid the CEO assuming this field wires up the bot. Root cause of the actual bot-linking issue investigated this session: every staff member created since ~June 22 has a NULL role_id in the `staff` table (works fine before that date) even though discord_id is present — role_id is never written by index.html at all, so it must be set manually in Supabase; recommended value for 'player' team is the same role_id already used by 8 existing player-team staff. | v467 | Recruiting: fixed applicants/edits sometimes vanishing when two staff (e.g. HR adding a new applicant + Manager reviewing) had the board open at once. Root cause: the whole board is ONE JSON blob (recruit_state) and background refresh only runs once per 10 min (v407, egress cost) — so a second staff member's stale local copy could silently overwrite someone else's just-added applicant/CV before it ever synced down. Fix: _doSaveRecruits now pulls the CURRENT server copy right before writing and MERGES it with the local copy (local wins per-applicant-id, anything on the server but missing locally is kept — never silently dropped — and only this-session explicit deletes are actually removed). Client-side merge, no server.js change needed (unlike v459's report-append fix). | v466 | Race layout-editor controls (the Edit dock + GRID READY/Light dock) are now CEO/Manager only. They were showing to everyone on the Race tab even though they only edit the bento layout. Gated by currentUserRole==='admin' at the point the docks are appended to the host (the grid-editor runs inside __kbInit, which fires on Race mount AFTER login, so the role is real, not the pre-auth default). The Ctrl/Cmd+E edit-mode shortcut is likewise admin-gated. The saved layout still applies for ALL roles (applyCSS runs regardless) so non-admins see the CEO-arranged grid; they just can't see or use the edit tools. | v465 | Load-time fix: the head had two render-blocking requests that delayed first paint of the boot splash. (1) Google Fonts (Inter) is now loaded non-blocking via media=print onload swap + noscript fallback (splash uses Georgia, so no dependency). (2) The Supabase CDN script was moved out of the head: head now only PRELOADS it (rel=preload as=script, early non-blocking fetch), and the actual blocking script tag now sits right before its first use (the sb=createClient block), so the splash + app shell + CSS paint without waiting for the Supabase round-trip, while the preload means it is already cached when execution reaches it. Net: head has no render-blocker, splash appears sooner. No JS logic changed. | v464 | (1) Race grid-edit docks (.mt-editdock = Edit, .mt-dock = GRID READY/Light) are now draggable anywhere via pointer-drag with a 5px click/drag threshold; position saved to localStorage (l7_kb_editdock_pos / l7_kb_dock_pos) and restored (clamped on-screen) on each Race mount. Button clicks still work; a real drag swallows the trailing click. (2) Race language unified with the ERP: LANG now reads _uiLang() (KO/EN) at mount instead of its own site_lang, and the Race KO/EN toggle button (#langBtn / .lang-toggle) is hidden. ERP has no Indonesian (toggle is KO/EN only, _uiLang collapses id->ko), so Race follows KO/EN. setLang reloads, so switching ERP language re-inits Race in the new language. | v463 | Race (King Bounty) grid-edit dev docks were floating over content: the 'Edit' button (.mt-editdock) sat bottom-left overlapping the sidebar, and the GRID READY + Light toggle (.mt-dock) sat bottom-center over the money-rain card. Both moved to the top-right corner, stacked (Edit on top at top:70px, GRID READY/Light below at top:112px), and faded to .55 opacity when idle (full opacity on hover) so they stay reachable but out of the way. Still functional. | v462 | Fixed the intermittent full-screen '❠ 대시보드 로드 오류 / Cannot set properties of null (setting textContent)'. Cause was PRE-EXISTING (present since the King Bounty native port, NOT the payslip change): the King Bounty HUD clock + race animation timers inside window.__kbInit keep firing after you leave the Race tab, but the #kb-race node is detached, so a re-queried $('id') returned null and $('id').textContent=... threw OUTSIDE any try/catch → the global error handler painted the fatal overlay over the dashboard. Made the King Bounty $() helper return a harmless no-op stub when the element is missing, so stray post-unmount paints become no-ops. Race, when actually mounted, is unaffected. | v461 | My Payslip is now month-aware: a ‹ [Month Year] › navigation bar lets staff browse PAST months' payslips, not just the current one. Past months load from a new per-month settlement archive (settlement_state id='YYYY-MM'), which is snapshotted automatically every time settlement is saved. The end-of-month reveal lock now applies ONLY to the current month; past months are always shown. A past month with no archive shows a friendly empty state, and admins get a 'Save current salary as this month' button there to seed pre-feature months (e.g. June). | v460 | Session log ✕ button now DELETES the report (with a confirm) instead of opening the edit modal — the ✕ was wired to _srRecEditReport, which is why editing popped up. Editing a report is still available by tapping the row itself. New _srRecDeleteReport removes the record from the reports array and saves. | v459 | Root cause of the vanishing 10:02 report FOUND + fixed in server.js: the /api/calc-data/:key/append handler did a non-atomic read-modify-write, so two reports landing close together both read the same array and the second overwrote the first (it had already posted to Discord → saved-looking but lost). Now an optimistic-lock retry serialises appends so nothing is dropped. ERP side: added a CEO/Manager '+ Add report' button in the Session Log to manually re-insert a lost/missing report (clones the shift's check-in for correct identity, then sets time/EXP; saved via the race-safe append). | v458 | Check-out full-shift GAINED is now bulletproof: it derives the shift start from the SAVED check-in record (source of truth) instead of only sess.startExp, so a recovered/reset session no longer collapses the card to prev→checkout (e.g. it now shows 59.83→63.44 = full shift, not 62.30→63.44). expHour (last-hour /HOUR) still sent for the bot. NOTE: the Discord card + /HOUR only reflect this once BOTH index.html v458 AND the patched server.js are deployed. | v457 | Seed Standard EXP now matches records the SAME way the grid does — normalized name (honorifics/spaces stripped) OR pc number — and updates EVERY match. Fixes PC2 ('Owen 라인님') silently not updating (old exact-=== match missed it when the stored name differed by a space/honorific/duplicate). Also primes the local grid cache after save so the change shows immediately. | v456 | Seed Standard EXP updated per the new 6-PC 기준표: PC2 (Owen) → Dragon Valley 0.70/0.60/0.53 · Gludio 0.60/0.51/0.45 · Totem 0.43/0.36/0.32; PC6 (마석도) → Dragon Valley 0.80/0.73/0.67 · Gludio 0.70/0.60/0.53 · Orc Forest 0.50/0.43/0.38 (added Gludio Dungeon + Orc Forest; sl = Cut Line / cut-below). PC1/7/8/9 unchanged. Merge is by zone so it relabels/revalues in place; run the CEO 'Seed Standard EXP' button to apply. | v455 | Check-out card: EXP GAINED is now the FULL shift (check-in → check-out) again, and the ERP now ALSO sends expHour/adenaHour = the last-hour delta (previous report → check-out) so the Discord "EXP / HOUR" line can show the real last hour (e.g. 88.98%→89.61% = 0.63) instead of full-shift÷hours (0.88). REQUIRES a matching 1-line change in the Railway report bot to display fields.expHour for check-out. | v454 | King Bounty edge-to-edge: the remaining gap was <main>'s own padding (var(--s7/6/8)) plus the dashboard's inner 16px — both now removed while #kb-race is mounted (main:has + .bento padding 0), so it truly fills the frame with no border. Other tabs keep their padding. | v453 | King Bounty full-frame: the outer container had .content{max-width:1320px} AND a 380px #sb-right sidebar eating the width — now, ONLY while #kb-race is mounted, .content max-width is removed and #sb-right is hidden (via :has), so the dashboard truly fills edge-to-edge. Other tabs unaffected. | v452 | King Bounty native: removed the mockup's max-width:1240px cap on the .bento grid so the dashboard now fills the full Race tab width (was leaving a big empty area on the right). | v451 | King Bounty is now NATIVE in the Race tab (no iframe): CSS scoped to #kb-race so it can't touch the ERP, body inlined, all ~620 mockup globals isolated inside window.__kbInit, overlays re-homed into #kb-race, node persisted across tab switches. Still NOT wired to backend (runs the mockup's embedded demo data). | v450 | Race King Bounty mockup now feels native: the isolated iframe fills the tab edge-to-edge (borderless, transparent bg) and auto-fits height (grows to content, no inner-iframe scrollbar) so it reads as one page instead of a site-in-a-site. Still NOT wired to live data. | v449 | Race tab now displays the 888 KING BOUNTY mockup inside an ISOLATED iframe (srcdoc) — pure visual, NOT wired to Supabase/reports/live data (renderRace early-returns before any fetch). Real Race code untouched below the guard; delete the one guard line to restore it. | v448 | Map names now follow the language toggle: KO mode = Korean, EN mode = English. Added _mapToEn/_MAP_KO2EN (reverse of v443's _mapToKo) + language-aware _mapDisp, and switched every user-facing map render (session log hunting ground, recap, live cards, race, client maps, etc.) from always-Korean to _mapDisp. | v447 | Session log: CEO/Manager can now mark a report row "미반영" (Excluded) — flips reports[].ignored via the report server, greys + strikes the row, and the row is fully excluded from performance calc / averages / stats (recAgg + byClient aggregation in _srRecCompute), while staying visible in the log for audit. New _srRecToggleIgnore() does the toggle; toggle again ("✓ 포함"/Included) to bring it back in. | Shift Report check-in: _srClients() now also surfaces clients with NO PC assigned (e.g. DITT TRAINING) — previously the PCS→client loop silently dropped any client not linked to a PC, so it never appeared as a Client·PC card on the check-in screen. Unassigned clients now show with "PC?" so boosters can still check in against them. | v446 | Standard EXP drag/drop now updates the visible grid immediately by patching the local clients cache before server save, so moved map rows no longer snap back to their old position. Also guards against stale refreshes during the save window. | v443 | Session log: a DEATH report (negative gain) no longer merges with surrounding reports — it stays its own row and breaks the merge chain, so a late check-in + back-to-back catch-up reports (e.g. death 19:00 + next-hour +0.28% 20:00 filed minutes apart) now show as TWO separate rows instead of one merged -4.41 row. | v441 | Check-out Discord card: now reports gain since the LAST report (prev→checkout), matching the website's per-report check-out row exactly (e.g. +0.74%). v412's full-shift summary divided the whole-shift gain by only the last window's hours → inflated EXP/HOUR (+4.37%) that never matched Records. | v440 | Session log: deaths (saved negative EXP gain) now carry dead:1 in the record, get the flagged red row, and show a 💀 marker in the 실제 EXP cell. The loss value already flowed into records/Discord since v439. | v439 | Shift Report: the "Died this hour" toggle is now honored when BUILDING the saved/Discord report record too (was only applied in the live preview) — a death now saves (typed − previous), e.g. 16.99 after 21.68 = -4.69, instead of a false level-up. | v438 | Shift Report: 'Died this hour' toggle redesigned — booster now types EXACTLY what's on their bar (e.g. '4.69'), same gesture as a normal report, no more calculating the loss amount in their head (v437 still required that math). _srApplyExp gets a forceDeath param; legacy leading-'-' input still works unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7792,6 +7792,15 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 #pc-timeline-panel .ck-reqbtn.full{margin-top:8px;width:100%;padding:7px;font-size:11px;}
 @media (max-width:720px){.pcx-view-tabs{width:100%;}.pcx-tab{flex:1}.pcx-tab-hint{display:none;}#pc-timeline-panel .ck-grid{grid-template-columns:1fr;}}
 
+.na-tb{background:none;border:1px solid var(--br,#2a2c33);border-radius:6px;color:var(--tx2,#c6c8cf);font-size:13px;min-width:30px;height:28px;cursor:pointer;font-family:inherit}
+.na-tb:hover{background:var(--bg-h,#1a1c22)}
+#na-content[contenteditable]:empty:before{content:attr(data-ph);color:var(--tx3,#6b7280)}
+#na-content.anndt-content h3,.anndt-content h3{font-size:15px;font-weight:800;margin:12px 0 6px;color:var(--tx,#e6e5e2)}
+.anndt-content h4{font-size:13.5px;font-weight:700;margin:10px 0 5px}
+.anndt-content ul,.anndt-content ol{margin:6px 0;padding-left:20px}
+.anndt-content li{margin:3px 0}
+.anndt-content a{color:var(--ac,#c2a04a)}
+.anndt-content blockquote{border-left:3px solid var(--br,#3a3c44);margin:8px 0;padding:4px 12px;color:var(--tx2,#c6c8cf)}
 </style>
 <style id="kb-race-css">
 .content:has(#kb-race){max-width:none!important;margin:0!important;padding:0!important}
@@ -10830,7 +10839,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v481';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v482';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23782,6 +23791,110 @@ async function pollAnnouncements(){
   }catch(_){}
 }
 
+// ═══ [v482] Notice rich-text + attachments + must-read acknowledgement ═══
+// Whitelisted HTML sanitizer: only safe formatting tags survive; everything else is escaped/stripped.
+// Notices are authored by admins/OPs (trusted) but we still sanitize defensively.
+function _annSanitize(html){
+  if(html==null) return '';
+  var ALLOW={ 'B':1,'STRONG':1,'I':1,'EM':1,'U':1,'BR':1,'P':1,'DIV':1,'UL':1,'OL':1,'LI':1,
+    'H3':1,'H4':1,'A':1,'BLOCKQUOTE':1,'CODE':1,'SPAN':1 };
+  var tmp=document.createElement('div'); tmp.innerHTML=String(html);
+  (function walk(node){
+    var kids=Array.prototype.slice.call(node.childNodes);
+    kids.forEach(function(c){
+      if(c.nodeType===1){
+        if(!ALLOW[c.tagName]){
+          // unwrap disallowed element: keep its text children, drop the tag
+          var txt=document.createTextNode(c.textContent||''); node.replaceChild(txt,c); return;
+        }
+        // strip every attribute except safe href on <a> and data-callout on <div>
+        Array.prototype.slice.call(c.attributes).forEach(function(at){
+          var n=at.name.toLowerCase();
+          if(c.tagName==='A' && n==='href'){
+            var v=(at.value||'').trim();
+            if(/^https?:\/\//i.test(v)){ c.setAttribute('target','_blank'); c.setAttribute('rel','noopener noreferrer'); return; }
+          }
+          if(c.tagName==='DIV' && n==='data-callout'){ return; }
+          c.removeAttribute(at.name);
+        });
+        walk(c);
+      } else if(c.nodeType!==3){ node.removeChild(c); }
+    });
+  })(tmp);
+  return tmp.innerHTML;
+}
+// Render notice body: new notices store sanitized HTML in a.html; legacy notices only have plain a.content.
+function _annBodyHTML(a){
+  if(a && a.html){ return _annSanitize(a.html); }
+  var t=(a && a.content) ? a.content : '';
+  return _annSanitize(String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'));
+}
+// Category is stored in Korean canonical form; display follows the UI language.
+function _annCatLabel(cat){
+  var ko=_uiLang()==='ko';
+  var map={ '공지':['공지','Notice'], '이벤트':['이벤트','Event'], '업데이트':['업데이트','Update'], '규정':['규정','Rules'] };
+  var m=map[cat]; return m ? (ko?m[0]:m[1]) : cat;
+}
+function _annCatColor(cat){ return ({ '공지':'#5fa3d9','이벤트':'#b074ec','업데이트':'#5fa3d9','규정':'#e0a040' })[cat] || '#9a9a9a'; }
+// Does this notice require an explicit acknowledgement from the current user, still outstanding?
+function _annOutstandingMustRead(){
+  try{
+    if(typeof ANNOUNCEMENTS==='undefined' || !Array.isArray(ANNOUNCEMENTS)) return [];
+    var myId=(currentUser&&currentUser.name?currentUser.name:'MT').toLowerCase().replace(/\s+/g,'');
+    return ANNOUNCEMENTS.filter(function(a){
+      return a && a.mustRead && (typeof canSeeAnn!=='function'||canSeeAnn(a)) && !((a.read_by||[]).indexOf(myId)>=0);
+    });
+  }catch(_){ return []; }
+}
+// Login-time gate: if the user has unacknowledged must-read notices, force a modal.
+function _annShowMustReadGate(){
+  var out=_annOutstandingMustRead(); if(!out.length) return;
+  var ko=_uiLang()==='ko';
+  var a=out[0];   // one at a time; acknowledging re-checks for the next
+  var wrap=document.getElementById('ann-mustread-gate');
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='ann-mustread-gate'; document.body.appendChild(wrap); }
+  var moreN=out.length-1;
+  wrap.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(6,7,10,.72);display:flex;align-items:center;justify-content:center;padding:20px';
+  wrap.innerHTML='<div style="background:var(--bg-1,#111318);border:1px solid var(--br,#2a2c33);border-radius:16px;max-width:640px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.5)">'
+    + '<div style="padding:18px 20px 14px;border-bottom:1px solid var(--br,#2a2c33)">'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+    + '<span style="font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:rgba(226,75,75,.16);color:#e24b4b">'+(ko?'⚠ 필독':'⚠ Must read')+'</span>'
+    + '<span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:color-mix(in srgb,'+_annCatColor(a.category)+' 16%,transparent);color:'+_annCatColor(a.category)+'">'+_annCatLabel(a.category)+'</span>'
+    + '</div>'
+    + '<div style="font-size:18px;font-weight:800;color:var(--tx,#e6e5e2)">'+(a.title||'')+'</div>'
+    + '<div style="font-size:11.5px;color:var(--tx3,#8b93a1);margin-top:3px">'+(a.author||'')+' · '+(a.date||'')+'</div>'
+    + '</div>'
+    + '<div style="padding:16px 20px;color:var(--tx2,#c6c8cf);font-size:13.5px;line-height:1.75" class="anndt-content">'+_annBodyHTML(a)+'</div>'
+    + _annFilesHTML(a,ko)
+    + '<div style="padding:14px 20px 18px;border-top:1px solid var(--br,#2a2c33);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    + '<span style="font-size:12px;color:var(--tx3,#8b93a1)">'+(moreN>0?(ko?('확인 후 '+moreN+'건 더 남음'):(moreN+' more after this')):(ko?'이 공지는 확인이 필요합니다':'This notice needs your acknowledgement'))+'</span>'
+    + '<button onclick="_annAckMustRead('+JSON.stringify(a.id)+')" style="background:#2f9e5f;color:#fff;border:0;border-radius:9px;padding:9px 18px;font-size:13.5px;font-weight:700;cursor:pointer">'+(ko?'✓ 읽고 이해했습니다':'✓ I have read and understood')+'</button>'
+    + '</div>'
+    + '</div>';
+  wrap.style.display='flex';
+}
+function _annAckMustRead(id){
+  var a=ANNOUNCEMENTS.find(function(x){ return x.id===id; });
+  if(a){ var myId=(currentUser&&currentUser.name?currentUser.name:'MT').toLowerCase().replace(/\s+/g,''); if(!a.read_by) a.read_by=[]; if(a.read_by.indexOf(myId)<0){ a.read_by.push(myId); saveAnnouncements(); } }
+  try{ renderSidebar(); }catch(_){}
+  var w=document.getElementById('ann-mustread-gate'); if(w) w.style.display='none';
+  setTimeout(_annShowMustReadGate, 180);   // next outstanding must-read, if any
+}
+// Attachment strip (shared by detail panel + must-read gate). files: [{name,type,size,data(base64 url)}]
+function _annFilesHTML(a,ko){
+  if(!a || !a.files || !a.files.length) return '';
+  var rows=a.files.map(function(f,i){
+    var isImg=/^image\//.test(f.type||'');
+    var icon=isImg?'🖼':'📄';
+    var sz=f.size?(f.size>1048576?((f.size/1048576).toFixed(1)+' MB'):(Math.round(f.size/1024)+' KB')):'';
+    return '<div style="border:1px solid var(--br,#2a2c33);border-radius:9px;padding:9px 11px;display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+      + '<span style="font-size:20px">'+icon+'</span>'
+      + '<div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--tx,#e6e5e2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(f.name||'file')+'</div>'+(sz?'<div style="font-size:10.5px;color:var(--tx3,#8b93a1)">'+sz+'</div>':'')+'</div>'
+      + '<a href="'+(f.data||'#')+'" download="'+(f.name||'file')+'" style="font-size:11.5px;color:var(--ac,#c2a04a);text-decoration:none;padding:5px 10px;border:1px solid var(--br,#2a2c33);border-radius:7px">'+(ko?'다운로드':'Download')+'</a>'
+      + '</div>';
+  }).join('');
+  return '<div style="padding:0 20px 6px">'+rows+'</div>';
+}
 let annFilter = 'all';
 let annScopeFilter = 'all';  // all / player / op / admin
 let showNewAnn = false;
@@ -23855,7 +23968,7 @@ async function renderAnnouncements(){
   };
   // 카테고리별 안 읽음
   const catUnread = {};
-  ['공지','이벤트','업데이트'].forEach(c => {
+  ['공지','이벤트','업데이트','규정'].forEach(c => {
     catUnread[c] = visibleAnns.filter(a => a.category === c && !(a.read_by||[]).includes(myId)).length;
   });
   const totalUnreadCat = visibleAnns.filter(a => !(a.read_by||[]).includes(myId)).length;
@@ -23907,7 +24020,8 @@ async function renderAnnouncements(){
           ${a.pinned ? `<span class="annl-pin">📌</span>` : ''}
           ${isHot ? `<span class="annl-hotbadge">🔥 HOT</span>` : (!isRead ? `<span class="annl-newbadge">NEW</span>` : '')}
           <span class="annl-title">${a.title}</span>
-          <span class="annl-cat-sub">${a.category}</span>
+          <span class="annl-cat-sub" style="color:${_annCatColor(a.category)}">${_annCatLabel(a.category)}</span>
+          ${a.mustRead?`<span class="annl-newbadge" style="background:rgba(226,75,75,.16);color:#e24b4b">${_uiLang()==='ko'?'⚠ 필독':'⚠ Must read'}</span>`:''}
         </div>
         <div class="annl-sub">
           <span class="annl-author">${a.author}</span>
@@ -23930,7 +24044,7 @@ async function renderAnnouncements(){
   });
   const items = sorted.length
     ? sorted.map(a => rowHtml(a)).join('')
-    : `<div class="tk-empty">해당 공지 없음</div>`;
+    : `<div class="tk-empty">${_uiLang()==='ko'?'해당 공지 없음':'No notices'}</div>`;
 
   // 작성 시 scope 옵션 — 권한별 제한
   const scopeOpts = currentUserRole === 'admin' 
@@ -23940,21 +24054,44 @@ async function renderAnnouncements(){
       : ['all'];
 
   const newForm = (canPost && showNewAnn) ? `<div class="tk-fbox">
-    <div class="tk-fbox-title">새 공지 작성</div>
+    <div class="tk-fbox-title">${_uiLang()==='ko'?'새 공지 작성':'New notice'}</div>
     <div class="tk-fgrid" style="grid-template-columns:1fr 1fr 1fr">
-      <div class="tk-fg"><label>대상 *</label>
+      <div class="tk-fg"><label>${_uiLang()==='ko'?'대상 *':'Audience *'}</label>
         <select id="na-scope">
           ${scopeOpts.map(s => `<option value="${s}">${ANN_SCOPES[s].icon} ${ANN_SCOPES[s].label}</option>`).join('')}
         </select>
       </div>
-      <div class="tk-fg"><label>카테고리</label><select id="na-cat"><option>공지</option><option>이벤트</option><option>업데이트</option></select></div>
-      <div class="tk-fg"><label>제목 *</label><input id="na-title" placeholder="공지 제목..."></div>
+      <div class="tk-fg"><label>${_uiLang()==='ko'?'카테고리':'Category'}</label><select id="na-cat">
+        <option value="공지">${_uiLang()==='ko'?'공지':'Notice'}</option>
+        <option value="규정">${_uiLang()==='ko'?'규정':'Rules'}</option>
+        <option value="이벤트">${_uiLang()==='ko'?'이벤트':'Event'}</option>
+        <option value="업데이트">${_uiLang()==='ko'?'업데이트':'Update'}</option>
+      </select></div>
+      <div class="tk-fg"><label>${_uiLang()==='ko'?'제목 *':'Title *'}</label><input id="na-title" placeholder="${_uiLang()==='ko'?'공지 제목...':'Notice title...'}"></div>
     </div>
-    <div class="tk-fg"><label>내용</label><textarea id="na-content" rows="5" placeholder="공지 내용을 입력하세요..."></textarea></div>
-    <div class="tk-fg" style="margin-top:10px"><label class="ap-check-label"><input type="checkbox" id="na-pin"> 📌 상단에 고정</label></div>
+    <div class="tk-fg"><label>${_uiLang()==='ko'?'내용':'Content'}</label>
+      <div style="border:1px solid var(--br,#2a2c33);border-radius:9px;overflow:hidden">
+        <div style="display:flex;gap:2px;padding:6px 8px;border-bottom:1px solid var(--br,#2a2c33);flex-wrap:wrap">
+          <button type="button" class="na-tb" onclick="_annFmt('formatBlock','h3')" title="Heading" style="font-weight:800">H</button>
+          <button type="button" class="na-tb" onclick="_annFmt('bold')" title="Bold" style="font-weight:800">B</button>
+          <button type="button" class="na-tb" onclick="_annFmt('italic')" title="Italic" style="font-style:italic">I</button>
+          <button type="button" class="na-tb" onclick="_annFmt('insertUnorderedList')" title="Bullet list">• —</button>
+          <button type="button" class="na-tb" onclick="_annCallout()" title="Callout box">▤</button>
+          <button type="button" class="na-tb" onclick="_annLink()" title="Link">🔗</button>
+        </div>
+        <div id="na-content" contenteditable="true" style="padding:11px 12px;min-height:120px;font-size:13.5px;line-height:1.7;color:var(--tx,#e6e5e2);outline:none" data-ph="${_uiLang()==='ko'?'공지 내용을 입력하세요...':'Write the notice...'}"></div>
+      </div>
+    </div>
+    <div class="tk-fg" style="margin-top:10px"><label>${_uiLang()==='ko'?'첨부 파일 (PDF·이미지)':'Attachments (PDF·image)'}</label>
+      <div id="na-drop" onclick="document.getElementById('na-file').click()" style="border:1px dashed var(--br,#3a3c44);border-radius:9px;padding:14px;text-align:center;color:var(--tx3,#8b93a1);font-size:12.5px;cursor:pointer">📎 ${_uiLang()==='ko'?'클릭해서 PDF나 이미지를 첨부하세요':'Click to attach a PDF or image'}</div>
+      <input type="file" id="na-file" accept="application/pdf,image/*" multiple style="display:none" onchange="_annPickFiles(this)">
+      <div id="na-filelist" style="margin-top:8px"></div>
+    </div>
+    <div class="tk-fg" style="margin-top:10px"><label class="ap-check-label"><input type="checkbox" id="na-pin"> ${_uiLang()==='ko'?'📌 상단에 고정':'📌 Pin to top'}</label></div>
+    <div class="tk-fg" style="margin-top:6px"><label class="ap-check-label"><input type="checkbox" id="na-mustread"> ${_uiLang()==='ko'?'⚠ 필독 — 로그인 시 확인 요구':'⚠ Must read — require acknowledgement at login'}</label></div>
     <div class="tk-fbtns" style="margin-top:14px">
-      <button class="btn btn-ac" onclick="addAnn()">발행</button>
-      <button class="btn" onclick="showNewAnn=false;renderAnnouncements()">취소</button>
+      <button class="btn btn-ac" onclick="addAnn()">${_uiLang()==='ko'?'발행':'Publish'}</button>
+      <button class="btn" onclick="showNewAnn=false;renderAnnouncements()">${_uiLang()==='ko'?'취소':'Cancel'}</button>
     </div>
   </div>` : '';
 
@@ -23976,21 +24113,21 @@ async function renderAnnouncements(){
   otherView.innerHTML = `<div class="ann-page-wrap">
     <div class="tk-head">
       <div>
-        <div class="att-eyebrow">대시보드</div>
-        <div class="ph">공지사항</div>
+        <div class="att-eyebrow">${_uiLang()==='ko'?'대시보드':'Dashboard'}</div>
+        <div class="ph">${_uiLang()==='ko'?'공지사항':'Notices'}</div>
         <div class="psub">${_uiLang()==='ko'?('전체 '+visibleAnns.length+'건 · 안 읽은 공지 '+unreadN+'건'):('Total '+visibleAnns.length+' · '+unreadN+' unread')}${currentUserRole !== 'admin' ? (_uiLang()==='ko'?' · 본인 권한 범위':' · within your access') : ''}</div>
       </div>
-      ${canPost ? `<button class="btn btn-ac" onclick="showNewAnn=!showNewAnn;renderAnnouncements()">+ 새 공지</button>` : ''}
+      ${canPost ? `<button class="btn btn-ac" onclick="showNewAnn=!showNewAnn;renderAnnouncements()">${_uiLang()==='ko'?'+ 새 공지':'+ New notice'}</button>` : ''}
     </div>
 
     <div class="ann-scope-row">${scopePills}</div>
 
     <div class="tk-toolbar" style="margin-top:12px">
       <div class="tk-pills">
-        ${['all','공지','이벤트','업데이트'].map(c => {
+        ${['all','공지','이벤트','업데이트','규정'].map(c => {
           const unr = c === 'all' ? totalUnreadCat : (catUnread[c] || 0);
           return `<button class="tk-pill ${annFilter===c?'on':''}" onclick="annFilter='${c}';renderAnnouncements()">
-            ${c==='all'?'카테고리 전체':c}
+            ${c==='all'?(_uiLang()==='ko'?'카테고리 전체':'All categories'):_annCatLabel(c)}
             ${unr > 0 ? `<span class="ann-unread-badge-sm">${unr}</span>` : ''}
           </button>`;
         }).join('')}
@@ -24022,8 +24159,10 @@ async function openAnnDetail(annId){
     return false;
   });
   // 자동 읽음 처리 — 칸 계산 전에 먼저 (본인 읽음 즉시 반영)
+  // [v482] EXCEPT must-read notices: those require the explicit "I have read and understood" button,
+  // so merely opening the panel must NOT mark them acknowledged.
   if(!a.read_by) a.read_by = [];
-  if(!a.read_by.includes(myId)){
+  if(!a.mustRead && !a.read_by.includes(myId)){
     a.read_by.push(myId);
     saveAnnouncements();           // [v152] persist + share read receipt
     try{ renderSidebar(); }catch(_){}
@@ -24053,7 +24192,8 @@ async function openAnnDetail(annId){
         <div class="anndt-badges">
           ${a.pinned ? `<span class="annl-pin">📌</span>` : ''}
           <span class="annl-scope" style="color:${sc.color};background:${sc.bg}">${sc.icon} ${sc.label}</span>
-          <span class="annl-cat" style="color:${cColor};background:color-mix(in srgb, ${cColor} 14%, transparent)">${a.category}</span>
+          <span class="annl-cat" style="color:${cColor};background:color-mix(in srgb, ${cColor} 14%, transparent)">${_annCatLabel(a.category)}</span>
+          ${a.mustRead?`<span class="annl-cat" style="color:#e24b4b;background:rgba(226,75,75,.14)">${_uiLang()==='ko'?'⚠ 필독':'⚠ Must read'}</span>`:''}
         </div>
         <div class="ap-panel-name" style="font-size:17px;line-height:1.3">${a.title}</div>
         <div class="ap-panel-meta">${a.author} · ${a.date}</div>
@@ -24061,28 +24201,33 @@ async function openAnnDetail(annId){
       <button class="ap-panel-close" onclick="closeTaskDetail();renderAnnouncements();renderSidebar()">✕</button>
     </div>
     <div class="ap-panel-body">
-      <div class="anndt-content">${a.content.replace(/\n/g, '<br>')}</div>
+      <div class="anndt-content">${_annBodyHTML(a)}</div>
+      ${(a.files&&a.files.length)?`<div class="ap-section">${_annFilesHTML(a, _uiLang()==='ko').replace('padding:0 20px 6px','padding:0')}</div>`:''}
 
       <div class="ap-section">
         <div class="ap-section-title">
-          📊 읽음 현황 
-          <span style="font-size:11px;color:var(--tx3);font-weight:500">· ${readMembers.length}/${readers.length} 읽음</span>
+          ${_uiLang()==='ko'?'📊 읽음 현황':'📊 Read status'} 
+          <span style="font-size:11px;color:var(--tx3);font-weight:500">· ${readMembers.length}/${readers.length} ${_uiLang()==='ko'?'읽음':'read'}</span>
         </div>
         <div class="anndt-prog-bar"><div class="anndt-prog-fill" style="width:${readers.length?Math.round(readMembers.length/readers.length*100):0}%"></div></div>
 
         ${unreadMembers.length > 0 ? `<div class="anndt-group">
-          <div class="anndt-group-head anndt-group-unread">⚠ 안 읽음 (${unreadMembers.length})</div>
+          <div class="anndt-group-head anndt-group-unread">${_uiLang()==='ko'?'⚠ 안 읽음':'⚠ Unread'} (${unreadMembers.length})</div>
           <div class="anndt-chips">${unreadMembers.map(m => memberChip(m, false)).join('')}</div>
-        </div>` : `<div class="anndt-all-read">🎉 모든 대상이 확인했습니다</div>`}
+        </div>` : `<div class="anndt-all-read">${_uiLang()==='ko'?'🎉 모든 대상이 확인했습니다':'🎉 Everyone has read this'}</div>`}
 
         ${readMembers.length > 0 ? `<div class="anndt-group">
-          <div class="anndt-group-head anndt-group-read">✓ 읽음 (${readMembers.length})</div>
+          <div class="anndt-group-head anndt-group-read">${_uiLang()==='ko'?'✓ 읽음':'✓ Read'} (${readMembers.length})</div>
           <div class="anndt-chips">${readMembers.map(m => memberChip(m, true)).join('')}</div>
         </div>` : ''}
       </div>
 
+      ${(a.mustRead && !isRead) ? `<div class="ap-section" style="border-top:1px solid var(--br,#2a2c33);padding-top:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--tx3,#8b93a1)">${_uiLang()==='ko'?'⚠ 이 공지는 확인이 필요합니다':'⚠ This notice needs your acknowledgement'}</span>
+        <button onclick="_annAckMustRead(${JSON.stringify(a.id)});closeTaskDetail();renderAnnouncements();renderSidebar()" style="background:#2f9e5f;color:#fff;border:0;border-radius:8px;padding:8px 15px;font-size:13px;font-weight:700;cursor:pointer">${_uiLang()==='ko'?'✓ 읽고 이해했습니다':'✓ I have read and understood'}</button>
+      </div>` : ''}
       ${(currentUserRole === 'admin' || (canPost && a.author && a.author.toLowerCase() === (currentUser?.name||'').toLowerCase())) ? `<div class="ap-section">
-        <button class="att-btn-del" onclick="deleteAnn(${a.id});closeTaskDetail()">🗑 공지 삭제 / Delete notice</button>
+        <button class="att-btn-del" onclick="deleteAnn(${a.id});closeTaskDetail()">${_uiLang()==='ko'?'🗑 공지 삭제':'🗑 Delete notice'}</button>
       </div>` : ''}
     </div>
   </div>`;
@@ -24101,7 +24246,7 @@ function markAnnRead(id){
   renderSidebar();  // 배지 업데이트
 }
 function deleteAnn(id){
-  if(!confirm('이 공지를 삭제할까요?')) return;
+  if(!confirm(_uiLang()==='ko'?'이 공지를 삭제할까요?':'Delete this notice?')) return;
   const _a = ANNOUNCEMENTS.find(a => a.id === id);
   ANNOUNCEMENTS = ANNOUNCEMENTS.filter(a => a.id !== id);
   toast('삭제됨');
@@ -24109,26 +24254,69 @@ function deleteAnn(id){
   saveAnnouncements();
   renderAnnouncements();
 }
+// [v482] draft-file staging for the new-notice editor
+var _annDraftFiles = [];
+function _annFmt(cmd, val){ try{ document.getElementById('na-content').focus(); document.execCommand(cmd, false, val||null); }catch(_){} }
+function _annCallout(){
+  var ed=document.getElementById('na-content'); if(!ed) return; ed.focus();
+  var sel=window.getSelection(); var txt=(sel && sel.toString())||'';
+  var html='<div data-callout="1" style="border-left:3px solid #e0a040;background:rgba(224,160,64,.12);padding:8px 11px;border-radius:0 8px 8px 0;margin:8px 0">'+(txt||(_uiLang()==='ko'?'중요 안내':'Important note'))+'</div>';
+  try{ document.execCommand('insertHTML', false, html); }catch(_){}
+}
+function _annLink(){
+  var ed=document.getElementById('na-content'); if(!ed) return; ed.focus();
+  var url=prompt(_uiLang()==='ko'?'링크 URL (https://...)':'Link URL (https://...)','https://');
+  if(url && /^https?:\/\//i.test(url)){ try{ document.execCommand('createLink', false, url); }catch(_){} }
+}
+function _annPickFiles(inp){
+  var files=Array.prototype.slice.call(inp.files||[]);
+  files.forEach(function(f){
+    if(f.size > 4*1048576){ toast(_uiLang()==='ko'?(f.name+' — 4MB 초과, 건너뜀'):(f.name+' — over 4MB, skipped'), true); return; }
+    var r=new FileReader();
+    r.onload=function(){ _annDraftFiles.push({ name:f.name, type:f.type, size:f.size, data:r.result }); _annRenderDraftFiles(); };
+    r.readAsDataURL(f);
+  });
+  inp.value='';
+}
+function _annRemoveDraftFile(i){ _annDraftFiles.splice(i,1); _annRenderDraftFiles(); }
+function _annRenderDraftFiles(){
+  var box=document.getElementById('na-filelist'); if(!box) return;
+  var ko=_uiLang()==='ko';
+  box.innerHTML=_annDraftFiles.map(function(f,i){
+    var sz=f.size?(f.size>1048576?((f.size/1048576).toFixed(1)+' MB'):(Math.round(f.size/1024)+' KB')):'';
+    return '<div style="border:1px solid var(--br,#2a2c33);border-radius:8px;padding:7px 10px;display:flex;align-items:center;gap:9px;margin-bottom:6px">'
+      + '<span style="font-size:16px">'+(/^image\//.test(f.type||'')?'🖼':'📄')+'</span>'
+      + '<span style="flex:1;min-width:0;font-size:12px;color:var(--tx,#e6e5e2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+(sz?' · '+sz:'')+'</span>'
+      + '<button type="button" onclick="_annRemoveDraftFile('+i+')" style="background:none;border:0;color:#e24b4b;cursor:pointer;font-size:14px">✕</button>'
+      + '</div>';
+  }).join('');
+}
 function addAnn(){
   const title = document.getElementById('na-title').value.trim();
-  if(!title){ toast('제목 입력하세요', true); return; }
+  if(!title){ toast(_uiLang()==='ko'?'제목 입력하세요':'Enter a title', true); return; }
   const cat = document.getElementById('na-cat').value;
   const scope = document.getElementById('na-scope').value;
-  const content = document.getElementById('na-content').value.trim();
+  const ed = document.getElementById('na-content');
+  const html = _annSanitize(ed ? ed.innerHTML : '');
+  const content = ed ? (ed.innerText||'').trim() : '';   // plain fallback for search/legacy
   const pinned = document.getElementById('na-pin').checked;
+  const mustRead = !!(document.getElementById('na-mustread')||{}).checked;
   ANNOUNCEMENTS.unshift({
     id: Date.now(),
     scope,
     category: cat,
-    title, content,
+    title, content, html,
+    files: _annDraftFiles.slice(),
+    mustRead,
     author: currentUser?.name || 'MT',
     date: new Date().toISOString().slice(0,10),
     ts: new Date().toISOString(),
     pinned,
     read_by: [(currentUser?.name||'MT').toLowerCase().replace(/\s+/g,'')]
   });
+  _annDraftFiles = [];
   showNewAnn = false;
-  toast(`공지 발행됨 (대상: ${ANN_SCOPES[scope].label})`);
+  toast(_uiLang()==='ko'?('공지 발행됨 (대상: '+ANN_SCOPES[scope].label+')'):('Notice published (audience: '+ANN_SCOPES[scope].label+')'));
   try{ logAction('create', 'published notice', title); }catch(_){}
   saveAnnouncements();
   renderAnnouncements();
@@ -24920,6 +25108,8 @@ function finishSignIn(){
   try{ loadPermState().then(()=>{ try{ renderSidebar(); routeContent(); }catch(_){} }); }catch(_){}
   try{ loadNavState().then(()=>{ try{ renderSidebar(); routeContent(); }catch(_){} }); }catch(_){}   // [v406] load the team-wide sidebar layout for everyone
   try{ syncExpFromCloud().then(()=>{ try{ reconcilePcExp(); }catch(_){} }); }catch(_){}
+  // [v482] after notices load, force the must-read acknowledgement gate if anything is outstanding
+  try{ (sb && !_annSynced ? syncAnnFromCloud() : Promise.resolve()).then(function(){ _annSynced=true; setTimeout(_annShowMustReadGate, 900); }); }catch(_){}
 }
 
 // 원클릭 dev 진입
@@ -29990,6 +30180,7 @@ function showBootDiag(b){
     currentUserRole = currentUser.sessionRole || 'admin';
     updateSidebarUser();
     startPresence();
+    try{ (sb ? syncAnnFromCloud() : Promise.resolve()).then(function(){ _annSynced=true; setTimeout(_annShowMustReadGate, 1200); }); }catch(_){}   // [v482] must-read gate on resume
     document.querySelectorAll('.rs-btn').forEach(b => b.classList.toggle('on', b.dataset.role === currentUserRole));
     // [v75 #2] after a language-change reload, stay on the page we were on
     try{ var _rc = sessionStorage.getItem('lucky7_resume_ch'); if(_rc){ activeChannelId = _rc; sessionStorage.removeItem('lucky7_resume_ch'); } }catch(_){}
