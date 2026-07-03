@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v520 | FEATURE: CEO/Manager can now rename ANY staff member (not just themselves) straight from the staff profile panel — the name in the panel header is clickable (shows a ✎) for admin-tier users (ceo+manager). It calls renameStaffMember(), which writes the new name to user_profiles.name in Supabase (the one source every client reads), so the change is visible to ALL users across the staff list, records, race, sidebar, etc. once their view refreshes; it also clears the local team cache and re-pulls the roster so it updates immediately for the editor. Non-admins can't see or use it. Complements the existing self-only 'edit my name' (v207). No other behaviour changed. | v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
+<!-- BUILD: v522 | FEATURE (Race step 1/n): the Race tab now shows the 5 JUTA INDIVIDUAL RACE SYSTEM as a READ-ONLY live view (replaces the King Bounty mockup). A self-contained scoring engine (_rc* functions, verified 28/28 against the prompt's Test Cases) reads the existing EXP reports — never modifying them — and computes per-hour Race Points: base +1 for Stable/Goal, rank bonus +3/+2/+1 per hour within a shift-group (by performance_rate), goal-overachievement +1/+2/+3 at 100/110/120% of target, and 0 for Cut / No-Std / any safety issue (Death, Admin-Excluded, or admin DQ). It reads race_settings + race_adjustments from the LEFT project via sb (falls back to defaults if unreadable). UI: Race Pool Card, per-shift-group Current Ranking with expected (gross) bounty, and an Hourly Result table for the latest date. No writes, no money moved, no admin controls yet — those come in later builds. ATS still excluded (no standard). Everything else unchanged. | v520 | FEATURE: CEO/Manager can now rename ANY staff member (not just themselves) straight from the staff profile panel — the name in the panel header is clickable (shows a ✎) for admin-tier users (ceo+manager). It calls renameStaffMember(), which writes the new name to user_profiles.name in Supabase (the one source every client reads), so the change is visible to ALL users across the staff list, records, race, sidebar, etc. once their view refreshes; it also clears the local team cache and re-pulls the roster so it updates immediately for the editor. Non-admins can't see or use it. Complements the existing self-only 'edit my name' (v207). No other behaviour changed. | v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10872,7 +10872,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v520';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v522';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21092,9 +21092,253 @@ function _kbMountNative(host){
     try{ window.dispatchEvent(new Event('resize')); }catch(_){ }
   }
 }
+// ============================================================================
+// [v522] 5 JUTA INDIVIDUAL RACE SYSTEM — calculation engine + read-only UI.
+// Engine verified against the prompt's Test Cases 1-5 (28/28). Reads existing
+// EXP reports (never writes/changes them); reads race_settings from the LEFT
+// project via sb. Admin controls + persistence + Discord come in later builds.
+// ============================================================================
+
+// ---- engine helpers (self-contained _rc* copies of the Records logic) ------
+var _RC_MAXJMP = 20;
+function _rcGainedPct(r){ var dLv=(Number(r.lvAfter)||0)-(Number(r.lvBefore)||0); var dExp=(Number(r.expAfter)||0)-(Number(r.expBefore)||0); if(Math.abs(dLv)>_RC_MAXJMP) return dExp; return dLv*100+dExp; }
+function _rcMs(r){ if(!r) return null; if(typeof r.createdAt==='number'&&r.createdAt>1e12) return r.createdAt; var m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; }
+function _rcZone(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0||s.indexOf('\uC624\uD06C')>=0||s.indexOf('totem')>=0||s.indexOf('\uD1A0\uD15C')>=0)return'orc'; if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('\uB4DC\uB9BC')>=0||s.indexOf('\uC0C1\uC544')>=0||s.indexOf('\uC544\uC77C\uB79C\uB4DC')>=0)return'dream'; if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('\uC624\uB80C')>=0||s.indexOf('\uC124\uC6D0')>=0)return'oren'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0||s.indexOf('\uB4DC\uB798\uACF0')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; }
+function _rcStdNorm(x){ return String(x||'').replace(/[\s\u00b7.\-_'"\u2019]/g,'').replace(/(\uC300|\uC120\uC0DD\uB2D8|\uB2D8|\uC528|\uD615\uB2D8|\uD615|\uB204\uB2D8|\uB204\uB098|\uC5B8\uB2C8|\uC624\uBE60)$/,'').toLowerCase(); }
+function _rcPick(maps,z,lv){ if(!Array.isArray(maps)) return null; var cand=maps.filter(function(m){return _rcZone(m.en||m.ko)===z;}); if(!cand.length) return null; var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; }
+function _rcFindMap(clients,r){
+  var cn=String(r.client||'').trim(), cnn=_rcStdNorm(cn); var c=null,i;
+  var _rpc=String(r.pc==null?'':r.pc).replace(/[^0-9]/g,'');
+  if(_rpc!==''){ for(i=0;i<clients.length;i++){ if(String(clients[i].pc==null?'':clients[i].pc).replace(/[^0-9]/g,'')===_rpc){c=clients[i];break;} } }
+  if(!c){ for(i=0;i<clients.length;i++){ if(String(clients[i].name||'').trim()===cn && cn){c=clients[i];break;} } }
+  if(!c && cnn){ for(i=0;i<clients.length;i++){ if(_rcStdNorm(clients[i].name)===cnn){c=clients[i];break;} } }
+  var z=_rcZone(r.map); var lv=Number(r.lvAfter!=null?r.lvAfter:r.lv);
+  var hit = (c && c.maps) ? _rcPick(c.maps,z,lv) : null;
+  var _hasBand=function(m){ return !!(m && m.sh!=null && m.sh!=='' && m.sl!=null && m.sl!==''); };
+  if(hit && _hasBand(hit)) return hit;
+  if(!hit){
+    var _rpcD=String(r.pc==null?'':r.pc).replace(/[^0-9]/g,'');
+    for(var _fi=0;_fi<clients.length;_fi++){
+      var _oc=clients[_fi]; if(!_oc || _oc===c) continue;
+      var _ocpcD=String(_oc.pc==null?'':_oc.pc).replace(/[^0-9]/g,''); var _ocn=_rcStdNorm(_oc.name);
+      var _nameLink=(cn && String(_oc.name||'').trim()===cn) || (cnn && _ocn===cnn) || (cnn && cnn.length>=2 && _ocn && _ocn.length>=2 && (_ocn.indexOf(cnn)>=0 || cnn.indexOf(_ocn)>=0));
+      var _same=(_rpcD!=='' && _ocpcD===_rpcD) || _nameLink;
+      if(!_same) continue;
+      var _h2=_rcPick(_oc.maps,z,lv); if(_h2){ hit=_h2; break; }
+    }
+  }
+  return hit || null;
+}
+function _rcNorm(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; }
+
+// shift-group mapping (same as _srRecCompute ROSTER fallback). 888 = 8H (s1/s2/s3), 1212 = 12H (d12/n12).
+var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12', ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',hana:'n12', ron:'s1',bob:'s1', ericson:'s2',san:'s2',bin:'s2', el:'s3',sil:'s3',miru:'s3',ditt:'s3' };
+function _rcGroupOf(name){ return _RC_ROSTER[_rcNorm(name)] || 'un'; }
+function _rcModeOf(group){ return (group==='d12'||group==='n12') ? '1212' : '888'; }
+var _RC_GMETA = { d12:{ic:'\u2600\uFE0F',tt:'12H Day'}, n12:{ic:'\uD83C\uDF19',tt:'12H Night'}, s1:{ic:'\uD83C\uDF05',tt:'8H S1'}, s2:{ic:'\uD83C\uDF06',tt:'8H S2'}, s3:{ic:'\uD83C\uDF03',tt:'8H S3'}, un:{ic:'\u2753',tt:'Unassigned'} };
+
+// core scoring — returns per-report race rows. dqSet = report ids DQ'd by admin.
+function _rcScoreReports(reports, clients, settings, dqSet){
+  settings = settings || {}; reports = Array.isArray(reports)?reports:[]; clients = Array.isArray(clients)?clients:[];
+  var base = settings.base_point!=null ? Number(settings.base_point) : 1;
+  var rb = settings.rank_bonus || {1:3,2:2,3:1};
+  var gb = settings.goal_bonus || {t100:1,t110:2,t120:3};
+  dqSet = dqSet || (typeof Set!=='undefined' ? new Set() : {has:function(){return false;}});
+  var rows = [];
+  reports.forEach(function(r){
+    if(r.tag==='checkin') return;
+    if(String(r.map||'').toUpperCase()==='TEST') return;
+    if(_rcZone(r.map)==='ats') return;
+    var gain=_rcGainedPct(r); var std=_rcFindMap(clients,r); var group=_rcGroupOf(r.booster); var ms=_rcMs(r);
+    var hourBucket = ms!=null ? Math.floor((ms + 9*3600000)/3600000) : null;
+    var row={ id:r.id, player:r.booster, playerKey:_rcNorm(r.booster), pc:r.pc, client:r.client, map:r.map,
+      date:String(r.date||'').slice(0,10), group:group, mode:_rcModeOf(group), hourBucket:hourBucket, ms:ms,
+      actual:gain, target:null, sh:null, sl:null, rate:null, result:'NoStd', base:0, rank:0, goal:0, total:0, dq:false, dqReason:'' };
+    if(r.dead) { row.dq=true; row.dqReason='Death'; }
+    else if(r.ignored) { row.dq=true; row.dqReason='Admin Excluded'; }
+    else if(dqSet.has && dqSet.has(r.id)) { row.dq=true; row.dqReason='Safety Issue'; }
+    if(std && std.target!=null && Number(std.target)>0){
+      var t=Number(std.target), sh=Number(std.sh), sl=Number(std.sl);
+      row.target=t; row.sh=sh; row.sl=sl; row.rate=t>0?(gain/t*100):null;
+      if(gain>=sh) row.result='Goal'; else if(gain>=sl) row.result='Stable'; else row.result='Cut';
+    }
+    var eligible=(!row.dq)&&(row.result==='Goal'||row.result==='Stable');
+    if(eligible) row.base=base;
+    if(eligible && row.rate!=null){ if(row.rate>=120) row.goal=Number(gb.t120); else if(row.rate>=110) row.goal=Number(gb.t110); else if(row.rate>=100) row.goal=Number(gb.t100); }
+    row.total=row.base+row.goal;
+    rows.push(row);
+  });
+  var buckets={};
+  rows.forEach(function(row){ if(row.dq) return; if(!(row.result==='Goal'||row.result==='Stable')) return; if(row.hourBucket==null) return; var k=row.date+'|'+row.group+'|'+row.hourBucket; (buckets[k]=buckets[k]||[]).push(row); });
+  Object.keys(buckets).forEach(function(k){ var arr=buckets[k].sort(function(a,b){return (b.rate||0)-(a.rate||0);}); for(var i=0;i<arr.length&&i<3;i++){ var pos=i+1; var bonus=Number(rb[pos]||rb[String(pos)]||0); arr[i].rank=bonus; arr[i].total+=bonus; } });
+  return rows;
+}
+
+// ---- settings defaults (used if sb read fails) ----
+function _rcDefaults(){ return { id:1, total_pool:5000000, paid_amount:0, remaining_pool:5000000, shift_prize_888:50000, shift_prize_1212:75000, daily_payout_limit:150000, payout_multiplier:1.0, payout_status:'active', base_point:1, rank_bonus:{1:3,2:2,3:1}, goal_bonus:{t100:1,t110:2,t120:3}, staff_see_pool:false, public_ranking:true, active:true }; }
+
+// ---- formatting ----
+function _rcNumC(n){ n=Math.round(Number(n)||0); return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+function _rcIDR(n){ return 'Rp '+_rcNumC(n); }
+function _rcEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+// ---- CSS ----
+function _rcInjectCSS(){ if(document.getElementById('rc-css')) return; var s=document.createElement('style'); s.id='rc-css'; s.textContent=[
+ "#rc-app{padding:14px 14px 60px;max-width:1120px;margin:0 auto;color:var(--tx,#e7e5e0);font-size:13px;}",
+ "#rc-app .rc-h{display:flex;align-items:center;gap:10px;margin:2px 2px 14px;}",
+ "#rc-app .rc-h .t{font-size:18px;font-weight:800;letter-spacing:.2px;}",
+ "#rc-app .rc-h .tag{font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;background:rgba(201,150,58,.15);color:#c9963a;letter-spacing:.4px;}",
+ "#rc-app .rc-h .ro{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:rgba(120,120,120,.15);color:var(--tx3,#9a988f);}",
+ "#rc-app .rc-pool{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;}",
+ "#rc-app .rc-pc{background:linear-gradient(160deg,rgba(255,255,255,.03),rgba(255,255,255,.01));border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:12px 14px;}",
+ "#rc-app .rc-pc .k{font-size:10px;font-weight:700;color:var(--tx3,#8b8983);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}",
+ "#rc-app .rc-pc .v{font-size:19px;font-weight:800;color:var(--tx,#f0eee9);}",
+ "#rc-app .rc-pc .v.gold{color:#c9963a;} #rc-app .rc-pc .v.sm{font-size:15px;}",
+ "#rc-app .rc-pc .sub{font-size:10.5px;color:var(--tx3,#8b8983);margin-top:2px;}",
+ "#rc-app .rc-badge{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;}",
+ "#rc-app .rc-badge.act{background:rgba(91,179,154,.16);color:#5bb39a;} #rc-app .rc-badge.pau{background:rgba(217,112,100,.16);color:#d97064;}",
+ "#rc-app .rc-sec{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;color:var(--tx2,#c9c6bf);text-transform:uppercase;letter-spacing:.6px;margin:20px 2px 8px;}",
+ "#rc-app .rc-sec .ln{flex:1;height:1px;background:rgba(255,255,255,.08);}",
+ "#rc-app .rc-gtab{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;padding:5px 11px;border-radius:8px;background:rgba(255,255,255,.05);color:var(--tx2);margin:0 6px 8px 0;border:1px solid rgba(255,255,255,.06);}",
+ "#rc-app .rc-mode{font-size:9px;font-weight:800;padding:1px 6px;border-radius:5px;background:rgba(201,150,58,.15);color:#c9963a;}",
+ "#rc-app table.rc-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px;}",
+ "#rc-app .rc-tbl th{text-align:left;font-size:9.5px;font-weight:800;color:var(--tx3,#8b8983);text-transform:uppercase;letter-spacing:.4px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.09);}",
+ "#rc-app .rc-tbl td{padding:8px 8px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle;}",
+ "#rc-app .rc-tbl .num{text-align:right;font-variant-numeric:tabular-nums;}",
+ "#rc-app .rc-tbl tr.dqr td{opacity:.55;}",
+ "#rc-app .rc-rk{font-weight:800;width:26px;color:var(--tx3);} #rc-app .rc-rk.p1{color:#e6b422;} #rc-app .rc-rk.p2{color:#c0c4cc;} #rc-app .rc-rk.p3{color:#cd9b6a;}",
+ "#rc-app .rc-nm{font-weight:700;} #rc-app .rc-sub2{font-size:10px;color:var(--tx3,#8b8983);}",
+ "#rc-app .rc-pt{font-weight:800;font-size:13px;} #rc-app .rc-bounty{font-weight:800;color:#c9963a;}",
+ "#rc-app .rc-v{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;}",
+ "#rc-app .rc-v.goal{background:rgba(91,179,154,.16);color:#5bb39a;} #rc-app .rc-v.stable{background:rgba(95,163,217,.14);color:#5fa3d9;} #rc-app .rc-v.cut{background:rgba(217,112,100,.16);color:#d97064;} #rc-app .rc-v.nostd{background:rgba(140,140,140,.14);color:#9a988f;} #rc-app .rc-v.dq{background:rgba(180,80,70,.2);color:#e08074;}",
+ "#rc-app .rc-cnt{display:inline-flex;gap:5px;} #rc-app .rc-cnt span{font-size:10px;font-weight:700;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.05);color:var(--tx3);}",
+ "#rc-app .rc-empty{padding:40px;text-align:center;color:var(--tx3,#8b8983);font-size:13px;}",
+ "#rc-app .rc-loading{padding:40px;text-align:center;color:var(--tx3);}",
+ "#rc-app .rc-note{font-size:10.5px;color:var(--tx3,#8b8983);margin:2px 2px 12px;}"
+].join("\n"); document.head.appendChild(s); }
+
+// ---- per-player aggregate for a set of rows ----
+function _rcAggPlayers(rows){
+  var by={};
+  rows.forEach(function(r){ var k=r.playerKey; if(!by[k]) by[k]={key:k,name:r.player,pc:r.pc,client:r.client,points:0,goal:0,stable:0,cut:0,dq:0,rows:[]};
+    var p=by[k]; p.rows.push(r); if(r.pc!=null&&r.pc!=='') p.pc=r.pc; if(r.client) p.client=r.client;
+    if(r.dq) p.dq++; else if(r.result==='Goal') p.goal++; else if(r.result==='Stable') p.stable++; else if(r.result==='Cut') p.cut++;
+    p.points+=r.total; });
+  return Object.keys(by).map(function(k){return by[k];});
+}
+
+// ---- HTML render ----
+function _rcRenderHTML(rows, settings){
+  var isAdmin=(typeof currentUserRole!=='undefined')&&(currentUserRole==='admin');
+  var seePool = isAdmin || !!settings.staff_see_pool;
+  var e=_rcEsc;
+  // latest date with any row
+  var dates=rows.map(function(r){return r.date;}).filter(Boolean).sort();
+  var latest=dates.length?dates[dates.length-1]:null;
+  var head='<div class="rc-h"><span class="t">\uD83C\uDFC1 5 JUTA RACE</span><span class="tag">INDIVIDUAL</span>'+(isAdmin?'<span class="ro">ADMIN</span>':'<span class="ro">STAFF</span>')+'</div>';
+
+  // pool card
+  var mult=Number(settings.payout_multiplier); var paused=(settings.payout_status==='paused'||mult===0);
+  var pool='<div class="rc-pool">'
+    +'<div class="rc-pc"><div class="k">Total Pool</div><div class="v gold">'+_rcIDR(settings.total_pool)+'</div></div>'
+    +(seePool?('<div class="rc-pc"><div class="k">Paid</div><div class="v sm">'+_rcIDR(settings.paid_amount)+'</div></div>'
+      +'<div class="rc-pc"><div class="k">Remaining Pool</div><div class="v">'+_rcIDR(settings.remaining_pool)+'</div><div class="sub">of '+_rcIDR(settings.total_pool)+'</div></div>'):'')
+    +'<div class="rc-pc"><div class="k">Shift Prize</div><div class="v sm">888 '+_rcIDR(settings.shift_prize_888)+'</div><div class="sub">1212 '+_rcIDR(settings.shift_prize_1212)+'</div></div>'
+    +'<div class="rc-pc"><div class="k">Payout Status</div><div class="v sm"><span class="rc-badge '+(paused?'pau':'act')+'">'+(paused?'PAUSED':'ACTIVE')+'</span></div>'+(isAdmin?'<div class="sub">multiplier '+(Math.round(mult*100))+'%</div>':'')+'</div>'
+    +'</div>';
+
+  if(!latest){ return '<div id="rc-app">'+head+pool+'<div class="rc-empty">No race data yet. Once staff file hourly reports, rankings appear here.</div></div>'; }
+
+  var todayRows=rows.filter(function(r){return r.date===latest;});
+  // groups present today, in canonical order
+  var order=['d12','n12','s1','s2','s3','un'];
+  var groupsPresent=order.filter(function(g){ return todayRows.some(function(r){return r.group===g;}); });
+
+  var body='';
+  groupsPresent.forEach(function(g){
+    var gr=todayRows.filter(function(r){return r.group===g;});
+    var mode=_rcModeOf(g);
+    var prize=(mode==='1212')?Number(settings.shift_prize_1212):Number(settings.shift_prize_888);
+    var players=_rcAggPlayers(gr).sort(function(a,b){return b.points-a.points;});
+    var shiftTotal=players.reduce(function(s,p){return s+p.points;},0);
+    var meta=_RC_GMETA[g]||{ic:'',tt:g};
+    body+='<div class="rc-sec"><span>'+meta.ic+' '+e(meta.tt)+' \u2014 Ranking</span><span class="rc-mode">'+mode+'</span><span class="ln"></span><span style="font-size:10px;color:var(--tx3)">Shift Total '+shiftTotal+' pt \u00b7 Prize '+_rcIDR(prize)+'</span></div>';
+    body+='<table class="rc-tbl"><thead><tr><th>#</th><th>Player</th><th>PC</th><th>Character</th><th class="num">Point</th><th class="num">Expected Bounty</th><th>G / S / C / DQ</th></tr></thead><tbody>';
+    if(!players.length){ body+='<tr><td colspan="7" class="rc-empty" style="padding:16px">No reports.</td></tr>'; }
+    players.forEach(function(p,i){
+      var gross = shiftTotal>0 ? Math.floor(p.points/shiftTotal*prize) : 0;
+      var rkcls = i===0?'p1':(i===1?'p2':(i===2?'p3':''));
+      body+='<tr>'
+        +'<td class="rc-rk '+rkcls+'">'+(i+1)+'</td>'
+        +'<td><span class="rc-nm">'+e(p.name)+'</span></td>'
+        +'<td class="rc-sub2">'+(p.pc!=null&&p.pc!==''?('PC'+e(String(p.pc))):'\u2014')+'</td>'
+        +'<td class="rc-sub2">'+(p.client?e(p.client):'\u2014')+'</td>'
+        +'<td class="num rc-pt">'+p.points+'</td>'
+        +'<td class="num rc-bounty">'+(gross>0?_rcIDR(gross):'\u2014')+'</td>'
+        +'<td><span class="rc-cnt"><span>G '+p.goal+'</span><span>S '+p.stable+'</span><span>C '+p.cut+'</span><span>DQ '+p.dq+'</span></span></td>'
+        +'</tr>';
+    });
+    body+='</tbody></table>';
+  });
+
+  // hourly result table (today, all groups), newest first
+  var hr=todayRows.slice().sort(function(a,b){ return (b.ms||0)-(a.ms||0); });
+  var toKST=function(ms){ if(ms==null) return '\u2014'; var d=new Date(ms+9*3600000); var hh=('0'+d.getUTCHours()).slice(-2); var mm=('0'+d.getUTCMinutes()).slice(-2); return hh+':'+mm; };
+  var vcls=function(res,dq){ if(dq) return 'dq'; return res.toLowerCase()==='nostd'?'nostd':res.toLowerCase(); };
+  var vtxt=function(r){ if(r.dq) return 'DQ'; return r.result==='NoStd'?'No Std':r.result; };
+  body+='<div class="rc-sec"><span>\u23F1 Hourly Result \u2014 '+e(latest)+'</span><span class="ln"></span></div>';
+  body+='<table class="rc-tbl"><thead><tr><th>Time</th><th>Player</th><th>Map</th><th class="num">EXP</th><th>Result</th><th class="num">Rate</th><th class="num">Base</th><th class="num">Rank</th><th class="num">Goal</th><th class="num">Total</th><th>Reason</th></tr></thead><tbody>';
+  hr.forEach(function(r){
+    body+='<tr class="'+(r.dq?'dqr':'')+'">'
+      +'<td class="rc-sub2">'+toKST(r.ms)+'</td>'
+      +'<td><span class="rc-nm">'+e(r.player)+'</span></td>'
+      +'<td class="rc-sub2">'+(r.map?e(r.map):'\u2014')+'</td>'
+      +'<td class="num">'+(r.actual!=null?(r.actual>0?'+':'')+r.actual.toFixed(2)+'%':'\u2014')+'</td>'
+      +'<td><span class="rc-v '+vcls(r.result,r.dq)+'">'+vtxt(r)+'</span></td>'
+      +'<td class="num rc-sub2">'+(r.rate!=null?Math.round(r.rate)+'%':'\u2014')+'</td>'
+      +'<td class="num">'+(r.base||0)+'</td>'
+      +'<td class="num">'+(r.rank?('+'+r.rank):'0')+'</td>'
+      +'<td class="num">'+(r.goal?('+'+r.goal):'0')+'</td>'
+      +'<td class="num rc-pt">'+r.total+'</td>'
+      +'<td class="rc-sub2">'+(r.dq?e(r.dqReason):'')+'</td>'
+      +'</tr>';
+  });
+  body+='</tbody></table>';
+
+  var note='<div class="rc-note">Live preview from EXP reports \u2014 read-only. Expected bounty is a gross estimate (before payout multiplier); final payout is locked when the shift is finalized.</div>';
+  return '<div id="rc-app">'+head+pool+note+body+'</div>';
+}
+
+// ---- entry point: read-only individual race view (replaces the King Bounty mockup) ----
+async function _raceIndividualRender(container){
+  if(!container) return;
+  _rcInjectCSS();
+  if(!container.querySelector('#rc-app')) container.innerHTML='<div id="rc-app"><div class="rc-loading">\u27F3 Loading race\u2026</div></div>';
+  var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
+  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+  var reports=[], clients=[];
+  try{
+    var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
+    var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr,cache:'no-store'});
+    var rws=await res.json().catch(function(){return [];});
+    var byKey={}; if(Array.isArray(rws)) rws.forEach(function(r){ byKey[r.key]=(r.value!==undefined?r.value:r.data); });
+    reports=Array.isArray(byKey.reports)?byKey.reports:[];
+    clients=Array.isArray(byKey.clients)?byKey.clients:[];
+  }catch(e){ container.innerHTML='<div id="rc-app"><div class="rc-empty">Cannot load race right now.</div></div>'; return; }
+  var settings=_rcDefaults(); var dqSet=(typeof Set!=='undefined')?new Set():{has:function(){return false;},add:function(){}};
+  try{ if(typeof sb!=='undefined' && sb){
+    var s=await sb.from('race_settings').select('*').eq('id',1).maybeSingle();
+    if(s && s.data){ settings=s.data; }
+    var a=await sb.from('race_adjustments').select('*');
+    if(a && Array.isArray(a.data)){ a.data.forEach(function(x){ if(x.type==='dq' && x.report_id && dqSet.add) dqSet.add(x.report_id); }); }
+  } }catch(_){ }
+  var rows=_rcScoreReports(reports, clients, settings, dqSet);
+  container.innerHTML=_rcRenderHTML(rows, settings);
+}
+
 async function renderRace(silent){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
-  if(typeof _kbMountNative==='function'){ _kbMountNative(otherView); return; }   // [v451] Race tab = King Bounty mockup, NATIVE (scoped #kb-race, no iframe), NOT wired to live data. Delete this one line to restore the real Race board below.
+  if(typeof _raceIndividualRender==='function'){ _raceIndividualRender(otherView); return; }   // [v522] Race tab = 5 JUTA INDIVIDUAL RACE (read-only live view). Replaces the v451 King Bounty mockup (_kbMountNative still defined, unused).
   _raceInjectCSS();
   // [v363] instant paint from cache; the network fetch below then refreshes in place (silent)
   if(!silent){ var _cz=_rcGetCache(); if(_cz){ try{ var _cr=_srRecCompute(_cz.reports,_cz.clients); otherView.innerHTML=_raceCardHTML(_cr.daily||[], _cr.sessions||[]); silent=true; }catch(_){ } } }
