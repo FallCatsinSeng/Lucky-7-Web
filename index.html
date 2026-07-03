@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v525 | FEATURE (Race step 3/n): the King Bounty Day ranking, the King/Last cards and the animated race now order by 5-Juta RACE POINTS (then race bounty) instead of raw EXP%/h. Fixes the case where a player with a high but unscored EXP number (no-standard map or a jump that Records excludes) wrongly became King with 0 points — now the top race-point earner is King and the leaderboard order follows points/bounty. The vs-standard % is still shown on each card/row as the performance figure; only the ORDERING changed. Week/Month boards still rank by pay projection (base salary), and base salary display is preserved. Reports never modified. | v524 | FEATURE (Race step 2/n): the King Bounty widget is now wired to REAL data. On mount it loads the actual EXP reports + clients + race_settings, and its player list is built by _rcBuildKbPlayers from real reports instead of the hardcoded EMBEDDED_PLAYERS demo (demo is kept only as a fallback when data hasn't loaded). Each player keeps their salary CONFIG (monthlyBase/hourlyBase/shift/slot/pc/teacher) but gets REAL performance (todayHours, todayAvgPct, actualRecords) and the 5-Juta race fields (racePoints, raceRank, raceBounty, goal/stable/cut/dq counts); the day's bonus (todayDelta) is now the real 5-Juta race bounty in place of the old demo bonus/penalty, so day pay = real daily base salary + real race bounty. This makes the race canvas, leaderboard order and pay reflect actual hourly performance. Base salary display is preserved. The dedicated 5-Juta Pool card + explicit race-point columns + admin controls come next. Reports are never modified. | v523 | REVERT of v522's Race UI: the Race tab is restored to the existing King Bounty widget (the custom read-only race table wrongly replaced it — the intent is to USE King Bounty's layout for the race, not replace it). The verified _rc* 5-Juta scoring engine stays in the file (dormant) so it can be wired INTO King Bounty next. Nothing else changed. | v522 | FEATURE (Race step 1/n): the Race tab now shows the 5 JUTA INDIVIDUAL RACE SYSTEM as a READ-ONLY live view (replaces the King Bounty mockup). A self-contained scoring engine (_rc* functions, verified 28/28 against the prompt's Test Cases) reads the existing EXP reports — never modifying them — and computes per-hour Race Points: base +1 for Stable/Goal, rank bonus +3/+2/+1 per hour within a shift-group (by performance_rate), goal-overachievement +1/+2/+3 at 100/110/120% of target, and 0 for Cut / No-Std / any safety issue (Death, Admin-Excluded, or admin DQ). It reads race_settings + race_adjustments from the LEFT project via sb (falls back to defaults if unreadable). UI: Race Pool Card, per-shift-group Current Ranking with expected (gross) bounty, and an Hourly Result table for the latest date. No writes, no money moved, no admin controls yet — those come in later builds. ATS still excluded (no standard). Everything else unchanged. | v520 | FEATURE: CEO/Manager can now rename ANY staff member (not just themselves) straight from the staff profile panel — the name in the panel header is clickable (shows a ✎) for admin-tier users (ceo+manager). It calls renameStaffMember(), which writes the new name to user_profiles.name in Supabase (the one source every client reads), so the change is visible to ALL users across the staff list, records, race, sidebar, etc. once their view refreshes; it also clears the local team cache and re-pulls the roster so it updates immediately for the editor. Non-admins can't see or use it. Complements the existing self-only 'edit my name' (v207). No other behaviour changed. | v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
+<!-- BUILD: v526 | FIX: the King Bounty performance % now equals the Records & Stats % for every player. It previously showed raw average EXP%/h (e.g. MIRU 172%), which didn't match Records' standard-based figure (jumps and no-standard hours excluded). The widget now reads the exact same value Records shows — cleanPerf (scoredClean/quota) from _srRecCompute, per player, using each player's most-recent day — and displays THAT on the rank rows, the King card and the Last card (a dash when Records has no scored data, e.g. a no-standard-only day). Ranking still orders by 5-Juta race points (v525); only the displayed % was corrected. Race points remain computed by the race engine. Base salary preserved; reports never modified. | v525 | FEATURE (Race step 3/n): the King Bounty Day ranking, the King/Last cards and the animated race now order by 5-Juta RACE POINTS (then race bounty) instead of raw EXP%/h. Fixes the case where a player with a high but unscored EXP number (no-standard map or a jump that Records excludes) wrongly became King with 0 points — now the top race-point earner is King and the leaderboard order follows points/bounty. The vs-standard % is still shown on each card/row as the performance figure; only the ORDERING changed. Week/Month boards still rank by pay projection (base salary), and base salary display is preserved. Reports never modified. | v524 | FEATURE (Race step 2/n): the King Bounty widget is now wired to REAL data. On mount it loads the actual EXP reports + clients + race_settings, and its player list is built by _rcBuildKbPlayers from real reports instead of the hardcoded EMBEDDED_PLAYERS demo (demo is kept only as a fallback when data hasn't loaded). Each player keeps their salary CONFIG (monthlyBase/hourlyBase/shift/slot/pc/teacher) but gets REAL performance (todayHours, todayAvgPct, actualRecords) and the 5-Juta race fields (racePoints, raceRank, raceBounty, goal/stable/cut/dq counts); the day's bonus (todayDelta) is now the real 5-Juta race bounty in place of the old demo bonus/penalty, so day pay = real daily base salary + real race bounty. This makes the race canvas, leaderboard order and pay reflect actual hourly performance. Base salary display is preserved. The dedicated 5-Juta Pool card + explicit race-point columns + admin controls come next. Reports are never modified. | v523 | REVERT of v522's Race UI: the Race tab is restored to the existing King Bounty widget (the custom read-only race table wrongly replaced it — the intent is to USE King Bounty's layout for the race, not replace it). The verified _rc* 5-Juta scoring engine stays in the file (dormant) so it can be wired INTO King Bounty next. Nothing else changed. | v522 | FEATURE (Race step 1/n): the Race tab now shows the 5 JUTA INDIVIDUAL RACE SYSTEM as a READ-ONLY live view (replaces the King Bounty mockup). A self-contained scoring engine (_rc* functions, verified 28/28 against the prompt's Test Cases) reads the existing EXP reports — never modifying them — and computes per-hour Race Points: base +1 for Stable/Goal, rank bonus +3/+2/+1 per hour within a shift-group (by performance_rate), goal-overachievement +1/+2/+3 at 100/110/120% of target, and 0 for Cut / No-Std / any safety issue (Death, Admin-Excluded, or admin DQ). It reads race_settings + race_adjustments from the LEFT project via sb (falls back to defaults if unreadable). UI: Race Pool Card, per-shift-group Current Ranking with expected (gross) bounty, and an Hourly Result table for the latest date. No writes, no money moved, no admin controls yet — those come in later builds. ATS still excluded (no standard). Everything else unchanged. | v520 | FEATURE: CEO/Manager can now rename ANY staff member (not just themselves) straight from the staff profile panel — the name in the panel header is clickable (shows a ✎) for admin-tier users (ceo+manager). It calls renameStaffMember(), which writes the new name to user_profiles.name in Supabase (the one source every client reads), so the change is visible to ALL users across the staff list, records, race, sidebar, etc. once their view refreshes; it also clears the local team cache and re-pulls the roster so it updates immediately for the editor. Non-admins can't see or use it. Complements the existing self-only 'edit my name' (v207). No other behaviour changed. | v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10872,7 +10872,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v525';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v526';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21092,6 +21092,11 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
   var dates = rows.map(function(r){return r.date;}).filter(Boolean).sort();
   var latest = dates.length ? dates[dates.length-1] : null;
   var todayRows = latest ? rows.filter(function(r){return r.date===latest;}) : [];
+  // [v526] pull the SAME performance % Records & Stats shows (cleanPerf = scoredClean/quota) so the
+  // King Bounty % matches Records exactly, per player, using each player's most-recent day.
+  var perfByKey = {};
+  try{ if(typeof _srRecCompute==='function'){ var _rec=_srRecCompute(reports, clients); var _dd=(_rec&&_rec.daily)||[]; var _lb={};
+    _dd.forEach(function(r){ if(!_lb[r.key] || r.date>_lb[r.key]){ _lb[r.key]=r.date; perfByKey[r.key]=(r.cleanPerf!=null?r.cleanPerf:null); } }); } }catch(_){ }
   var shiftTotals = {};
   todayRows.forEach(function(r){ if(!shiftTotals[r.group]) shiftTotals[r.group]=0; shiftTotals[r.group]+=r.total; });
   var byKey = {};
@@ -21125,6 +21130,7 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
     if(o){ Object.assign(out, o); }
     else { out.todayHours=0; out.todayAvgPct=0; out.actualRecords=[]; out.todayDelta=0; out.racePoints=0; out.raceGoal=0; out.raceStable=0; out.raceCut=0; out.raceDq=0; out.raceBounty=0; out.raceRank=null; out.raceGroup=null; }
     // real data supersedes any hardcoded demo pay so the widget recomputes base fresh
+    out.perfPct = (perfByKey[k]!=null ? perfByKey[k] : null);   // [v526] Records-style performance % (null when Records has no scored data)
     out.todayPay = undefined; out.todayBase = undefined;
     return out;
   });
@@ -33764,7 +33770,7 @@ PLAYERS.forEach(p=>{p.std=stdFor(p.level);p.index=+(p.eph/p.std*100).toFixed(1);
   p.monthPay=Math.round((p.monthPay||0)+(p.todayPay||0));
   p.weekScore=(p.tp||0)*100 + p.dayScore*10;
   p.monthScore=p.monthPay + (p.tp||0)*42000;
-  p.exp=+(p.dayScore*100).toFixed(1);
+  p.exp=(p.perfPct!=null?+Number(p.perfPct).toFixed(1):0);   // [v526] p.exp mirrors Records & Stats performance %
   p.growth=+(p.index-p.yExp).toFixed(1);}); // 셀프 베이스라인: 어제 대비 성장
 
 // Incentive pool accounting: only positive bonus is deducted from the 5J / weekly pool.
@@ -33825,7 +33831,7 @@ $('kBadge').textContent=kingBadge||'KG';
 $('kName').textContent=String(king.name||'KING');
 $('kSub').textContent=[kingTeacher, kingZone, 'Lv.'+String(king.level||'—')].filter(Boolean).join(' · ');
 $('kSlay').textContent=king.slayer?'KING SLAYER':'DEFENDING';
-$('kExp').textContent=Math.round((king.dayScore||0)*100)+'%';
+$('kExp').textContent=(king.perfPct!=null?Math.round(king.perfPct)+'%':'—');
 $('kBonus').textContent=fmt(Math.max(0, king.todayDelta||0));
 $('kBounty').textContent=fmt(CONFIG.bountyClaimed);
 $('kBnote').textContent=king.delta>0?`어제 ${king.yRank}위 → 오늘 왕좌 탈취`:(ranked[1]?`${ranked[1].name}보다 +${(king.exp-ranked[1].exp).toFixed(1)}% 앞섬`:'현재 선두 유지 중');
@@ -33843,9 +33849,9 @@ $('kBnote').textContent=king.delta>0?`어제 ${king.yRank}위 → 오늘 왕좌 
       setT('lSub', [lTeacher, lZone, 'Lv.'+String(loser.level||'—')].filter(Boolean).join(' · '));
       const lDelta=(+loser.todayDelta||0);
       setT('lDelta', (lDelta<0?'-':'')+fmt(Math.abs(lDelta)));
-      const lExpPct=Math.round((loser.dayScore||0)*100);
-      setT('lExp', lExpPct+'%');
-      const gapPts=Math.round(((king.dayScore||0)-(loser.dayScore||0))*100);
+      const lExpPct=(loser.perfPct!=null?Math.round(loser.perfPct):0);   // [v526] Records %
+      setT('lExp', (loser.perfPct!=null?lExpPct+'%':'—'));
+      const gapPts=Math.round((king.perfPct!=null&&loser.perfPct!=null)?((king.perfPct)-(loser.perfPct)):0);
       setT('lGap', '-'+Math.abs(gapPts)+'%');
       setT('lState', lDelta<0?'감액 위험':'반등 필요');
       setT('lNote', lExpPct>=100?'기준 회복':'표준 미달 · 반등 필요');
@@ -34277,7 +34283,7 @@ requestAnimationFrame(()=>setTimeout(()=>document.querySelectorAll('.fbar').forE
 
 // KING 카드 게이지/현상금 애니메이트
 requestAnimationFrame(()=>setTimeout(()=>{
-  $('kExp').textContent=Math.round((king.dayScore||0)*100)+'%';
+  $('kExp').textContent=(king.perfPct!=null?Math.round(king.perfPct)+'%':'—');
   $('kBar').style.width = (ranked[1]?Math.min(100,Math.max(18,50+((king.exp-ranked[1].exp)/(Math.max(1,king.exp)))*180)):100)+'%';
   countUp($('kBounty'),CONFIG.bountyClaimed);
   countUp($('kBonus'),Math.max(0,king.todayDelta||0));
@@ -35920,7 +35926,8 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
     return String(Math.round(abs));
   }
   function stdPct(p){
-    const pct=Math.max(0, Math.round(n(p.dayScore)*100));
+    if(p.perfPct==null) return '—';   // [v526] show Records % (dash when no scored data)
+    const pct=Math.max(0, Math.round(p.perfPct));
     return pct+'%';
   }
   function incentiveParts(p){
