@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
+<!-- BUILD: v520 | FEATURE: CEO/Manager can now rename ANY staff member (not just themselves) straight from the staff profile panel — the name in the panel header is clickable (shows a ✎) for admin-tier users (ceo+manager). It calls renameStaffMember(), which writes the new name to user_profiles.name in Supabase (the one source every client reads), so the change is visible to ALL users across the staff list, records, race, sidebar, etc. once their view refreshes; it also clears the local team cache and re-pulls the roster so it updates immediately for the editor. Non-admins can't see or use it. Complements the existing self-only 'edit my name' (v207). No other behaviour changed. | v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10872,7 +10872,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v519';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v520';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -22962,7 +22962,7 @@ async function openStaffDetail(staffId){
       <div class="ap-panel-head-l">
         ${avHtml}
         <div>
-          <div class="ap-panel-name">${m.name}</div>
+          <div class="ap-panel-name"${currentUserRole==='admin'?` style="cursor:pointer" title="${_uiLang()==='ko'?'\uc774\ub984 \ubcc0\uacbd':'Edit name'}" onclick="renameStaffMember('${staffId}')"`:''}>${m.name}${currentUserRole==='admin'?` <span style="font-size:12px;opacity:.5;vertical-align:middle">\u270e</span>`:''}</div>
           <div class="ap-panel-meta">
             <span class="rank-badge" style="background:${rank.bg};color:${rank.color};border:1px solid color-mix(in srgb, ${rank.color} 30%, transparent)${canChangeRank()?';cursor:pointer':''}" ${canChangeRank()?`onclick="openRankPicker('${staffId}')" title="${_uiLang()==='ko'?'랭크 변경':'Change rank'}"`:''}>${rank.icon} ${rank.label}${canChangeRank()?' ▾':''}</span>
             · ${roleLabel} · 입사 ${d.joined || '—'}${_staffResigned(staffId) ? ` · <span style="color:var(--re,#c46a6a);font-weight:700;font-size:11px;letter-spacing:.3px">⊘ RESIGNED${(STAFF_DETAILS[staffId]&&STAFF_DETAILS[staffId].resigned_at)?(' · '+STAFF_DETAILS[staffId].resigned_at):''}</span>` : ''}
@@ -25920,6 +25920,35 @@ async function changeName(){
   }
   try{ if(typeof renderSidebar === 'function') renderSidebar(); }catch(_){}
   try{ if(typeof _teamCache !== 'undefined') _teamCache = null; }catch(_){}  // refresh team-derived views (name shows there too)
+}
+
+// [v520] CEO/Manager can rename ANY staff member from the profile panel. Saves to user_profiles.name in
+// Supabase — the single source of truth every client reads — so the new name shows for ALL users (staff list,
+// records, race, sidebar, etc.) once their view refreshes. currentUserRole collapses ceo+manager to 'admin'.
+async function renameStaffMember(staffId){
+  if(currentUserRole!=='admin'){ toast(_uiLang()==='ko'?'\uad8c\ud55c \uc5c6\uc74c — CEO/\ub9e4\ub2c8\uc800 \uc804\uc6a9':'No permission — CEO/Manager only', true); return; }
+  if(!staffId) return;
+  let cur='';
+  try{ const team=await loadTeamMembers(); const m=team.find(x=>x.id===staffId); cur=(m&&m.name)||''; }catch(_){ }
+  const v=prompt(_uiLang()==='ko'?'\ud45c\uc2dc \uc774\ub984 / Display name:':'Display name:', cur);
+  if(v===null) return;
+  const name=v.trim();
+  if(!name){ toast(_uiLang()==='ko'?'\uc774\ub984\uc744 \uc785\ub825\ud558\uc138\uc694':'Name cannot be empty', true); return; }
+  if(name===cur) return;
+  if(sb){
+    try{
+      const { error } = await sb.from('user_profiles').update({ name }).eq('id', staffId);
+      if(error){ toast('Name save failed: '+error.message, true); return; }
+    }catch(err){ toast('Name error: '+(err&&err.message), true); return; }
+  }
+  // reflect the new name locally right away, then re-pull the roster fresh for every derived view
+  try{ if(currentUser && currentUser.id===staffId){ currentUser.name=name; try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser)); }catch(_){ } updateSidebarUser(); } }catch(_){ }
+  try{ _teamCache=null; }catch(_){ }
+  toast(_uiLang()==='ko'?'\u2713 \uc774\ub984\uc774 \ubcc0\uacbd\ub418\uc5c8\uc5b4\uc694':'\u2713 Name updated');
+  try{ await openStaffDetail(staffId); }catch(_){ }
+  try{ if(typeof renderStaff==='function') renderStaff(); }catch(_){ }
+  try{ if(typeof renderSidebar==='function') renderSidebar(); }catch(_){ }
+  try{ if(typeof _srRecReRender==='function') _srRecReRender(); }catch(_){ }
 }
 
 // [v128] profile picture — pick → resize 128px square → base64 → save to user_profiles
