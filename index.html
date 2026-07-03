@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
+<!-- BUILD: v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10872,7 +10872,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v518';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v519';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -20235,7 +20235,7 @@ function _srRecCompute(reports, clients){
   var reportMs=function(r){ if(!r) return null; if(typeof r.createdAt==='number'&&r.createdAt>1e12) return r.createdAt; var m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; };
   var isTestMap=function(r){ return String(r.map||'').toUpperCase()==='TEST'; };
   var zoneKey=function(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc'; if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream'; if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; };
-  var isBreakMap=function(r){ return zoneKey(String(r.map||''))==='ats'; };   // [v500] ATS = player BREAK time (no standard) -> excluded from all performance/stats math, still shown (greyed, 'Break') in the session log
+  var isBreakMap=function(r){ return zoneKey(String(r.map||''))==='ats'; };   // [v500/v519] ATS has NO standard yet -> still EXCLUDED from all performance math (%, average, actual/h, quota, hours) so it never distorts scores, but as of v519 it is NO LONGER treated/labelled as a player 'break': the row shows the normal unscored verdict (check-in='Start', otherwise '—') and is not greyed. Once a real ATS standard EXP is added it will be scored like any other map.
   var _stdNorm=function(x){ return String(x||'').replace(/[\s\u00b7.\-_'"’]/g,'').replace(/(쌤|선생님|님|씨|형님|형|누님|누나|언니|오빠)$/,'').toLowerCase(); };
   var _pickFromMaps=function(maps,z,lv){ if(!Array.isArray(maps)) return null; var cand=maps.filter(function(m){return zoneKey(m.en||m.ko)===z;}); if(!cand.length) return null; var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; };
   var findMap=function(clients,r){
@@ -20510,7 +20510,7 @@ function _srRecCardHTML(data){
         var hasDiff=(s.tag!=='checkin'&&s.target!=null); var _diffBase=(s.sl!=null?s.sl:s.target); var dv=hasDiff?(s.gain-_diffBase):0;   // [v405] DIFF measured from the CUT BELOW line (sl), not the goal → negative DIFF now means "cut", matching the verdict; falls back to goal if no band
         var diff=hasDiff?((dv>=0?'+':'')+dv.toFixed(2)+'%'):'<span class="sr-mut">—</span>';
         var _isDeathRow=(s.tag!=='checkin' && (Number(s.gain)||0)<0);   // [v440] a saved negative gain = a death / EXP loss
-        var rid=esc(String(s.id||'')); var cls=[]; if(s.flag||_isDeathRow)cls.push('sr-sl-flag'); if(s.ignored||s.brk)cls.push('sr-sl-ignored'); if(isAdmin&&!opt.noEdit)cls.push('sr-sl-row'); if(opt.cls)cls.push(opt.cls);
+        var rid=esc(String(s.id||'')); var cls=[]; if(s.flag||_isDeathRow)cls.push('sr-sl-flag'); if(s.ignored)cls.push('sr-sl-ignored');   /* [v519] ATS no longer greyed as a break row */ if(isAdmin&&!opt.noEdit)cls.push('sr-sl-row'); if(opt.cls)cls.push(opt.cls);
         var onclk=(opt.onclick!=null)?opt.onclick:((isAdmin&&!opt.noEdit)?('onclick="_srRecEditReport(\''+rid+'\')"'):'');
         var _expEditable=(isAdmin && !opt.noEdit && s.id!=null);   // [v394] inline-edit ACTUAL EXP (incl. merged rows -> entered value = hour total)
         var actCell;
@@ -20527,7 +20527,7 @@ function _srRecCardHTML(data){
           +'<td class="sr-num">'+actCell+((s.tag!=='checkin'&&s.expAt!=null)?'<div class="sr-sl-cum">→'+Number(s.expAt).toFixed(2)+'%</div>':'')+'</td><td class="sr-num">'+tgt+'</td>'
           +'<td class="sr-num">'+stableCell+'</td><td class="sr-num">'+cutCell+'</td>'
           +'<td class="sr-num '+(hasDiff?dcls(dv):'')+'">'+diff+'</td>'
-          +'<td class="sr-num">'+(s.brk?('<span class="sr-rb sr-rb-brk">'+(_uiLang()==='ko'?'휴식':'Break')+'</span>'):sres(s))+'</td>'
+          +'<td class="sr-num">'+sres(s)+'</td>'   /* [v519] ATS shows the normal unscored verdict, never 'Break' */
           +(isAdmin?(opt.noEdit?'<td></td>':('<td class="sr-sl-x"><span onclick="event.stopPropagation();_srRecDeleteReport(\''+rid+'\')" title="삭제 / Delete">✕</span><button type="button" class="sr-sl-ign-btn'+(s.ignored?' on':'')+'" onclick="event.stopPropagation();_srRecToggleIgnore(\''+rid+'\')" title="성과 계산·평균·통계에서 제외/포함">'+(s.ignored?'✓ 포함':'미반영')+'</button></td>')):'')
           +'</tr>';
       };
