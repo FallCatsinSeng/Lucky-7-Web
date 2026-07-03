@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lucky 7</title>
-<!-- BUILD: v530 | FEATURE+FIX: (1) the Week/Month board rows now show PERIOD data instead of today's: the % is the Records-basis performance for the period (scoredClean÷quota summed over the last-7-days / the calendar month — identical math to Records & Stats), and the right-hand chip shows the CUMULATIVE race points ('PT n') that actually drive the ranking — so an off-today top performer like Claws now shows his real week/month % and points instead of a dash and 0, and the order is self-explanatory. Day rows unchanged (today's % + today's bounty). (2) Fixed the recurring console TypeError ('Cannot set properties of null') from the bonus-pool animation: its rAF loop kept running after the Race tab was left and the widget node detached; the frame now idles until remounted. | v529 | FIX: the Week/Month cumulative-race-point ranking from v528 didn't take effect because a LATER module reassigned boardRankings.week/month using incentiveSort (which ranks by today's bounty only), overwriting the v528 sort. That final reassignment now sorts by cumulative race points (week = last 7 days, month = calendar month) with incentiveSort only as a tiebreaker — so the Week/Month order finally reflects accumulated performance and a strong Goal-getter who is off today (e.g. Claws) rises in Week/Month instead of sitting at the bottom. Day tab unchanged (today's points). Note: the % shown on each row is still TODAY's Records % (dash if off today); showing the cumulative points on the row is a follow-up. Base salary never affects rank. | v528 | FEATURE (Race step 4/n): the Week and Month rankings now order by CUMULATIVE 5-Juta race points over the period (week = last 7 days, month = the calendar month), NOT by pay/base salary. The old King Bounty behaviour ranked Week/Month by pay projection, which included base salary — that is not in the 5-Juta spec and wrongly let a high-base-salary player outrank better performers. Now the Day tab is the daily race (today's points), and Week/Month reward accumulated race points, so a strong Goal-getter who is off some days still ranks well over the period. Base salary is still shown on the pay breakdown but no longer decides rank. Ranking by race points throughout; reports untouched. | v527 | FIX: a booster who is OFF today (no reports on the latest race day) now shows a dash '—' for the performance %, instead of a stale % carried over from their previous working day (v526 used each player's own most-recent day). The % now always reflects the current race day for every player, matching Records & Stats on the 'Today' filter, and stays consistent with their 0 race points that day. Explanation for the common question: the Day race is TODAY-only, so an off-today top performer (e.g. Claws) correctly earns 0 that day — bounty is earned on days worked; the Week/Month tabs rank by pay (base salary), not by race. Ranking still by race points, base salary preserved, reports untouched. | v526 | FIX: the King Bounty performance % now equals the Records & Stats % for every player. It previously showed raw average EXP%/h (e.g. MIRU 172%), which didn't match Records' standard-based figure (jumps and no-standard hours excluded). The widget now reads the exact same value Records shows — cleanPerf (scoredClean/quota) from _srRecCompute, per player, using each player's most-recent day — and displays THAT on the rank rows, the King card and the Last card (a dash when Records has no scored data, e.g. a no-standard-only day). Ranking still orders by 5-Juta race points (v525); only the displayed % was corrected. Race points remain computed by the race engine. Base salary preserved; reports never modified. | v525 | FEATURE (Race step 3/n): the King Bounty Day ranking, the King/Last cards and the animated race now order by 5-Juta RACE POINTS (then race bounty) instead of raw EXP%/h. Fixes the case where a player with a high but unscored EXP number (no-standard map or a jump that Records excludes) wrongly became King with 0 points — now the top race-point earner is King and the leaderboard order follows points/bounty. The vs-standard % is still shown on each card/row as the performance figure; only the ORDERING changed. Week/Month boards still rank by pay projection (base salary), and base salary display is preserved. Reports never modified. | v524 | FEATURE (Race step 2/n): the King Bounty widget is now wired to REAL data. On mount it loads the actual EXP reports + clients + race_settings, and its player list is built by _rcBuildKbPlayers from real reports instead of the hardcoded EMBEDDED_PLAYERS demo (demo is kept only as a fallback when data hasn't loaded). Each player keeps their salary CONFIG (monthlyBase/hourlyBase/shift/slot/pc/teacher) but gets REAL performance (todayHours, todayAvgPct, actualRecords) and the 5-Juta race fields (racePoints, raceRank, raceBounty, goal/stable/cut/dq counts); the day's bonus (todayDelta) is now the real 5-Juta race bounty in place of the old demo bonus/penalty, so day pay = real daily base salary + real race bounty. This makes the race canvas, leaderboard order and pay reflect actual hourly performance. Base salary display is preserved. The dedicated 5-Juta Pool card + explicit race-point columns + admin controls come next. Reports are never modified. | v523 | REVERT of v522's Race UI: the Race tab is restored to the existing King Bounty widget (the custom read-only race table wrongly replaced it — the intent is to USE King Bounty's layout for the race, not replace it). The verified _rc* 5-Juta scoring engine stays in the file (dormant) so it can be wired INTO King Bounty next. Nothing else changed. | v522 | FEATURE (Race step 1/n): the Race tab now shows the 5 JUTA INDIVIDUAL RACE SYSTEM as a READ-ONLY live view (replaces the King Bounty mockup). A self-contained scoring engine (_rc* functions, verified 28/28 against the prompt's Test Cases) reads the existing EXP reports — never modifying them — and computes per-hour Race Points: base +1 for Stable/Goal, rank bonus +3/+2/+1 per hour within a shift-group (by performance_rate), goal-overachievement +1/+2/+3 at 100/110/120% of target, and 0 for Cut / No-Std / any safety issue (Death, Admin-Excluded, or admin DQ). It reads race_settings + race_adjustments from the LEFT project via sb (falls back to defaults if unreadable). UI: Race Pool Card, per-shift-group Current Ranking with expected (gross) bounty, and an Hourly Result table for the latest date. No writes, no money moved, no admin controls yet — those come in later builds. ATS still excluded (no standard). Everything else unchanged. | v520 | FEATURE: CEO/Manager can now rename ANY staff member (not just themselves) straight from the staff profile panel — the name in the panel header is clickable (shows a ✎) for admin-tier users (ceo+manager). It calls renameStaffMember(), which writes the new name to user_profiles.name in Supabase (the one source every client reads), so the change is visible to ALL users across the staff list, records, race, sidebar, etc. once their view refreshes; it also clears the local team cache and re-pulls the roster so it updates immediately for the editor. Non-admins can't see or use it. Complements the existing self-only 'edit my name' (v207). No other behaviour changed. | v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
+<!-- BUILD: v532 | FEATURE (Race — prompt points 7–9): the 5-Juta section now actually MOVES MONEY. Added an admin-only ADMIN RACE CONTROL panel (D) with: Recalculate Selected Date / Recalculate Current / Un-finalize Date (retroactive finalize of any day incl. Jun 29+), per-shift Finalize/Recalculate buttons, Edit Shift Prize, Edit Daily Limit, Set Multiplier, Pause/Resume Payout, Recharge Pool, Manual Adjustment, DQ a Report, and Show/Hide pool to staff. Finalizing a day computes each player's payout (points÷shiftTotal × shift prize, then × multiplier, floored so a shift never overspends its prize), writes one row per player to race_payouts, and recomputes paid_amount + remaining_pool from ALL payouts (so re-finalizing never double-counts). A new PAID column shows finalized amounts per player and a PAID badge marks finalized shifts. All writes are admin-only, enforced at the DB by RLS is_admin(); the boot 403 was already fixed in v531. Budget-warning display + Discord generator + auto-finalize (Railway bot) are next. Reports never modified. | v531 | FEATURE (Race — prompt point 13.2 / point 10): a dedicated '5 JUTA RACE SYSTEM' SECTION is now ADDED to the King Bounty page in the same mockup style (dark cards, gold accents) — not replacing anything. It contains: (A) Race Pool Card — Total Pool, Paid + Remaining (admins, or staff when staff_see_pool is on), Shift Prize 888/1212, Shift Mode AUTO, Payout Status + multiplier (admin); (B) CURRENT SHIFT RANKING per shift group for the latest race day — Rank, Player, PC, Character, Total Point, Expected Bounty (point-ratio × shift prize), G/S/C/DQ counts; (C) HOURLY RACE RESULT — Time, Player, Map, EXP, Result, Rate, Base/Rank/Goal points, Total, DQ Reason. Data comes from the verified _rc race engine over the real reports; manual admin DQs from race_adjustments now apply (loaded at mount). Also fixed the boot-time 403 on race_settings by waiting for the auth session and retrying once; the section re-renders with fresh data every time the Race tab is reopened. Admin panel (D) + Budget Warning (E) are the next build. Existing widget untouched. | v530 | FEATURE+FIX: (1) the Week/Month board rows now show PERIOD data instead of today's: the % is the Records-basis performance for the period (scoredClean÷quota summed over the last-7-days / the calendar month — identical math to Records & Stats), and the right-hand chip shows the CUMULATIVE race points ('PT n') that actually drive the ranking — so an off-today top performer like Claws now shows his real week/month % and points instead of a dash and 0, and the order is self-explanatory. Day rows unchanged (today's % + today's bounty). (2) Fixed the recurring console TypeError ('Cannot set properties of null') from the bonus-pool animation: its rAF loop kept running after the Race tab was left and the widget node detached; the frame now idles until remounted. | v529 | FIX: the Week/Month cumulative-race-point ranking from v528 didn't take effect because a LATER module reassigned boardRankings.week/month using incentiveSort (which ranks by today's bounty only), overwriting the v528 sort. That final reassignment now sorts by cumulative race points (week = last 7 days, month = calendar month) with incentiveSort only as a tiebreaker — so the Week/Month order finally reflects accumulated performance and a strong Goal-getter who is off today (e.g. Claws) rises in Week/Month instead of sitting at the bottom. Day tab unchanged (today's points). Note: the % shown on each row is still TODAY's Records % (dash if off today); showing the cumulative points on the row is a follow-up. Base salary never affects rank. | v528 | FEATURE (Race step 4/n): the Week and Month rankings now order by CUMULATIVE 5-Juta race points over the period (week = last 7 days, month = the calendar month), NOT by pay/base salary. The old King Bounty behaviour ranked Week/Month by pay projection, which included base salary — that is not in the 5-Juta spec and wrongly let a high-base-salary player outrank better performers. Now the Day tab is the daily race (today's points), and Week/Month reward accumulated race points, so a strong Goal-getter who is off some days still ranks well over the period. Base salary is still shown on the pay breakdown but no longer decides rank. Ranking by race points throughout; reports untouched. | v527 | FIX: a booster who is OFF today (no reports on the latest race day) now shows a dash '—' for the performance %, instead of a stale % carried over from their previous working day (v526 used each player's own most-recent day). The % now always reflects the current race day for every player, matching Records & Stats on the 'Today' filter, and stays consistent with their 0 race points that day. Explanation for the common question: the Day race is TODAY-only, so an off-today top performer (e.g. Claws) correctly earns 0 that day — bounty is earned on days worked; the Week/Month tabs rank by pay (base salary), not by race. Ranking still by race points, base salary preserved, reports untouched. | v526 | FIX: the King Bounty performance % now equals the Records & Stats % for every player. It previously showed raw average EXP%/h (e.g. MIRU 172%), which didn't match Records' standard-based figure (jumps and no-standard hours excluded). The widget now reads the exact same value Records shows — cleanPerf (scoredClean/quota) from _srRecCompute, per player, using each player's most-recent day — and displays THAT on the rank rows, the King card and the Last card (a dash when Records has no scored data, e.g. a no-standard-only day). Ranking still orders by 5-Juta race points (v525); only the displayed % was corrected. Race points remain computed by the race engine. Base salary preserved; reports never modified. | v525 | FEATURE (Race step 3/n): the King Bounty Day ranking, the King/Last cards and the animated race now order by 5-Juta RACE POINTS (then race bounty) instead of raw EXP%/h. Fixes the case where a player with a high but unscored EXP number (no-standard map or a jump that Records excludes) wrongly became King with 0 points — now the top race-point earner is King and the leaderboard order follows points/bounty. The vs-standard % is still shown on each card/row as the performance figure; only the ORDERING changed. Week/Month boards still rank by pay projection (base salary), and base salary display is preserved. Reports never modified. | v524 | FEATURE (Race step 2/n): the King Bounty widget is now wired to REAL data. On mount it loads the actual EXP reports + clients + race_settings, and its player list is built by _rcBuildKbPlayers from real reports instead of the hardcoded EMBEDDED_PLAYERS demo (demo is kept only as a fallback when data hasn't loaded). Each player keeps their salary CONFIG (monthlyBase/hourlyBase/shift/slot/pc/teacher) but gets REAL performance (todayHours, todayAvgPct, actualRecords) and the 5-Juta race fields (racePoints, raceRank, raceBounty, goal/stable/cut/dq counts); the day's bonus (todayDelta) is now the real 5-Juta race bounty in place of the old demo bonus/penalty, so day pay = real daily base salary + real race bounty. This makes the race canvas, leaderboard order and pay reflect actual hourly performance. Base salary display is preserved. The dedicated 5-Juta Pool card + explicit race-point columns + admin controls come next. Reports are never modified. | v523 | REVERT of v522's Race UI: the Race tab is restored to the existing King Bounty widget (the custom read-only race table wrongly replaced it — the intent is to USE King Bounty's layout for the race, not replace it). The verified _rc* 5-Juta scoring engine stays in the file (dormant) so it can be wired INTO King Bounty next. Nothing else changed. | v522 | FEATURE (Race step 1/n): the Race tab now shows the 5 JUTA INDIVIDUAL RACE SYSTEM as a READ-ONLY live view (replaces the King Bounty mockup). A self-contained scoring engine (_rc* functions, verified 28/28 against the prompt's Test Cases) reads the existing EXP reports — never modifying them — and computes per-hour Race Points: base +1 for Stable/Goal, rank bonus +3/+2/+1 per hour within a shift-group (by performance_rate), goal-overachievement +1/+2/+3 at 100/110/120% of target, and 0 for Cut / No-Std / any safety issue (Death, Admin-Excluded, or admin DQ). It reads race_settings + race_adjustments from the LEFT project via sb (falls back to defaults if unreadable). UI: Race Pool Card, per-shift-group Current Ranking with expected (gross) bounty, and an Hourly Result table for the latest date. No writes, no money moved, no admin controls yet — those come in later builds. ATS still excluded (no standard). Everything else unchanged. | v520 | FEATURE: CEO/Manager can now rename ANY staff member (not just themselves) straight from the staff profile panel — the name in the panel header is clickable (shows a ✎) for admin-tier users (ceo+manager). It calls renameStaffMember(), which writes the new name to user_profiles.name in Supabase (the one source every client reads), so the change is visible to ALL users across the staff list, records, race, sidebar, etc. once their view refreshes; it also clears the local team cache and re-pulls the roster so it updates immediately for the editor. Non-admins can't see or use it. Complements the existing self-only 'edit my name' (v207). No other behaviour changed. | v519 | FIX: ATS Zone (Blessed Lands) is no longer shown or treated as a player 'Break'. Since v500 an ATS report was flagged as break time — greyed, badged '휴식/Break', and excluded from stats — but a booster who checks in on ATS is actually working there, not resting, so the 'Break' label was wrong. ATS has no standard EXP yet, so it STILL stays fully out of the performance numbers (percentage, average performance, average actual/h, quota, hours) — exactly as before, nothing that was excluded is now counted — but the session-log row now renders like any other unscored/no-standard row: the normal verdict (check-in shows 'Start', a status row shows '—'), not greyed, no 'Break' badge. The moment a real ATS standard is entered in Standard EXP, ATS reports get scored normally. Only the ATS display/label + its break-framing changed; all other maps, the perf math, Remember-me (v517) and everything else are untouched. | v518 | Housekeeping only, NO functional/behaviour change: (1) the accumulated per-version build-note history was trimmed (it had grown to a single ~46KB comment line) and (2) the I18N_EN KO→EN translation dictionary, previously one ~67KB line, was reformatted to one entry per line — verified the object is byte-for-byte semantically identical (1833 entries, same keys/values) so every translation still resolves exactly as before. Longest line dropped from ~92,000 to <4,000 chars, so the GitHub web editor no longer chokes on the file. App behaviour, auth, roles, Remember-me (v517), Forgot-password (v516) all unchanged. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315140f'/><rect x='1.2' y='1.2' width='29.6' height='29.6' rx='6' fill='none' stroke='%23c2a04a' stroke-width='1.4'/><text x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%23c2a04a' text-anchor='middle'>L7</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10872,7 +10872,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v530';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v532';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21169,10 +21169,247 @@ async function _kbLoadRealData(){
     window.__KB_REPORTS=Array.isArray(byKey.reports)?byKey.reports:[];
     window.__KB_CLIENTS=Array.isArray(byKey.clients)?byKey.clients:[];
   }catch(_){ window.__KB_REPORTS=window.__KB_REPORTS||[]; window.__KB_CLIENTS=window.__KB_CLIENTS||[]; }
-  var st=_rcDefaults();
-  try{ if(typeof sb!=='undefined' && sb){ var s=await sb.from('race_settings').select('*').eq('id',1).maybeSingle(); if(s && s.data) st=s.data; } }catch(_){ }
-  window.__KB_SETTINGS=st;
+  var st=_rcDefaults(); var dq=(typeof Set!=='undefined')?new Set():{has:function(){return false;},add:function(){}};
+  try{ if(typeof sb!=='undefined' && sb){
+    try{ await sb.auth.getSession(); }catch(_){ }   // [v531] make sure the login session is attached before RLS reads (fixes the 403 at boot)
+    var s=await sb.from('race_settings').select('*').eq('id',1).maybeSingle();
+    if(!s || !s.data){ await new Promise(function(r){ setTimeout(r,1200); }); try{ s=await sb.from('race_settings').select('*').eq('id',1).maybeSingle(); }catch(_){ } }
+    if(s && s.data) st=s.data;
+    try{ var a=await sb.from('race_adjustments').select('type,report_id'); if(a && Array.isArray(a.data)) a.data.forEach(function(x){ if(x && x.type==='dq' && x.report_id && dq.add) dq.add(x.report_id); }); }catch(_){ }
+  } }catch(_){ }
+  window.__KB_SETTINGS=st; window.__KB_DQSET=dq;
+  var pays=[]; try{ if(typeof sb!=='undefined' && sb){ var pr=await sb.from('race_payouts').select('*'); if(pr && Array.isArray(pr.data)) pays=pr.data; } }catch(_){ }
+  window.__KB_PAYOUTS=pays;
 }
+
+
+// ============================================================================
+// [v531] 5 JUTA RACE SYSTEM section — ADDED to the King Bounty page in the same
+// mockup style (prompt point 13.2 + point 10 A/B/C). Does not touch the existing
+// widget; renders from the real reports via the verified _rc engine.
+// ============================================================================
+function _kb5jCSS(){ if(document.getElementById('kb5j-css')) return; var s=document.createElement('style'); s.id='kb5j-css'; s.textContent=[
+"#kb-race #kb5j{margin:16px 12px 46px;color:#fff}",
+"#kb-race #kb5j .k5-head{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:900;letter-spacing:.05em;margin:6px 4px 12px}",
+"#kb-race #kb5j .k5-head b{color:var(--gold)}",
+"#kb-race #kb5j .k5-tag{font-size:9px;font-weight:900;letter-spacing:.12em;padding:3px 9px;border-radius:999px;background:rgba(229,181,103,.16);border:.5px solid rgba(229,181,103,.42);color:var(--gold)}",
+"#kb-race #kb5j .k5-pool{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:6px}",
+"#kb-race #kb5j .k5-card{background:rgba(20,20,26,.72);border:.5px solid rgba(255,255,255,.09);border-radius:16px;padding:12px 14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}",
+"#kb-race #kb5j .k5-card span{display:block;font-size:9px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;color:var(--tx3)}",
+"#kb-race #kb5j .k5-card b{display:block;margin-top:5px;font-size:16px;font-weight:900;font-variant-numeric:tabular-nums}",
+"#kb-race #kb5j .k5-card b.gold{color:var(--gold)} #kb-race #kb5j .k5-card b.green{color:var(--green)} #kb-race #kb5j .k5-card b.red{color:var(--red)}",
+"#kb-race #kb5j .k5-card small{display:block;margin-top:3px;font-size:10px;color:var(--tx2)}",
+"#kb-race #kb5j .k5-sec{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--tx2);margin:18px 4px 8px}",
+"#kb-race #kb5j .k5-sec i{flex:1;height:1px;background:rgba(255,255,255,.08)}",
+"#kb-race #kb5j .k5-sec .k5-mode{font-size:9px;font-weight:900;padding:2px 7px;border-radius:999px;background:rgba(229,181,103,.14);color:var(--gold)}",
+"#kb-race #kb5j .k5-tblwrap{background:rgba(20,20,26,.72);border:.5px solid rgba(255,255,255,.09);border-radius:16px;overflow:auto;margin-bottom:10px}",
+"#kb-race #kb5j table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}",
+"#kb-race #kb5j th{text-align:left;font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);padding:9px 10px;border-bottom:.5px solid rgba(255,255,255,.09)}",
+"#kb-race #kb5j td{padding:8px 10px;border-top:.5px solid rgba(255,255,255,.05);vertical-align:middle}",
+"#kb-race #kb5j .num{text-align:right;font-variant-numeric:tabular-nums}",
+"#kb-race #kb5j .k5-rk{font-weight:900;color:var(--tx3);width:24px} #kb-race #kb5j .k5-rk.p1{color:#E5B567} #kb-race #kb5j .k5-rk.p2{color:#c0c4cc} #kb-race #kb5j .k5-rk.p3{color:#cd9b6a}",
+"#kb-race #kb5j .k5-nm{font-weight:800} #kb-race #kb5j .k5-sub{font-size:10px;color:var(--tx3)}",
+"#kb-race #kb5j .k5-pt{font-weight:900} #kb-race #kb5j .k5-b{font-weight:900;color:var(--gold)}",
+"#kb-race #kb5j .k5-v{display:inline-block;font-size:9.5px;font-weight:900;padding:2px 7px;border-radius:6px}",
+"#kb-race #kb5j .k5-v.goal{background:rgba(48,209,88,.16);color:var(--green)} #kb-race #kb5j .k5-v.stable{background:rgba(10,132,255,.16);color:#6ab2ff} #kb-race #kb5j .k5-v.cut{background:rgba(255,69,58,.16);color:#ff8078} #kb-race #kb5j .k5-v.nostd{background:rgba(160,160,160,.14);color:var(--tx2)} #kb-race #kb5j .k5-v.dq{background:rgba(255,69,58,.24);color:#ffb4ae}",
+"#kb-race #kb5j tr.dqr td{opacity:.55}",
+"#kb-race #kb5j .k5-cnt span{display:inline-block;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.06);color:var(--tx2);margin-right:4px}",
+"#kb-race #kb5j .k5-btn{font:inherit;font-size:11px;font-weight:800;padding:6px 11px;border-radius:8px;background:rgba(255,255,255,.06);border:.5px solid rgba(255,255,255,.14);color:#fff;cursor:pointer}",
+"#kb-race #kb5j .k5-btn:hover{background:rgba(255,255,255,.12)}",
+"#kb-race #kb5j .k5-btn.gold{background:rgba(229,181,103,.16);border-color:rgba(229,181,103,.42);color:var(--gold)}",
+"#kb-race #kb5j .k5-btn.red{background:rgba(255,69,58,.14);border-color:rgba(255,69,58,.4);color:#ff8078}",
+"#kb-race #kb5j .k5-inp{font:inherit;font-size:12px;padding:5px 9px;border-radius:8px;background:rgba(0,0,0,.3);border:.5px solid rgba(255,255,255,.18);color:#fff}",
+"#kb-race #kb5j .k5-empty{padding:18px;text-align:center;color:var(--tx3);font-size:12px}"
+].join("\n"); document.head.appendChild(s); }
+
+function _kb5jRender(){
+  try{
+    if(!_kbNode) return;
+    _kb5jCSS();
+    var e=function(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];}); };
+    var money=function(n){ return 'Rp '+String(Math.round(Number(n)||0)).replace(/\B(?=(\d{3})+(?!\d))/g,','); };
+    var st=window.__KB_SETTINGS || _rcDefaults();
+    var dq=window.__KB_DQSET || ((typeof Set!=='undefined')?new Set():{has:function(){return false;}});
+    var rows=_rcScoreReports(window.__KB_REPORTS||[], window.__KB_CLIENTS||[], st, dq);
+    var dates=rows.map(function(r){return r.date;}).filter(Boolean).sort();
+    var latest=dates.length?dates[dates.length-1]:null;
+    var today=latest?rows.filter(function(r){return r.date===latest;}):[];
+    var isAdmin=(typeof currentUserRole!=='undefined')&&(currentUserRole==='admin');
+    var seePool=isAdmin||!!st.staff_see_pool;
+    var mult=Number(st.payout_multiplier); var paused=(st.payout_status==='paused'||mult===0);
+
+    var html='';
+    html+='<div class="k5-head">\uD83C\uDFC1 <b>5 JUTA</b> RACE SYSTEM <span class="k5-tag">INDIVIDUAL</span>'+(isAdmin?'<span class="k5-tag" style="background:rgba(10,132,255,.14);border-color:rgba(10,132,255,.4);color:#6ab2ff">ADMIN</span>':'')+'</div>';
+
+    // A. Race Pool Card
+    html+='<div class="k5-pool">'
+      +'<div class="k5-card"><span>Total Pool</span><b class="gold">'+money(st.total_pool)+'</b></div>'
+      +(seePool?('<div class="k5-card"><span>Paid Amount</span><b>'+money(st.paid_amount)+'</b></div>'
+        +'<div class="k5-card"><span>Remaining Pool</span><b class="green">'+money(st.remaining_pool)+'</b><small>of '+money(st.total_pool)+'</small></div>'):'')
+      +'<div class="k5-card"><span>Shift Prize</span><b>888 '+money(st.shift_prize_888)+'</b><small>1212 '+money(st.shift_prize_1212)+'</small></div>'
+      +'<div class="k5-card"><span>Shift Mode</span><b>AUTO</b><small>8H\u2192888 \u00b7 12H\u21921212</small></div>'
+      +'<div class="k5-card"><span>Payout Status</span><b class="'+(paused?'red':'green')+'">'+(paused?'PAUSED':'ACTIVE')+'</b>'+(isAdmin?('<small>multiplier '+Math.round(mult*100)+'%</small>'):'')+'</div>'
+      +'</div>';
+
+    if(isAdmin){
+      var _dsel = latest||'';
+      html+='<div class="k5-sec"><span>\u2699\uFE0F ADMIN RACE CONTROL</span><i></i></div>';
+      html+='<div class="k5-card" style="margin-bottom:10px">'
+        +'<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">'
+          +'<span style="font-size:10px;font-weight:900;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em">Finalize / Payout</span>'
+          +'<input id="k5-fdate" type="date" value="'+e(_dsel)+'" class="k5-inp">'
+          +'<button class="k5-btn gold" onclick="_kb5jFinalizeDate(document.getElementById(\'k5-fdate\').value)">Recalculate Selected Date</button>'
+          +'<button class="k5-btn" onclick="_kb5jFinalizeDate(\''+e(latest||'')+'\')">Recalculate Current</button>'
+          +'<button class="k5-btn red" onclick="_kb5jResetDate(document.getElementById(\'k5-fdate\').value)">Un-finalize Date</button>'
+        +'</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
+          +'<span style="font-size:10px;font-weight:900;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em">Settings</span>'
+          +'<button class="k5-btn" onclick="_kb5jSetPrize()">Edit Shift Prize</button>'
+          +'<button class="k5-btn" onclick="_kb5jSetLimit()">Edit Daily Limit</button>'
+          +'<button class="k5-btn" onclick="_kb5jSetMult()">Set Multiplier</button>'
+          +'<button class="k5-btn" onclick="_kb5jPauseResume()">'+(paused?'Resume Payout':'Pause Payout')+'</button>'
+          +'<button class="k5-btn" onclick="_kb5jRecharge()">Recharge Pool</button>'
+          +'<button class="k5-btn" onclick="_kb5jManualAdj()">Manual Adjustment</button>'
+          +'<button class="k5-btn" onclick="_kb5jDQ()">DQ a Report</button>'
+          +'<button class="k5-btn" onclick="_kb5jTogglePoolVis()">'+(st.staff_see_pool?'Hide Pool from Staff':'Show Pool to Staff')+'</button>'
+        +'</div>'
+        +'<div style="margin-top:8px;font-size:10.5px;color:var(--tx3)">Daily limit '+money(st.daily_payout_limit)+' \u00b7 multiplier '+Math.round(mult*100)+'% \u00b7 '+(paused?'PAUSED':'ACTIVE')+'. Limit is a spending alarm; multiplier scales real payouts.</div>'
+      +'</div>';
+    }
+
+    if(!latest){ html+='<div class="k5-tblwrap"><div class="k5-empty">No race data yet \u2014 hourly reports will appear here.</div></div>'; }
+    else{
+      // B. Current Shift Ranking (per shift group, latest date)
+      var order=['d12','n12','s1','s2','s3','un'];
+      order.forEach(function(g){
+        var gr=today.filter(function(r){return r.group===g;}); if(!gr.length) return;
+        var mode=_rcModeOf(g);
+        var prize=(mode==='1212')?Number(st.shift_prize_1212):Number(st.shift_prize_888);
+        var players=_rcAggPlayers(gr).sort(function(a,b){return b.points-a.points;});
+        var shiftTotal=players.reduce(function(s,p){return s+p.points;},0);
+        var meta=_RC_GMETA[g]||{ic:'',tt:g};
+        var _isFin=_kb5jShiftFinalized(latest,g);
+        html+='<div class="k5-sec"><span>'+meta.ic+' '+e(meta.tt)+' \u2014 CURRENT SHIFT RANKING</span><span class="k5-mode">'+mode+'</span>'+(_isFin?'<span class="k5-mode" style="background:rgba(48,209,88,.16);color:#30D158">PAID</span>':'')+'<i></i><span style="letter-spacing:0;text-transform:none;font-weight:800">Total '+shiftTotal+' pt \u00b7 Prize '+money(prize)+'</span>'+(isAdmin?(' <button class="k5-btn" onclick="_kb5jFinalizeShift(\''+latest+'\',\''+g+'\')">'+(_isFin?'Recalculate':'Finalize')+'</button>'):'')+'</div>';
+        html+='<div class="k5-tblwrap"><table><thead><tr><th>#</th><th>Player</th><th>PC</th><th>Character</th><th class="num">Total Point</th><th class="num">Expected Bounty</th><th class="num">Paid</th><th>G / S / C / DQ</th></tr></thead><tbody>';
+        players.forEach(function(p,i){
+          var gross=shiftTotal>0?Math.floor(p.points/shiftTotal*prize):0;
+          var rk=i===0?'p1':(i===1?'p2':(i===2?'p3':''));
+          var _paid=_kb5jPaidFor(latest,g,p.key);
+          html+='<tr><td class="k5-rk '+rk+'">'+(i+1)+'</td>'
+            +'<td class="k5-nm">'+e(p.name)+'</td>'
+            +'<td class="k5-sub">'+((p.pc!=null&&p.pc!=='')?('PC'+e(String(p.pc))):'\u2014')+'</td>'
+            +'<td class="k5-sub">'+(p.client?e(p.client):'\u2014')+'</td>'
+            +'<td class="num k5-pt">'+p.points+'</td>'
+            +'<td class="num k5-b">'+(gross>0?money(gross):'\u2014')+'</td>'
+            +'<td class="num" style="color:'+(_paid!=null?'#30D158':'var(--tx3)')+';font-weight:900">'+(_paid!=null?money(_paid):'\u2014')+'</td>'
+            +'<td class="k5-cnt"><span>G '+p.goal+'</span><span>S '+p.stable+'</span><span>C '+p.cut+'</span><span>DQ '+p.dq+'</span></td></tr>';
+        });
+        html+='</tbody></table></div>';
+      });
+
+      // C. Hourly Race Result (latest date, newest first)
+      var hr=today.slice().sort(function(a,b){return (b.ms||0)-(a.ms||0);});
+      var toKST=function(ms){ if(ms==null) return '\u2014'; var d=new Date(ms+9*3600000); return ('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2); };
+      var vcls=function(r){ if(r.dq) return 'dq'; return r.result==='NoStd'?'nostd':r.result.toLowerCase(); };
+      var vtxt=function(r){ if(r.dq) return 'DQ'; return r.result==='NoStd'?'No Std':r.result; };
+      html+='<div class="k5-sec"><span>\u23F1 HOURLY RACE RESULT \u2014 '+e(latest)+'</span><i></i></div>';
+      html+='<div class="k5-tblwrap"><table><thead><tr><th>Time</th><th>Player</th><th>Map</th><th class="num">EXP</th><th>Result</th><th class="num">Rate</th><th class="num">Base</th><th class="num">Rank</th><th class="num">Goal</th><th class="num">Total</th><th>Reason</th></tr></thead><tbody>';
+      hr.forEach(function(r){
+        html+='<tr class="'+(r.dq?'dqr':'')+'"><td class="k5-sub">'+toKST(r.ms)+'</td>'
+          +'<td class="k5-nm">'+e(r.player)+'</td>'
+          +'<td class="k5-sub">'+(r.map?e(r.map):'\u2014')+'</td>'
+          +'<td class="num">'+(r.actual!=null?((r.actual>0?'+':'')+r.actual.toFixed(2)+'%'):'\u2014')+'</td>'
+          +'<td><span class="k5-v '+vcls(r)+'">'+vtxt(r)+'</span></td>'
+          +'<td class="num k5-sub">'+(r.rate!=null?Math.round(r.rate)+'%':'\u2014')+'</td>'
+          +'<td class="num">'+(r.base||0)+'</td>'
+          +'<td class="num">'+(r.rank?('+'+r.rank):'0')+'</td>'
+          +'<td class="num">'+(r.goal?('+'+r.goal):'0')+'</td>'
+          +'<td class="num k5-pt">'+r.total+'</td>'
+          +'<td class="k5-sub">'+(r.dq?e(r.dqReason):'')+'</td></tr>';
+      });
+      html+='</tbody></table></div>';
+    }
+
+    var el=document.createElement('div'); el.id='kb5j'; el.innerHTML=html;
+    var old=_kbNode.querySelector('#kb5j');
+    if(old) old.replaceWith(el); else _kbNode.appendChild(el);
+  }catch(err){ try{ console.warn('kb5j render', err); }catch(_){ } }
+}
+
+
+// ---- [v532] 5-Juta finalize / payout / admin controls (writes admin-only via RLS is_admin()) ----
+function _kb5jPaidFor(date,group,key){ var ps=window.__KB_PAYOUTS||[]; for(var i=0;i<ps.length;i++){ var p=ps[i]; if(String(p.shift_date)===String(date)&&p.shift_group===group&&p.player_key===key) return Number(p.final_payout_amount)||0; } return null; }
+function _kb5jShiftFinalized(date,group){ var ps=window.__KB_PAYOUTS||[]; for(var i=0;i<ps.length;i++){ if(String(ps[i].shift_date)===String(date)&&ps[i].shift_group===group) return true; } return false; }
+function _kb5jIsAdmin(){ return (typeof currentUserRole!=='undefined')&&(currentUserRole==='admin'); }
+function _kb5jToast(m,bad){ try{ if(typeof toast==='function') toast(m,!!bad); }catch(_){ } }
+function _kb5jBy(){ return (typeof currentUser!=='undefined'&&currentUser)?(currentUser.name||''):''; }
+function _kb5jComputePayouts(dateStr, groupFilter){
+  var st=window.__KB_SETTINGS||_rcDefaults();
+  var dq=window.__KB_DQSET||((typeof Set!=='undefined')?new Set():{has:function(){return false;}});
+  var rows=_rcScoreReports(window.__KB_REPORTS||[], window.__KB_CLIENTS||[], st, dq);
+  var day=rows.filter(function(r){return r.date===dateStr;});
+  var mult=Number(st.payout_multiplier); if(!isFinite(mult)) mult=1;
+  var groups={}; day.forEach(function(r){ if(groupFilter&&r.group!==groupFilter) return; (groups[r.group]=groups[r.group]||[]).push(r); });
+  var out=[]; var by=_kb5jBy();
+  Object.keys(groups).forEach(function(g){
+    var gr=groups[g]; var mode=_rcModeOf(g);
+    var prize=(mode==='1212')?Number(st.shift_prize_1212):Number(st.shift_prize_888);
+    var players=_rcAggPlayers(gr); var shiftTotal=players.reduce(function(s,p){return s+p.points;},0);
+    players.forEach(function(p){ if(p.points<=0) return;
+      var calc=shiftTotal>0?Math.floor(p.points/shiftTotal*prize):0; var fin=Math.floor(calc*mult);
+      out.push({ shift_date:dateStr, shift_group:g, shift_mode:mode, player:p.name, player_key:p.key,
+        total_point:p.points, shift_total_point:shiftTotal, shift_prize:prize, payout_multiplier:mult,
+        calculated_amount:calc, final_payout_amount:fin, finalized_by:by }); });
+  });
+  return out;
+}
+async function _kb5jRecomputePool(){
+  try{ if(typeof sb==='undefined'||!sb) return; var all=await sb.from('race_payouts').select('final_payout_amount');
+    var paid=(all&&Array.isArray(all.data)?all.data:[]).reduce(function(s,r){ return s+(Number(r.final_payout_amount)||0); },0);
+    var st=window.__KB_SETTINGS||_rcDefaults(); var remaining=Number(st.total_pool)-paid;
+    await sb.from('race_settings').update({ paid_amount:paid, remaining_pool:remaining, updated_at:new Date().toISOString() }).eq('id',1);
+  }catch(_){ }
+}
+async function _kb5jRefresh(){ try{ await _kbLoadRealData(); }catch(_){ } try{ _kb5jRender(); }catch(_){ } }
+async function _kb5jFinalizeShift(dateStr, group){
+  if(!_kb5jIsAdmin()){ _kb5jToast('Admin only',true); return; }
+  if(!dateStr||!group) return;
+  try{ var rowsP=_kb5jComputePayouts(dateStr, group);
+    await sb.from('race_payouts').delete().eq('shift_date',dateStr).eq('shift_group',group);
+    if(rowsP.length){ var r=await sb.from('race_payouts').insert(rowsP); if(r&&r.error){ _kb5jToast('Save failed: '+r.error.message,true); return; } }
+    await _kb5jRecomputePool(); _kb5jToast('\u2713 Finalized '+group+' '+dateStr); await _kb5jRefresh();
+  }catch(err){ _kb5jToast('Finalize error: '+(err&&err.message),true); }
+}
+async function _kb5jFinalizeDate(dateStr){
+  if(!_kb5jIsAdmin()){ _kb5jToast('Admin only',true); return; }
+  if(!dateStr){ _kb5jToast('Pick a date',true); return; }
+  try{ var rowsP=_kb5jComputePayouts(dateStr, null);
+    await sb.from('race_payouts').delete().eq('shift_date',dateStr);
+    if(rowsP.length){ var r=await sb.from('race_payouts').insert(rowsP); if(r&&r.error){ _kb5jToast('Save failed: '+r.error.message,true); return; } }
+    await _kb5jRecomputePool(); _kb5jToast('\u2713 Finalized '+dateStr+' ('+rowsP.length+' payouts)'); await _kb5jRefresh();
+  }catch(err){ _kb5jToast('Finalize error: '+(err&&err.message),true); }
+}
+async function _kb5jResetDate(dateStr){
+  if(!_kb5jIsAdmin()){ _kb5jToast('Admin only',true); return; }
+  if(!dateStr) return;
+  try{ if(typeof confirm==='function' && !confirm('Un-finalize (delete payouts for) '+dateStr+'? Money returns to the pool.')) return;
+    await sb.from('race_payouts').delete().eq('shift_date',dateStr); await _kb5jRecomputePool(); _kb5jToast('Un-finalized '+dateStr); await _kb5jRefresh();
+  }catch(err){ _kb5jToast('Error: '+(err&&err.message),true); }
+}
+async function _kb5jUpdateSettings(patch, msg){
+  if(!_kb5jIsAdmin()){ _kb5jToast('Admin only',true); return; }
+  try{ patch.updated_at=new Date().toISOString(); var r=await sb.from('race_settings').update(patch).eq('id',1);
+    if(r&&r.error){ _kb5jToast('Save failed: '+r.error.message,true); return; } _kb5jToast(msg||'\u2713 Saved'); await _kb5jRefresh();
+  }catch(err){ _kb5jToast('Error: '+(err&&err.message),true); }
+}
+function _kb5jSetPrize(){ var st=window.__KB_SETTINGS||_rcDefaults(); var a=prompt('888 shift prize (IDR):', st.shift_prize_888); if(a===null)return; var b=prompt('1212 shift prize (IDR):', st.shift_prize_1212); if(b===null)return; var x=parseInt(String(a).replace(/[^0-9]/g,''),10), y=parseInt(String(b).replace(/[^0-9]/g,''),10); if(!isFinite(x)||!isFinite(y)){_kb5jToast('Invalid',true);return;} _kb5jUpdateSettings({shift_prize_888:x, shift_prize_1212:y},'\u2713 Shift prizes updated'); }
+function _kb5jSetLimit(){ var st=window.__KB_SETTINGS||_rcDefaults(); var a=prompt('Daily payout limit (IDR) \u2014 spending alarm threshold:', st.daily_payout_limit); if(a===null)return; var x=parseInt(String(a).replace(/[^0-9]/g,''),10); if(!isFinite(x)){_kb5jToast('Invalid',true);return;} _kb5jUpdateSettings({daily_payout_limit:x},'\u2713 Daily limit updated'); }
+function _kb5jSetMult(){ var st=window.__KB_SETTINGS||_rcDefaults(); var a=prompt('Payout multiplier % (100 / 80 / 60 / 40 / 0=pause):', Math.round((Number(st.payout_multiplier)||1)*100)); if(a===null)return; var x=parseFloat(String(a).replace(/[^0-9.]/g,'')); if(!isFinite(x)){_kb5jToast('Invalid',true);return;} var m=x/100; _kb5jUpdateSettings({payout_multiplier:m, payout_status:(m===0?'paused':'active')},'\u2713 Multiplier '+Math.round(m*100)+'%'); }
+function _kb5jPauseResume(){ var st=window.__KB_SETTINGS||_rcDefaults(); var paused=(st.payout_status==='paused'||Number(st.payout_multiplier)===0); if(paused){ _kb5jUpdateSettings({payout_status:'active', payout_multiplier:(Number(st.payout_multiplier)>0?st.payout_multiplier:1)},'\u2713 Payout resumed'); } else { _kb5jUpdateSettings({payout_status:'paused', payout_multiplier:0},'\u2713 Payout paused'); } }
+function _kb5jTogglePoolVis(){ var st=window.__KB_SETTINGS||_rcDefaults(); _kb5jUpdateSettings({staff_see_pool: !st.staff_see_pool}, st.staff_see_pool?'Pool hidden from staff':'Pool visible to staff'); }
+async function _kb5jRecharge(){ var st=window.__KB_SETTINGS||_rcDefaults(); var a=prompt('Recharge amount to ADD to Total Pool (IDR):','0'); if(a===null)return; var x=parseInt(String(a).replace(/[^0-9]/g,''),10); if(!isFinite(x)||x===0){_kb5jToast('Invalid',true);return;} try{ await sb.from('race_adjustments').insert([{type:'recharge', amount:x, reason:'pool recharge', created_by:_kb5jBy()}]); var nt=Number(st.total_pool)+x; await _kb5jUpdateSettings({total_pool:nt, remaining_pool:(nt-Number(st.paid_amount||0))},'\u2713 Pool recharged +'+x); }catch(err){ _kb5jToast('Error: '+(err&&err.message),true); } }
+async function _kb5jManualAdj(){ var who=prompt('Manual adjustment \u2014 player name (blank = pool note only):',''); if(who===null)return; var a=prompt('Amount (IDR, negative to deduct):','0'); if(a===null)return; var x=parseInt(String(a).replace(/[^0-9-]/g,''),10); if(!isFinite(x)){_kb5jToast('Invalid',true);return;} var reason=prompt('Reason:','manual adjustment')||''; try{ await sb.from('race_adjustments').insert([{type:'manual', target:(who||null), amount:x, reason:reason, created_by:_kb5jBy()}]); _kb5jToast('\u2713 Adjustment logged'); await _kb5jRefresh(); }catch(err){ _kb5jToast('Error: '+(err&&err.message),true); } }
+async function _kb5jDQ(){ var id=prompt('DQ a report \u2014 enter report id (rpt-...) to disqualify (0 points):',''); if(id===null||!String(id).trim())return; var reason=prompt('Safety reason (Death / touched mob / line-guild / name tag / full buff / HP / false report / client complaint):','Safety Issue')||'Safety Issue'; try{ await sb.from('race_adjustments').insert([{type:'dq', report_id:String(id).trim(), reason:reason, created_by:_kb5jBy()}]); _kb5jToast('\u2713 Report disqualified'); await _kb5jRefresh(); }catch(err){ _kb5jToast('Error: '+(err&&err.message),true); } }
 
 async function _kbMountNative(host){
   if(!host) return;
@@ -21183,9 +21420,11 @@ async function _kbMountNative(host){
     _kbNode.innerHTML = b ? b.textContent : '<div style="color:#fff;padding:24px">King Bounty source missing.</div>';
     host.innerHTML=''; host.appendChild(_kbNode);
     try{ if(typeof window.__kbInit==='function') window.__kbInit(); }catch(e){ console.error('kb init', e); }
+    try{ _kb5jRender(); }catch(_){ }   // [v531] 5 JUTA RACE SYSTEM section (prompt point 10 A/B/C) appended in mockup style
   } else {
     host.innerHTML=''; host.appendChild(_kbNode);
     try{ window.dispatchEvent(new Event('resize')); }catch(_){ }
+    try{ _kbLoadRealData().then(function(){ try{ _kb5jRender(); }catch(_){ } }); }catch(_){ }   // [v531] refresh section data on remount
   }
 }
 // ============================================================================
