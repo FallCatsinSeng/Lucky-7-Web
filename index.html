@@ -34515,9 +34515,11 @@ function salaryPlanOf(p){
 }
 function fixedMonthBaseOf(p){return salaryPlanOf(p).month||0;}
 const boardRankings={
-  day: ranked,
-  week: [...PLAYERS].sort((a,b)=>(((b.raceWeekAvg||0)-(a.raceWeekAvg||0)))||(((b.raceWeekPts||0)-(a.raceWeekPts||0)))||(b.dayScore-a.dayScore)||a.name.localeCompare(b.name)),
-  month: [...PLAYERS].sort((a,b)=>(((b.raceMonthAvg||0)-(a.raceMonthAvg||0)))||(((b.raceMonthPts||0)-(a.raceMonthPts||0)))||(b.dayScore-a.dayScore)||a.name.localeCompare(b.name))
+  // [v571] hide hidden/monitoring (kaiji/bruce/vici) + trainees from the day/week/month RANK list —
+  // same _wkExcluded the King/Last cards use. Money/king/divisions still run off the unfiltered `ranked`/PLAYERS.
+  day: ranked.filter(function(p){return !_wkExcluded(p);}),
+  week: [...PLAYERS].filter(function(p){return !_wkExcluded(p);}).sort((a,b)=>(((b.raceWeekAvg||0)-(a.raceWeekAvg||0)))||(((b.raceWeekPts||0)-(a.raceWeekPts||0)))||(b.dayScore-a.dayScore)||a.name.localeCompare(b.name)),
+  month: [...PLAYERS].filter(function(p){return !_wkExcluded(p);}).sort((a,b)=>(((b.raceMonthAvg||0)-(a.raceMonthAvg||0)))||(((b.raceMonthPts||0)-(a.raceMonthPts||0)))||(b.dayScore-a.dayScore)||a.name.localeCompare(b.name))
 };
 function boardTitle(view){return view==='week'?tr('weekTitle'):view==='month'?tr('monthTitle'):tr('dayTitle');}
 function adjLabel(v){
