@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v578';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v579';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -34371,7 +34371,18 @@ PLAYERS.forEach(p=>{p.std=stdFor(p.level);p.index=+(p.eph/p.std*100).toFixed(1);
   p.todayAvgPct=+p.todayAvgPct||0;
   p.todayNote=p.todayNote||'No record yet';
   p.dayScore=p.todayHours?p.todayAvgPct:0;
-  p.raceScore=+p.racePtsPerHour||0; p.raceTotalPts=+p.racePoints||0; p.raceBountyV=+p.raceBounty||0;   // [v540] DAY rank by points/hour (an 8h star can beat a 12h grinder); money still = total points × rate   // [v525] 5-Juta race points/bounty drive Day ranking + King, not raw EXP%
+  p.raceTotalPts=+p.racePoints||0; p.raceBountyV=+p.raceBounty||0;
+  // [v579] RANK by "기준 대비 실력 %" (Records-basis standard % = Σgain ÷ Σstandard), NOT by graded points.
+  // Why: graded points (Goal/Stable) jump in steps, so ONE sub-Goal hour craters a per-hour average and can
+  // drop a genuinely better racer below a lower-EXP one (boss's Claws-vs-Sid case). The % is CONTINUOUS (a
+  // 0.80-on-1.0 hour is just 80%, barely moving the average) and MAP-FAIR (a harder map has a lower standard).
+  // Low-hour racers are lightly diluted (× hours/floor, floor set below every real racer's hours) only so a
+  // 1-hour wonder can't top the board. MONEY is untouched — still cumulative graded points × rate (12h earns
+  // more $ = the 12h benefit). Falls back to 0 when there is no scored data.
+  var _DAY_FL=4, _WK_FL=8, _MO_FL=8;
+  p.raceScore   = (p.perfPct!=null?     +p.perfPct     :0) * Math.min(1,(+p.todayHours||0)/_DAY_FL);
+  p.raceWeekAvg = (p.perfPctWeek!=null?  +p.perfPctWeek :0) * Math.min(1,(+p.raceWeekHrs||0)/_WK_FL);
+  p.raceMonthAvg= (p.perfPctMonth!=null? +p.perfPctMonth:0) * Math.min(1,(+p.raceMonthHrs||0)/_MO_FL);
   p.weekPay=Math.round(p.todayPay||0);
   p.monthPay=Math.round((p.monthPay||0)+(p.todayPay||0));
   p.weekScore=(p.tp||0)*100 + p.dayScore*10;
@@ -34452,7 +34463,7 @@ $('kExp').textContent=(kingWk.perfPctWeek!=null?Math.round(kingWk.perfPctWeek)+'
 $('kBonus').textContent=fmt(Math.max(0, kingWk.racePaidWeek||0));   // [v558] week paid (not today's bounty)
 $('kBounty').textContent=fmt(CONFIG.bountyClaimed);
 const _kWk2=rankedWk[1];
-$('kBnote').textContent=_kWk2?`${_kWk2.name}보다 +${Math.max(0,(kingWk.raceWeekAvg||0)-(_kWk2.raceWeekAvg||0)).toFixed(2)} PT/h 앞섬`:'이번 주 선두 유지 중';
+$('kBnote').textContent=_kWk2?`${_kWk2.name}보다 +${Math.max(0,(kingWk.raceWeekAvg||0)-(_kWk2.raceWeekAvg||0)).toFixed(0)}%p 앞섬`:'이번 주 선두 유지 중';
 
   // CURRENT LAST (꼴등) — bottom half of the king box
   try{
@@ -36664,10 +36675,10 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
       if(view==='week'||view==='month'){
         var _pts=(view==='week')?(+p.raceWeekPts||0):(+p.raceMonthPts||0);
         var _avg=(view==='week')?(+p.raceWeekAvg||0):(+p.raceMonthAvg||0);   // [v569] the ACTUAL rank metric (diluted avg = PT ÷ 근무시간). Show it so the order reads right — the big PT is cumulative (money), the small ⌀ is why the rank.
-        eavg.innerHTML='<span class="sl-main-num" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'순위 기준 · 시간당 평균 포인트':'rank basis · avg points per hour')+'">'+_avg.toFixed(2)+'</span><span class="sl-main-cap">PT/h</span><span class="sl-rank-avg" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'누적 포인트 · 돈 기준':'cumulative points · money basis')+'">'+_pts+' PT</span>';
+        eavg.innerHTML='<span class="sl-main-num" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'순위 기준 · 기준 대비 실력 %':'rank basis · % of standard')+'">'+_avg.toFixed(0)+'%</span><span class="sl-main-cap">기준</span><span class="sl-rank-avg" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'누적 포인트 · 돈 기준':'cumulative points · money basis')+'">'+_pts+' PT</span>';
       } else {
         var _pph=(+p.raceScore||0); var _tp=(+p.raceTotalPts||0);
-        eavg.innerHTML='<span class="sl-main-num">'+(_pph%1===0?_pph:_pph.toFixed(1))+'</span><span class="sl-main-cap">PT/H · '+_tp+'PT</span>';
+        eavg.innerHTML='<span class="sl-main-num">'+(+_pph||0).toFixed(0)+'%</span><span class="sl-main-cap">기준 · '+_tp+'PT</span>';
       }
       var _pen=(inc.state==='penalty');   // [v546] inline red beats every gold rule
       ewon.innerHTML='<span class="sl-inc-label"'+(_pen?' style="color:#FF453A!important;background:rgba(255,69,58,.14);border-radius:4px;padding:1px 4px"':'')+'>'+inc.label+'</span><span class="sl-inc-amount"'+(_pen?' style="color:#FF453A!important"':'')+'>'+inc.amount+'</span>';
