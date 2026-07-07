@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v570';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v574';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -18936,6 +18936,28 @@ async function _srSubmitReport(kind,screen){
         }
       }catch(_){}
       var startVal=prev.lv*100+prev.exp, endVal=calc.lv*100+calc.exp;
+      // [v574] WRONG-MAP GUARD — warn (soft) if this hour's gain is implausibly low for the picked SCORING
+      // map. That pattern is almost always a break/ATS hour tagged as a real farm map (e.g. Dream Island),
+      // which then scores a fake Cut in the race. Booster can confirm a genuinely bad hour and proceed.
+      // Skips deaths (negative), ATS/no-standard maps, and check-in.
+      if(kind!=='checkin' && !(calc && calc.isDeath)){
+        var _perH=(endVal-startVal)/Math.max(1,N);
+        var _zk=(function(s){ s=String(s||'').toLowerCase();
+          if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats';
+          if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc';
+          if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream';
+          if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren';
+          if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon';
+          if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0)return'dgg';
+          return'other'; })(mapFull);
+        var _cut={dream:0.77,oren:0.72,dragon:0.54,dgg:0.46,orc:0.39}[_zk];
+        if(_cut && _perH>0 && _perH < _cut*0.4){
+          var _wm=(_uiLang&&_uiLang()==='ko')
+            ? ('⚠ 이 시간 획득 EXP가 '+_perH.toFixed(2)+'%/h 로, 고르신 맵 "'+mapFull+'"의 컷라인('+_cut.toFixed(2)+'%)보다 훨씬 낮아요.\n\n혹시 휴식/ATS 시간을 다른 맵으로 잘못 고르셨나요? 맵을 다시 확인해주세요.\n\n그대로 저장하려면 확인을 누르세요.')
+            : ('⚠ This hour gained only '+_perH.toFixed(2)+'%/h — far below the cut line ('+_cut.toFixed(2)+'%) for "'+mapFull+'".\n\nDid you pick the wrong map (a break/ATS hour)? Please double-check the map.\n\nPress OK to save anyway.');
+          try{ if(typeof confirm==='function' && !confirm(_wm)) return false; }catch(_){ }
+        }
+      }
       for(var k=1;k<=N;k++){
         var _isFinalRec=(kind==='checkout'&&k===N);
         var _slotH=parseInt(_srKST(ws+k-1),10);
