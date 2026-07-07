@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v577';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v578';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -36664,7 +36664,7 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
       if(view==='week'||view==='month'){
         var _pts=(view==='week')?(+p.raceWeekPts||0):(+p.raceMonthPts||0);
         var _avg=(view==='week')?(+p.raceWeekAvg||0):(+p.raceMonthAvg||0);   // [v569] the ACTUAL rank metric (diluted avg = PT ÷ 근무시간). Show it so the order reads right — the big PT is cumulative (money), the small ⌀ is why the rank.
-        eavg.innerHTML='<span class="sl-main-num">'+_pts+'</span><span class="sl-main-cap">PT</span><span class="sl-rank-avg" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'순위 기준: 시간당 평균 포인트':'ranks by average points per hour')+'">⌀'+_avg.toFixed(2)+'</span>';
+        eavg.innerHTML='<span class="sl-main-num" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'순위 기준 · 시간당 평균 포인트':'rank basis · avg points per hour')+'">'+_avg.toFixed(2)+'</span><span class="sl-main-cap">PT/h</span><span class="sl-rank-avg" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'누적 포인트 · 돈 기준':'cumulative points · money basis')+'">'+_pts+' PT</span>';
       } else {
         var _pph=(+p.raceScore||0); var _tp=(+p.raceTotalPts||0);
         eavg.innerHTML='<span class="sl-main-num">'+(_pph%1===0?_pph:_pph.toFixed(1))+'</span><span class="sl-main-cap">PT/H · '+_tp+'PT</span>';
