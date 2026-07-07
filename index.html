@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v574';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v575';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -18936,10 +18936,12 @@ async function _srSubmitReport(kind,screen){
         }
       }catch(_){}
       var startVal=prev.lv*100+prev.exp, endVal=calc.lv*100+calc.exp;
-      // [v574] WRONG-MAP GUARD — warn (soft) if this hour's gain is implausibly low for the picked SCORING
-      // map. That pattern is almost always a break/ATS hour tagged as a real farm map (e.g. Dream Island),
-      // which then scores a fake Cut in the race. Booster can confirm a genuinely bad hour and proceed.
-      // Skips deaths (negative), ATS/no-standard maps, and check-in.
+      // [v575] SANITY GUARD — soft-warn at submit when this hour's gain is far off the booster's OWN normal
+      // pace (both directions): too LOW = break/ATS/wrong-map tagged as a farm map (fake Cut); too HIGH =
+      // an EXP number typo or level misread that would inflate points. Reference = the booster's median of
+      // recent positive hourly gains (from the already-fetched full report list _allR); falls back to the
+      // picked map's cut line when there's little history. Booster can confirm a real value and proceed.
+      // Skips deaths (negative) and check-in.
       if(kind!=='checkin' && !(calc && calc.isDeath)){
         var _perH=(endVal-startVal)/Math.max(1,N);
         var _zk=(function(s){ s=String(s||'').toLowerCase();
@@ -18951,11 +18953,26 @@ async function _srSubmitReport(kind,screen){
           if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0)return'dgg';
           return'other'; })(mapFull);
         var _cut={dream:0.77,oren:0.72,dragon:0.54,dgg:0.46,orc:0.39}[_zk];
-        if(_cut && _perH>0 && _perH < _cut*0.4){
-          var _wm=(_uiLang&&_uiLang()==='ko')
-            ? ('⚠ 이 시간 획득 EXP가 '+_perH.toFixed(2)+'%/h 로, 고르신 맵 "'+mapFull+'"의 컷라인('+_cut.toFixed(2)+'%)보다 훨씬 낮아요.\n\n혹시 휴식/ATS 시간을 다른 맵으로 잘못 고르셨나요? 맵을 다시 확인해주세요.\n\n그대로 저장하려면 확인을 누르세요.')
-            : ('⚠ This hour gained only '+_perH.toFixed(2)+'%/h — far below the cut line ('+_cut.toFixed(2)+'%) for "'+mapFull+'".\n\nDid you pick the wrong map (a break/ATS hour)? Please double-check the map.\n\nPress OK to save anyway.');
-          try{ if(typeof confirm==='function' && !confirm(_wm)) return false; }catch(_){ }
+        // booster's typical hourly gain = median of their recent positive status gains (exclude excluded rows)
+        var _rg=[]; try{ var _mbb=(sess?sess.booster:_srBooster());
+          if(Array.isArray(_allR)) for(var _hi=0;_hi<_allR.length;_hi++){ var _hx=_allR[_hi];
+            if(!_hx||_hx.booster!==_mbb||_hx.tag!=='status'||_hx.ignored) continue;
+            var _hg=(Number(_hx.lvAfter)-Number(_hx.lvBefore))*100+(Number(_hx.expAfter)-Number(_hx.expBefore));
+            if(isFinite(_hg)&&_hg>0.01&&_hg<20)_rg.push(_hg); }
+        }catch(_){}
+        _rg.sort(function(a,b){return a-b;});
+        var _ref=(_rg.length>=4)?_rg[Math.floor(_rg.length/2)]:(_cut||0);
+        if(_ref>0 && _perH>0){
+          var _tooLow=(_perH < _ref*0.35);
+          var _tooHigh=(_perH > _ref*2.5 && _perH > _ref+0.5);
+          if(_tooLow||_tooHigh){
+            var _ko=(_uiLang&&_uiLang()==='ko');
+            var _basis=(_rg.length>=4)?(_ko?'평소 페이스':'usual pace'):(_ko?'이 맵 기준':'this map');
+            var _wm=_ko
+              ? ('⚠ 이 시간 획득 '+_perH.toFixed(2)+'%/h 는 '+_basis+'('+_ref.toFixed(2)+'%/h)보다 '+(_tooHigh?'너무 높':'너무 낮')+'습니다.\n\nEXP 숫자나 사냥터(맵)를 잘못 입력하지 않았는지 다시 확인해주세요.\n\n맞으면 확인을 누르세요.')
+              : ('⚠ This hour ('+_perH.toFixed(2)+'%/h) is far '+(_tooHigh?'ABOVE':'BELOW')+' the '+_basis+' ('+_ref.toFixed(2)+'%/h).\n\nDouble-check the EXP number and the map you picked.\n\nPress OK if it is correct.');
+            try{ if(typeof confirm==='function' && !confirm(_wm)) return false; }catch(_){ }
+          }
         }
       }
       for(var k=1;k<=N;k++){
