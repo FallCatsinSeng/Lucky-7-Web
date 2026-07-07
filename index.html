@@ -20451,6 +20451,18 @@ function _srRecCompute(reports, clients){
     var segGain={}; (function(){ var prev=null; allRs.forEach(function(r){ if(isDup[r.id]){segGain[r.id]=0; return;} if(isTestMap(r)){segGain[r.id]=gainedPct(r); return;} if(prev&&prev.client!==r.client){prev=null;} if(r.tag==='checkin'){segGain[r.id]=null; prev=r; return;} segGain[r.id]=gainedPct(r); prev=r;   /* [v392] actual per-report result, matches Discord */ }); })();
     var shiftDateMap={}; (function(){ var curCi=null,curCiMs=null,MAXSPAN=16*3600*1000; allRs.forEach(function(r){ if(isTestMap(r))return; var rms=reportMs(r); if(curCi&&curCiMs!=null&&rms!=null&&(rms-curCiMs)>MAXSPAN)curCi=null; if(r.tag==='checkin'){curCi=r;curCiMs=rms;return;} if(curCi&&curCi.client!==r.client)curCi=null; shiftDateMap[r.id]=curCi?curCi.date:r.date; if(r.tag==='checkout')curCi=null; }); })();
     var shiftDateOf=function(r){ return String(shiftDateMap[r.id]||r.date||'').slice(0,10); };
+    // [v572] SAME-HOUR DUPLICATE GUARD — parity with the race engine (_rcScoreReports _dupHour). A
+    // booster+client+shift-date+hour may count only ONCE: the earliest live report wins, later checkout-
+    // backfill rows (regenerated over an already-reported day) are marked duplicate so the session table
+    // stops showing them as fake 'Cut/미달' hours and they no longer dilute the day's hours/average — the
+    // race leaderboard already excludes them, this makes the detail view agree.
+    (function(){ var best={};
+      allRs.forEach(function(r){ if(r.tag!=='status'||isTestMap(r)) return; var _hh=parseInt(String(r.start||''),10); if(!isFinite(_hh)) return;
+        var _kk=normName(r.booster)+'|'+shiftDateOf(r)+'|'+String(r.client||'').trim()+'|'+_hh; var _ms=reportMs(r)||0;
+        if(!(_kk in best)){ best[_kk]={id:r.id,ms:_ms}; }
+        else if(_ms<best[_kk].ms){ isDup[best[_kk].id]=true; segGain[best[_kk].id]=0; best[_kk]={id:r.id,ms:_ms}; }
+        else { isDup[r.id]=true; segGain[r.id]=0; } });
+    })();
     // [v314] EXP-jump detection: an hourly report can't realistically gain a large % of a level. Flag any
     // report whose gain is a big outlier vs this booster's OWN typical hourly gain (or huge in absolute) —
     // these are almost always typos / EXP-readout glitches that inflate the totals.
@@ -20611,6 +20623,7 @@ function _srRecCardHTML(data){
   // unused) now carries the genuine Cut case, still labeled "미달"/"Below" per the boss's wording.
   // Reports with no sh/sl set (older standards) fall back to the old ratio-vs-target check.
   var sres=function(s){
+    if(s.dup) return '<span class="sr-rb sr-rb-st">중복</span>';   // [v572] same-hour duplicate (checkout backfill) — not a real Cut/미달
     if(s.tag==='checkin') return '<span class="sr-rb sr-rb-st">시작</span>';
     if(s.target==null) return '<span class="sr-mut">—</span>';
     var g=(s.gain||0);
@@ -20676,7 +20689,7 @@ function _srRecCardHTML(data){
         var asc=rws.slice().sort(function(a,b){ return (a.ms||0)-(b.ms||0); });
         var seq=0, last=null;
         asc.forEach(function(s){
-          if(s.tag==='checkin'||s.flag||s.ms==null) return;
+          if(s.tag==='checkin'||s.flag||s.dup||s.ms==null) return;   // [v572] dups never merge — stay standalone so each renders as '중복', not a fake Cut
           if((Number(s.gain)||0)<0){ last=null; return; }   // [v442] a death never merges — keep it standalone AND break the merge chain so the report after a death starts a fresh hour (a late check-in + back-to-back catch-up reports were merging the death into the next reading, hiding it)
           var mp=String(s.map||''), cl=String(s.client||'');
           if(!last||last.map!==mp||last.client!==cl||(s.ms-last.ms)>_SR_HOUR_GAP_MS) seq++;
@@ -20684,7 +20697,7 @@ function _srRecCardHTML(data){
           last={map:mp,client:cl,ms:s.ms};
         });
       })();
-      var hourKey=function(s){ if(s.tag==='checkin'||s.flag||(Number(s.gain)||0)<0) return null; if(s.ms==null) return null; return _bkOf[s.id]!=null?_bkOf[s.id]:null; };
+      var hourKey=function(s){ if(s.tag==='checkin'||s.flag||s.dup||(Number(s.gain)||0)<0) return null; if(s.ms==null) return null; return _bkOf[s.id]!=null?_bkOf[s.id]:null; };
       var grps=[], gmap={}; rws.forEach(function(s){ var hk=hourKey(s); if(hk==null){ grps.push([s]); return; } if(gmap[hk]==null){ gmap[hk]=grps.length; grps.push([]); } grps[gmap[hk]].push(s); });
       var rowsHTML=grps.map(function(grp){
         if(grp.length===1) return slRow(grp[0]);
