@@ -34636,7 +34636,10 @@ function renderBoard(view){
   // [v535] FLAT ranking by race points (rank 1,2,3,4,5...). Shift-group headers removed per request; the
   // prompt requires per-shift only for PAYOUT (handled by finalize) and rank bonus (in the engine), not for
   // the leaderboard display. Everyone is shown in one list ordered by race points.
-  const list=boardRankings[view]||ranked;
+  // [v573] re-apply the hidden/monitoring + trainee filter at RENDER time — the board can be built once
+  // before the async exclusion lists (_HIDDEN_SET/_TRAINING_SET) resolve, and boardRankings is a const
+  // snapshot; filtering here means a later render always drops excluded rows even if the snapshot kept them.
+  const list=(boardRankings[view]||ranked).filter(function(p){ try{ return !_wkExcluded(p); }catch(_){ return true; } });
   const frag=document.createDocumentFragment();
   list.forEach((p,i)=>{ p._grpRank=null; p._grpMax=null; frag.appendChild(rowEl(p,i,view)); });
   board.innerHTML='';board.appendChild(frag);
@@ -34722,6 +34725,9 @@ const jm=$('jumpMe');if(jm)jm.onclick=jumpToMe;
 const savedView=store.get('lb_view');
 const initBtn=[...tabBtns].find(b=>b.dataset.v===savedView)||[...tabBtns].find(b=>b.dataset.v==='day');
 selectTab(initBtn,false);
+// [v573] the first board render can happen before the async hidden/training exclusion lists resolve; once
+// they're loaded, re-render the active tab so excluded/trainee rows drop out without a manual tab click.
+try{ Promise.resolve(typeof _kb5jEnsureExclusionLists==='function'?_kb5jEnsureExclusionLists():null).then(function(){ try{ var _ab=[...tabBtns].find(function(b){return b.classList.contains('on');})||initBtn; if(_ab) renderBoard(_ab.dataset.v); }catch(_){ } }); }catch(_){ }
 
 // 내가 KING이면 하루 한 번만 축하 (반복 알림 방지)
 if(me.name===king.name){const key='king_'+CONFIG.season+'_'+CONFIG.day;
