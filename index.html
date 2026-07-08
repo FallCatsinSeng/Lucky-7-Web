@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v585';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v586';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21378,11 +21378,16 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
   try{ window.__KB_WEEK_SPENT=_wkSpent; window.__KB_WEEK_SPENT_PRIOR=_wkSpentPrior; }catch(_){ }
   // [v567] SHIFT EXP SUMMARY (boss request): check-in start EXP → latest report end EXP + level-aware
   // total gain for the current race day, straight from the RAW reports (scored rows don't carry absolute
-  // EXP). Night shifts crossing midnight only cover their same-date rows — same "today" scope the whole
-  // widget already uses. Test/training rows excluded so a test check-in can't pollute the summary.
+  // EXP). Test/training rows excluded so a test check-in can't pollute the summary.
+  // [v586] scope by the SAME 09:00-KST race-day bucketing as the day view (v581), NOT the calendar date
+  // string — a night check-in (dated 7/8) plus its after-midnight rows (dated 7/9) are ONE shift. The old
+  // date-string filter dropped the real check-in at midnight and showed the first post-midnight report's
+  // expBefore as the "check-in" (Ericson 7/8-9: showed 83.60 instead of the real 80.43).
   var _shiftSum={};
   reports.forEach(function(r){
-    if(!r || String(r.date||'').slice(0,10)!==latest) return;
+    if(!r) return;
+    var _sms=_rcMs(r);
+    if((_sms!=null ? _raceDayOf(_sms) : String(r.date||'').slice(0,10)) !== _dayRD) return;
     if(r.tag!=='checkin' && r.tag!=='status' && r.tag!=='checkout') return;
     if(_rcIsTestReport(r)) return;
     var k=_rcNorm(r.booster); if(!k) return;
@@ -21395,6 +21400,35 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
       if(s.lMs==null||ms>s.lMs){ s.lMs=ms; s.lLv=Number(r.lvAfter)||0; s.lExp=Number(r.expAfter)||0; s.co=(r.tag==='checkout'); }
     }
   });
+  // [v586] SELF-AUDIT — every data load re-verifies today's raw chains so a bad write can never sit
+  // silently again. Two invariants per booster (race-day scope, test/ignored rows skipped):
+  //   1. CHAIN: each status/checkout row's expBefore must equal the previous row's expAfter (±0.05).
+  //   2. ANCHOR: the first row after check-in must start at the check-in EXP (±0.05).
+  // Violations land in window.__RC_AUDIT (and console.warn) — visible to me, the boss, and the
+  // scheduled monitors. Detection only; never mutates data.
+  try{
+    var _audit=[];
+    var _byB={};
+    reports.forEach(function(r){ if(!r||_rcIsTestReport(r)||r.ignored) return; var _m=_rcMs(r); if(_m==null||_raceDayOf(_m)!==_dayRD) return;
+      if(r.tag!=='checkin'&&r.tag!=='status'&&r.tag!=='checkout') return;
+      var k=_rcNorm(r.booster); if(!k) return; (_byB[k]=_byB[k]||[]).push(r); });
+    Object.keys(_byB).forEach(function(k){
+      var rs=_byB[k].slice().sort(function(a,b){ return (_rcMs(a)||0)-(_rcMs(b)||0); });
+      var prevV=null, prevTag=null;
+      rs.forEach(function(r){
+        var vB=(Number(r.lvBefore)||0)*100+(Number(r.expBefore)||0);
+        var vA=(Number(r.lvAfter)||0)*100+(Number(r.expAfter)||0);
+        if(r.tag==='checkin'){ prevV=vA; prevTag='checkin'; return; }
+        if(prevV!=null && Math.abs(vB-prevV)>0.05){
+          _audit.push({ who:k, id:r.id, at:r.start, kind:(prevTag==='checkin'?'anchor-break':'chain-break'),
+            expected:Number(prevV.toFixed(2)), got:Number(vB.toFixed(2)) });
+        }
+        prevV=vA; prevTag=r.tag;
+      });
+    });
+    window.__RC_AUDIT={day:_dayRD, checked:Object.keys(_byB).length, issues:_audit};
+    if(_audit.length){ try{ console.warn('[RC-AUDIT] '+_audit.length+' chain issue(s) today:', _audit); }catch(_){ } }
+  }catch(_){ }
   var shiftTotals = {};
   todayRows.forEach(function(r){ if(!shiftTotals[r.group]) shiftTotals[r.group]=0; shiftTotals[r.group]+=r.total; });
   var byKey = {};
