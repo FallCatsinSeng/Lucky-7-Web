@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v587';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v588';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19005,6 +19005,27 @@ async function _srSubmitReport(kind,screen){
       // than guessed at, since we have no real reading for it.
       var _fillKs=[]; for(var k=1;k<=N;k++){ var _isFinalRec0=(kind==='checkout'&&k===N); var _slotH0=parseInt(_srKST(ws+k-1),10); if(!_isFinalRec0 && isFinite(_slotH0) && _doneHrs[_slotH0]) continue; _fillKs.push(k); }
       var _lastFillIdx=_fillKs.length-1;
+      // [v588] ATS manual-vs-auto. Rest-time ATS runs automatically and almost never exceeds ~2h; a booster
+      // hand-playing ATS files real hourly reports. So the FIRST time an ATS block reaches 2h+ this shift, ask
+      // once whether it was hand-played (→ counts for the race) or automated/rest (→ excluded). The answer is
+      // stamped on every ATS row (atsManual) and reused silently for the rest of the shift. Boss idea, 2026-07-09.
+      var _isAtsMap=/blessed|ats|축복/i.test(String(mapFull||''));
+      var _atsManual=false;
+      if(_isAtsMap){
+        var _meA=(sess?sess.booster:_srBooster()), _priorAns=null, _atsCnt=0;
+        if(Array.isArray(_allR)) _allR.forEach(function(x){
+          if(!x||x.booster!==_meA||String(x.client||'')!==String(name||'')||String(x.date||'')!==String(date||'')) return;
+          if(!/blessed|ats|축복/i.test(String(x.map||''))) return;
+          _atsCnt++; if(x.atsManual===true)_priorAns=true; else if(x.atsManual===false)_priorAns=false;
+        });
+        if(_priorAns!==null){ _atsManual=_priorAns; }                       // already decided this shift → reuse, no re-prompt
+        else if(_atsCnt + _fillKs.length >= 2){                             // 2h+ of ATS → ask once
+          var _koA=(_uiLang&&_uiLang()==='ko');
+          var _qA=_koA ? ('이 ATS(축복의 땅) 사냥은 직원이 직접 손으로 플레이한 건가요?\n\n[확인] 직접 플레이 → 레이스 점수 반영\n[취소] 자동·쉬는시간 돌리기 → 점수 제외')
+                       : ('Was this ATS (Blessed Lands) block hand-played by the operator?\n\n[OK] Manual play → counts for the race\n[Cancel] Automated / rest-time → excluded');
+          try{ _atsManual=(typeof confirm==='function')?!!confirm(_qA):false; }catch(_){ _atsManual=false; }
+        }
+      }
       // [v585] TWO fill modes (found via scenario verification):
       //  - GAP mode (some hours of this shift WERE live-reported): the prev→final delta is genuinely the
       //    last stretch since the previous real report — put ALL of it in the LAST unreported slot (matches
@@ -19033,7 +19054,7 @@ async function _srSubmitReport(kind,screen){
         newRecs.push(mkRec({ tag:(_isFinalRec?'checkout':'status'), start:_srKST(ws+k-1), end:_srKST(ws+k),
           lvBefore:lvB, expBefore:Number(eB.toFixed(2)), lvAfter:lvA, expAfter:Number(eA.toFixed(2)),
           adena:Math.round(aA), prevAdena:Math.round(aB), dead:(calc.isDeath?1:0), note:(k===N?nt2:(_ign?'휴식/공백 (자동 채움)':'')),
-          ignored:_ign }));
+          ignored:_ign, atsManual:(_isAtsMap?_atsManual:undefined) }));
       });
       if(!newRecs.length){ _srToast("This hour is already reported — nothing new to submit"); return false; }   // [v561] an hourly update whose hour is already covered
       cardType=(kind==='checkout')?'checkout':'hourly';
@@ -20558,6 +20579,10 @@ function _srRecCompute(reports, clients){
     var _med=0; if(_g.length){ var _gs=_g.slice().sort(function(a,b){return a-b;}); _med=_gs[Math.floor(_gs.length/2)]; }
     var _jThr=Math.max(5, 6*Math.max(_med,0.3));   // flag if a single hour gained > 6x the usual, with a 5% floor
     var _hourSeqByDate={};   // [v384] per-date rolling-gap hour sequence — see _SR_HOUR_GAP_MS
+    // [v588] ATS manual-play sessions. Auto/break-time ATS normally runs < 2h and is left auto-excluded; a
+    // hand-played ATS block (2h+ ) is flagged atsManual=true at submit (boss 7/9). An ATS session (booster+
+    // client+day) scores ONLY if flagged manual AND its card carries an ATS standard; everything else stays out.
+    var _atsMan={}; allRs.forEach(function(r){ if(r&&isBreakMap(r)&&r.atsManual===true){ _atsMan[normName(r.booster)+'|'+shiftDateOf(r)+'|'+String(r.client||'').trim()]=1; } });
     allRs.forEach(function(r){
       if(isTestMap(r)) return;
       var _rd=shiftDateOf(r);
@@ -20573,7 +20598,7 @@ function _srRecCompute(reports, clients){
       var _flag=(_gain!=null)&&(_gain>80 || _gain>_jThr);
       var _rms=reportMs(r);
       var _ignored=!!r.ignored;   // [v447] 미반영 — excluded from performance calc/averages/stats, but still shown (greyed) in the session log
-      var _isBreak=isBreakMap(r) && !(_tgt!=null && _tgt>0);   // [v587] ATS is excluded ONLY while the client has no ATS standard; once the card carries a real target (e.g. 순수쌤 ATS 0.94, boss 7/9) the hour scores like any other map — race engine follows via sess.brk
+      var _isBreak=isBreakMap(r) && !(_tgt!=null && _tgt>0 && _atsMan[normName(r.booster)+'|'+_rd+'|'+String(r.client||'').trim()]);   // [v588] ATS scores ONLY when it has a real standard AND the session was flagged hand-played (2h+ submit prompt); otherwise excluded (auto/rest-time). Race engine follows via sess.brk.
       sessions.push({ id:r.id, name:g.name, key:normName(g.name), date:_rd, ms:_rms, tag:_tag, client:r.client||'', pc:r.pc, lv:(r.lvAfter!=null?r.lvAfter:r.lv), map:r.map||'', gain:_gain, expAt:(Number(r.expAfter)||0), target:_tgt, sh:_sh, sl:_sl, dup:_dup, flag:_flag, ignored:_ignored, brk:_isBreak });
       if(_rd){
         if(!recAgg[g.name]) recAgg[g.name]={};
