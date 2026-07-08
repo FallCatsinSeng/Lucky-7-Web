@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v580';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v581';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21278,8 +21278,15 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
   settings = settings || _rcDefaults();
   var rows = _rcScoreReports(reports, clients, settings, (typeof Set!=='undefined'?new Set():{has:function(){return false;}}));
   var dates = rows.map(function(r){return r.date;}).filter(Boolean).sort();
-  var latest = dates.length ? dates[dates.length-1] : null;
-  var todayRows = latest ? rows.filter(function(r){return r.date===latest;}) : [];
+  var latest = dates.length ? dates[dates.length-1] : null;   // week/month anchor + shift summaries — keep tagged shift-date
+  // [v581] DAY view groups by a FIXED 09:00-KST race-day boundary (= UTC calendar date) from each report's
+  // ACTUAL time, NOT the tagged check-in shift-date. So a night crew working across midnight all stays on ONE
+  // "today", and the board never goes empty just because a late booster checks in on the next calendar date.
+  // (Week/month/settlement keep the existing shift-date attribution — this only re-buckets the live day view.)
+  var _RD_BND=9; var _raceDayOf=function(ms){ return ms==null?null:new Date(ms+(9-_RD_BND)*3600000).toISOString().slice(0,10); };
+  var _dayLastMs=0; rows.forEach(function(r){ if((r.ms||0)>_dayLastMs)_dayLastMs=r.ms||0; });
+  var _dayRD = _dayLastMs? _raceDayOf(_dayLastMs) : latest;
+  var todayRows = rows.filter(function(r){ return r.ms!=null ? (_raceDayOf(r.ms)===_dayRD) : (r.date===_dayRD); });
   // [v526] pull the SAME performance % Records & Stats shows (cleanPerf = scoredClean/quota) so the
   // King Bounty % matches Records exactly, per player, using each player's most-recent day.
   var perfByKey = {}; var perfWeekByKey = {}; var perfMonthByKey = {};
@@ -21349,6 +21356,8 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
     var hrs = _live.length;
     var sumPct = _live.reduce(function(s,r){return s+(r.actual||0);},0);
     var avg = hrs ? sumPct/hrs : 0;
+    var _scG=0,_scQ=0; _live.forEach(function(r){ var t=Number(r.target); if(t>0){ _scG+=(r.actual||0); _scQ+=t; } });   // [v581] today's "% of standard" straight from today's rows (matches the new % ranking)
+    var todayPerfPct = _scQ>0 ? (_scG/_scQ*100) : 0;
     var pts = rs.reduce(function(s,r){return s+r.total;},0);
     var g=0,st=0,cu=0,dq=0,shortfall=0;
     rs.forEach(function(r){ if(r.dq){dq++; return;} if(r.result==='Goal')g++; else if(r.result==='Stable')st++; else if(r.result==='Cut')cu++;
@@ -21359,7 +21368,7 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
     var rate=Number(settings.point_rate)||1300; var bounty=Math.floor(pts*rate);   // [v539] POINT-RATE system: bounty = points × rate (earn-only; a weak month simply pays out less)
     var toKST=function(ms){ if(ms==null)return ''; var d=new Date(ms+9*3600000); return ('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2); };
     var recs = rs.map(function(r){ var t=toKST(r.ms); return [t, r.map||'', Number((r.actual||0).toFixed(2)), (r.dq?('DQ ('+r.dqReason+')'):(r.result==='NoStd'?'No Std':r.result))]; });
-    overlay[k] = { todayHours:hrs, todayAvgPct:Number(avg.toFixed(3)), actualRecords:recs, todayDelta:bounty, raceShortfall:Number(shortfall.toFixed(3)), racePtsPerHour:(hrs>0?Number((pts/hrs).toFixed(2)):0),   /* [v540] daily rank = points per hour (quality), money stays cumulative */
+    overlay[k] = { todayHours:hrs, todayAvgPct:Number(avg.toFixed(3)), todayPerfPct:Number(todayPerfPct.toFixed(2)), actualRecords:recs, todayDelta:bounty, raceShortfall:Number(shortfall.toFixed(3)), racePtsPerHour:(hrs>0?Number((pts/hrs).toFixed(2)):0),   /* [v540] daily rank = points per hour (quality), money stays cumulative */
       racePoints:pts, raceGoal:g, raceStable:st, raceCut:cu, raceDq:dq, raceGroup:group, raceMode:mode,
       raceShiftTotal:st_total, raceBounty:bounty };
   });
@@ -34380,7 +34389,7 @@ PLAYERS.forEach(p=>{p.std=stdFor(p.level);p.index=+(p.eph/p.std*100).toFixed(1);
   // 1-hour wonder can't top the board. MONEY is untouched — still cumulative graded points × rate (12h earns
   // more $ = the 12h benefit). Falls back to 0 when there is no scored data.
   var _DAY_FL=4, _WK_FL=8, _MO_FL=8;
-  p.raceScore   = (p.perfPct!=null?     +p.perfPct     :0) * Math.min(1,(+p.todayHours||0)/_DAY_FL);
+  p.raceScore   = (p.todayPerfPct!=null? +p.todayPerfPct:0) * Math.min(1,(+p.todayHours||0)/_DAY_FL);   // [v581] day % from today's rows (09:00-KST race-day), consistent with the re-bucketed day view
   p.raceWeekAvg = (p.perfPctWeek!=null?  +p.perfPctWeek :0) * Math.min(1,(+p.raceWeekHrs||0)/_WK_FL);
   p.raceMonthAvg= (p.perfPctMonth!=null? +p.perfPctMonth:0) * Math.min(1,(+p.raceMonthHrs||0)/_MO_FL);
   p.weekPay=Math.round(p.todayPay||0);
