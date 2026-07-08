@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v589';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v590';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21394,11 +21394,11 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
     // [v527] use the SAME (latest) race day for every player: a booster who is OFF today shows '—' (no data
     // today), not a stale % from a previous working day. Matches Records & Stats on the 'Today' filter.
     var _latestD=latest; if(!_latestD){ _dd.forEach(function(r){ if(!_latestD||r.date>_latestD)_latestD=r.date; }); }
-    _dd.forEach(function(r){ if(r.date===_latestD){ perfByKey[r.key]=(r.cleanPerf!=null?r.cleanPerf:null); } });
+    _dd.forEach(function(r){ if(r.date===_latestD){ perfByKey[_rcNorm(r.key)]=(r.cleanPerf!=null?r.cleanPerf:null); } });   // [v590] run Records keys through _rcNorm so aliased names (ERICSON→eric) land on the same key the leaderboard looks up — without this the week/month % showed 0 for any aliased player
     // [v530] PERIOD performance % straight from Records' daily rows (scoredClean/quota — identical math to the
     // Records & Stats page): week = last 7 days ending at the latest race day, month = the calendar month.
     var _wAgg={}, _mAgg={}; var _lMs0=_latestD?Date.parse(_latestD+'T00:00:00Z'):null; var _mon0=_latestD?String(_latestD).slice(0,7):null;
-    _dd.forEach(function(r){ var k=r.key; if(!k||!r.date) return; var q=Number(r.quota)||0, sc=Number(r.scoredClean)||0;
+    _dd.forEach(function(r){ var k=_rcNorm(r.key); if(!k||!r.date) return; var q=Number(r.quota)||0, sc=Number(r.scoredClean)||0;   // [v590] same alias-normalization for the week/month aggregation
       if(_mon0 && String(r.date).slice(0,7)===_mon0){ var m=_mAgg[k]=_mAgg[k]||{q:0,s:0}; m.q+=q; m.s+=sc; }
       if(_lMs0!=null){ var d0=Date.parse(r.date+'T00:00:00Z'); if(!isNaN(d0)&&d0<=_lMs0&&(_lMs0-d0)<=6*86400000){ var w=_wAgg[k]=_wAgg[k]||{q:0,s:0}; w.q+=q; w.s+=sc; } } });
     Object.keys(_wAgg).forEach(function(k){ perfWeekByKey[k]=(_wAgg[k].q>0? _wAgg[k].s/_wAgg[k].q*100 : null); });
