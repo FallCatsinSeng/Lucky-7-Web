@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v588';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v589';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19057,6 +19057,31 @@ async function _srSubmitReport(kind,screen){
           ignored:_ign, atsManual:(_isAtsMap?_atsManual:undefined) }));
       });
       if(!newRecs.length){ _srToast("This hour is already reported — nothing new to submit"); return false; }   // [v561] an hourly update whose hour is already covered
+      // [v589] WRITE-TIME CHAIN GATE — the last line of defense (boss 7/9: stop this error class for good).
+      // Every batch this form is about to save must be a mathematically perfect chain: row 1 starts EXACTLY at
+      // the previous report's end value, each row starts where the one before it ended, and the final row lands
+      // EXACTLY on the EXP the booster just typed. Any violation = a fill/interpolation bug (the class behind
+      // the Ericson 0.36×2 / Claws 0.20×2 incidents) — and then we REFUSE to write the batch at all: rows that
+      // are never written can never reach the race, Discord, or payroll. On healthy code this never fires; it
+      // exists so a FUTURE regression surfaces at submit time (clean DB, booster retries) instead of days later
+      // as mysterious half-value Cut rows in a screenshot.
+      try{
+        var _chk=startVal, _cerr=null;
+        for(var _gi=0;_gi<newRecs.length;_gi++){
+          var _gr=newRecs[_gi];
+          var _gvb=Number(_gr.lvBefore)*100+Number(_gr.expBefore), _gva=Number(_gr.lvAfter)*100+Number(_gr.expAfter);
+          if(Math.abs(_gvb-_chk)>0.06){ _cerr='row '+(_gi+1)+'/'+newRecs.length+' starts at '+_gvb.toFixed(2)+' but the chain expects '+_chk.toFixed(2); break; }
+          _chk=_gva;
+        }
+        if(!_cerr && Math.abs(_chk-endVal)>0.06) _cerr='batch ends at '+_chk.toFixed(2)+' but the typed EXP is '+endVal.toFixed(2);
+        if(_cerr){
+          try{ console.error('[v589 chain-gate] SAVE REFUSED — '+_cerr, JSON.parse(JSON.stringify(newRecs))); }catch(_){ }
+          var _koG=(_uiLang&&_uiLang()==='ko');
+          _srToast(_koG?'⚠ 기록 숫자가 서로 맞지 않아 저장을 중단했습니다. 새로고침 후 다시 제출해 주세요 — 반복되면 리더에게 알려주세요.'
+                       :'⚠ Save blocked — the numbers do not chain. Refresh and resubmit; tell your leader if it repeats.');
+          return false;
+        }
+      }catch(_){ }
       cardType=(kind==='checkout')?'checkout':'hourly';
       if(kind==='checkout'){
         // [v402] SUPERSEDES v319 below: check-out card now reports gain since the LAST report (prev -> check-out),
