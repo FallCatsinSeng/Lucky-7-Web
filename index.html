@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v584';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v585';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19005,18 +19005,35 @@ async function _srSubmitReport(kind,screen){
       // than guessed at, since we have no real reading for it.
       var _fillKs=[]; for(var k=1;k<=N;k++){ var _isFinalRec0=(kind==='checkout'&&k===N); var _slotH0=parseInt(_srKST(ws+k-1),10); if(!_isFinalRec0 && isFinite(_slotH0) && _doneHrs[_slotH0]) continue; _fillKs.push(k); }
       var _lastFillIdx=_fillKs.length-1;
+      // [v585] TWO fill modes (found via scenario verification):
+      //  - GAP mode (some hours of this shift WERE live-reported): the prev→final delta is genuinely the
+      //    last stretch since the previous real report — put ALL of it in the LAST unreported slot (matches
+      //    the Discord checkout card's EXP/HOUR definition, boss-confirmed), earlier gap hours (scheduled
+      //    break) written flat + ignored so they never show as a fake red Cut.
+      //  - PURE-BACKFILL mode (booster filed NO hourly reports at all, only a checkout): the delta genuinely
+      //    spans the whole window — dumping it into one hour would trip the EXP-jump flag and misread as a
+      //    spike. Spread it EVENLY across all slots (the original interpolation, which was correct here).
+      var _pureBackfill=(_fillKs.length===N);
       _fillKs.forEach(function(k,_fi){
         var _isFinalRec=(kind==='checkout'&&k===N);
         var _isLastFill=(_fi===_lastFillIdx);
-        var vB=startVal, vA=(_isLastFill?endVal:startVal);
+        var vB,vA,aB,aA;
+        if(_pureBackfill){
+          var _M=_fillKs.length;
+          vB=startVal+(endVal-startVal)*(_fi/_M); vA=startVal+(endVal-startVal)*((_fi+1)/_M);
+          aB=prev.adena+(endAde-prev.adena)*(_fi/_M); aA=prev.adena+(endAde-prev.adena)*((_fi+1)/_M);
+        } else {
+          vB=startVal; vA=(_isLastFill?endVal:startVal);
+          aB=prev.adena; aA=(_isLastFill?endAde:prev.adena);
+        }
         var lvB=Math.floor(vB/100), eB=vB-lvB*100, lvA=Math.floor(vA/100), eA=vA-lvA*100;
-        var aB=prev.adena, aA=(_isLastFill?endAde:prev.adena);
-        // [v584] a flat (non-last) fill has no real reading — mark it ignored so Records shows a neutral
+        // [v584] a flat gap fill has no real reading — mark it ignored so Records shows a neutral
         // "제외" badge (greyed, out of averages/stats) instead of a false red 미달/Cut for a scheduled break.
+        var _ign=(!_pureBackfill && !_isLastFill)?1:0;
         newRecs.push(mkRec({ tag:(_isFinalRec?'checkout':'status'), start:_srKST(ws+k-1), end:_srKST(ws+k),
           lvBefore:lvB, expBefore:Number(eB.toFixed(2)), lvAfter:lvA, expAfter:Number(eA.toFixed(2)),
-          adena:Math.round(aA), prevAdena:Math.round(aB), dead:(calc.isDeath?1:0), note:(k===N?nt2:(_isLastFill?'':'휴식/공백 (자동 채움)')),
-          ignored:(_isLastFill?0:1) }));
+          adena:Math.round(aA), prevAdena:Math.round(aB), dead:(calc.isDeath?1:0), note:(k===N?nt2:(_ign?'휴식/공백 (자동 채움)':'')),
+          ignored:_ign }));
       });
       if(!newRecs.length){ _srToast("This hour is already reported — nothing new to submit"); return false; }   // [v561] an hourly update whose hour is already covered
       cardType=(kind==='checkout')?'checkout':'hourly';
