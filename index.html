@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v590';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v591';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -18959,15 +18959,28 @@ async function _srSubmitReport(kind,screen){
       // Skips deaths (negative) and check-in.
       if(kind!=='checkin' && !(calc && calc.isDeath)){
         var _perH=(endVal-startVal)/Math.max(1,N);
-        var _zk=(function(s){ s=String(s||'').toLowerCase();
-          if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats';
+        var _zof=function(s){ s=String(s||'').toLowerCase();
+          if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0||s.indexOf('축복')>=0)return'ats';
           if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc';
           if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream';
           if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren';
           if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon';
           if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0)return'dgg';
-          return'other'; })(mapFull);
-        var _cut={dream:0.77,oren:0.72,dragon:0.54,dgg:0.46,orc:0.39}[_zk];
+          return'other'; };
+        var _zk=_zof(mapFull);
+        // [v591] cut line comes from THIS client's live standard card (sl of the matched zone) — the old
+        // hardcoded zone table (oren 0.72 etc.) goes stale the moment the boss updates a standard (순수쌤
+        // oren is 1.20/0.92 now). Card first (match by pc, then name), hardcoded table only as last resort.
+        var _cut=(function(){ try{
+          if(Array.isArray(clients)) for(var _cx=0;_cx<clients.length;_cx++){ var _cc2=clients[_cx]; if(!_cc2||!Array.isArray(_cc2.maps)) continue;
+            var _same=(_cc2.pc!=null&&String(_cc2.pc)===String(pc))||(String(_cc2.name||'').trim()!==''&&String(_cc2.name||'').trim()===String(name||'').trim());
+            if(!_same) continue;
+            for(var _mx=0;_mx<_cc2.maps.length;_mx++){ var _mm=_cc2.maps[_mx]; if(!_mm) continue;
+              if(_zof(String(_mm.en||'')+' '+String(_mm.ko||''))===_zk){
+                var _slv=Number(_mm.sl); if(isFinite(_slv)&&_slv>0) return _slv;
+                var _tgv=Number(_mm.target); if(isFinite(_tgv)&&_tgv>0) return _tgv*0.8; } } }
+        }catch(_){ }
+        return {dream:0.77,oren:0.72,dragon:0.54,dgg:0.46,orc:0.39}[_zk]; })();
         // booster's typical hourly gain = median of their recent positive status gains (exclude excluded rows)
         var _rg=[]; try{ var _mbb=(sess?sess.booster:_srBooster());
           if(Array.isArray(_allR)) for(var _hi=0;_hi<_allR.length;_hi++){ var _hx=_allR[_hi];
@@ -21398,9 +21411,10 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
     // [v530] PERIOD performance % straight from Records' daily rows (scoredClean/quota — identical math to the
     // Records & Stats page): week = last 7 days ending at the latest race day, month = the calendar month.
     var _wAgg={}, _mAgg={}; var _lMs0=_latestD?Date.parse(_latestD+'T00:00:00Z'):null; var _mon0=_latestD?String(_latestD).slice(0,7):null;
+    var _wkMon0=(_lMs0!=null)?(_lMs0-((new Date(_lMs0).getUTCDay()+6)%7)*86400000):null;   // [v591] week = MONDAY-start (same week the weekly King card / weekly RP use), not a rolling 7 days — the board showed two different "weeks" on one row
     _dd.forEach(function(r){ var k=_rcNorm(r.key); if(!k||!r.date) return; var q=Number(r.quota)||0, sc=Number(r.scoredClean)||0;   // [v590] same alias-normalization for the week/month aggregation
       if(_mon0 && String(r.date).slice(0,7)===_mon0){ var m=_mAgg[k]=_mAgg[k]||{q:0,s:0}; m.q+=q; m.s+=sc; }
-      if(_lMs0!=null){ var d0=Date.parse(r.date+'T00:00:00Z'); if(!isNaN(d0)&&d0<=_lMs0&&(_lMs0-d0)<=6*86400000){ var w=_wAgg[k]=_wAgg[k]||{q:0,s:0}; w.q+=q; w.s+=sc; } } });
+      if(_wkMon0!=null){ var d0=Date.parse(r.date+'T00:00:00Z'); if(!isNaN(d0)&&d0>=_wkMon0&&d0<=_lMs0){ var w=_wAgg[k]=_wAgg[k]||{q:0,s:0}; w.q+=q; w.s+=sc; } } });
     Object.keys(_wAgg).forEach(function(k){ perfWeekByKey[k]=(_wAgg[k].q>0? _wAgg[k].s/_wAgg[k].q*100 : null); });
     Object.keys(_mAgg).forEach(function(k){ perfMonthByKey[k]=(_mAgg[k].q>0? _mAgg[k].s/_mAgg[k].q*100 : null); });
   } }catch(_){ }
@@ -21413,14 +21427,15 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
   // while money stays cumulative points × rate regardless of rank. Boss decision 2026-07-06.
   var _weekHrs={}, _monthHrs={}; var _RC_WEEK_FLOOR_H=16, _RC_MONTH_FLOOR_H=30;   /* [v577] boss: rank by real per-hour efficiency — floors lowered (was 40/160, which made early-period rank = total points) so high-efficiency low-hour racers (e.g. Claws) rank above high-hour lower-efficiency ones (e.g. Sid). 12h benefit stays in MONEY (cumulative PT × rate), not rank. Floor is only an anti-tiny-sample-gaming minimum now. */
   var _lMs = latest ? Date.parse(latest+'T00:00:00Z') : null; var _mon = latest ? String(latest).slice(0,7) : null;
+  var _wkMonP=(_lMs!=null)?(_lMs-((new Date(_lMs).getUTCDay()+6)%7)*86400000):null;   // [v591] Monday-start week — same window as weekly RP/King (was a rolling 7 days)
   rows.forEach(function(r){ var k=r.playerKey; if(!k||!r.date) return;
     if(_mon && String(r.date).slice(0,7)===_mon){ _monthPts[k]=(_monthPts[k]||0)+(r.total||0); if(!r.dq)_monthHrs[k]=(_monthHrs[k]||0)+1; }
-    if(_lMs!=null){ var d=Date.parse(r.date+'T00:00:00Z'); if(!isNaN(d) && d<=_lMs && (_lMs-d)<=6*86400000){ _weekPts[k]=(_weekPts[k]||0)+(r.total||0); if(!r.dq)_weekHrs[k]=(_weekHrs[k]||0)+1; } } });
+    if(_wkMonP!=null){ var d=Date.parse(r.date+'T00:00:00Z'); if(!isNaN(d) && d>=_wkMonP && d<=_lMs){ _weekPts[k]=(_weekPts[k]||0)+(r.total||0); if(!r.dq)_weekHrs[k]=(_weekHrs[k]||0)+1; } } });
   // [v538] finalized race payouts (PAID money) per player from race_payouts \u2014 one formula everywhere.
   var _pays=(typeof window!=='undefined'&&window.__KB_PAYOUTS)||[];
   var _monday=null; if(latest){ var _dd0=new Date(latest+'T00:00:00Z'); var _dow=(_dd0.getUTCDay()+6)%7; _monday=_dd0.getTime()-_dow*86400000; }
   var _paidW={}, _paidM={}, _paidT={}; var _wkSpent=0, _wkSpentPrior=0;
-  _pays.forEach(function(q){ var pk=String(q.player_key||'').toLowerCase(); var amt=Number(q.final_payout_amount)||0; var ds=String(q.shift_date||'').slice(0,10); if(!ds) return;
+  _pays.forEach(function(q){ var pk=_rcNorm(String(q.player_key||'')); var amt=Number(q.final_payout_amount)||0; var ds=String(q.shift_date||'').slice(0,10); if(!ds) return;   /* [v591] race_payouts holds MIXED keys for aliased players (eric 7/1-4 + ericson 7/6-7) — normalize through _rcNorm so paid sums stop splitting */
     if(_mon && ds.slice(0,7)===_mon){ _paidM[pk]=(_paidM[pk]||0)+amt; }
     if(_monday!=null){ var tt=Date.parse(ds+'T00:00:00Z'); if(!isNaN(tt)&&tt>=_monday&&tt<_monday+7*86400000){ _paidW[pk]=(_paidW[pk]||0)+amt; _wkSpent+=amt; if(ds!==latest)_wkSpentPrior+=amt; } }
     if(latest && ds===latest){ _paidT[pk]=(_paidT[pk]||0)+amt; }
@@ -34439,6 +34454,19 @@ var _kbSrc = (typeof _rcBuildKbPlayers==='function' && window.__KB_REPORTS && wi
   ? _rcBuildKbPlayers(window.__KB_REPORTS, window.__KB_CLIENTS, window.__KB_SETTINGS, EMBEDDED_PLAYERS)   /* [v524] real reports + 5-Juta race */
   : EMBEDDED_PLAYERS;                                                                                   /* fallback: demo when data not loaded */
 const PLAYERS = resolvePlayers(_kbSrc);
+// [v591] REAL month spend for the MONTHLY BONUS card. CONFIG.monthSpentBeforeToday was a demo constant (0),
+// so the card ignored every FINALIZED payout and showed 4,911,583 remaining while the settlement ledger
+// (race_settings) said 4,205,300 — boss caught it. Sum this month's finalized race_payouts directly
+// (all player keys, so aliases can't split it), excluding the CURRENT race day whose live bonus is added
+// separately as TODAY_BONUS_SPENT below. Card now equals: pool − finalized(month, before today) − live(today).
+try{
+  const _rdToday=new Date().toISOString().slice(0,10);          // 09:00-KST race day == UTC date
+  const _payMon=_rdToday.slice(0,7);
+  let _paidMon=0;
+  ((window.__KB_PAYOUTS)||[]).forEach(q=>{ const ds=String(q.shift_date||'').slice(0,10);
+    if(ds.slice(0,7)===_payMon && ds!==_rdToday) _paidMon+=Number(q.final_payout_amount)||0; });
+  if(_paidMon>0) CONFIG.monthSpentBeforeToday=_paidMon;
+}catch(_){}
 // 백그라운드 갱신 (논블로킹): 성공 시 캐시에 저장 → 다음 새로고침부터 반영
 (async()=>{try{const live=await fetchLivePlayers();
   if(live&&live.length){store.set('live_players',JSON.stringify(live));store.set('live_ts',''+Date.now());
