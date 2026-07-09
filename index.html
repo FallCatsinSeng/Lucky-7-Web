@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v591';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v592';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21428,9 +21428,11 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
   var _weekHrs={}, _monthHrs={}; var _RC_WEEK_FLOOR_H=16, _RC_MONTH_FLOOR_H=30;   /* [v577] boss: rank by real per-hour efficiency — floors lowered (was 40/160, which made early-period rank = total points) so high-efficiency low-hour racers (e.g. Claws) rank above high-hour lower-efficiency ones (e.g. Sid). 12h benefit stays in MONEY (cumulative PT × rate), not rank. Floor is only an anti-tiny-sample-gaming minimum now. */
   var _lMs = latest ? Date.parse(latest+'T00:00:00Z') : null; var _mon = latest ? String(latest).slice(0,7) : null;
   var _wkMonP=(_lMs!=null)?(_lMs-((new Date(_lMs).getUTCDay()+6)%7)*86400000):null;   // [v591] Monday-start week — same window as weekly RP/King (was a rolling 7 days)
+  var _wkShort={}, _moShort={};   // [v592] period wage-layer deficit (Σ per-hour (1−rate/100), same formula as today's raceShortfall) — so Week/Month RP can finally show MINUSES (boss: "7/1부터 마이너스 난 사람도 있을텐데 왜 전부 플러스지")
   rows.forEach(function(r){ var k=r.playerKey; if(!k||!r.date) return;
-    if(_mon && String(r.date).slice(0,7)===_mon){ _monthPts[k]=(_monthPts[k]||0)+(r.total||0); if(!r.dq)_monthHrs[k]=(_monthHrs[k]||0)+1; }
-    if(_wkMonP!=null){ var d=Date.parse(r.date+'T00:00:00Z'); if(!isNaN(d) && d>=_wkMonP && d<=_lMs){ _weekPts[k]=(_weekPts[k]||0)+(r.total||0); if(!r.dq)_weekHrs[k]=(_weekHrs[k]||0)+1; } } });
+    var _sf=(!r.dq && r.rate!=null && r.rate<100) ? (1-r.rate/100) : 0;
+    if(_mon && String(r.date).slice(0,7)===_mon){ _monthPts[k]=(_monthPts[k]||0)+(r.total||0); if(!r.dq)_monthHrs[k]=(_monthHrs[k]||0)+1; if(_sf)_moShort[k]=(_moShort[k]||0)+_sf; }
+    if(_wkMonP!=null){ var d=Date.parse(r.date+'T00:00:00Z'); if(!isNaN(d) && d>=_wkMonP && d<=_lMs){ _weekPts[k]=(_weekPts[k]||0)+(r.total||0); if(!r.dq)_weekHrs[k]=(_weekHrs[k]||0)+1; if(_sf)_wkShort[k]=(_wkShort[k]||0)+_sf; } } });
   // [v538] finalized race payouts (PAID money) per player from race_payouts \u2014 one formula everywhere.
   var _pays=(typeof window!=='undefined'&&window.__KB_PAYOUTS)||[];
   var _monday=null; if(latest){ var _dd0=new Date(latest+'T00:00:00Z'); var _dow=(_dd0.getUTCDay()+6)%7; _monday=_dd0.getTime()-_dow*86400000; }
@@ -21559,6 +21561,7 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
     var _hb = _mb>0 ? Math.round(_mb/_sh/30) : (Number(cfg.hourlyBase)||0);
     if(!_hb && Number(cfg.monthlyBase)>0){ var _sh2=(o&&o.raceMode==='1212')?12:8; _hb=Math.round(Number(cfg.monthlyBase)/24/_sh2); }
     out.raceCutAmt=(o&&o.raceShortfall>0&&_hb>0)?Math.round(_hb*o.raceShortfall):0;   // [v544] today's wage-layer cut (Rp), shown in the race so minuses are visible
+    out.raceCutWeek=(_hb>0)?Math.round(_hb*(_wkShort[k]||0)):0; out.raceCutMonth=(_hb>0)?Math.round(_hb*(_moShort[k]||0)):0;   // [v592] period wage-layer cuts (same _hb × Σshortfall) — feeds the Week/Month net RP
     out.perfPctWeek=(perfWeekByKey[k]!=null?perfWeekByKey[k]:null); out.perfPctMonth=(perfMonthByKey[k]!=null?perfMonthByKey[k]:null);   // [v530] Records-basis period %
     out.todayPay = undefined; out.todayBase = undefined;
     return out;
@@ -36820,9 +36823,13 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
   function incentiveParts(p,view){
     if(view==='week'||view==='month'){
       // [v539] real money must be visible: period bounty = finalized payouts + today's live bounty (if today not finalized yet)
+      // [v592] …MINUS the period's wage-layer cuts, exactly like the Day chip (v544). Before this, Week/Month
+      // only ever summed positive payouts, so a player deep in cuts still showed +RP (boss caught it).
       const paid=n(view==='week'?p.racePaidWeek:p.racePaidMonth);
       const live=(p.raceTodayPaid!=null?0:n(p.todayDelta));
-      const amt=paid+live;
+      const cut=n(view==='week'?p.raceCutWeek:p.raceCutMonth);
+      const amt=paid+live-cut;
+      if(amt<0) return {state:'penalty', label:'CUT', amount:'-'+shortMoneyLocal(Math.abs(amt))};
       return {state:(amt>0?'bonus':'zero'), label:'RP', amount:(amt>0?'+'+shortMoneyLocal(amt):'0')};
     }
     const adj=n(p.todayDelta)-n(p.raceCutAmt);   // [v544] net of today's race bounty minus wage-layer cut — minuses are visible again
