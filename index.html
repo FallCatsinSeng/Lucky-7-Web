@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v598';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v599';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -18872,6 +18872,14 @@ async function _srSubmitReport(kind,screen){
     var clients;
     try{ clients=await _srGetCalc('clients'); }
     catch(e){ _srToast("Can't reach the report server — try again"); return false; }
+    // [v599] STALE-BUILD GATE — a booster on an old cached page runs OLD fill logic (the source of every
+    // resurfaced bug class). calc_data 'min_build' holds the minimum allowed build number; older pages are
+    // refused with a refresh prompt instead of being allowed to write with outdated code. Network failure
+    // or a missing key never blocks (fail-open) — this only stops KNOWN-stale clients.
+    try{ var _mbv=await _srGetCalc('min_build'); var _cbn=parseInt(String(typeof _APP_BUILD!=='undefined'?_APP_BUILD:'').replace(/[^0-9]/g,''),10);
+      if(_mbv!=null && isFinite(Number(_mbv)) && isFinite(_cbn) && _cbn>0 && _cbn<Number(_mbv)){
+        _srToast((_uiLang&&_uiLang()==='ko')?'⚠ 페이지 버전이 오래됐습니다 — 새로고침(Ctrl+F5) 후 다시 제출해주세요.':'⚠ This page is outdated — hard-refresh (Ctrl+F5) and submit again.');
+        return false; } }catch(_){ }
     var cc=_srCalcClient(clients,name)||{};
     var gear={ no:(cc.no!=null?cc.no:pc), weapon:cc.sword, armor:cc.armor, ac:cc.ac, classJob:cc.job };
     // [v302] Read gear STRAIGHT from the ERP client. This form runs inside the ERP, so CLIENTS is already
@@ -19081,6 +19089,48 @@ async function _srSubmitReport(kind,screen){
           ignored:_ign, atsManual:(_isAtsMap?_atsManual:undefined) }));
       });
       if(!newRecs.length){ _srToast("This hour is already reported — nothing new to submit"); return false; }   // [v561] an hourly update whose hour is already covered
+      // [v599] CLOUD-ANCHOR CONFIRM — the '이전' value this batch chains from must match the booster's LAST
+      // SAVED row on the server. A wrong previous value passes the v589 internal-chain gate (the batch is
+      // self-consistent) but silently drops the EXP gained in between (real case: Sid 7/9 typed 46.05 while
+      // the server said 45.00 — +1.05% vanished from scoring). Soft confirm: show both numbers, let the
+      // booster proceed only deliberately; the 2h chain monitor still flags it after the fact.
+      try{
+        if(Array.isArray(_allR) && _ciStart && _ciStart.createdAt){
+          var _meC=(sess?sess.booster:_srBooster()), _lastC=null;
+          for(var _li=0;_li<_allR.length;_li++){ var _lr=_allR[_li];
+            if(!_lr||_lr.booster!==_meC||String(_lr.client||'')!==String(name||'')) continue;
+            if(_lr.tag!=='status'&&_lr.tag!=='checkout') continue;
+            if((_lr.createdAt||0)<_ciStart.createdAt) continue;
+            if(!_lastC||(_lr.createdAt||0)>(_lastC.createdAt||0)) _lastC=_lr; }
+          if(_lastC && (Date.now()-(_lastC.createdAt||0))<3*3600000){
+            var _cv=(Number(_lastC.lvAfter)||0)*100+(Number(_lastC.expAfter)||0);
+            if(isFinite(_cv)&&Math.abs(_cv-startVal)>0.05){
+              var _koC=(_uiLang&&_uiLang()==='ko');
+              var _mC=_koC?('⚠ 서버에 저장된 마지막 EXP는 '+_cv.toFixed(2)+'% 인데, 지금 "이전" 값은 '+startVal.toFixed(2)+'% 입니다.\n\n이전 값이 틀리면 그 사이 올린 경험치가 점수에서 사라집니다.\n\n정말 이대로 제출할까요? (취소하고 새로고침 권장)')
+                        :('⚠ The last saved EXP on the server is '+_cv.toFixed(2)+'% but your "previous" value is '+startVal.toFixed(2)+'%.\n\nA wrong previous value silently loses the EXP gained in between.\n\nSubmit anyway? (Cancel + refresh recommended)');
+              try{ if(typeof confirm==='function' && !confirm(_mC)) return false; }catch(_){ }
+            } } }
+      }catch(_){ }
+      // [v599] ADENA-TYPO CONFIRM — a positive adena jump far above the booster's own hourly pace is almost
+      // always a mistyped digit (real case: Sid +110,260 typed for a +10,260 hour). ≥50K AND ≥6× the booster's
+      // median positive hourly adena gain → confirm before saving. Purchases (negative swings) never prompt.
+      try{
+        if(isFinite(endAde) && prev && isFinite(Number(prev.adena))){
+          var _adG=endAde-Number(prev.adena);
+          if(_adG>50000){
+            var _ads=[]; if(Array.isArray(_allR)) for(var _ai=0;_ai<_allR.length;_ai++){ var _ar=_allR[_ai];
+              if(!_ar||_ar.tag!=='status'||_ar.booster!==(sess?sess.booster:_srBooster())) continue;
+              var _ag=Number(_ar.adena)-Number(_ar.prevAdena!=null?_ar.prevAdena:_ar.adena);
+              if(isFinite(_ag)&&_ag>0&&_ag<2e6)_ads.push(_ag); }
+            _ads.sort(function(a,b){return a-b;});
+            var _adMed=_ads.length?_ads[Math.floor(_ads.length/2)]:0;
+            if(_adMed>0 && _adG>6*_adMed){
+              var _koA2=(_uiLang&&_uiLang()==='ko');
+              var _mA=_koA2?('⚠ 아데나가 +'+_adG.toLocaleString()+' 증가로 입력됐습니다. 평소 시간당 페이스(중간값 +'+Math.round(_adMed).toLocaleString()+')보다 훨씬 큽니다.\n\n숫자를 다시 확인해주세요. 맞으면 확인을 누르세요.')
+                        :('⚠ Adena gain +'+_adG.toLocaleString()+' is far above your usual hourly pace (median +'+Math.round(_adMed).toLocaleString()+').\n\nDouble-check the number. Press OK if it is correct.');
+              try{ if(typeof confirm==='function' && !confirm(_mA)) return false; }catch(_){ }
+            } } }
+      }catch(_){ }
       // [v589] WRITE-TIME CHAIN GATE — the last line of defense (boss 7/9: stop this error class for good).
       // Every batch this form is about to save must be a mathematically perfect chain: row 1 starts EXACTLY at
       // the previous report's end value, each row starts where the one before it ended, and the final row lands
@@ -21528,8 +21578,24 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
         prevV=vA; prevTag=r.tag;
       });
     });
+    // [v599] EVEN-SPLIT SIGNATURE self-check: 2+ LIVE (non-ignored) hour rows created in the same second,
+    // spanning 2+ clock hours, with near-equal gains — the artifact behind the Ericson 0.36×2 / 0.37+0.38
+    // incidents. After v598 this must NEVER appear for a booster who live-reported during the shift; if it
+    // does, it lands in __RC_AUDIT and console.warn the moment anyone opens the race tab.
+    try{
+      var _bat={};
+      reports.forEach(function(r){ if(!r||_rcIsTestReport(r)||r.ignored===true||r.ignored==='true'||r.ignored===1||r.ignored==='1') return;
+        if(r.tag!=='status'&&r.tag!=='checkout') return; var _m2=_rcMs(r); if(_m2==null||_raceDayOf(_m2)!==_dayRD) return;
+        var bk=_rcNorm(r.booster)+'|'+Math.floor(_m2/1000); (_bat[bk]=_bat[bk]||[]).push(r); });
+      Object.keys(_bat).forEach(function(bk){ var rs2=_bat[bk]; if(rs2.length<2) return;
+        var hh={}; rs2.forEach(function(r){ hh[parseInt(String(r.start||''),10)]=1; }); if(Object.keys(hh).length<2) return;
+        var gs=rs2.map(function(r){ return (Number(r.lvAfter)-Number(r.lvBefore))*100+(Number(r.expAfter)-Number(r.expBefore)); });
+        var mx=Math.max.apply(null,gs), mn=Math.min.apply(null,gs);
+        if(isFinite(mx)&&isFinite(mn)&&(mx-mn)<0.06&&mn>0.01){ _audit.push({booster:rs2[0].booster, type:'even-split', hours:Object.keys(hh).join(','), gains:gs.map(function(g){return +g.toFixed(2);})}); }
+      });
+    }catch(_){ }
     window.__RC_AUDIT={day:_dayRD, checked:Object.keys(_byB).length, issues:_audit};
-    if(_audit.length){ try{ console.warn('[RC-AUDIT] '+_audit.length+' chain issue(s) today:', _audit); }catch(_){ } }
+    if(_audit.length){ try{ console.warn('[RC-AUDIT] '+_audit.length+' issue(s) today:', _audit); }catch(_){ } }
   }catch(_){ }
   var shiftTotals = {};
   todayRows.forEach(function(r){ if(!shiftTotals[r.group]) shiftTotals[r.group]=0; shiftTotals[r.group]+=r.total; });
