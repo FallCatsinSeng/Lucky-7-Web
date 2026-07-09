@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v596';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v597';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19890,7 +19890,19 @@ async function renderShiftAdmin(silent){
   var isTestMap=function(r){ return String(r.map||'').toUpperCase()==='TEST'; };
   var zoneKey=function(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc'; if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream'; if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; };
   var _stdNorm=function(x){ return String(x||'').replace(/[\s\u00b7.\-_'"’]/g,'').replace(/(쌤|선생님|님|씨|형님|형|누님|누나|언니|오빠)$/,'').toLowerCase(); };
-  var _pickFromMaps=function(maps,z,lv){ if(!Array.isArray(maps)) return null; var cand=maps.filter(function(m){return zoneKey(m.en||m.ko)===z;}); if(!cand.length) return null; var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; };
+  // [v597] NAME-AWARE map pick: one card can carry TWO maps of the SAME zone with different standards
+  // (순수쌤 오렌 3시간 1.20 vs 오렌 설원 0.94 — boss 7/10). Zone+level alone can't tell them apart, so when a
+  // card has 2+ same-zone entries, score each by name-token overlap with the REPORT's map (token equal, or
+  // one contains the other at len≥3 so snow/field ↔ snowfield and hour ↔ hours match) and take a clear winner
+  // (≥2 shared, no tie). Single-entry zones and no-name calls behave exactly as before (wild → level ladder).
+  var _pkTok=function(s){ return String(s||'').toLowerCase().split(/[^a-z0-9가-힣]+/).filter(Boolean); };
+  var _pickFromMaps=function(maps,z,lv,nm){ if(!Array.isArray(maps)) return null; var cand=maps.filter(function(m){return zoneKey(m.en||m.ko)===z;}); if(!cand.length) return null;
+    if(nm && cand.length>1){ var rt=_pkTok(nm); if(rt.length){ var best=null,bs=0,tie=false;
+      cand.forEach(function(m){ var mt=_pkTok(String(m.en||'')+' '+String(m.ko||'')); var s=0;
+        rt.forEach(function(t){ for(var _q=0;_q<mt.length;_q++){ var u=mt[_q]; if(t===u||(t.length>=3&&u.indexOf(t)>=0)||(u.length>=3&&t.indexOf(u)>=0)){s++;return;} } });
+        if(s>bs){bs=s;best=m;tie=false;} else if(s===bs&&s>0){tie=true;} });
+      if(best&&bs>=2&&!tie) return best; } }
+    var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; };
   var findMap=function(clients,r){
     var cn=String(r.client||'').trim(), cnn=_stdNorm(cn); var c=null,i;
     // [v494] tolerant client match: exact name -> normalized name (쌤/님/spaces stripped) -> PC number
@@ -19901,7 +19913,7 @@ async function renderShiftAdmin(silent){
     if(!c){ for(i=0;i<clients.length;i++){ if(String(clients[i].name||'').trim()===cn && cn){c=clients[i];break;} } }
     if(!c && cnn){ for(i=0;i<clients.length;i++){ if(_stdNorm(clients[i].name)===cnn){c=clients[i];break;} } }
     var z=zoneKey(r.map); var lv=Number(r.lvAfter!=null?r.lvAfter:r.lv);
-    var hit = (c && c.maps) ? _pickFromMaps(c.maps,z,lv) : null;
+    var hit = (c && c.maps) ? _pickFromMaps(c.maps,z,lv,r.map) : null;
     var _hasBand=function(m){ return !!(m && m.sh!=null && m.sh!=='' && m.sl!=null && m.sl!==''); };
     if(hit && _hasBand(hit)) return hit;
     // [v495] BAND-BACKFILL + last-resort fallback: the matched card's own map entry either doesn't exist,
@@ -19920,7 +19932,7 @@ async function renderShiftAdmin(silent){
     var prefFull=null, prefAny=null, anyFull=null, anyAny=null;
     for(i=0;i<clients.length;i++){
       if(_isTrain(clients[i].name)) continue;   // never borrow FROM a training card
-      var m=_pickFromMaps(clients[i].maps,z,lv); if(!m) continue;
+      var m=_pickFromMaps(clients[i].maps,z,lv,r.map); if(!m) continue;
       var full=_hasBand(m);
       if(anyAny==null) anyAny=m;
       if(full && anyFull==null) anyFull=m;
@@ -19950,7 +19962,7 @@ async function renderShiftAdmin(silent){
                       (cnn && cnn.length>=2 && _ocn && _ocn.length>=2 && (_ocn.indexOf(cnn)>=0 || cnn.indexOf(_ocn)>=0));
         var _same=(_rpcD!=='' && _ocpcD===_rpcD) || _nameLink;
         if(!_same) continue;
-        var _h2=_pickFromMaps(_oc.maps,z,lv);
+        var _h2=_pickFromMaps(_oc.maps,z,lv,r.map);
         if(_h2){ hit=_h2; break; }
       }
     }
@@ -20520,7 +20532,19 @@ function _srRecCompute(reports, clients){
   var zoneKey=function(s){ s=(s||'').toLowerCase(); if(s.indexOf('orc')>=0||s.indexOf('오크')>=0||s.indexOf('totem')>=0||s.indexOf('토템')>=0)return'orc'; if(s.indexOf('dream')>=0||s.indexOf('ivory')>=0||s.indexOf('드림')>=0||s.indexOf('상아')>=0||s.indexOf('아일랜드')>=0)return'dream'; if(s.indexOf('oren')>=0||s.indexOf('snow')>=0||s.indexOf('오렌')>=0||s.indexOf('설원')>=0)return'oren'; if(s.indexOf('ant')>=0)return'ant'; if(s.indexOf('dragon')>=0||s.indexOf('드래곤')>=0)return'dragon'; if(s.indexOf('blessed')>=0||s.indexOf('ats')>=0)return'ats'; if(s.indexOf('gludio')>=0||s.indexOf('giran')>=0||s.indexOf('desert')>=0||s.indexOf('dessert')>=0)return'dgg'; return s; };
   var isBreakMap=function(r){ return zoneKey(String(r.map||''))==='ats'; };   // [v500/v519] ATS has NO standard yet -> still EXCLUDED from all performance math (%, average, actual/h, quota, hours) so it never distorts scores, but as of v519 it is NO LONGER treated/labelled as a player 'break': the row shows the normal unscored verdict (check-in='Start', otherwise '—') and is not greyed. Once a real ATS standard EXP is added it will be scored like any other map.
   var _stdNorm=function(x){ return String(x||'').replace(/[\s\u00b7.\-_'"’]/g,'').replace(/(쌤|선생님|님|씨|형님|형|누님|누나|언니|오빠)$/,'').toLowerCase(); };
-  var _pickFromMaps=function(maps,z,lv){ if(!Array.isArray(maps)) return null; var cand=maps.filter(function(m){return zoneKey(m.en||m.ko)===z;}); if(!cand.length) return null; var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; };
+  // [v597] NAME-AWARE map pick: one card can carry TWO maps of the SAME zone with different standards
+  // (순수쌤 오렌 3시간 1.20 vs 오렌 설원 0.94 — boss 7/10). Zone+level alone can't tell them apart, so when a
+  // card has 2+ same-zone entries, score each by name-token overlap with the REPORT's map (token equal, or
+  // one contains the other at len≥3 so snow/field ↔ snowfield and hour ↔ hours match) and take a clear winner
+  // (≥2 shared, no tie). Single-entry zones and no-name calls behave exactly as before (wild → level ladder).
+  var _pkTok=function(s){ return String(s||'').toLowerCase().split(/[^a-z0-9가-힣]+/).filter(Boolean); };
+  var _pickFromMaps=function(maps,z,lv,nm){ if(!Array.isArray(maps)) return null; var cand=maps.filter(function(m){return zoneKey(m.en||m.ko)===z;}); if(!cand.length) return null;
+    if(nm && cand.length>1){ var rt=_pkTok(nm); if(rt.length){ var best=null,bs=0,tie=false;
+      cand.forEach(function(m){ var mt=_pkTok(String(m.en||'')+' '+String(m.ko||'')); var s=0;
+        rt.forEach(function(t){ for(var _q=0;_q<mt.length;_q++){ var u=mt[_q]; if(t===u||(t.length>=3&&u.indexOf(t)>=0)||(u.length>=3&&t.indexOf(u)>=0)){s++;return;} } });
+        if(s>bs){bs=s;best=m;tie=false;} else if(s===bs&&s>0){tie=true;} });
+      if(best&&bs>=2&&!tie) return best; } }
+    var wild=cand.find(function(m){return m.level==null||m.level==='';}); if(wild) return wild; var leveled=cand.filter(function(m){return isFinite(Number(m.level));}).sort(function(a,b){return Number(a.level)-Number(b.level);}); if(!leveled.length) return null; var below=leveled.filter(function(m){return Number(m.level)<=lv;}); return below.length?below[below.length-1]:leveled[0]; };
   var findMap=function(clients,r){
     var cn=String(r.client||'').trim(), cnn=_stdNorm(cn); var c=null,i;
     // [v494] tolerant client match: exact name -> normalized name (쌤/님/spaces stripped) -> PC number
@@ -20531,7 +20555,7 @@ function _srRecCompute(reports, clients){
     if(!c){ for(i=0;i<clients.length;i++){ if(String(clients[i].name||'').trim()===cn && cn){c=clients[i];break;} } }
     if(!c && cnn){ for(i=0;i<clients.length;i++){ if(_stdNorm(clients[i].name)===cnn){c=clients[i];break;} } }
     var z=zoneKey(r.map); var lv=Number(r.lvAfter!=null?r.lvAfter:r.lv);
-    var hit = (c && c.maps) ? _pickFromMaps(c.maps,z,lv) : null;
+    var hit = (c && c.maps) ? _pickFromMaps(c.maps,z,lv,r.map) : null;
     var _hasBand=function(m){ return !!(m && m.sh!=null && m.sh!=='' && m.sl!=null && m.sl!==''); };
     if(hit && _hasBand(hit)) return hit;
     // [v495] BAND-BACKFILL + last-resort fallback: the matched card's own map entry either doesn't exist,
@@ -20550,7 +20574,7 @@ function _srRecCompute(reports, clients){
     var prefFull=null, prefAny=null, anyFull=null, anyAny=null;
     for(i=0;i<clients.length;i++){
       if(_isTrain(clients[i].name)) continue;   // never borrow FROM a training card
-      var m=_pickFromMaps(clients[i].maps,z,lv); if(!m) continue;
+      var m=_pickFromMaps(clients[i].maps,z,lv,r.map); if(!m) continue;
       var full=_hasBand(m);
       if(anyAny==null) anyAny=m;
       if(full && anyFull==null) anyFull=m;
@@ -20580,7 +20604,7 @@ function _srRecCompute(reports, clients){
                       (cnn && cnn.length>=2 && _ocn && _ocn.length>=2 && (_ocn.indexOf(cnn)>=0 || cnn.indexOf(_ocn)>=0));
         var _same=(_rpcD!=='' && _ocpcD===_rpcD) || _nameLink;
         if(!_same) continue;
-        var _h2=_pickFromMaps(_oc.maps,z,lv);
+        var _h2=_pickFromMaps(_oc.maps,z,lv,r.map);
         if(_h2){ hit=_h2; break; }
       }
     }
@@ -25175,7 +25199,15 @@ async function renderMyPerformance(){
   const reportMs = (r) => { if(!r) return null; if(typeof r.createdAt==='number' && r.createdAt>1e12) return r.createdAt; const m=String(r.id||'').match(/^rpt-(\d+)/); return m?Number(m[1]):null; };
   const zoneKey = (s) => { s=(s||'').toLowerCase(); if(s.includes('orc')) return 'orc'; if(s.includes('ant')) return 'ant'; if(s.includes('dragon')) return 'dragon'; if(s.includes('blessed')||s.includes('ats')) return 'ats'; if(s.includes('gludio')||s.includes('giran')||s.includes('desert')||s.includes('dessert')) return 'dgg'; return s; };
   const _stdNorm = (x) => String(x||'').replace(/[\s\u00b7.\-_'"’]/g,'').replace(/(쌤|선생님|님|씨|형님|형|누님|누나|언니|오빠)$/,'').toLowerCase();
-  const _pickFromMaps = (maps,z,lv) => { if(!Array.isArray(maps)) return null; const cand=maps.filter(m=>zoneKey(m.en||m.ko)===z); if(!cand.length) return null; const wild=cand.find(m=>m.level==null||m.level===''); if(wild) return wild; const leveled=cand.filter(m=>isFinite(Number(m.level))).sort((a,b)=>Number(a.level)-Number(b.level)); if(!leveled.length) return null; const below=leveled.filter(m=>Number(m.level)<=lv); return below.length ? below[below.length-1] : leveled[0]; };
+  // [v597] name-aware same-zone pick — see the main copy's comment (순수쌤 오렌 3시간 vs 오렌 설원)
+  const _pkTok=(s)=>String(s||'').toLowerCase().split(/[^a-z0-9가-힣]+/).filter(Boolean);
+  const _pickFromMaps = (maps,z,lv,nm) => { if(!Array.isArray(maps)) return null; const cand=maps.filter(m=>zoneKey(m.en||m.ko)===z); if(!cand.length) return null;
+    if(nm && cand.length>1){ const rt=_pkTok(nm); if(rt.length){ let best=null,bs=0,tie=false;
+      cand.forEach(m=>{ const mt=_pkTok(String(m.en||'')+' '+String(m.ko||'')); let s=0;
+        rt.forEach(t=>{ for(const u of mt){ if(t===u||(t.length>=3&&u.indexOf(t)>=0)||(u.length>=3&&t.indexOf(u)>=0)){s++;return;} } });
+        if(s>bs){bs=s;best=m;tie=false;} else if(s===bs&&s>0){tie=true;} });
+      if(best&&bs>=2&&!tie) return best; } }
+    const wild=cand.find(m=>m.level==null||m.level===''); if(wild) return wild; const leveled=cand.filter(m=>isFinite(Number(m.level))).sort((a,b)=>Number(a.level)-Number(b.level)); if(!leveled.length) return null; const below=leveled.filter(m=>Number(m.level)<=lv); return below.length ? below[below.length-1] : leveled[0]; };
   const findMap = (clients, r) => {
     const cn=String(r.client||'').trim(), cnn=_stdNorm(cn);
     const _rpc=String(r.pc==null?'':r.pc).replace(/[^0-9]/g,'');   // [v512] PC/account first, digit-tolerant ('PC 6' == '6')
@@ -25184,7 +25216,7 @@ async function renderMyPerformance(){
          || (cnn && clients.find(x=>_stdNorm(x.name)===cnn))
          || null;
     const z=zoneKey(r.map); const lv=Number(r.lvAfter!=null?r.lvAfter:r.lv);
-    const hit = (c&&c.maps) ? _pickFromMaps(c.maps,z,lv) : null;
+    const hit = (c&&c.maps) ? _pickFromMaps(c.maps,z,lv,r.map) : null;
     const _hasBand = (m) => !!(m && m.sh!=null && m.sh!=='' && m.sl!=null && m.sl!=='');
     if(hit && _hasBand(hit)) return hit;
     // [v495] band-backfill + same-zone fallback: keep this card's own target if it has one, but borrow
@@ -25193,7 +25225,7 @@ async function renderMyPerformance(){
     let prefFull=null, prefAny=null, anyFull=null, anyAny=null;
     for(const cl of clients){
       if(_isTrain(cl.name)) continue;   // never borrow FROM a training card
-      const m=_pickFromMaps(cl.maps,z,lv); if(!m) continue;
+      const m=_pickFromMaps(cl.maps,z,lv,r.map); if(!m) continue;
       const full=_hasBand(m);
       if(anyAny==null) anyAny=m;
       if(full && anyFull==null) anyFull=m;
@@ -25223,7 +25255,7 @@ async function renderMyPerformance(){
                       (cnn && cnn.length>=2 && _ocn && _ocn.length>=2 && (_ocn.indexOf(cnn)>=0 || cnn.indexOf(_ocn)>=0));
         var _same=(_rpcD!=='' && _ocpcD===_rpcD) || _nameLink;
         if(!_same) continue;
-        var _h2=_pickFromMaps(_oc.maps,z,lv);
+        var _h2=_pickFromMaps(_oc.maps,z,lv,r.map);
         if(_h2){ hit=_h2; break; }
       }
     }
