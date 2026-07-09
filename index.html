@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v592';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v593';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21412,7 +21412,7 @@ function _rcBuildKbPlayers(reports, clients, settings, roster){
     // Records & Stats page): week = last 7 days ending at the latest race day, month = the calendar month.
     var _wAgg={}, _mAgg={}; var _lMs0=_latestD?Date.parse(_latestD+'T00:00:00Z'):null; var _mon0=_latestD?String(_latestD).slice(0,7):null;
     var _wkMon0=(_lMs0!=null)?(_lMs0-((new Date(_lMs0).getUTCDay()+6)%7)*86400000):null;   // [v591] week = MONDAY-start (same week the weekly King card / weekly RP use), not a rolling 7 days — the board showed two different "weeks" on one row
-    _dd.forEach(function(r){ var k=_rcNorm(r.key); if(!k||!r.date) return; var q=Number(r.quota)||0, sc=Number(r.scoredClean)||0;   // [v590] same alias-normalization for the week/month aggregation
+    _dd.forEach(function(r){ var k=_rcNorm(r.key); if(!k||!r.date) return; if(_RC_JOIN_DATE[k] && String(r.date)<_RC_JOIN_DATE[k]) return; var q=Number(r.quota)||0, sc=Number(r.scoredClean)||0;   // [v590] alias-normalized · [v593] skip days before the player's race start date
       if(_mon0 && String(r.date).slice(0,7)===_mon0){ var m=_mAgg[k]=_mAgg[k]||{q:0,s:0}; m.q+=q; m.s+=sc; }
       if(_wkMon0!=null){ var d0=Date.parse(r.date+'T00:00:00Z'); if(!isNaN(d0)&&d0>=_wkMon0&&d0<=_lMs0){ var w=_wAgg[k]=_wAgg[k]||{q:0,s:0}; w.q+=q; w.s+=sc; } } });
     Object.keys(_wAgg).forEach(function(k){ perfWeekByKey[k]=(_wAgg[k].q>0? _wAgg[k].s/_wAgg[k].q*100 : null); });
@@ -21901,6 +21901,10 @@ function _rcNorm(n){ var k=String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(
 
 // shift-group mapping (same as _srRecCompute ROSTER fallback). 888 = 8H (s1/s2/s3), 1212 = 12H (d12/n12).
 var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12', ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',hana:'n12', ron:'s1',bob:'s1', eric:'s2',san:'s2',bin:'s2', el:'s3',sil:'s3',miru:'s3',ditt:'s3' };   /* [v570] 'eric' (was 'ericson') — matches the aliased key so his shift group resolves */
+// [v593] per-player RACE START DATE (boss 7/9): race counts from 7/1 for everyone EXCEPT BOB/SAN/DITT who
+// join 7/6 — their earlier records stay in Records & Stats but are fully out of the race (no points, no cuts,
+// no hours, no period %). KAIJI is excluded entirely via hidden_staff, HANA/ERICSON/EL/SIL from 7/1 as-is.
+var _RC_JOIN_DATE = { bob:'2026-07-06', san:'2026-07-06', ditt:'2026-07-06' };
 function _rcGroupOf(name){ return _RC_ROSTER[_rcNorm(name)] || 'un'; }
 function _rcModeOf(group){ return (group==='d12'||group==='n12') ? '1212' : '888'; }
 var _RC_GMETA = { d12:{ic:'\u2600\uFE0F',tt:'12H Day'}, n12:{ic:'\uD83C\uDF19',tt:'12H Night'}, s1:{ic:'\uD83C\uDF05',tt:'8H S1'}, s2:{ic:'\uD83C\uDF06',tt:'8H S2'}, s3:{ic:'\uD83C\uDF03',tt:'8H S3'}, un:{ic:'\u2753',tt:'Unassigned'} };
@@ -21979,6 +21983,7 @@ function _rcScoreReports(reports, clients, settings, dqSet){
     if(_rcIsTestReport(r)) return;   /* [v548] test/practice reports fully out of the race (map contains TEST, client is *TRAINING or a listed test client e.g. 일점커) */
     if(typeof _isHiddenKey==='function' && _isHiddenKey(_rcNorm(r.booster))) return;   /* [v547] hidden/monitoring staff are fully out of the race: no points, no rank slots, no payouts */
     if(typeof _isTrainingKey==='function' && _isTrainingKey(_rcNorm(r.booster), r.booster)) return;   /* [v549] trainees (calc 'training_staff') fully out of the race even when they touch a real client — prevents a trainee helping on a real account from earning points or stealing a rank slot */
+    var _jd0=_RC_JOIN_DATE[_rcNorm(r.booster)]; if(_jd0 && String(_sdMap[r.id]||r.date||'').slice(0,10)<_jd0) return;   /* [v593] before this player's race start date — fully out of the race (boss 7/9: BOB/SAN/DITT join 7/6) */
     var sess = sessById[r.id];
     if(!sess) return;   // not resolvable by Records either (shouldn't normally happen) — skip rather than guess
     if(sess.brk) return;   // ATS — same exclusion Records applies (isBreakMap), still no standard for it
