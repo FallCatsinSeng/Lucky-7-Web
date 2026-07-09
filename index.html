@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v594';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v595';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21904,7 +21904,7 @@ var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',han
 // [v593] per-player RACE START DATE (boss 7/9): race counts from 7/1 for everyone EXCEPT BOB/SAN/DITT who
 // join 7/6 — their earlier records stay in Records & Stats but are fully out of the race (no points, no cuts,
 // no hours, no period %). KAIJI is excluded entirely via hidden_staff, HANA/ERICSON/EL/SIL from 7/1 as-is.
-var _RC_JOIN_DATE = { bob:'2026-07-06', san:'2026-07-06', ditt:'2026-07-06' };
+var _RC_JOIN_DATE = { bob:'2026-07-06', san:'2026-07-06', ditt:'2026-07-06', sil:'2026-07-04' };   /* [v595] boss 7/9: SIL counts from 7/4 (his 7/1-3 dragon-dungeon ramp-up days out of the race) */
 function _rcGroupOf(name){ return _RC_ROSTER[_rcNorm(name)] || 'un'; }
 function _rcModeOf(group){ return (group==='d12'||group==='n12') ? '1212' : '888'; }
 var _RC_GMETA = { d12:{ic:'\u2600\uFE0F',tt:'12H Day'}, n12:{ic:'\uD83C\uDF19',tt:'12H Night'}, s1:{ic:'\uD83C\uDF05',tt:'8H S1'}, s2:{ic:'\uD83C\uDF06',tt:'8H S2'}, s3:{ic:'\uD83C\uDF03',tt:'8H S3'}, un:{ic:'\u2753',tt:'Unassigned'} };
