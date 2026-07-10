@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v599';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v600';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -22045,7 +22045,7 @@ function _rcScoreReports(reports, clients, settings, dqSet){
   settings = settings || {}; reports = Array.isArray(reports)?reports:[]; clients = Array.isArray(clients)?clients:[];
   var base = settings.base_point!=null ? Number(settings.base_point) : 1;
   var rb = settings.rank_bonus || {1:3,2:2,3:1};
-  var gb = settings.goal_bonus || {t100:1,t110:3,t120:6};
+  var gb = settings.goal_bonus || {t100:1,t110:3,t120:6,t130:9,t140:12};   /* [v600] even +3 ladder extended to 130/140 (boss: 140% hour ≈ 220%+ of base hourly) */
   dqSet = dqSet || (typeof Set!=='undefined' ? new Set() : {has:function(){return false;}});
   var _rcm = _srRecCompute(reports, clients);
   // [v540] SHIFT-DATE attribution (same idea Records uses): every report belongs to the day its shift
@@ -22107,7 +22107,7 @@ function _rcScoreReports(reports, clients, settings, dqSet){
     }
     var eligible=(!row.dq)&&(row.result==='Goal'||row.result==='Stable');
     if(eligible) row.base=base;
-    if(eligible && row.rate!=null){ if(row.rate>=120) row.goal=Number(gb.t120); else if(row.rate>=110) row.goal=Number(gb.t110); else if(row.rate>=100) row.goal=Number(gb.t100); }
+    if(eligible && row.rate!=null){ if(row.rate>=140 && gb.t140!=null) row.goal=Number(gb.t140); else if(row.rate>=130 && gb.t130!=null) row.goal=Number(gb.t130); else if(row.rate>=120) row.goal=Number(gb.t120); else if(row.rate>=110) row.goal=Number(gb.t110); else if(row.rate>=100) row.goal=Number(gb.t100); }   /* [v600] 130/140 tiers (null-guarded so an old settings copy degrades to the 120 tier, never NaN) */
     row.total=row.base+row.goal;
     rows.push(row);
   });
