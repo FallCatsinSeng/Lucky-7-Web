@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v605';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v606';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -18757,17 +18757,40 @@ function _srCalcClient(clients,name){ var cn=String(name||'').trim(); return (cl
 // the app already degrades gracefully there ("Saved — Discord card didn't post").
 var _SR_FALLBACK='https://ohnasvgwzmknzujtqrzt.supabase.co/functions/v1';
 function _srFallbackUrl(url){ try{ var s=String(url||''); var m=s.indexOf('/api/calc-data'); if(m<0) return null; return _SR_FALLBACK+'/calc-data'+s.slice(m+14); }catch(_){ return null; } }
+function _srTimeoutFetch(url, opts, ms){
+  var ac=new AbortController(); var t=setTimeout(function(){ ac.abort(); }, ms);
+  var o2={}; for(var k in opts) o2[k]=opts[k]; o2.signal=ac.signal;
+  return fetch(url, o2).finally(function(){ clearTimeout(t); });
+}
+// [v606] RACE, don't chain. v605 tried Railway THEN the edge fallback in sequence — but Railway isn't
+// failing fast right now, it's HANGING (no response), so every sequential attempt ate a full timeout before
+// the working fallback ever got tried → "Submitting…" stuck for minutes (boss/Mr.Ji report, 2026-07-11).
+// Fix: fire both endpoints AT ONCE and take whichever answers first with .ok; a hung Railway can no longer
+// block a healthy fallback. Bounded per-round latency via AbortController (primary 4s, fallback 9s cap).
+function _srFirstOk(promises){
+  return new Promise(function(resolve, reject){
+    var remaining=promises.length, failed=false;
+    promises.forEach(function(p){
+      p.then(function(r){ if(r && r.ok){ if(!failed) resolve(r); } else { if(--remaining===0 && !failed){ failed=true; reject(new Error('all failed')); } } })
+       .catch(function(){ if(--remaining===0 && !failed){ failed=true; reject(new Error('all failed')); } });
+    });
+  });
+}
 async function _srFetchRetry(url, opts){
   var fb=_srFallbackUrl(url);
-  for(var i=0;i<6;i++){
-    var r=null;
-    try{ r=await fetch(url, opts); if(r.ok) return r; }
-    catch(e){ /* network error / cold start */ }
-    if(fb){ try{ var r2=await fetch(fb, opts); if(r2.ok) return r2; }catch(_){ } }   // calc-data → edge mirror
-    if(r && r.status<500 && !fb) return r;   // real 4xx on non-calc endpoints (don't retry)
-    if(i<5) await new Promise(function(res){ setTimeout(res, Math.min(2000*(i+1), 10000)); });
+  if(!fb){   // non-calc-data endpoints (e.g. /api/report) — original sequential retry, no fallback exists
+    for(var i=0;i<6;i++){
+      try{ var r=await fetch(url, opts); if(r.ok || r.status<500) return r; }
+      catch(e){ }
+      if(i<5) await new Promise(function(res){ setTimeout(res, Math.min(2000*(i+1), 10000)); });
+    }
+    return await fetch(url, opts);
   }
-  return await fetch(fb||url, opts);   // final attempt — let it surface
+  for(var i=0;i<3;i++){
+    try{ return await _srFirstOk([ _srTimeoutFetch(url,opts,4000), _srTimeoutFetch(fb,opts,9000) ]); }catch(_){ }
+    if(i<2) await new Promise(function(res){ setTimeout(res, 800); });
+  }
+  return await fetch(fb, opts);   // final attempt — let it surface
 }
 // CRITICAL: throw on a failed GET. Returning [] here would make a later save overwrite the whole
 // reports array with just the new record — silent data loss. The caller catches and shows an error.
