@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v602';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v603';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -35813,9 +35813,15 @@ $('btnStrat').onclick=()=>{
   function makeItems(){
     // Weekly pool distributes incentives only. Final wage includes base pay, so it must not be used here.
     const netOf=p=>((+p.todayDelta||0)-(+p.raceCutAmt||0));   // [v544] net = race bounty − wage cut; cut players get the red-drip treatment again
-    const bonus=ranked.filter(p=>netOf(p)>0).sort((a,b)=>netOf(b)-netOf(a)).slice(0,6);
-    const cuts=ranked.filter(p=>netOf(p)<0).sort((a,b)=>netOf(a)-netOf(b));
-    const chosen=bonus.concat(cuts);
+    // [v603] show (almost) EVERYONE (boss 7/10: "3명밖에 안나오게 하지말고 대부분 반영") — the old top-6-bonus
+    // + cuts filter hid every zero player. Order left→right: bonuses big→small, then zero/no-record cups
+    // (empty glass), then cuts mild→worst so the biggest bleeder sits at the far right. Hidden staff and
+    // trainees stay excluded via the same _wkExcluded the leaderboard uses; cup width already auto-shrinks.
+    const eligible=ranked.filter(p=>{ try{ return !(typeof _wkExcluded==='function'&&_wkExcluded(p)); }catch(_){ return true; } });
+    const bonus=eligible.filter(p=>netOf(p)>0).sort((a,b)=>netOf(b)-netOf(a));
+    const zeros=eligible.filter(p=>netOf(p)===0);
+    const cuts=eligible.filter(p=>netOf(p)<0).sort((a,b)=>netOf(b)-netOf(a));
+    const chosen=bonus.concat(zeros).concat(cuts);
     const items=chosen.map(p=>{
       const delta=Math.round(netOf(p));   // [v544] net
       const pay=Math.max(0,delta),cut=Math.max(0,-delta);
