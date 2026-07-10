@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v601';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v602';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -35573,12 +35573,23 @@ function countUp(el,target){
     const laneStart=startX+40;
     const laneEnd=finishX-2;
     const n=active.length;
-    const slot=n>1?(laneEnd-laneStart)/(n-1):0;
-    const topVal=Math.max(0.01, ...(active.map(r=>_rm(r))));
+    // [v602] METRIC-PROPORTIONAL spacing (boss 7/10: the gaps must breathe with the actual scores — v551's
+    // even rank slots made every distance identical). Each runner's position = min-max normalized metric of
+    // the CURRENT tab (day %, week avg, month avg) across active racers, so the pack always fills the lane
+    // but the DISTANCE between two runners is proportional to their real score gap: a tight race packs them
+    // shoulder-to-shoulder, a blowout opens visible daylight. A minimum separation (front→back sweep) keeps
+    // rank order readable when scores tie, so order still never flips.
+    const _vals=active.map(_rm);
+    const _topV=_vals.length?Math.max.apply(null,_vals):0.01;
+    const _lowV=_vals.length?Math.min.apply(null,_vals):0;
+    const _span=_topV-_lowV;
+    const MINGAP=Math.max(10, Math.min(16, n>1?(laneEnd-laneStart)/(n*1.6):16));
+    let _prevX=Infinity;
     active.forEach((r,idx)=>{
-      let target=n>1?(laneEnd-idx*slot):laneEnd;
-      if(idx>0){ const ratio=_rm(r)/topVal; target+=Math.min(slot*0.4, slot*0.4*ratio); }   // closeness nudge, capped so rank order never flips
-      r.baseCX=Math.max(laneStart, Math.min(laneEnd, target));
+      let target=(n>1&&_span>1e-9)?(laneStart+((_rm(r)-_lowV)/_span)*(laneEnd-laneStart)):(laneEnd-idx*MINGAP);
+      if(idx>0) target=Math.min(target, _prevX-MINGAP);   // rank order + minimum visual separation
+      target=Math.max(startX+6, Math.min(laneEnd, target));
+      r.baseCX=target; _prevX=target;
     });
     const redSpread=Math.max(6,Math.min(11,W*0.012));
     redlined.forEach((r,idx)=>{ r.baseCX=Math.max(24, redLineX+((idx%3)-1)*redSpread-Math.floor(idx/3)*6); });
