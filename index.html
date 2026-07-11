@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v608';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v609';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -36276,7 +36276,7 @@ rowEl=function(p,i,view){
 showPlayer=function(name){const p=byName[name];if(!p)return;const tw=$('toastWrap');if(tw)tw.querySelectorAll('.toast').forEach(t=>t.remove());
   const pr=playerPayProjection(p),risk=v3Risk(p),safeName=v3Esc(p.name),safeEmoji=v3Esc(p.emoji),plan=salaryPlanOf(p);
   const rankTxt=p.todayHours?`${p.rank}위 · ${v3Num(p.todayAvgPct).toFixed(2)}%/h`:tr('noRecord');
-  const totalAdjWord=pr.monthAdj>=0?tr('currentBonus'):tr('currentPenalty');
+  const totalAdjWord=(pr.monthAdj>=0?tr('currentBonus'):tr('currentPenalty'))+(LANG==='ko'?' (이번 달)':' (this month)');   /* [v609] the popup is a MONTHLY panel — label it so clicking from the Week tab can't read as a mismatch (boss confusion 7/12) */
   const poolLine=pr.poolImpact>0?`<span class="good">${tr('poolDeduct')}</span><b>${v3Money(pr.poolImpact)}</b>`:`<span>${tr('poolNoImpact')}</span><b>Rp 0</b>`;
   const monthHeroSub=pr.ok?`<small><em class="${pr.monthAdj>=0?'pd-plus':'pd-minus'}">${totalAdjWord} ${v3SignMoney(pr.monthAdj)}</em><em>${LANG==='ko'?'현재 합계':'Current total'} ${v3Money(pr.month)}</em></small>`:'';
   const daySub=p.todayHours?`${LANG==='ko'?'기본급':'Base'} ${v3Money(p.todayBase||0)} · ${(p.todayDelta||0)>=0?tr('bonus')+' +':tr('penalty')+' -'}${v3AbsMoney(p.todayDelta||0)}`:tr('needRecord');
