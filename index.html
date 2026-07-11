@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v611';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v612';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -22195,7 +22195,12 @@ function _rcScoreReports(reports, clients, settings, dqSet){
       // line and drop a tier/verdict (real case: Claws 7/10 18:01, true 130.00% scored as the 120 tier).
       // Round the gain and the rate to a fixed grid (EXP has 2dp; rate to 6dp) before comparing.
       // [v604] multi-hour pro-rating: quota scales by the row's real time span (see _prevMsMap above).
-      var _spanH=1; try{ var _pm0=_prevMsMap[r.id]; if(_pm0!=null && ms!=null){ var _gm0=(ms-_pm0)/60000; if(_gm0>90) _spanH=Math.min(6,Math.round(_gm0/60)); } }catch(_){ }
+      // [v612] FRIDAY PRAYER ALLOWANCE (boss 7/12): up to 2h of a gap overlapping the Jumat window
+      // (Fri 11:00–13:30 WIB = 13:00–15:30 KST) is excused — prayer hours simply don't count against the
+      // booster, and scoring resumes with the next clean hour instead of a pro-rated Cut.
+      var _spanH=1; try{ var _pm0=_prevMsMap[r.id]; if(_pm0!=null && ms!=null){ var _gm0=(ms-_pm0)/60000;
+        try{ var _wib=new Date(_pm0+7*3600000); if(_wib.getUTCDay()===5){ var _d0=Date.UTC(_wib.getUTCFullYear(),_wib.getUTCMonth(),_wib.getUTCDate()); var _ws=_d0+4*3600000, _we=_d0+6.5*3600000; var _ov=Math.min(ms,_we)-Math.max(_pm0,_ws); if(_ov>0) _gm0-=Math.min(_ov/60000,120); } }catch(_){ }
+        if(_gm0>90) _spanH=Math.min(6,Math.round(_gm0/60)); } }catch(_){ }
       var _g2=Math.round(gain*1e6)/1e6; var _gH=_g2/_spanH;
       row.target=t*_spanH; row.sh=sh; row.sl=sl; row.spanH=_spanH;
       row.rate=t>0?(Math.round(gain/(t*_spanH)*100*1e6)/1e6):null;
