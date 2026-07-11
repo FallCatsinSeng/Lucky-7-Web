@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v610';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v611';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -13171,6 +13171,7 @@ async function breakEnd(){
       if(myAtt.breaks[0]) myAtt.breaks[0].end = data.break_end;
       toast('▶ 근무 재개');
       renderAttendance();
+      try{ _srBreakReturnReport(myAtt.break_start); }catch(_){ }   // [v611] break↔report integration — see below
       return;
     }catch(e){ console.warn('Supabase write denied, using local preview:', e&&e.message); }
   }
@@ -13179,6 +13180,45 @@ async function breakEnd(){
   saveMyAttendance();
   toast('▶ 근무 재개');
   renderAttendance();
+  try{ _srBreakReturnReport(myAtt.break_start); }catch(_){ }   // [v611]
+}
+
+// [v611] BREAK ↔ REPORT INTEGRATION (boss 7/12). The recurring "0.94% over 2 hours → Cut" pattern comes from
+// one flow: booster takes a BREAK, ATS keeps farming, they come back, and their NEXT hourly report merges
+// (1h ATS + 1h manual) into a single row. Fix at the source: the moment 복귀 is pressed, ask for the CURRENT
+// on-screen EXP and book the whole break window as its OWN row on the ATS map (auto-excluded from scoring,
+// chain preserved). The session's prev pointer moves to the return value, so the next hourly report is a
+// clean single hour — and the v604 pro-rating sees a fresh timestamp, so spanH stays 1. If the booster
+// cancels or isn't checked in on the report side, we skip silently (old behavior, still guarded by pro-rating).
+async function _srBreakReturnReport(brkStartIso){
+  try{
+    if(typeof _srSession==='undefined' || !_srSession || !_srSession.prev || !_srSession.booster) return;
+    var prev=_srSession.prev;
+    var raw=null;
+    try{ raw=prompt('☕ 복귀 완료!\n지금 화면의 EXP(%)를 입력하세요.\n\n휴식 중 ATS로 오른 경험치를 따로 기록해서(채점 제외), 다음 리포트가 깨끗한 1시간치로 계산됩니다.\n(모르면 취소 — 자동 시간분할로 처리됩니다)'); }catch(_){ return; }
+    if(raw==null) return;
+    raw=String(raw).replace(/[%\s]/g,'');
+    var calc=(typeof _srApplyExp==='function')?_srApplyExp(prev.lv, prev.exp, raw, false):null;
+    if(!calc || !calc.valid){ try{ toast('EXP 값이 이상해서 건너뜀 (예: 45.67) — 다음 리포트에서 자동 시간분할로 처리됩니다', true); }catch(_){ } return; }
+    var _ms0=Date.parse(brkStartIso||'')||Date.now();
+    var _hh=function(ms){ var d=new Date(ms+9*3600000); return ('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2); };
+    var rec={ id:'rpt-'+Date.now(), createdAt:Date.now(), tag:'status',
+      booster:_srSession.booster, client:_srSession.client||'', pc:_srSession.pc, threadId:_srSession.threadId||'',
+      date:(typeof _srTodayWIB==='function'?_srTodayWIB():new Date().toISOString().slice(0,10)),
+      map:'Blessed Lands (ATS Zone)', start:_hh(_ms0), end:_hh(Date.now()),
+      lvBefore:prev.lv, expBefore:prev.exp, lvAfter:calc.lv, expAfter:calc.exp,
+      adena:prev.adena, prevAdena:prev.adena, dead:0, potion:0, drop:0,
+      note:'휴식 복귀 자동 보고 — 휴식 중 ATS 구간 (채점 제외)' };
+    var ap=await _srAppendCalc('reports',[rec]);
+    if(ap && ap.ok){
+      _srSession.prev={ lv:calc.lv, exp:calc.exp, adena:prev.adena };
+      try{ _srSaveSession(); }catch(_){ }
+      var _g=((calc.lv*100+calc.exp)-(prev.lv*100+prev.exp));
+      try{ toast('☕ 휴식 구간 기록 완료 (+'+_g.toFixed(2)+'% ATS · 채점 제외) — 다음 리포트는 지금부터 1시간!'); }catch(_){ }
+    } else {
+      try{ toast('휴식 구간 저장 실패 — 걱정 마세요, 다음 리포트에서 자동 시간분할로 처리됩니다', true); }catch(_){ }
+    }
+  }catch(_){ }
 }
 
 async function attReset(){
