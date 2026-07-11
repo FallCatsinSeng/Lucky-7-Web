@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v613';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v614';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -13171,7 +13171,6 @@ async function breakEnd(){
       if(myAtt.breaks[0]) myAtt.breaks[0].end = data.break_end;
       toast('▶ 근무 재개');
       renderAttendance();
-      try{ _srBreakReturnReport(myAtt.break_start); }catch(_){ }   // [v611] break↔report integration — see below
       return;
     }catch(e){ console.warn('Supabase write denied, using local preview:', e&&e.message); }
   }
@@ -13180,46 +13179,13 @@ async function breakEnd(){
   saveMyAttendance();
   toast('▶ 근무 재개');
   renderAttendance();
-  try{ _srBreakReturnReport(myAtt.break_start); }catch(_){ }   // [v611]
 }
-
-// [v611] BREAK ↔ REPORT INTEGRATION (boss 7/12). The recurring "0.94% over 2 hours → Cut" pattern comes from
-// one flow: booster takes a BREAK, ATS keeps farming, they come back, and their NEXT hourly report merges
-// (1h ATS + 1h manual) into a single row. Fix at the source: the moment 복귀 is pressed, ask for the CURRENT
-// on-screen EXP and book the whole break window as its OWN row on the ATS map (auto-excluded from scoring,
-// chain preserved). The session's prev pointer moves to the return value, so the next hourly report is a
-// clean single hour — and the v604 pro-rating sees a fresh timestamp, so spanH stays 1. If the booster
-// cancels or isn't checked in on the report side, we skip silently (old behavior, still guarded by pro-rating).
-async function _srBreakReturnReport(brkStartIso){
-  try{
-    if(typeof _srSession==='undefined' || !_srSession || !_srSession.prev || !_srSession.booster) return;
-    var prev=_srSession.prev;
-    var raw=null;
-    try{ raw=prompt('☕ 복귀 완료!\n지금 화면의 EXP(%)를 입력하세요.\n\n휴식 중 ATS로 오른 경험치를 따로 기록해서(채점 제외), 다음 리포트가 깨끗한 1시간치로 계산됩니다.\n(모르면 취소 — 자동 시간분할로 처리됩니다)'); }catch(_){ return; }
-    if(raw==null) return;
-    raw=String(raw).replace(/[%\s]/g,'');
-    var calc=(typeof _srApplyExp==='function')?_srApplyExp(prev.lv, prev.exp, raw, false):null;
-    if(!calc || !calc.valid){ try{ toast('EXP 값이 이상해서 건너뜀 (예: 45.67) — 다음 리포트에서 자동 시간분할로 처리됩니다', true); }catch(_){ } return; }
-    var _ms0=Date.parse(brkStartIso||'')||Date.now();
-    var _hh=function(ms){ var d=new Date(ms+9*3600000); return ('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2); };
-    var rec={ id:'rpt-'+Date.now(), createdAt:Date.now(), tag:'status',
-      booster:_srSession.booster, client:_srSession.client||'', pc:_srSession.pc, threadId:_srSession.threadId||'',
-      date:(typeof _srTodayWIB==='function'?_srTodayWIB():new Date().toISOString().slice(0,10)),
-      map:'Blessed Lands (ATS Zone)', start:_hh(_ms0), end:_hh(Date.now()),
-      lvBefore:prev.lv, expBefore:prev.exp, lvAfter:calc.lv, expAfter:calc.exp,
-      adena:prev.adena, prevAdena:prev.adena, dead:0, potion:0, drop:0,
-      note:'휴식 복귀 자동 보고 — 휴식 중 ATS 구간 (채점 제외)' };
-    var ap=await _srAppendCalc('reports',[rec]);
-    if(ap && ap.ok){
-      _srSession.prev={ lv:calc.lv, exp:calc.exp, adena:prev.adena };
-      try{ _srSaveSession(); }catch(_){ }
-      var _g=((calc.lv*100+calc.exp)-(prev.lv*100+prev.exp));
-      try{ toast('☕ 휴식 구간 기록 완료 (+'+_g.toFixed(2)+'% ATS · 채점 제외) — 다음 리포트는 지금부터 1시간!'); }catch(_){ }
-    } else {
-      try{ toast('휴식 구간 저장 실패 — 걱정 마세요, 다음 리포트에서 자동 시간분할로 처리됩니다', true); }catch(_){ }
-    }
-  }catch(_){ }
-}
+// [v614] BREAK ↔ REPORT INTEGRATION, no prompt (boss 7/12: "복귀하면 자연스럽게 반영되면 되지, 보고 안 들어가도
+// 됨"). Superseded v611 (which asked for the current EXP at 복귀) — that's unnecessary: the attendance
+// break_start/break_end recorded right here by breakStart()/breakEnd() IS the real rest window. The scoring
+// engine (_rcScoreReports, index.html ~22190 _brkByB) now reads it straight from `attendance` (loaded in
+// _kbLoadRealData → window.__KB_BREAKS) and automatically subtracts the overlap from any report's gap before
+// deciding multi-hour pro-rating — no popup, no extra report row, nothing for the booster to remember.
 
 async function attReset(){
   if(currentUserRole !== 'admin'){ toast(_uiLang()==='ko'?'권한 없음 — CEO/매니저 전용':'No permission — CEO/Manager only', true); return; }
@@ -19262,34 +19228,13 @@ async function _srSubmitReport(kind,screen){
       }
       _srSubmitReport._next={ lv:calc.lv, exp:calc.exp, adena:Math.round(endAde) };
     }
-    // [v613] BREAK-MIXED SPAN GUARD (boss 7/12: "ATS 시간이랑 합쳐진 걸 ÷2 하면 안 되지"). If this report's
-    // span overlaps the booster's RECORDED attendance break (☕/🔙 buttons) and they did NOT enter the return
-    // EXP (no v611 복귀 자동 보고 row), the gain is an unsplittable mix of rest-time ATS and manual hunting.
-    // Averaging (pro-rating ÷2) would misprice the manual hour, so the batch is EXCLUDED from scoring instead:
-    // chain and totals stay intact, nothing scores, and the booster is told how to get credit next time.
-    // Plain catch-up with NO recorded break keeps the v604 pro-rating (that one is fair and blocks tier farming).
-    var _mixBreak=false;
-    try{
-      if(kind!=='checkin' && typeof myAtt!=='undefined' && myAtt && myAtt.break_start){
-        var _bs2=Date.parse(myAtt.break_start)||0;
-        var _be2=Date.parse(myAtt.break_end||'')||Date.now();
-        var _prevMs2=(typeof _lastC!=='undefined'&&_lastC&&_lastC.createdAt)?_lastC.createdAt:((_ciStart&&_ciStart.createdAt)||null);
-        if(_prevMs2!=null){
-          var _ov2=Math.min(Date.now(),_be2)-Math.max(_prevMs2,_bs2);
-          if(_ov2>15*60000){
-            var _hasReturn=false;
-            try{ if(Array.isArray(_allR)) for(var _bi=0;_bi<_allR.length;_bi++){ var _br2=_allR[_bi];
-              if(_br2 && _br2.booster===(sess?sess.booster:_srBooster()) && /휴식 복귀 자동 보고/.test(String(_br2.note||'')) && (_br2.createdAt||0)>=_be2-60000){ _hasReturn=true; break; } } }catch(_){ }
-            if(!_hasReturn) _mixBreak=true;
-          }
-        }
-      }
-    }catch(_){ }
-    if(_mixBreak){ newRecs.forEach(function(rr){ rr.ignored='true'; rr.note=(rr.note?rr.note+' · ':'')+'휴식 포함 구간 — 채점 제외 (복귀 EXP 미입력)'; }); }
+    // [v614] Break handling moved to the SCORING side (automatic, real attendance.break_start/end deducted
+    // from the gap in _rcScoreReports — no prompt, no extra report, no submit-time exclusion needed here).
+    // Superseded: v611's 복귀 EXP prompt and v613's submit-time full-exclusion guard (boss 7/12: "복귀하면
+    // 자연스럽게 반영되면 되지, 보고 안 들어가도 됨" — simpler is better; see _brkByB in _rcScoreReports).
     var saved=false, _st=0;
     try{ var _ap=await _srAppendCalc('reports', newRecs); saved=_ap.ok; _st=_ap.status; }catch(e){}
     if(!saved){ _srToast("Save failed ("+(_st||'no response')+") — try again"); return false; }
-    if(_mixBreak){ try{ _srToast('☕ 휴식이 포함된 구간이라 이번 리포트는 채점에서 제외됐어요 — 다음엔 복귀 버튼에서 EXP를 입력하면 사냥 시간이 점수로 인정됩니다!'); }catch(_){ } }
     // Post the Discord card and WAIT for it (with retries) so it can't be lost if the booster navigates or
     // Data is already saved above — return immediately so the booster isn't kept waiting.
     // Discord card posts in the background; server handles rate-limit retries itself.
@@ -21792,6 +21737,16 @@ async function _kbLoadRealData(){
   window.__KB_SETTINGS=st; window.__KB_DQSET=dq;
   var pays=[]; try{ if(typeof sb!=='undefined' && sb){ var pr=await sb.from('race_payouts').select('*'); if(pr && Array.isArray(pr.data)) pays=pr.data; } }catch(_){ }
   window.__KB_PAYOUTS=pays;
+  // [v614] real recorded breaks (boss 7/12: "복귀하면 자연스럽게 반영되면 되지, 보고 안 들어가도 됨") — pull
+  // actual clock-in-system break_start/break_end per booster+day straight from `attendance`, so the scoring
+  // engine can shrink a report's gap by REAL rest time automatically. No prompt, no extra report needed.
+  var brk=[]; try{ if(typeof sb!=='undefined' && sb){
+    var _since=new Date(Date.now()-9*86400000).toISOString().slice(0,10);
+    var br=await sb.from('attendance').select('user_name,date,break_start,break_end').gte('date',_since).not('break_start','is',null);
+    if(br && Array.isArray(br.data)) brk=br.data.filter(function(x){return x&&x.break_start;}).map(function(x){
+      return { booster:x.user_name, start:Date.parse(x.break_start)||null, end:x.break_end?(Date.parse(x.break_end)||null):null }; });
+  } }catch(_){ }
+  window.__KB_BREAKS=brk;
 }
 
 
@@ -22178,6 +22133,10 @@ function _rcScoreReports(reports, clients, settings, dqSet){
     });
   })();
   var sessById = {}; (_rcm.sessions||[]).forEach(function(s){ sessById[s.id] = s; });
+  // [v614] REAL BREAK WINDOWS (boss 7/12: no prompt, no extra report — just use the actual clock-in-system
+  // break times). Grouped by normalized booster name for a fast per-row lookup in the gap calc below.
+  var _brkByB={}; try{ (window.__KB_BREAKS||[]).forEach(function(b){ if(!b||!b.booster||!b.start) return;
+    var k=_rcNorm(b.booster); (_brkByB[k]=_brkByB[k]||[]).push({start:b.start, end:(b.end!=null?b.end:Date.now())}); }); }catch(_){ }
   // [v604] MULTI-HOUR PRO-RATING (boss 7/10: SID posted 2-hour spans that scored as 155%/172% single hours
   // and farmed the new 140% tier). For every scored row, measure the REAL time since the booster's previous
   // row (any tag, incl. check-in and ignored fills — checkout-batch fills share the checkout's timestamp so
@@ -22220,10 +22179,15 @@ function _rcScoreReports(reports, clients, settings, dqSet){
       // line and drop a tier/verdict (real case: Claws 7/10 18:01, true 130.00% scored as the 120 tier).
       // Round the gain and the rate to a fixed grid (EXP has 2dp; rate to 6dp) before comparing.
       // [v604] multi-hour pro-rating: quota scales by the row's real time span (see _prevMsMap above).
-      // [v612] FRIDAY PRAYER ALLOWANCE (boss 7/12): up to 2h of a gap overlapping the Jumat window
-      // (Fri 11:00–13:30 WIB = 13:00–15:30 KST) is excused — prayer hours simply don't count against the
-      // booster, and scoring resumes with the next clean hour instead of a pro-rated Cut.
+      // [v614] REAL BREAK DEDUCTION (boss 7/12: automatic, no prompt) — subtract this booster's ACTUAL
+      // recorded clock-in-system break time (attendance.break_start/end) that overlaps the gap, before
+      // deciding spanH. A booster who takes ☕ break, ATS runs, then reports normally an hour after 복귀 now
+      // scores a clean 1h automatically — no popup, no separate report needed.
+      // [v612] FRIDAY PRAYER ALLOWANCE: up to 2h of a gap overlapping the Jumat window (Fri 11:00–13:30 WIB)
+      // is ALSO excused, for boosters who prayed without using the ☕ button.
       var _spanH=1; try{ var _pm0=_prevMsMap[r.id]; if(_pm0!=null && ms!=null){ var _gm0=(ms-_pm0)/60000;
+        try{ var _brs=_brkByB[_rcNorm(r.booster)]; if(_brs) for(var _bi2=0;_bi2<_brs.length;_bi2++){ var _bw=_brs[_bi2];
+          var _ov1=Math.min(ms,_bw.end)-Math.max(_pm0,_bw.start); if(_ov1>0) _gm0-=_ov1/60000; } }catch(_){ }
         try{ var _wib=new Date(_pm0+7*3600000); if(_wib.getUTCDay()===5){ var _d0=Date.UTC(_wib.getUTCFullYear(),_wib.getUTCMonth(),_wib.getUTCDate()); var _ws=_d0+4*3600000, _we=_d0+6.5*3600000; var _ov=Math.min(ms,_we)-Math.max(_pm0,_ws); if(_ov>0) _gm0-=Math.min(_ov/60000,120); } }catch(_){ }
         if(_gm0>90) _spanH=Math.min(6,Math.round(_gm0/60)); } }catch(_){ }
       var _g2=Math.round(gain*1e6)/1e6; var _gH=_g2/_spanH;
