@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v607';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v608';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -36622,8 +36622,11 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
     const baseDay=computedDayBase(p);
     const totalDay=v3Num(p.todayHours)>0?Math.max(0,baseDay+currentAdj):0;
     const liveAdj=(p.raceTodayPaid!=null?0:currentAdj);   // [v538] today's live bounty; skip when today is already finalized (it's inside racePaidWeek/Month)
-    const weekBase=v3Int(monthBase/4),weekAdj=v3Int(p.racePaidWeek||0)+liveAdj,week=Math.max(0,weekBase+weekAdj);
-    const monthAdj=v3Int(p.racePaidMonth||0)+liveAdj,month=Math.max(0,monthBase+monthAdj);
+    // [v608] NET like the board (boss 7/12: board said 96K, this popup said 261K for SID — the popup wasn't
+    // subtracting the wage-layer cuts). 현재 보너스/주급/월급 now use the SAME formula as the leaderboard chip:
+    // finalized payouts + today's live bounty − period cuts.
+    const weekBase=v3Int(monthBase/4),weekAdj=v3Int(p.racePaidWeek||0)+liveAdj-v3Int(p.raceCutWeek||0),week=Math.max(0,weekBase+weekAdj);
+    const monthAdj=v3Int(p.racePaidMonth||0)+liveAdj-v3Int(p.raceCutMonth||0),month=Math.max(0,monthBase+monthAdj);
     return {ok:true,weekDays,monthDays,shiftH,planLabel:plan.label,planKey:plan.key,baseDay,adjDay:currentAdj,totalDay,weekBase,weekAdj,week,monthBase,monthAdj,month,poolImpact:Math.max(0,currentAdj)};
   };
   boardRankings.week=[...PLAYERS].sort((a,b)=>(((b.raceWeekAvg||0)-(a.raceWeekAvg||0)))||(((b.raceWeekPts||0)-(a.raceWeekPts||0)))||(b.dayScore-a.dayScore)||String(a.name).localeCompare(String(b.name)));
@@ -36636,7 +36639,7 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
     add(!PLAYERS.some(p=>String(p.name).toUpperCase()==='ACE'),'ACE removed','퇴사자 ACE 명단 제외');
     add(!!claws,'CLAWS exists','CLAWS 확인');
     add(!!cp&&cp.monthBase===MONTHLY_BASE_TABLE.shift1,'CLAWS Shift 1 base 2.5JT',cp?`${v3Money(cp.monthBase)} / ${displayShiftOf(claws)}`:'missing');
-    add(!!cp&&cp.month===MONTHLY_BASE_TABLE.shift1+v3Int(claws.todayDelta||0),'CLAWS no monthly projection',cp?`${v3Money(cp.month)}`:'missing');
+    add(!!cp&&cp.month===Math.max(0,MONTHLY_BASE_TABLE.shift1+v3Int(cp.monthAdj)),'CLAWS no monthly projection',cp?`${v3Money(cp.month)}`:'missing');   /* [v608] adj is now NET (paid+live−cuts) */
     add(PAYROLL_WORKDAYS>0,'Weekday day-pay basis',`${CONFIG.payrollYear}-${pad2(CONFIG.payrollMonth)} · ${PAYROLL_WORKDAYS} weekdays · Sat/Sun excluded`);
     add(recorded.every(p=>v3Int(p.todayPay)===Math.max(0,v3Int(p.todayBase)+v3Int(p.todayDelta))),'Day pay source protected',`recorded ${recorded.length} players`);
     add(TODAY_BONUS_SPENT===PLAYERS.reduce((s,p)=>s+Math.max(0,v3Num(p.todayDelta)),0),'Bonus pool positive-only',v3Money(TODAY_BONUS_SPENT));
