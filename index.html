@@ -10946,7 +10946,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v614';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v615';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -18338,7 +18338,7 @@ function _srClients(){
     if(typeof PCS!=='undefined' && PCS && PCS.length){
       PCS.forEach(function(p){ (p.clients||[]).forEach(function(cid){
         var c=(typeof clientById==='function')?clientById(cid):null;
-        if(c){ out.push({ pc:p.id, name:c.name }); var _k=String(c.name||'').trim().toLowerCase(); if(_k) coveredNames[_k]=true; }
+        if(c){ out.push({ pc:p.id, name:c.name, caution:(c.caution_note||'') }); var _k=String(c.name||'').trim().toLowerCase(); if(_k) coveredNames[_k]=true; }   /* [v615] surface 클라이언트 페이지 주의사항 to boosters */
       }); });
     }
     // [v447] Surface clients that exist but aren't assigned to ANY PC yet (e.g. a training client like
@@ -18350,7 +18350,7 @@ function _srClients(){
       CLIENTS.forEach(function(c){
         var nm=String((c&&c.name)||'').trim(); if(!nm) return;
         var key=nm.toLowerCase(); if(coveredNames[key]) return;
-        out.push({ pc:(c.pc||c.no||'?'), name:nm }); coveredNames[key]=true;
+        out.push({ pc:(c.pc||c.no||'?'), name:nm, caution:(c.caution_note||'') }); coveredNames[key]=true;
       });
     }
   }catch(e){}
@@ -18509,11 +18509,23 @@ function _srPickPC(pc,name){
   var lbl='PC'+pc+' · '+name;
   document.querySelectorAll('#sr-app [data-sr-pc]').forEach(function(x){ x.textContent=lbl; });
   document.querySelectorAll('#sr-app .sr-pc-card').forEach(function(c){ c.classList.toggle('sel', c.getAttribute('data-pc')===String(pc)&&c.getAttribute('data-name')===name); });
+  _srRenderCaution();
+}
+// [v615] show/hide the ⚠ 주의사항 banner for whichever client card is currently selected
+function _srRenderCaution(){
+  try{
+    var sel=document.querySelector('#sr-app .sr-pc-card.sel');
+    var box=document.getElementById('sr-caution-box'), txt=document.getElementById('sr-caution-text');
+    if(!box||!txt) return;
+    var c=sel?(sel.getAttribute('data-caution')||''):'';
+    if(c){ txt.textContent=c; box.style.display=''; } else { box.style.display='none'; }
+  }catch(_){ }
 }
 // [v263] Per-card selection by index — fixes two cards that share the same client name + PC (e.g. one
 // client on two PCs, or no PC assigned today) all highlighting together. Selects only the clicked card.
 function _srPickCard(idx){
   document.querySelectorAll('#sr-app .sr-pc-card').forEach(function(c){ c.classList.toggle('sel', c.getAttribute('data-idx')===String(idx)); });
+  _srRenderCaution();
   var sel=document.querySelector('#sr-app .sr-pc-card.sel');
   if(sel){
     var pc=sel.getAttribute('data-pc'), name=sel.getAttribute('data-name');
@@ -19708,7 +19720,10 @@ function _srBuildHTML(){
   var shiftOpts=_SR_SHIFTS.map(function(s,i){ return '<button class="sr-dd-opt'+(i===_shDef?' sel':'')+'" onclick="_srPickShift('+i+')">'+_srEsc(s.name)+'<span class="sr-t2">'+_srEsc(s.time.replace(' → ','–'))+'</span></button>'; }).join('');
   var clients=_srClients();
   var firstPC = clients.length?('PC'+clients[0].pc+' · '+clients[0].name):'—';
-  var pcCards = clients.length ? clients.map(function(c,i){ var _pcl=(c.pc!=null&&String(c.pc)!=='?'&&String(c.pc)!=='')?('PC'+_srEsc(String(c.pc))):'PC?'; var _nm=_srEsc(c.name)+(c.dup?(' <span style="color:var(--tx3,#6c6b66);font-weight:400">('+c.dup+')</span>'):''); return '<button class="sr-pc-card'+(i===0?' sel':'')+'" data-idx="'+i+'" data-pc="'+_srEsc(String(c.pc))+'" data-name="'+_srEsc(c.name)+'" onclick="_srPickCard('+i+')"><span class="sr-pc-n">'+_pcl+'</span><span class="sr-pc-nm">'+_nm+'</span></button>'; }).join('') : '<div class="sr-empty">No clients yet — add them in PC Status</div>';
+  var pcCards = clients.length ? clients.map(function(c,i){ var _pcl=(c.pc!=null&&String(c.pc)!=='?'&&String(c.pc)!=='')?('PC'+_srEsc(String(c.pc))):'PC?'; var _nm=_srEsc(c.name)+(c.dup?(' <span style="color:var(--tx3,#6c6b66);font-weight:400">('+c.dup+')</span>'):''); var _cw=c.caution?' <span style="color:var(--ye,#e0a83a)">⚠</span>':''; return '<button class="sr-pc-card'+(i===0?' sel':'')+'" data-idx="'+i+'" data-pc="'+_srEsc(String(c.pc))+'" data-name="'+_srEsc(c.name)+'" data-caution="'+_srEsc(c.caution||'')+'" onclick="_srPickCard('+i+')"><span class="sr-pc-n">'+_pcl+'</span><span class="sr-pc-nm">'+_nm+_cw+'</span></button>'; }).join('') : '<div class="sr-empty">No clients yet — add them in PC Status</div>';
+  // [v615] caution banner for the CURRENTLY selected client — updates live via _srPickCard/_srPickPC
+  var _selC0=clients[0]||{}; var caution0=(_selC0&&_selC0.caution)||'';
+  var cautionBox='<div id="sr-caution-box" style="'+(caution0?'':'display:none;')+'margin:8px 0;padding:9px 12px;border-radius:10px;background:rgba(224,168,58,.12);border:1px solid rgba(224,168,58,.35);color:#e0a83a;font-size:13px;line-height:1.5;white-space:pre-wrap"><b>⚠ 주의사항</b><br><span id="sr-caution-text">'+_srEsc(caution0)+'</span></div>';
   var groups=_srMapGroups(), firstMap='', _allMaps=[];
   groups.forEach(function(g){ g.maps.forEach(function(m){ _allMaps.push(m.full); if(!firstMap && !m.excl) firstMap=m.full; }); });
   if(!firstMap && groups.length && groups[0].maps.length) firstMap=groups[0].maps[0].full;
@@ -19732,6 +19747,7 @@ function _srBuildHTML(){
   +  '<div class="sr-row"><label class="sr-lab">Shift</label><div class="sr-dd" id="sr-dd-shift"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-shift\')"><span><span class="ttl" id="sr-shift-name">'+_srEsc(sh0.name)+'</span><span class="meta" id="sr-shift-time">'+_srEsc(sh0.time)+'</span></span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+shiftOpts+'</div></div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Start playing at</label><div class="sr-tbox">🕐 <span class="sr-tstep"><button onclick="_srBumpStart(-1)">−</button><span class="sr-t" id="sr-ci-start">07:00</span><button onclick="_srBumpStart(1)">+</button></span><span class="sr-auto" id="sr-ci-kst">07:00 WIB<br>09:00 KST</span></div><p class="sr-sub" style="margin-top:7px;">You clock in at shift start, but you may log into the client later — set the real start. WIB (Jakarta); client side shows KST.</p></div>'
   +  '<div class="sr-row"><label class="sr-lab">Client · PC</label><div class="sr-pc-grid">'+pcCards+'</div></div>'
+  +  cautionBox
   +  '<div class="sr-row"><label class="sr-lab">Map</label><div class="sr-dd" id="sr-dd-map"><button class="sr-dd-btn" onclick="_srToggleDD(\'sr-dd-map\')"><span class="ttl" data-sr-map>'+_srEsc(firstMapLabel)+'</span><span class="sr-chev">▾</span></button><div class="sr-dd-panel">'+mapOpts+'</div></div></div>'
   +  _srExpRow('Start')
   +  '<div class="sr-row"><label class="sr-lab">Start Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
@@ -30918,6 +30934,7 @@ function clientChipHTML(c){
   return `<div class="${cls}" data-cid="${c.id}" ${drag}>
     <div class="c-chip-r1">
       <span class="c-chip-nm">${c.name}</span>
+      ${c.caution_note ? `<span title="${String(c.caution_note).replace(/"/g,'&quot;')}" style="color:var(--ye,#e0a83a);cursor:help">⚠</span>` : ''}
       ${charLabel ? `<span class="c-chip-cls">${charLabel}</span>` : ''}
       <button class="c-chip-onoff ${isOff?'off':'on'}" onclick="event.stopPropagation();toggleClientActive('${c.id}')" title="${isOff?'OFF — 본인 플레이 중 (해제하려면 클릭)':'ON — 정상 가동 (본인 플레이 중일 때 OFF)'}">${isOff?'OFF':'ON'}</button>
       <span class="c-chip-edit" onclick="event.stopPropagation();toggleEditClient('${c.id}')" title="${isEditing?'완료':'편집'}">${isEditing?'✓':'✏︎'}</span>
@@ -31029,6 +31046,10 @@ function clientEditForm(c, opts){
     <div class="c-form-row">
       <label>메모</label>
       <input type="text" class="grow" value="${(c.schedule_note||'').replace(/"/g,'&quot;')}" placeholder="예: 20:00–05:00, 야간, 쉬는시간 포함" oninput="setClientField('${c.id}','schedule_note',this.value)">
+    </div>
+    <div class="c-form-row" style="align-items:flex-start">
+      <label>⚠ 주의사항</label>
+      <textarea class="grow" rows="3" style="resize:vertical;min-height:56px;font:inherit;background:var(--surface-2,#1c1c22);color:inherit;border:1px solid var(--border,#333);border-radius:8px;padding:8px 10px" placeholder="사냥터, 위험 요소, 금지 행동, 연락 방식 등 — 리포트 작성 화면에서 이 클라이언트를 고르면 직원에게 그대로 보입니다" oninput="setClientField('${c.id}','caution_note',this.value)">${(c.caution_note||'').replace(/</g,'&lt;')}</textarea>
     </div>
   </div>`;
 }
