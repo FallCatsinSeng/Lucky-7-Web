@@ -10847,6 +10847,9 @@ const APPLY_SHIFTS = {
   // 12 Hours
   '12h_day':   { group:'12H', name:'Day Shift',   range:'07:00 AM - 07:00 PM', break:'01:00 PM - 02:00 PM', salary:'3.8 Juta', duration:12, color:'#4a8fd9' },
   '12h_night': { group:'12H', name:'Night Shift', range:'07:00 PM - 07:00 AM', break:'01:00 AM - 02:00 AM', salary:'4.3 Juta', duration:12, color:'#b074ec' },
+  // 10 Hours  [v616]
+  '10h_morning': { group:'10H', name:'Morning 10H', range:'09:00 AM - 07:00 PM', break:'01:00 PM - 02:00 PM', salary:'3.2 Juta', duration:10, color:'#4aa0c2' },
+  '10h_night':   { group:'10H', name:'Night 10H',   range:'09:00 PM - 07:00 AM', break:'01:00 AM - 02:00 AM', salary:'3.7 Juta', duration:10, color:'#8a74d6' },
   // 8 Hours (3 Rotation)
   '8h_s1':     { group:'8H',  name:'Shift 1',     range:'09:00 AM - 05:00 PM', break:'01:00 PM - 02:00 PM', salary:'2.5 Juta', duration:8, color:'#3aa05a' },
   '8h_s2':     { group:'8H',  name:'Shift 2',     range:'05:00 PM - 01:00 AM', break:'09:00 PM - 10:00 PM', salary:'2.7 Juta', duration:8, color:'#e0a040' },
@@ -10946,7 +10949,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v615';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v616';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -13785,6 +13788,8 @@ const SHIFT_TYPES = {
 const SHIFT_SCHEDULE = {
   '12h_day':   { type:'12H', dur:'12시간', label:'주간', icon:'☀️', work:'07:00 AM – 07:00 PM', brk:'01:00 PM – 02:00 PM', salary:'3.8 Juta', color:'#5fa3d9' },
   '12h_night': { type:'12H', dur:'12시간', label:'야간', icon:'🌙', work:'07:00 PM – 07:00 AM', brk:'01:00 AM – 02:00 AM', salary:'4.3 Juta', color:'#a98fd6' },
+  '10h_morning': { type:'10H', dur:'10시간', label:'주간', icon:'🌤️', work:'09:00 AM – 07:00 PM', brk:'01:00 PM – 02:00 PM', salary:'3.2 Juta', color:'#4aa0c2' },
+  '10h_night':   { type:'10H', dur:'10시간', label:'야간', icon:'🌘', work:'09:00 PM – 07:00 AM', brk:'01:00 AM – 02:00 AM', salary:'3.7 Juta', color:'#8a74d6' },
   '8h_s1':     { type:'8H',  dur:'8시간', label:'시프트 1', icon:'🌅', work:'09:00 AM – 05:00 PM', brk:'01:00 PM – 02:00 PM', salary:'2.5 Juta', color:'#e0954a' },
   '8h_s2':     { type:'8H',  dur:'8시간', label:'시프트 2', icon:'🌆', work:'05:00 PM – 01:00 AM', brk:'09:00 PM – 10:00 PM', salary:'2.7 Juta', color:'#e07a5a' },
   '8h_s3':     { type:'8H',  dur:'8시간', label:'시프트 3', icon:'🌃', work:'01:00 AM – 09:00 AM', brk:'05:00 AM – 06:00 AM', salary:'3.0 Juta', color:'#a98fd6' }
@@ -34484,7 +34489,7 @@ const CONFIG = {
 const EMBEDDED_PLAYERS = [
   // todayAvgPct = 오늘 평균 EXP%/h, todayPay = 오늘 실제 Final Wage 합계, todayDelta = 보너스/패널티
   {name:'CLAWS',  hourlyBase:10500, monthlyBase:2500000, emoji:'🐲', level:44, eph:416011, prog:0.45, yExp:108.2, yRank:1,  shift:'Day 8',    warn:3.0, tp:10, protect:null,    slot:'Shift 1', pc:'PC 8', teacher:'아귀형', todayHours:8, todayAvgPct:1.105, todayPay:111833, todayBase:84000, todayDelta:27833, todayNote:'8 Goal · Ivory Tower / Dream Island', actualRecords:[["12:00~13:00", "Ivory Tower", 1.00, "Goal"], ["13:00~14:00", "Ivory Tower", 1.00, "Goal"], ["14:00~15:00", "Dream Island", 1.41, "Goal"], ["16:00~17:00", "Dream Island", 1.00, "Goal"], ["17:00~18:00", "Dream Island", 1.00, "Goal"], ["18:00~19:00", "Dream Island", 1.00, "Goal"], ["19:00~20:00", "Dream Island", 1.31, "Goal"], ["20:00~21:00", "Dream Island", 1.12, "Goal"]]},
-  {name:'RON',    hourlyBase:10417, emoji:'🦝', level:44, eph:387775,  prog:0.90, yExp:103.0, yRank:2,  shift:'Day 8',    warn:0.0, tp:3,  protect:'06/12', slot:'Shift 1', pc:'PC 1', teacher:'경상도쌤', todayHours:3, todayAvgPct:1.030, todayPay:38782, todayBase:31251, todayDelta:7531,  todayNote:'3 Goal · Dream Island', actualRecords:[["11:00~12:00", "Dream Island", 1.02, "Goal"], ["12:00~13:00", "Dream Island", 1.04, "Goal"], ["13:00~14:00", "Dream Island", 1.03, "Goal"]]},
+  {name:'RON',    hourlyBase:10667, emoji:'🦝', level:44, eph:387775,  prog:0.90, yExp:103.0, yRank:2,  shift:'Day 10',   warn:0.0, tp:3,  protect:'06/12', slot:'',        pc:'PC 1', teacher:'경상도쌤', /* [v616] boss 7/13: RON 8h Shift1 → Day 10 (base auto = day10 3.2JT; slot cleared so Day 10 wins) */ todayHours:3, todayAvgPct:1.030, todayPay:38782, todayBase:31251, todayDelta:7531,  todayNote:'3 Goal · Dream Island', actualRecords:[["11:00~12:00", "Dream Island", 1.02, "Goal"], ["12:00~13:00", "Dream Island", 1.04, "Goal"], ["13:00~14:00", "Dream Island", 1.03, "Goal"]]},
   {name:'PROD',   hourlyBase:10667, emoji:'⚙️', level:39, eph:294138,  prog:0.70, yExp:81.5,  yRank:3,  shift:'Day 10',   warn:0.0, tp:5,  protect:'05/26', slot:'',        pc:'PC 7', teacher:'순수쌤', /* [v594] boss 7/9: PROD moved to 10h day — base auto = day10 3.2JT via MONTHLY_BASE_TABLE */ todayHours:9, todayAvgPct:0.839, todayPay:98360, todayBase:94995, todayDelta:3365,  todayNote:'5 Goal · 2 Stable · 2 Cut · Dream Island', actualRecords:[["11:00~12:00", "Dream Island", 0.81, "Stable"], ["12:00~13:00", "Dream Island", 0.78, "Stable"], ["13:00~14:00", "Dream Island", 0.73, "Cut"], ["14:00~15:00", "Dream Island", 0.74, "Cut"], ["16:00~17:00", "Dream Island", 0.92, "Goal"], ["17:00~18:00", "Dream Island", 0.91, "Goal"], ["18:00~19:00", "Dream Island", 0.86, "Goal"], ["19:00~20:00", "Dream Island", 0.96, "Goal"], ["20:00~21:00", "Dream Island", 0.84, "Goal"]]},
   {name:'JEFF',   hourlyBase:10555, emoji:'🦬', level:38, eph:106574,  prog:0.20, yExp:56.8,  yRank:4,  shift:'Day 12',   warn:5.0, tp:2,  protect:'06/08', slot:'',        pc:'PC 6', teacher:'마석도쌤', todayHours:7, todayAvgPct:0.376, todayPay:53216, todayBase:73885, todayDelta:-20669, todayNote:'1 Stable · 6 Cut · Totem Field / Dragon Valley F1', actualRecords:[["13:00~14:00", "Totem Field", 0.50, "Stable"], ["14:00~15:00", "Totem Field", 0.36, "Cut"], ["16:00~17:00", "Totem Field", 0.41, "Cut"], ["17:00~18:00", "Totem Field", 0.32, "Cut"], ["18:00~19:00", "Totem Field", 0.30, "Cut"], ["19:00~20:00", "Totem Field", 0.31, "Cut"], ["20:00~21:00", "Dragon Valley Dungeon F1", 0.43, "Cut"]]},
   {name:'SID',    hourlyBase:11945, emoji:'🦈', level:44, eph:307639,  prog:0.60, yExp:0,     yRank:6,  shift:'Night 12', warn:1.0, tp:6,  protect:'05/18', slot:'',        pc:'PC 8', teacher:'아귀형', todayHours:7, todayAvgPct:0.817, todayPay:84288, todayBase:83615, todayDelta:673, todayNote:'3 Goal · 3 Stable · 1 Cut · Dream Island', actualRecords:[["21:00~22:00", "Dream Island", 0.95, "Goal"], ["22:00~23:00", "Dream Island", 0.82, "Stable"], ["23:00~24:00", "Dream Island", 0.90, "Goal"], ["00:00~01:00", "Dream Island", 0.60, "Cut"], ["01:00~02:00", "Dream Island", 0.79, "Stable"], ["02:00~03:00", "Dream Island", 0.87, "Goal"], ["04:00~05:00", "Dream Island", 0.79, "Stable"]]},
