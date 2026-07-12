@@ -10949,7 +10949,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v616';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v617';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -11129,10 +11129,10 @@ let recruitViewMode = 'kanban';
 // staff moving/promoting people around at once can't silently clobber each
 // other's changes.
 // ═══════════════════════════════════════════════════
-const BACKUP_SHIFTS = ['12h_day','12h_night','8h_s1','8h_s2','8h_s3','flexible'];
+const BACKUP_SHIFTS = ['12h_day','12h_night','10h_morning','10h_night','8h_s1','8h_s2','8h_s3','flexible'];   /* [v617] +10H */
 function _bkShiftLabel(key){
-  const ko = { '12h_day':'12H 주간', '12h_night':'12H 야간', '8h_s1':'8H 시프트 1', '8h_s2':'8H 시프트 2', '8h_s3':'8H 시프트 3', 'flexible':'시간 유동적' };
-  const en = { '12h_day':'12H Day', '12h_night':'12H Night', '8h_s1':'8H Shift 1', '8h_s2':'8H Shift 2', '8h_s3':'8H Shift 3', 'flexible':'Flexible' };
+  const ko = { '12h_day':'12H 주간', '12h_night':'12H 야간', '10h_morning':'10H 주간', '10h_night':'10H 야간', '8h_s1':'8H 시프트 1', '8h_s2':'8H 시프트 2', '8h_s3':'8H 시프트 3', 'flexible':'시간 유동적' };
+  const en = { '12h_day':'12H Day', '12h_night':'12H Night', '10h_morning':'10H Morning', '10h_night':'10H Night', '8h_s1':'8H Shift 1', '8h_s2':'8H Shift 2', '8h_s3':'8H Shift 3', 'flexible':'Flexible' };
   return (_uiLang()==='ko' ? ko[key] : en[key]) || key;
 }
 let BACKUP_APPLICANTS = [];
@@ -13807,6 +13807,8 @@ function matchShift(cs){
   if(s===17) return SHIFT_SCHEDULE['8h_s2'];
   if(s===1)  return SHIFT_SCHEDULE['8h_s3'];
   if(s===9 && e===17) return SHIFT_SCHEDULE['8h_s1'];
+  if(s===9 && e===19) return SHIFT_SCHEDULE['10h_morning'];   /* [v617] 9AM-7PM PC placement = Day 10 */
+  if(s===21) return SHIFT_SCHEDULE['10h_night'];              /* [v617] 9PM-7AM = Night 10 */
   return null;  // 특수 시프트 (서원 수업 등) — 원본 표시
 }
 // 시프트 시간(8/10/12) 배지 — 이름 옆에 표시
@@ -22077,7 +22079,7 @@ var _RC_NAME_ALIAS={ ericson:'eric' };
 function _rcNorm(n){ var k=String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; return _RC_NAME_ALIAS[k]||k; }
 
 // shift-group mapping (same as _srRecCompute ROSTER fallback). 888 = 8H (s1/s2/s3), 1212 = 12H (d12/n12).
-var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',hana:'d12', ace:'n12',sid:'n12',kaiji:'n12',vici:'n12', ron:'s1',bob:'s1', eric:'s2',san:'s2',bin:'s2', el:'s3',sil:'s3',miru:'s3',ditt:'s3' };   /* [v570] 'eric' aliased · [v594] hana n12→d12 (boss 7/9: HANA moved to Day 12) */
+var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',hana:'d12', ace:'n12',sid:'n12',kaiji:'n12',vici:'n12', ron:'d12',bob:'s1', eric:'s2',san:'s2',bin:'s2', el:'s3',sil:'s3',miru:'s3',ditt:'s3' };   /* [v570] 'eric' aliased · [v594] hana n12→d12 · [v617] ron s1→d12 day group (boss 7/13: RON 8h→Day 10; day-side group like PROD) */
 // [v593] per-player RACE START DATE (boss 7/9): race counts from 7/1 for everyone EXCEPT BOB/SAN/DITT who
 // join 7/6 — their earlier records stay in Records & Stats but are fully out of the race (no points, no cuts,
 // no hours, no period %). KAIJI is excluded entirely via hidden_staff, HANA/ERICSON/EL/SIL from 7/1 as-is.
@@ -30072,6 +30074,8 @@ function _dcShiftFromKey(key){
   var map = {
     '12h_day':   { shift:'Day 12',   tag:'', order:20, group:10 },
     '12h_night': { shift:'Night 12', tag:'', order:40, group:20 },
+    '10h_morning': { shift:'Day 10',   tag:'', order:15, group:10 },   /* [v617] 10H shifts — without these the Discord export fell back to the old contract length (showed Day 12) */
+    '10h_night':   { shift:'Night 10', tag:'', order:35, group:20 },
     '8h_s1':     { shift:'Day 8',    tag:'', order:10, group:10 },
     '8h_s2':     { shift:'Night 8',  tag:'', order:30, group:20 },
     '8h_s3':     { shift:'Night 8',  tag:'', order:50, group:30 }
