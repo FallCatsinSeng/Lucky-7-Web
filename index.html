@@ -10958,7 +10958,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v626';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v627';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -34820,7 +34820,7 @@ PLAYERS.forEach(p=>{p.std=stdFor(p.level);p.index=+(p.eph/p.std*100).toFixed(1);
     var _pens=(window.__KB_PENALTIES||[]).filter(function(x){ return x && _rcNorm(x.key)===_rcNorm(p.name); });
     if(_pens.length){
       var _prate=(window.__KB_SETTINGS&&Number(window.__KB_SETTINGS.point_rate))||900;
-      var _tds=new Date(Date.now()+540*60000).toISOString().slice(0,10), _pmon=_tds.slice(0,7);
+      var _tds=new Date().toISOString().slice(0,10), _pmon=_tds.slice(0,7);   // [v627] RACE DAY = UTC date (09:00-KST rollover) — was KST calendar date, which drifted a day ahead after midnight KST and made a same-day death miss the DAY view
       var _ptd=Date.parse(_tds+'T00:00:00Z'), _pwk=_ptd-((new Date(_ptd).getUTCDay()+6)%7)*86400000;
       var _wRp=0,_mRp=0,_wPt=0,_mPt=0,_wDeaths=0,_mDeaths=0,_dRp=0,_dDeaths=0;
       _pens.forEach(function(pn){ var d=String(pn.date||_tds).slice(0,10); var rp=Math.abs(Number(pn.amount)||0); var pt=_prate>0?rp/_prate:0; var dm=Date.parse(d+'T00:00:00Z');
