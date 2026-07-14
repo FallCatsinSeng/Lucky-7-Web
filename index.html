@@ -10954,7 +10954,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v621';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v622';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -37138,6 +37138,11 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
       if(!ex || !eavg || !ewon) return;
       const inc=incentiveParts(p,view);
       row.dataset.incState=inc.state;
+      // [v621] DEATH-PENALTY marker: skull badge (💀×N) + red row wash, so the whole team sees a death cost.
+      var _dn=(+p.deathCountMonth||0);   // deaths this month — a death is a death regardless of the day/week/month view
+      var _nmEl=row.querySelector('.nm-main'); var _old=_nmEl&&_nmEl.querySelector('.badge.death');
+      if(_dn>0){ row.setAttribute('data-death','true'); if(_nmEl && !_old){ var _sk=document.createElement('span'); _sk.className='badge death'; _sk.title='사망 페널티 '+_dn+'회'; _sk.textContent='💀'+(_dn>1?'×'+_dn:''); _nmEl.appendChild(_sk); } }
+      else { row.removeAttribute('data-death'); if(_old) _old.remove(); }
       // [v540] Day headline = points/HOUR (what the daily rank is decided by — quality per hour);
       // Week/Month headline = cumulative points (season contribution). Money is always in the chip.
       if(view==='week'||view==='month'){
