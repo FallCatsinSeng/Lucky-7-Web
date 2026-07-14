@@ -10958,7 +10958,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v625';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v626';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -34822,13 +34822,15 @@ PLAYERS.forEach(p=>{p.std=stdFor(p.level);p.index=+(p.eph/p.std*100).toFixed(1);
       var _prate=(window.__KB_SETTINGS&&Number(window.__KB_SETTINGS.point_rate))||900;
       var _tds=new Date(Date.now()+540*60000).toISOString().slice(0,10), _pmon=_tds.slice(0,7);
       var _ptd=Date.parse(_tds+'T00:00:00Z'), _pwk=_ptd-((new Date(_ptd).getUTCDay()+6)%7)*86400000;
-      var _wRp=0,_mRp=0,_wPt=0,_mPt=0,_wDeaths=0,_mDeaths=0;
+      var _wRp=0,_mRp=0,_wPt=0,_mPt=0,_wDeaths=0,_mDeaths=0,_dRp=0,_dDeaths=0;
       _pens.forEach(function(pn){ var d=String(pn.date||_tds).slice(0,10); var rp=Math.abs(Number(pn.amount)||0); var pt=_prate>0?rp/_prate:0; var dm=Date.parse(d+'T00:00:00Z');
         if(d.slice(0,7)===_pmon){ _mRp+=rp; _mPt+=pt; _mDeaths++; }
-        if(!isNaN(dm)&&dm>=_pwk&&dm<=_ptd){ _wRp+=rp; _wPt+=pt; _wDeaths++; } });
-      p.deathCountWeek=_wDeaths; p.deathCountMonth=_mDeaths;   // [v621] 💀 death badge on the leaderboard row
+        if(!isNaN(dm)&&dm>=_pwk&&dm<=_ptd){ _wRp+=rp; _wPt+=pt; _wDeaths++; }
+        if(d===_tds){ _dRp+=rp; _dDeaths++; } });   // [v626] penalties dated TODAY also hit the DAY view
+      p.deathCountWeek=_wDeaths; p.deathCountMonth=_mDeaths; p.deathCountDay=_dDeaths;   // [v621] 💀 death badge on the leaderboard row
       if(_wRp){ var _owp=+p.raceWeekPts||0; p.raceWeekPts=Math.max(0,Math.round(_owp-_wPt)); p.raceCutWeek=(+p.raceCutWeek||0)+_wRp; p.raceWeekAvg=(+p.raceWeekAvg||0)*(_owp>0?Math.max(0,(_owp-_wPt)/_owp):(_wPt>0?0:1)); p.racePenaltyWeek=_wRp; }
       if(_mRp){ var _omp=+p.raceMonthPts||0; p.raceMonthPts=Math.max(0,Math.round(_omp-_mPt)); p.raceCutMonth=(+p.raceCutMonth||0)+_mRp; p.raceMonthAvg=(+p.raceMonthAvg||0)*(_omp>0?Math.max(0,(_omp-_mPt)/_omp):(_mPt>0?0:1)); p.racePenaltyMonth=_mRp; }
+      if(_dRp){ p.raceCutAmt=(+p.raceCutAmt||0)+_dRp; p.racePenaltyDay=_dRp; }   // [v626] DAY-view money reflects a same-day death too
     }
   }catch(_){}
   p.exp=(p.perfPct!=null?+Number(p.perfPct).toFixed(1):0);   // [v526] p.exp mirrors Records & Stats performance %
