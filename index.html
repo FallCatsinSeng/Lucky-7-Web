@@ -10974,7 +10974,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v630';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v631';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -30653,6 +30653,7 @@ async function renderPCHubTimeline(silent){
 
 function renderPCs(){
   try{ normalizePCs(); }catch(_){}
+  try{ _applyProfileShiftLens(); }catch(_){}   // [v631] profiles (staff_state) can land AFTER loadStaffPool — refresh real 8/10/12 contract hours on every render
   const q = (document.getElementById('q').value||'').toLowerCase();
   let list = PCS.filter(p => filter==='all' || p.status===filter);
   if(q) list = list.filter(p => {
@@ -30972,6 +30973,23 @@ function staffChipHTML(s){
 }
 
 // [live] Load the Staff pool from Supabase user_profiles so real signups appear by role.
+// [v631] real contract hours for a PC현황 staff chip (boss 7/16: "8/10/12에 따라 달라야지" — everyone showed
+// 12H because loadStaffPool hardcoded shiftLen:12). Source of truth = the profile's manual shift (직원목록
+// 시프트 수동 배정 → staff_state.profiles[id].manual_shift), whose SHIFT_SCHEDULE type ('8H'/'10H'/'12H')
+// carries the duration. Falls back to 12 only when no shift is assigned.
+function _profShiftLen(staffId){
+  try{
+    const mk = (typeof STAFF_PROFILE!=='undefined' && STAFF_PROFILE[staffId] && STAFF_PROFILE[staffId].manual_shift) || '';
+    if(mk && typeof SHIFT_SCHEDULE!=='undefined' && SHIFT_SCHEDULE[mk]){
+      const n = parseInt(String(SHIFT_SCHEDULE[mk].type||''), 10);
+      if(n===8||n===10||n===12) return n;
+    }
+  }catch(_){}
+  return 0;
+}
+function _applyProfileShiftLens(){
+  try{ if(typeof STAFF!=='undefined' && Array.isArray(STAFF)) STAFF.forEach(function(s){ const n=_profShiftLen(s.id); if(n) s.shiftLen=n; }); }catch(_){}
+}
 async function loadStaffPool(){
   if(!sb) return;
   try{
@@ -30988,7 +31006,7 @@ async function loadStaffPool(){
         short: nm.slice(0,2).toUpperCase(),
         position: roleToPos[p.role] || 'unranked',
         work_days: 6,
-        shiftLen: 12,
+        shiftLen: _profShiftLen(p.id) || 12,   // [v631] real 8/10/12 from the assigned shift; 12 only as fallback
         break_hours: 1,
         day_off: false
       });
