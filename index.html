@@ -9471,6 +9471,14 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race #board .row[data-inc-state="penalty"] .sl-main-cap{color:rgba(255,128,120,.72)!important}
 #kb-race #board .row[data-inc-state="bonus"] .sl-inc-amount{color:var(--ds-green)!important}
 #kb-race #board .row[data-inc-state="penalty"] .sl-inc-amount{color:#ff7e74!important}
+/* [v621] DEATH-PENALTY row — red wash + skull-red left edge so a death reads at a glance on the board */
+#kb-race #board .row[data-death="true"]{background:linear-gradient(90deg,rgba(255,45,45,.16),rgba(255,45,45,.05) 60%,transparent)!important;box-shadow:inset 3px 0 0 #ff3b30!important}
+#kb-race #board .row[data-death="true"] .nm-main{color:#ffd9d6!important}
+#kb-race .row .badge.death{background:rgba(255,59,48,.2);color:#ff5b52;border:1px solid rgba(255,59,48,.42);font-weight:900;padding:0 5px;border-radius:5px;font-size:10px;margin-left:5px;letter-spacing:-.02em;vertical-align:middle}
+/* [v623] big translucent skull watermark on a death-penalty row */
+#kb-race #board .row[data-death="true"]{position:relative}
+#kb-race #board .row .death-skull{position:absolute;right:128px;top:50%;transform:translateY(-50%);font-size:34px;line-height:1;opacity:.22;pointer-events:none;z-index:0;filter:grayscale(.15)}
+@media(max-width:880px){#kb-race #board .row .death-skull{right:100px;font-size:27px}}
 /* responsive */
 @media(max-width:1100px){
   #kb-race #kbapp.bento{grid-template-rows:auto 108px auto 238px auto!important}
@@ -10850,6 +10858,7 @@ const APPLY_SHIFTS = {
   // 10 Hours  [v616]
   '10h_morning': { group:'10H', name:'Morning 10H', range:'09:00 AM - 07:00 PM', break:'01:00 PM - 02:00 PM', salary:'3.2 Juta', duration:10, color:'#4aa0c2' },
   '10h_night':   { group:'10H', name:'Night 10H',   range:'09:00 PM - 07:00 AM', break:'01:00 AM - 02:00 AM', salary:'3.7 Juta', duration:10, color:'#8a74d6' },
+  '10h_evening': { group:'10H', name:'Evening 10H', range:'05:00 PM - 03:00 AM', break:'09:00 PM - 10:00 PM', salary:'3.7 Juta', duration:10, color:'#c27ac2' },   // [v618] boss 7/13: ERICSON 17:00-03:00
   // 8 Hours (3 Rotation)
   '8h_s1':     { group:'8H',  name:'Shift 1',     range:'09:00 AM - 05:00 PM', break:'01:00 PM - 02:00 PM', salary:'2.5 Juta', duration:8, color:'#3aa05a' },
   '8h_s2':     { group:'8H',  name:'Shift 2',     range:'05:00 PM - 01:00 AM', break:'09:00 PM - 10:00 PM', salary:'2.7 Juta', duration:8, color:'#e0a040' },
@@ -10965,7 +10974,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v623';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v630';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -11145,10 +11154,10 @@ let recruitViewMode = 'kanban';
 // staff moving/promoting people around at once can't silently clobber each
 // other's changes.
 // ═══════════════════════════════════════════════════
-const BACKUP_SHIFTS = ['12h_day','12h_night','10h_morning','10h_night','8h_s1','8h_s2','8h_s3','flexible'];   /* [v617] +10H */
+const BACKUP_SHIFTS = ['12h_day','12h_night','10h_morning','10h_night','10h_evening','8h_s1','8h_s2','8h_s3','flexible'];   /* [v617] +10H · [v618] +evening */
 function _bkShiftLabel(key){
-  const ko = { '12h_day':'12H 주간', '12h_night':'12H 야간', '10h_morning':'10H 주간', '10h_night':'10H 야간', '8h_s1':'8H 시프트 1', '8h_s2':'8H 시프트 2', '8h_s3':'8H 시프트 3', 'flexible':'시간 유동적' };
-  const en = { '12h_day':'12H Day', '12h_night':'12H Night', '10h_morning':'10H Morning', '10h_night':'10H Night', '8h_s1':'8H Shift 1', '8h_s2':'8H Shift 2', '8h_s3':'8H Shift 3', 'flexible':'Flexible' };
+  const ko = { '12h_day':'12H 주간', '12h_night':'12H 야간', '10h_morning':'10H 주간', '10h_night':'10H 야간', '10h_evening':'10H 저녁(17-03)', '8h_s1':'8H 시프트 1', '8h_s2':'8H 시프트 2', '8h_s3':'8H 시프트 3', 'flexible':'시간 유동적' };
+  const en = { '12h_day':'12H Day', '12h_night':'12H Night', '10h_morning':'10H Morning', '10h_night':'10H Night', '10h_evening':'10H Evening(17-03)', '8h_s1':'8H Shift 1', '8h_s2':'8H Shift 2', '8h_s3':'8H Shift 3', 'flexible':'Flexible' };
   return (_uiLang()==='ko' ? ko[key] : en[key]) || key;
 }
 let BACKUP_APPLICANTS = [];
@@ -13876,6 +13885,7 @@ const SHIFT_SCHEDULE = {
   '12h_night': { type:'12H', dur:'12시간', label:'야간', icon:'🌙', work:'07:00 PM – 07:00 AM', brk:'01:00 AM – 02:00 AM', salary:'4.3 Juta', color:'#a98fd6' },
   '10h_morning': { type:'10H', dur:'10시간', label:'주간', icon:'🌤️', work:'09:00 AM – 07:00 PM', brk:'01:00 PM – 02:00 PM', salary:'3.2 Juta', color:'#4aa0c2' },
   '10h_night':   { type:'10H', dur:'10시간', label:'야간', icon:'🌘', work:'09:00 PM – 07:00 AM', brk:'01:00 AM – 02:00 AM', salary:'3.7 Juta', color:'#8a74d6' },
+  '10h_evening': { type:'10H', dur:'10시간', label:'저녁', icon:'🌆', work:'05:00 PM – 03:00 AM', brk:'09:00 PM – 10:00 PM', salary:'3.7 Juta', color:'#c27ac2' },   /* [v618] ERICSON 17:00-03:00 */
   '8h_s1':     { type:'8H',  dur:'8시간', label:'시프트 1', icon:'🌅', work:'09:00 AM – 05:00 PM', brk:'01:00 PM – 02:00 PM', salary:'2.5 Juta', color:'#e0954a' },
   '8h_s2':     { type:'8H',  dur:'8시간', label:'시프트 2', icon:'🌆', work:'05:00 PM – 01:00 AM', brk:'09:00 PM – 10:00 PM', salary:'2.7 Juta', color:'#e07a5a' },
   '8h_s3':     { type:'8H',  dur:'8시간', label:'시프트 3', icon:'🌃', work:'01:00 AM – 09:00 AM', brk:'05:00 AM – 06:00 AM', salary:'3.0 Juta', color:'#a98fd6' }
@@ -13890,6 +13900,7 @@ function matchShift(cs){
   const e = to24(times[1][1], times[1][2]);
   if(s===7)  return SHIFT_SCHEDULE['12h_day'];
   if(s===19) return SHIFT_SCHEDULE['12h_night'];
+  if(s===17 && e===3) return SHIFT_SCHEDULE['10h_evening'];   /* [v618] 5PM-3AM = Evening 10 (before the plain s===17 8h_s2 rule) */
   if(s===17) return SHIFT_SCHEDULE['8h_s2'];
   if(s===1)  return SHIFT_SCHEDULE['8h_s3'];
   if(s===9 && e===17) return SHIFT_SCHEDULE['8h_s1'];
@@ -20967,10 +20978,10 @@ function _srRecCardHTML(data){
   var _isStaleKey=function(k){ if(!k) return false; try{ if(typeof _teamCache!=='undefined' && Array.isArray(_teamCache)){ for(var _i=0;_i<_teamCache.length;_i++){ var _m=_teamCache[_i]; if(_m && _m.role==='player' && nmKey(_m.name)===k) return false; } } }catch(_){} return true; };   // [v502] true = this records key isn't a current roster player (orphan left by a rename) -> offer merge
 
   // ── [v351] 시프트 단위 그룹: 12H 주간/야간 + 8H 시프트 1/2/3 (로스터 직접 매핑 + Supabase 라이브 폴백) ──
-  var ROSTER={ claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',
-    ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',hana:'n12',
-    ron:'s1',bob:'s1',
-    eric:'s2',san:'s2',bin:'s2',   /* [v570] 'eric' — matches the report booster name (was dead key 'ericson') */
+  var ROSTER={ claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',hana:'d12',ron:'d12',
+    ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',eric:'n12',
+    bob:'s1',
+    san:'s2',bin:'s2',   /* [v570] 'eric' — matches the report booster name · [v625] synced with _RC_ROSTER: hana n12→d12 (boss 7/13), ron s1→d12 (Day 10), eric s2→n12 (Night 10) */
     el:'s3',sil:'s3',miru:'s3',ditt:'s3' };
   var LEADERS={ claws:1, ace:1 };
   var k1=function(s){ return String(s||'').toLowerCase().trim().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').split(/\s+/)[0]||''; };
@@ -21873,7 +21884,9 @@ async function _kbLoadRealData(){
     var s=await sb.from('race_settings').select('*').eq('id',1).maybeSingle();
     if(!s || !s.data){ await new Promise(function(r){ setTimeout(r,1200); }); try{ s=await sb.from('race_settings').select('*').eq('id',1).maybeSingle(); }catch(_){ } }
     if(s && s.data) st=s.data;
-    try{ var a=await sb.from('race_adjustments').select('type,report_id'); if(a && Array.isArray(a.data)) a.data.forEach(function(x){ if(x && x.type==='dq' && x.report_id && dq.add) dq.add(x.report_id); }); }catch(_){ }
+    var _pen=[];
+    try{ var a=await sb.from('race_adjustments').select('type,report_id,target,amount,shift_date,reason'); if(a && Array.isArray(a.data)) a.data.forEach(function(x){ if(!x) return; if(x.type==='dq' && x.report_id && dq.add) dq.add(x.report_id); if(x.type==='penalty' && x.target){ _pen.push({ key:String(x.target).toLowerCase(), amount:Math.abs(Number(x.amount)||0), date:String(x.shift_date||'').slice(0,10), reason:x.reason||'' }); } }); }catch(_){ }
+    window.__KB_PENALTIES=_pen;   // [v619] manual race penalties (death penalty etc.) — applied to the board in the PLAYERS loop
   } }catch(_){ }
   window.__KB_SETTINGS=st; window.__KB_DQSET=dq;
   var pays=[]; try{ if(typeof sb!=='undefined' && sb){ var pr=await sb.from('race_payouts').select('*'); if(pr && Array.isArray(pr.data)) pays=pr.data; } }catch(_){ }
@@ -22197,7 +22210,7 @@ var _RC_NAME_ALIAS={ ericson:'eric' };
 function _rcNorm(n){ var k=String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; return _RC_NAME_ALIAS[k]||k; }
 
 // shift-group mapping (same as _srRecCompute ROSTER fallback). 888 = 8H (s1/s2/s3), 1212 = 12H (d12/n12).
-var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',hana:'d12', ace:'n12',sid:'n12',kaiji:'n12',vici:'n12', ron:'d12',bob:'s1', eric:'s2',san:'s2',bin:'s2', el:'s3',sil:'s3',miru:'s3',ditt:'s3' };   /* [v570] 'eric' aliased · [v594] hana n12→d12 · [v617] ron s1→d12 day group (boss 7/13: RON 8h→Day 10; day-side group like PROD) */
+var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',hana:'d12', ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',eric:'n12', ron:'d12',bob:'s1', san:'s2',bin:'s2', el:'s3',sil:'s3',miru:'s3',ditt:'s3' };   /* [v570] 'eric' aliased · [v594] hana n12→d12 · [v617] ron s1→d12 day group (boss 7/13: RON 8h→Day 10; day-side group like PROD) · [v618] eric s2→n12 (boss 7/13: ERICSON 8h→10h 17:00-03:00 Night 10) */
 // [v593] per-player RACE START DATE (boss 7/9): race counts from 7/1 for everyone EXCEPT BOB/SAN/DITT who
 // join 7/6 — their earlier records stay in Records & Stats but are fully out of the race (no points, no cuts,
 // no hours, no period %). KAIJI is excluded entirely via hidden_staff, HANA/ERICSON/EL/SIL from 7/1 as-is.
@@ -30194,6 +30207,7 @@ function _dcShiftFromKey(key){
     '12h_night': { shift:'Night 12', tag:'', order:40, group:20 },
     '10h_morning': { shift:'Day 10',   tag:'', order:15, group:10 },   /* [v617] 10H shifts — without these the Discord export fell back to the old contract length (showed Day 12) */
     '10h_night':   { shift:'Night 10', tag:'', order:35, group:20 },
+    '10h_evening': { shift:'Night 10', tag:'', order:32, group:20 },   /* [v618] ERICSON 17:00-03:00 — pay bucket is Night 10 same as 10h_night */
     '8h_s1':     { shift:'Day 8',    tag:'', order:10, group:10 },
     '8h_s2':     { shift:'Night 8',  tag:'', order:30, group:20 },
     '8h_s3':     { shift:'Night 8',  tag:'', order:50, group:30 }
@@ -31038,8 +31052,12 @@ function renderPools(){
   const cnt = filtered.length === STAFF.length ? `${STAFF.length}${_uiLang()==='ko'?'명':''}` : `${filtered.length}/${STAFF.length}`;
   document.getElementById('staff-stat').textContent = `${cnt} · ${totalUsed}/${totalEff}h`;
 
-  document.getElementById('client-pool').innerHTML = CLIENTS.map(clientChipHTML).join('');
-  document.getElementById('client-stat').textContent = `${CLIENTS.filter(c=>pcOfClient(c.id)).length} / ${CLIENTS.length} 배정`;
+  // [v629] boss 7/15: hide "TRAINING" placeholder clients from the PC현황 pool — they never sit on a PC and
+  // just clutter the board. Data is untouched: they stay in CLIENTS (client_state.pool) so trainees can still
+  // check in against their own TRAINING client in the report form (_srClients), and the 기준EXP page is unaffected.
+  var _poolClients = CLIENTS.filter(function(c){ return !/training/i.test(String(c && c.name || '')); });
+  document.getElementById('client-pool').innerHTML = _poolClients.map(clientChipHTML).join('');
+  document.getElementById('client-stat').textContent = `${_poolClients.filter(c=>pcOfClient(c.id)).length} / ${_poolClients.length} 배정`;
 }
 
 function clientChipHTML(c){
@@ -34660,7 +34678,7 @@ const EMBEDDED_PLAYERS = [
   {name:'VICI',   hourlyBase:11945, emoji:'🐊', level:38, eph:194660,  prog:0.10, yExp:0,     yRank:9,  shift:'Night 12', warn:8.0, tp:0,  protect:'06/08', slot:'',        pc:'PC 6', teacher:'마석도쌤', todayHours:8, todayAvgPct:0.686, todayPay:92321, todayBase:95560, todayDelta:-3239, todayNote:'1 Goal · 6 Stable · 1 Cut · Dragon Valley F1', actualRecords:[["21:00~22:00", "Dragon Valley Dungeon F1", 0.47, "Cut"], ["22:00~23:00", "Dragon Valley Dungeon F1", 0.71, "Stable"], ["23:00~24:00", "Dragon Valley Dungeon F1", 0.75, "Goal"], ["00:00~01:00", "Dragon Valley Dungeon F1", 0.72, "Stable"], ["01:00~02:00", "Dragon Valley Dungeon F1", 0.70, "Stable"], ["02:00~03:00", "Dragon Valley Dungeon F1", 0.71, "Stable"], ["03:00~04:00", "Dragon Valley Dungeon F1", 0.71, "Stable"], ["04:00~05:00", "Dragon Valley Dungeon F1", 0.72, "Stable"]]},
   {name:'EL',     hourlyBase:12500, emoji:'🦉', level:41, eph:125211,  prog:0.40, yExp:0,     yRank:10, shift:'Night 8',  warn:0.0, tp:1,  protect:'06/11', slot:'Shift 3', pc:'PC 2', teacher:'오웬라인쌤', todayHours:1, todayAvgPct:0.350, todayPay:6530, todayBase:12500, todayDelta:-5970, todayNote:'1 Cut · Dragon Valley F1', actualRecords:[["03:00~04:00", "Dragon Valley Dungeon F1", 0.35, "Cut"]]},
   {name:'SIL',    hourlyBase:11945, emoji:'🦦', level:44, eph:225888,  prog:0.55, yExp:0,     yRank:11, shift:'Night 8',  warn:0.0, tp:1,  protect:'06/15', slot:'Shift 3', pc:'PC 1', teacher:'경상도쌤', todayHours:1, todayAvgPct:0.600, todayPay:9308, todayBase:11945, todayDelta:-2637, todayNote:'1 Cut · Ivory Tower', actualRecords:[["04:00~05:00", "Ivory Tower", 0.60, "Cut"]]},
-  {name:'ERICSON',hourlyBase:11250, emoji:'🦡', level:41, eph:183881,  prog:0.30, yExp:0,     yRank:12, shift:'Night 8',  warn:0.0, tp:0,  protect:'06/27', slot:'Shift 2', pc:'PC 2', teacher:'오웬라인쌤', todayHours:5, todayAvgPct:0.514, todayPay:43154, todayBase:56250, todayDelta:-13096, todayNote:'5 Cut · Dragon Valley F1', actualRecords:[["19:00~20:00", "Dragon Valley Dungeon F1", 0.48, "Cut"], ["20:00~21:00", "Dragon Valley Dungeon F1", 0.64, "Cut"], ["21:00~22:00", "Dragon Valley Dungeon F1", 0.50, "Cut"], ["22:00~23:00", "Dragon Valley Dungeon F1", 0.45, "Cut"], ["23:00~24:00", "Dragon Valley Dungeon F1", 0.50, "Cut"]]},
+  {name:'ERICSON',hourlyBase:12833, emoji:'🦡', level:41, eph:183881,  prog:0.30, yExp:0,     yRank:12, shift:'Night 10', warn:0.0, tp:0,  protect:'06/27', slot:'',        pc:'PC 2', teacher:'오웬라인쌤', /* [v618] boss 7/13: ERICSON 8h Shift2(17-01) → 10h 17:00-03:00 (base auto = night10 3.7JT via MONTHLY_BASE_TABLE; slot cleared so Night 10 wins) */ todayHours:5, todayAvgPct:0.514, todayPay:43154, todayBase:56250, todayDelta:-13096, todayNote:'5 Cut · Dragon Valley F1', actualRecords:[["19:00~20:00", "Dragon Valley Dungeon F1", 0.48, "Cut"], ["20:00~21:00", "Dragon Valley Dungeon F1", 0.64, "Cut"], ["21:00~22:00", "Dragon Valley Dungeon F1", 0.50, "Cut"], ["22:00~23:00", "Dragon Valley Dungeon F1", 0.45, "Cut"], ["23:00~24:00", "Dragon Valley Dungeon F1", 0.50, "Cut"]]},
   {name:'MIRU',   emoji:'🐺', level:30, eph:0,        prog:0.40, yExp:0,     yRank:13, shift:'Night 8',  warn:0.0, tp:1,  protect:'06/15', slot:'Shift 3', todayHours:0, todayAvgPct:0,    todayPay:0,     todayBase:0,     todayDelta:0,     todayNote:'No record yet'},
   {name:'BOB',    emoji:'🐻', level:30, eph:0,        prog:0.40, yExp:0,     yRank:14, shift:'Day 8',    warn:0.0, tp:0,  protect:'06/12', slot:'Shift 1', todayHours:0, todayAvgPct:0,    todayPay:0,     todayBase:0,     todayDelta:0,     todayNote:'No record yet'},
   {name:'SAN',    emoji:'🦅', level:30, eph:0,        prog:0.40, yExp:0,     yRank:15, shift:'Night 8',  warn:0.0, tp:1,  protect:'07/01', slot:'Shift 2', todayHours:0, todayAvgPct:0,    todayPay:0,     todayBase:0,     todayDelta:0,     todayNote:'No record yet'},
@@ -34953,6 +34971,30 @@ PLAYERS.forEach(p=>{p.std=stdFor(p.level);p.index=+(p.eph/p.std*100).toFixed(1);
   p.monthPay=Math.round((p.monthPay||0)+(p.todayPay||0));
   p.weekScore=(p.tp||0)*100 + p.dayScore*10;
   p.monthScore=p.monthPay + (p.tp||0)*42000;
+  // [v619] DEATH PENALTY / manual race adjustment (boss 7/13): a fixed-rupiah penalty logged in
+  // race_adjustments (type='penalty', target=player_key) hits the board three ways from ONE entry —
+  // (1) money net drops by the full amount (raceCut↑), (2) the visible points fall (floored at 0), and
+  // (3) the RANK metric is scaled by the SHARE of points that survived, so wiping ~100% of a player's
+  // points drops them toward the bottom (boss: "인센티브 날아가고 순위도 밀렸구나"). Hidden players (Kaiji)
+  // never reach the board — their share lives on the payslip 공제 only. Display-only here; race_payouts /
+  // settlement pay are untouched (the payslip 공제 is the real money — see settlement page).
+  try{
+    var _pens=(window.__KB_PENALTIES||[]).filter(function(x){ return x && _rcNorm(x.key)===_rcNorm(p.name); });
+    if(_pens.length){
+      var _prate=(window.__KB_SETTINGS&&Number(window.__KB_SETTINGS.point_rate))||900;
+      var _tds=new Date().toISOString().slice(0,10), _pmon=_tds.slice(0,7);   // [v627] RACE DAY = UTC date (09:00-KST rollover) — was KST calendar date, which drifted a day ahead after midnight KST and made a same-day death miss the DAY view
+      var _ptd=Date.parse(_tds+'T00:00:00Z'), _pwk=_ptd-((new Date(_ptd).getUTCDay()+6)%7)*86400000;
+      var _wRp=0,_mRp=0,_wPt=0,_mPt=0,_wDeaths=0,_mDeaths=0,_dRp=0,_dDeaths=0;
+      _pens.forEach(function(pn){ var d=String(pn.date||_tds).slice(0,10); var rp=Math.abs(Number(pn.amount)||0); var pt=_prate>0?rp/_prate:0; var dm=Date.parse(d+'T00:00:00Z');
+        if(d.slice(0,7)===_pmon){ _mRp+=rp; _mPt+=pt; _mDeaths++; }
+        if(!isNaN(dm)&&dm>=_pwk&&dm<=_ptd){ _wRp+=rp; _wPt+=pt; _wDeaths++; }
+        if(d===_tds){ _dRp+=rp; _dDeaths++; } });   // [v626] penalties dated TODAY also hit the DAY view
+      p.deathCountWeek=_wDeaths; p.deathCountMonth=_mDeaths; p.deathCountDay=_dDeaths;   // [v621] 💀 death badge on the leaderboard row
+      if(_wRp){ var _owp=+p.raceWeekPts||0; p.raceWeekPts=Math.max(0,Math.round(_owp-_wPt)); p.raceCutWeek=(+p.raceCutWeek||0)+_wRp; p.raceWeekAvg=(+p.raceWeekAvg||0)*(_owp>0?Math.max(0,(_owp-_wPt)/_owp):(_wPt>0?0:1)); p.racePenaltyWeek=_wRp; }
+      if(_mRp){ var _omp=+p.raceMonthPts||0; p.raceMonthPts=Math.max(0,Math.round(_omp-_mPt)); p.raceCutMonth=(+p.raceCutMonth||0)+_mRp; p.raceMonthAvg=(+p.raceMonthAvg||0)*(_omp>0?Math.max(0,(_omp-_mPt)/_omp):(_mPt>0?0:1)); p.racePenaltyMonth=_mRp; }
+      if(_dRp){ p.raceCutAmt=(+p.raceCutAmt||0)+_dRp; p.racePenaltyDay=_dRp; }   // [v626] DAY-view money reflects a same-day death too
+    }
+  }catch(_){}
   p.exp=(p.perfPct!=null?+Number(p.perfPct).toFixed(1):0);   // [v526] p.exp mirrors Records & Stats performance %
   p.growth=+(p.index-p.yExp).toFixed(1);}); // 셀프 베이스라인: 어제 대비 성장
 
@@ -35226,7 +35268,7 @@ function payBreakdownFor(p,view){
   return {main:`${label} ${shortPay(p.todayPay||0)}`,sub:compactAdj(p.todayBase||0,p.todayDelta||0),score:p.todayPay||0};
 }
 function metricFor(p,view){return payBreakdownFor(p,view);}
-function badges(p){let b='';if(p.warn>=8)b+=`<span class="badge dn">⚠</span>`;if(HAS_FOCUS&&p.name===me.name)b+=`<span class="badge you">YOU</span>`;return b;}
+function badges(p){let b='';const _dc=(+p.deathCountMonth||0);if(_dc>0)b+=`<span class="badge death" title="사망 페널티 ${_dc}회">💀${_dc>1?'×'+_dc:''}</span>`;if(p.warn>=8)b+=`<span class="badge dn">⚠</span>`;if(HAS_FOCUS&&p.name===me.name)b+=`<span class="badge you">YOU</span>`;return b;}
 function zoneTag(p,view,rank){const z=(t,c)=>`<span class="zone" style="color:${c}">${t}</span>`;if(rank===1)return z(view==='day'?tr('todayKing'):view==='week'?tr('weekKing'):tr('monthKing'),'#E5B567');return '';}
 function rowEl(p,i,view){
   const list=boardRankings[view]||ranked, rank=(p._grpRank||(list.indexOf(p)+1)), m=metricFor(p,view), max=(p._grpMax||Math.max(1,...list.map(x=>metricFor(x,view).score)));   /* [v533] per-shift-group rank/max */
@@ -36487,6 +36529,7 @@ rowEl=function(p,i,view){
   const cls=['row'];if(rank===1)cls.push('k');else if(rank<=3)cls.push('podium');if(HAS_FOCUS&&p.name===me.name)cls.push('me');
   const rk=rank===1?'👑':rank,w=Math.round((m.score||0)/max*100),risk=v3Risk(p);
   const r=document.createElement('div');r.className=cls.join(' ');r.style.animationDelay=((i||0)*0.035)+'s';r.tabIndex=0;r.dataset.p=p.name;r.setAttribute('role','button');
+  const _deathN=(view==='week')?(+p.deathCountWeek||0):(+p.deathCountMonth||0);if(_deathN>0)r.setAttribute('data-death','true');   // [v621] red death-penalty row highlight
   const titlePlain=`${boardTitle(view)} ${rank}위 ${p.name} · ${v3Plain(leaderMetaOf(p))} · ${v3Plain(m.main)} · ${v3Plain(m.sub)} · ${v3Plain(m.mini)}`;
   r.setAttribute('aria-label',titlePlain+' · 상세 급여 열기');r.title=titlePlain;if(HAS_FOCUS&&p.name===me.name)r.id='meRow';
   r.innerHTML=`<span class="rk">${rk}</span><span class="av" aria-hidden="true">${v3Esc(p.emoji)}</span>`+
@@ -37263,6 +37306,13 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
       if(!ex || !eavg || !ewon) return;
       const inc=incentiveParts(p,view);
       row.dataset.incState=inc.state;
+      // [v621] DEATH-PENALTY marker: skull badge (💀×N) + red row wash, so the whole team sees a death cost.
+      var _dn=(+p.deathCountMonth||0);   // deaths this month — a death is a death regardless of the day/week/month view
+      var _nmEl=row.querySelector('.nm-main'); var _old=_nmEl&&_nmEl.querySelector('.badge.death');
+      var _wm=row.querySelector('.death-skull');
+      if(_dn>0){ row.setAttribute('data-death','true'); if(_nmEl && !_old){ var _sk=document.createElement('span'); _sk.className='badge death'; _sk.title='사망 페널티 '+_dn+'회'; _sk.textContent='💀'+(_dn>1?'×'+_dn:''); _nmEl.appendChild(_sk); }
+        if(!_wm){ var _ws=document.createElement('span'); _ws.className='death-skull'; _ws.setAttribute('aria-hidden','true'); _ws.textContent='💀'; row.appendChild(_ws); } }
+      else { row.removeAttribute('data-death'); if(_old) _old.remove(); if(_wm) _wm.remove(); }
       // [v540] Day headline = points/HOUR (what the daily rank is decided by — quality per hour);
       // Week/Month headline = cumulative points (season contribution). Money is always in the chip.
       if(view==='week'||view==='month'){
