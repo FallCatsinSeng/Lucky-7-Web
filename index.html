@@ -22356,6 +22356,10 @@ function _rcScoreReports(reports, clients, settings, dqSet){
           var _ov1=Math.min(ms,_bw.end)-Math.max(_pm0,_bw.start); if(_ov1>0) _gm0-=_ov1/60000; } }catch(_){ }
         try{ var _wib=new Date(_pm0+7*3600000); if(_wib.getUTCDay()===5){ var _d0=Date.UTC(_wib.getUTCFullYear(),_wib.getUTCMonth(),_wib.getUTCDate()); var _ws=_d0+4*3600000, _we=_d0+6.5*3600000; var _ov=Math.min(ms,_we)-Math.max(_pm0,_ws); if(_ov>0) _gm0-=Math.min(_ov/60000,120); } }catch(_){ }
         if(_gm0>90) _spanH=Math.min(6,Math.round(_gm0/60)); } }catch(_){ }
+      // [v632] boss 7/18: multi-hour catch-up reports are EXCLUDED from the race entirely (was ÷N pro-rating,
+      // v604). A (2시간치)+ row now scores nothing — no points, no cut — like an admin-excluded row. Real breaks
+      // (v614) and Friday prayer (v612) are already subtracted from the gap above, so legit rows stay 1h.
+      if(_spanH>1 && !row.dq){ row.dq=true; row.dqReason='몰아쓰기 ('+_spanH+'h) — 레이스 제외'; }
       var _g2=Math.round(gain*1e6)/1e6; var _gH=_g2/_spanH;
       row.target=t*_spanH; row.sh=sh; row.sl=sl; row.spanH=_spanH;
       row.rate=t>0?(Math.round(gain/(t*_spanH)*100*1e6)/1e6):null;
