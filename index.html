@@ -10986,7 +10986,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v650';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v651';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -26706,7 +26706,7 @@ async function checkSession(){
 function mapRoleToAppRole(role){
   if(!role) return 'admin';
   if(['ceo','admin','manager'].includes(role)) return 'admin';
-  if(['op','settlement','hr','operator'].includes(role)) return 'op';
+  if(['op','settlement','hr','operator','leader'].includes(role)) return 'op';   /* [v651] 'leader' was missing HERE (session-restore path) while the login path already granted it — promoted leaders (Bruce/Kaiji) landed as read-only 'player' on every auto-login, so PC현황 edit controls never rendered */
   return 'player';
 }
 
