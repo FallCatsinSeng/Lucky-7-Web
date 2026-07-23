@@ -10986,7 +10986,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v659';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v660';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -35236,12 +35236,23 @@ const PLAYERS = resolvePlayers(_kbSrc);
 // (all player keys, so aliases can't split it), excluding the CURRENT race day whose live bonus is added
 // separately as TODAY_BONUS_SPENT below. Card now equals: pool − finalized(month, before today) − live(today).
 try{
+  // [v660] LEDGER-ONLY bonus cards (boss 7/22: "장부대로 해"). The 남은 보너스 card kept disagreeing with the
+  // 남은 상금 풀 admin card (854,000 vs 85/0) because it pre-subtracted today's LIVE bonus and credited the
+  // v638 penalty refill — neither exists in the ledger. Now BOTH month and week cards show exactly
+  // pool − finalized race_payouts, same as race_settings. Today's live spend animates but doesn't move the number.
   const _rdToday=new Date().toISOString().slice(0,10);          // 09:00-KST race day == UTC date
   const _payMon=_rdToday.slice(0,7);
-  let _paidMon=0;
+  let _paidMon=0, _paidWk=0;
+  const _tMs=Date.parse(_rdToday+'T00:00:00Z');
+  const _wkMon=_tMs-((new Date(_tMs).getUTCDay()+6)%7)*86400000;   // Monday-start week (same window as the race)
   ((window.__KB_PAYOUTS)||[]).forEach(q=>{ const ds=String(q.shift_date||'').slice(0,10);
-    if(ds.slice(0,7)===_payMon && ds!==_rdToday) _paidMon+=Number(q.final_payout_amount)||0; });
+    const a=Number(q.final_payout_amount)||0; const dm=Date.parse(ds+'T00:00:00Z');
+    if(ds.slice(0,7)===_payMon) _paidMon+=a;                       // ledger: ALL finalized this month (incl. today if settled)
+    if(!isNaN(dm)&&dm>=_wkMon&&dm<_wkMon+7*86400000) _paidWk+=a; });
   if(_paidMon>0) CONFIG.monthSpentBeforeToday=_paidMon;
+  CONFIG.weekSpentBeforeToday=_paidWk;
+  const _f=ms=>{const d=new Date(ms);return String(d.getUTCMonth()+1).padStart(2,'0')+'/'+String(d.getUTCDate()).padStart(2,'0');};
+  CONFIG.currentWeekRange=_f(_wkMon)+'-'+_f(_wkMon+6*86400000);    // real current week (was frozen at 06/29-07/03)
 }catch(_){}
 // 백그라운드 갱신 (논블로킹): 성공 시 캐시에 저장 → 다음 새로고침부터 반영
 (async()=>{try{const live=await fetchLivePlayers();
@@ -35373,9 +35384,9 @@ try{ window.__PENALTY_RECOVER=TODAY_PENALTY_RECOVER; }catch(_){}   // consumed b
 const TODAY_SPENT=TODAY_BONUS_SPENT;
 const WEEKLY_POOL=Math.round((CONFIG.monthBudget||5000000)/(CONFIG.budgetWeeks||5));
 const WEEK_RANGE_TEXT=CONFIG.currentWeekRange||'06/29-07/03';
-const WEEK_SPENT=Math.max(0,(CONFIG.weekSpentBeforeToday||0)+TODAY_BONUS_SPENT-TODAY_PENALTY_RECOVER);   // 감액 환입 (음수 방지 = 상한)
+const WEEK_SPENT=Math.max(0,(CONFIG.weekSpentBeforeToday||0));    // [v660] LEDGER ONLY (boss: 장부대로) — finalized payouts this week; live/refill no longer move the card
 const WEEK_REMAIN=Math.max(0,Math.min(WEEKLY_POOL,WEEKLY_POOL-WEEK_SPENT));
-const MONTH_SPENT=Math.max(0,(CONFIG.monthSpentBeforeToday||0)+TODAY_BONUS_SPENT-TODAY_PENALTY_RECOVER);   // 감액 환입 (음수 방지 = 상한)
+const MONTH_SPENT=Math.max(0,(CONFIG.monthSpentBeforeToday||0));  // [v660] LEDGER ONLY — equals race_settings.paid_amount, so 남은 보너스 == 남은 상금 풀 always
 const MONTH_REMAIN=Math.max(0,Math.min((CONFIG.monthBudget||0),(CONFIG.monthBudget||0)-MONTH_SPENT));
 
 // 전체 랭킹: 기본 화면과 Live Race는 오늘 실제 기록 기준
@@ -36347,17 +36358,18 @@ $('btnStrat').onclick=()=>{
   const ctx=cv.getContext('2d'),dpr=Math.min(window.devicePixelRatio||1,2),reduced=!!window.MT_LITE_MODE || (window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const fmtRp=n=>'Rp '+Math.round(n).toLocaleString();
   let W=0,H=0,pile=[],drop=null,impact=null,last=0,raf=0,nextDrop=0;
-  let shownRemain=CONFIG.monthBudget||5000000,shownSpent=CONFIG.monthSpentBeforeToday||0,targetSpent=CONFIG.monthSpentBeforeToday||0,targetRemain=Math.max(0,(CONFIG.monthBudget||5000000)-Math.max(0,targetSpent-(window.__PENALTY_RECOVER||0)));   /* [v638] 감액 환입 (상한) */
+  /* [v660] LEDGER ONLY (boss: "장부대로") — the big 남은 보너스 number is pool − finalized payouts, identical to
+     the 남은 상금 풀 admin card. Today's live spends still fire the coin animation but no longer move the number,
+     and the v638 penalty refill no longer credits it (the ledger has no refill). */
+  let shownRemain=CONFIG.monthBudget||5000000,shownSpent=CONFIG.monthSpentBeforeToday||0,targetSpent=CONFIG.monthSpentBeforeToday||0,targetRemain=Math.max(0,(CONFIG.monthBudget||5000000)-targetSpent);
   const total=()=>CONFIG.monthBudget||5000000;
   const remainPct=()=>Math.max(0,Math.min(1,shownRemain/Math.max(1,total())));
 
   window.__budgetRainSpend=function(amount){
-    targetSpent=Math.min(total(),targetSpent+(amount||0));
-    targetRemain=Math.max(0,total()-Math.max(0,targetSpent-(window.__PENALTY_RECOVER||0)));   /* [v638] 감액 환입 (상한) */
-    impact={x:W*.73+Math.random()*W*.13,y:H-18,r:8,life:1,parts:burst(W*.73+Math.random()*W*.13,H-30)};
+    impact={x:W*.73+Math.random()*W*.13,y:H-18,r:8,life:1,parts:burst(W*.73+Math.random()*W*.13,H-30)};   /* visual only — ledger number untouched */
     if(!drop)spawnDrop(true);
   };
-  window.__budgetRainReset=function(){targetSpent=CONFIG.monthSpentBeforeToday||0;targetRemain=Math.max(0,total()-Math.max(0,targetSpent-(window.__PENALTY_RECOVER||0)));shownRemain=targetRemain;shownSpent=targetSpent;buildPile();};   /* [v638] 감액 환입 (상한) */
+  window.__budgetRainReset=function(){targetSpent=CONFIG.monthSpentBeforeToday||0;targetRemain=Math.max(0,total()-targetSpent);shownRemain=targetRemain;shownSpent=targetSpent;buildPile();};
 
   function rnd(i){const x=Math.sin(i*9283.31)*43758.5453;return x-Math.floor(x);}
   function size(){
