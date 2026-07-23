@@ -10986,7 +10986,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v662';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v663';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21966,6 +21966,15 @@ async function _kbLoadRealData(){
       return { booster:x.user_name, start:Date.parse(x.break_start)||null, end:x.break_end?(Date.parse(x.break_end)||null):null }; });
   } }catch(_){ }
   window.__KB_BREAKS=brk;
+  // [v663] 점수판 → 레이스 반영 (boss 7/22): pull each member's OFFICIAL trust totals (warn/TP — the same
+  // ledger numbers on the 점수판) keyed by normalized name, so the month board can credit TP and charge warns.
+  var trust={}; try{ if(typeof sb!=='undefined' && sb){
+    var _up=await sb.from('user_profiles').select('id,name');
+    var _ts=await sb.from('trust_state').select('data').eq('id','default').maybeSingle();
+    var _td=(_ts&&_ts.data&&_ts.data.data)||{};
+    if(_up && Array.isArray(_up.data)) _up.data.forEach(function(u){ var t=_td[u.id]; if(t&&typeof _rcNorm==='function'){ trust[_rcNorm(u.name)]={ tp:+(t.trust_pts||0), warn:+(t.warn_pts||0) }; } });
+  } }catch(_){ }
+  window.__KB_TRUST=trust;
 }
 
 
@@ -22062,6 +22071,7 @@ function _kb5jRender(){
           +'<div id="k5-advwrap" style="display:none;margin-top:10px">'
             +'<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
             +'<button class="k5-btn" onclick="_kb5jSetRate()">'+T5('Point rate','\uD658\uC728')+' <b style="color:var(--gold)">'+money(Number(st.point_rate)||900)+'</b></button>'
+            +'<button class="k5-btn" onclick="_kb5jSetTrustRates()" title="'+T5('\uC810\uC218\uD310 TP/Warning reflected into month race money','\uC810\uC218\uD310 TP/\uBC8C\uC810\uC758 \uC6D4 \uB808\uC774\uC2A4 \uBC18\uC601 \uD658\uC0B0\uC728')+'">'+T5('Trust rates','\uC810\uC218\uD310 \uBC18\uC601')+' <b style="color:var(--gold)">\uD83C\uDFC6'+money(Number(st.trust_tp_rp)||10000)+' \u00B7 \u26A0'+money(Number(st.trust_warn_rp)||10000)+'</b></button>'
             +'<button class="k5-btn" onclick="_kb5jSetLimit()">'+T5('Daily alarm','\uC9C0\uCD9C \uC54C\uB78C')+' '+money(st.daily_payout_limit)+'</button>'
             +'<button class="k5-btn" onclick="_kb5jSetMult()">'+T5('Multiplier','\uBC30\uC728')+' '+Math.round(mult*100)+'%</button>'
             +'<button class="k5-btn" onclick="_kb5jPauseResume()">'+(paused?T5('Resume payout','\uC9C0\uAE09 \uC7AC\uAC1C'):T5('Pause payout','\uC9C0\uAE09 \uC77C\uC2DC\uC815\uC9C0'))+'</button>'
@@ -22207,6 +22217,14 @@ function _kb5jToggleAdmin(){ try{ window.__KB5J_ADMIN_OPEN=!window.__KB5J_ADMIN_
 function _kb5jToggleAdv(){ try{ var w=document.getElementById('k5-advwrap'); if(!w) return; var open=(w.style.display==='none'); w.style.display=open?'block':'none'; var a=document.getElementById('k5-adv-arrow'); if(a) a.textContent=open?'▴':'▾'; }catch(_){ } }
 function _kb5jSetPrize(){ var st=window.__KB_SETTINGS||_rcDefaults(); var a=prompt('888 shift prize (IDR):', st.shift_prize_888); if(a===null)return; var b=prompt('1212 shift prize (IDR):', st.shift_prize_1212); if(b===null)return; var x=parseInt(String(a).replace(/[^0-9]/g,''),10), y=parseInt(String(b).replace(/[^0-9]/g,''),10); if(!isFinite(x)||!isFinite(y)){_kb5jToast('Invalid',true);return;} _kb5jUpdateSettings({shift_prize_888:x, shift_prize_1212:y},'\u2713 Shift prizes updated'); }
 function _kb5jSetLimit(){ var st=window.__KB_SETTINGS||_rcDefaults(); var a=prompt('Daily payout limit (IDR) \u2014 spending alarm threshold:', st.daily_payout_limit); if(a===null)return; var x=parseInt(String(a).replace(/[^0-9]/g,''),10); if(!isFinite(x)){_kb5jToast('Invalid',true);return;} _kb5jUpdateSettings({daily_payout_limit:x},'\u2713 Daily limit updated'); }
+function _kb5jSetTrustRates(){   /* [v663] 점수판 → 레이스 반영 환산율 (TP 보너스 / 벌점 차감, Rp per point) */
+  var st=window.__KB_SETTINGS||_rcDefaults();
+  var a=prompt('🏆 1 Trust Point = + Rupiah (월 레이스 보너스로 반영):', Number(st.trust_tp_rp)||10000); if(a===null)return;
+  var tp=parseInt(String(a).replace(/[^0-9]/g,''),10); if(!isFinite(tp)||tp<0){_kb5jToast('Invalid',true);return;}
+  var b=prompt('⚠ 벌점 1점 = − Rupiah (월 레이스 차감으로 반영):', Number(st.trust_warn_rp)||10000); if(b===null)return;
+  var wn=parseInt(String(b).replace(/[^0-9]/g,''),10); if(!isFinite(wn)||wn<0){_kb5jToast('Invalid',true);return;}
+  _kb5jUpdateSettings({trust_tp_rp:tp, trust_warn_rp:wn},'✓ 점수판 반영: 🏆+'+tp.toLocaleString()+' · ⚠−'+wn.toLocaleString());
+}
 function _kb5jSetMult(){ var st=window.__KB_SETTINGS||_rcDefaults(); var a=prompt('Payout multiplier % (100 / 80 / 60 / 40 / 0=pause):', Math.round((Number(st.payout_multiplier)||1)*100)); if(a===null)return; var x=parseFloat(String(a).replace(/[^0-9.]/g,'')); if(!isFinite(x)){_kb5jToast('Invalid',true);return;} var m=x/100; _kb5jUpdateSettings({payout_multiplier:m, payout_status:(m===0?'paused':'active')},'\u2713 Multiplier '+Math.round(m*100)+'%'); }
 function _kb5jPauseResume(){ var st=window.__KB_SETTINGS||_rcDefaults(); var paused=(st.payout_status==='paused'||Number(st.payout_multiplier)===0); if(paused){ _kb5jUpdateSettings({payout_status:'active', payout_multiplier:(Number(st.payout_multiplier)>0?st.payout_multiplier:1)},'\u2713 Payout resumed'); } else { _kb5jUpdateSettings({payout_status:'paused', payout_multiplier:0},'\u2713 Payout paused'); } }
 function _kb5jTogglePoolVis(){ var st=window.__KB_SETTINGS||_rcDefaults(); _kb5jUpdateSettings({staff_see_pool: !st.staff_see_pool}, st.staff_see_pool?'Pool hidden from staff':'Pool visible to staff'); }
@@ -35371,6 +35389,21 @@ PLAYERS.forEach(p=>{p.std=stdFor(p.level);p.index=+(p.eph/p.std*100).toFixed(1);
       if(_dRp){ p.raceCutAmt=(+p.raceCutAmt||0)+_dRp; p.racePenaltyDay=_dRp; }   // [v626] DAY-view money reflects a same-day death too
     }
   }catch(_){}
+  // [v663] 점수판 반영 (boss 7/22): TP credits / warnings charge the MONTH board money, at admin-tunable
+  // rates (race_settings.trust_tp_rp / trust_warn_rp, default 10,000 each). Display-layer only — daily
+  // settles and the payslip stay untouched; this makes 점수판 behavior visible where the race money is.
+  try{
+    var _tw=(window.__KB_TRUST||{})[_rcNorm(p.name)];
+    if(_tw && (_tw.tp>0 || _tw.warn>0)){
+      var _st0=window.__KB_SETTINGS||{};
+      var _tpRp=Number(_st0.trust_tp_rp); if(!isFinite(_tpRp)) _tpRp=10000;
+      var _wnRp=Number(_st0.trust_warn_rp); if(!isFinite(_wnRp)) _wnRp=10000;
+      p.trustTp=_tw.tp; p.trustWarn=_tw.warn;
+      p.trustBonusRp=Math.round(_tw.tp*_tpRp); p.trustPenaltyRp=Math.round(_tw.warn*_wnRp);
+      if(p.trustBonusRp>0) p.racePaidMonth=(+p.racePaidMonth||0)+p.trustBonusRp;
+      if(p.trustPenaltyRp>0) p.raceCutMonth=(+p.raceCutMonth||0)+p.trustPenaltyRp;
+    }
+  }catch(_){}
   p.exp=(p.perfPct!=null?+Number(p.perfPct).toFixed(1):0);   // [v526] p.exp mirrors Records & Stats performance %
   p.growth=+(p.index-p.yExp).toFixed(1);}); // 셀프 베이스라인: 어제 대비 성장
 
@@ -37699,6 +37732,17 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
       if(_dn>0){ row.setAttribute('data-death','true'); if(_nmEl && !_old){ var _sk=document.createElement('span'); _sk.className='badge death'; _sk.title='사망 페널티 '+_dn+'회'; _sk.textContent='💀'+(_dn>1?'×'+_dn:''); _nmEl.appendChild(_sk); }
         if(!_wm){ var _ws=document.createElement('span'); _ws.className='death-skull'; _ws.setAttribute('aria-hidden','true'); _ws.textContent='💀'; row.appendChild(_ws); } }
       else { row.removeAttribute('data-death'); if(_old) _old.remove(); if(_wm) _wm.remove(); }
+      // [v663] 점수판 반영 badge — MONTH view only: shows the trust adjustment folded into the month money
+      // (🏆TP×rate green / ⚠warn×rate red). Hover = breakdown. Removed on day/week views.
+      var _tb=row.querySelector('.badge.trustadj');
+      if(view==='month' && ((+p.trustBonusRp||0)>0 || (+p.trustPenaltyRp||0)>0)){
+        var _net=(+p.trustBonusRp||0)-(+p.trustPenaltyRp||0);
+        var _lbl=(_net>=0?'🏆+':'⚠−')+Math.round(Math.abs(_net)/1000)+'K';
+        var _tt='점수판 반영 · 🏆 '+(p.trustTp||0)+' TP = +'+((+p.trustBonusRp||0).toLocaleString())+' · ⚠ '+(p.trustWarn||0)+' = −'+((+p.trustPenaltyRp||0).toLocaleString());
+        if(!_tb){ _tb=document.createElement('span'); _tb.className='badge trustadj'; if(_nmEl) _nmEl.appendChild(_tb); }
+        _tb.title=_tt; _tb.textContent=_lbl;
+        _tb.style.cssText='margin-left:5px;padding:0 5px;border-radius:5px;font-size:9.5px;font-weight:900;vertical-align:middle;'+(_net>=0?'background:rgba(52,212,123,.16);color:#34d47b;border:1px solid rgba(52,212,123,.35)':'background:rgba(255,90,80,.14);color:#ff7e74;border:1px solid rgba(255,90,80,.35)');
+      } else if(_tb){ _tb.remove(); }
       // [v540] Day headline = points/HOUR (what the daily rank is decided by — quality per hour);
       // Week/Month headline = cumulative points (season contribution). Money is always in the chip.
       if(view==='week'||view==='month'){
