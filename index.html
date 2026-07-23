@@ -10986,7 +10986,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v664';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v665';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -35400,8 +35400,8 @@ PLAYERS.forEach(p=>{p.std=stdFor(p.level);p.index=+(p.eph/p.std*100).toFixed(1);
       var _wnRp=Number(_st0.trust_warn_rp); if(!isFinite(_wnRp)) _wnRp=10000;
       p.trustTp=_tw.tp; p.trustWarn=_tw.warn;
       p.trustBonusRp=Math.round(_tw.tp*_tpRp); p.trustPenaltyRp=Math.round(_tw.warn*_wnRp);
-      if(p.trustBonusRp>0) p.racePaidMonth=(+p.racePaidMonth||0)+p.trustBonusRp;
-      if(p.trustPenaltyRp>0) p.raceCutMonth=(+p.raceCutMonth||0)+p.trustPenaltyRp;
+      /* [v665] boss 7/22: 레이스 숫자(RP/CUT·순위·포인트)에는 합산하지 않는다 — 점수판 반영은 급여(월 보너스)
+         쪽에서만 별도 항목으로 더한다 (playerPayProjection의 monthAdj + 팝업 '└ 점수판 반영' 줄). */
     }
   }catch(_){}
   p.exp=(p.perfPct!=null?+Number(p.perfPct).toFixed(1):0);   // [v526] p.exp mirrors Records & Stats performance %
@@ -37312,7 +37312,8 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
     // subtracting the wage-layer cuts). 현재 보너스/주급/월급 now use the SAME formula as the leaderboard chip:
     // finalized payouts + today's live bounty − period cuts.
     const weekBase=v3Int(monthBase/4),weekAdj=v3Int(p.racePaidWeek||0)+liveAdj-v3Int(p.raceCutWeek||0),week=Math.max(0,weekBase+weekAdj);
-    const monthAdj=v3Int(p.racePaidMonth||0)+liveAdj-v3Int(p.raceCutMonth||0),month=Math.max(0,monthBase+monthAdj);
+    const trustNet=v3Int(p.trustBonusRp||0)-v3Int(p.trustPenaltyRp||0);   // [v665] 점수판 반영 — 급여(월)에만 더한다; 레이스 숫자에는 미합산 (boss 7/22)
+    const monthAdj=v3Int(p.racePaidMonth||0)+liveAdj-v3Int(p.raceCutMonth||0)+trustNet,month=Math.max(0,monthBase+monthAdj);
     return {ok:true,weekDays,monthDays,shiftH,planLabel:plan.label,planKey:plan.key,baseDay,adjDay:currentAdj,totalDay,weekBase,weekAdj,week,monthBase,monthAdj,month,poolImpact:Math.max(0,currentAdj)};
   };
   boardRankings.week=[...PLAYERS].sort((a,b)=>(((b.raceWeekAvg||0)-(a.raceWeekAvg||0)))||(((b.raceWeekPts||0)-(a.raceWeekPts||0)))||(b.dayScore-a.dayScore)||String(a.name).localeCompare(String(b.name)));
@@ -37733,17 +37734,10 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
       if(_dn>0){ row.setAttribute('data-death','true'); if(_nmEl && !_old){ var _sk=document.createElement('span'); _sk.className='badge death'; _sk.title='사망 페널티 '+_dn+'회'; _sk.textContent='💀'+(_dn>1?'×'+_dn:''); _nmEl.appendChild(_sk); }
         if(!_wm){ var _ws=document.createElement('span'); _ws.className='death-skull'; _ws.setAttribute('aria-hidden','true'); _ws.textContent='💀'; row.appendChild(_ws); } }
       else { row.removeAttribute('data-death'); if(_old) _old.remove(); if(_wm) _wm.remove(); }
-      // [v663] 점수판 반영 badge — MONTH view only: shows the trust adjustment folded into the month money
-      // (🏆TP×rate green / ⚠warn×rate red). Hover = breakdown. Removed on day/week views.
-      var _tb=row.querySelector('.badge.trustadj');
-      if(view==='month' && ((+p.trustBonusRp||0)>0 || (+p.trustPenaltyRp||0)>0)){
-        var _net=(+p.trustBonusRp||0)-(+p.trustPenaltyRp||0);
-        var _lbl=(_net>=0?'🏆+':'⚠−')+Math.round(Math.abs(_net)/1000)+'K';
-        var _tt='점수판 반영 · 🏆 '+(p.trustTp||0)+' TP = +'+((+p.trustBonusRp||0).toLocaleString())+' · ⚠ '+(p.trustWarn||0)+' = −'+((+p.trustPenaltyRp||0).toLocaleString());
-        if(!_tb){ _tb=document.createElement('span'); _tb.className='badge trustadj'; if(_nmEl) _nmEl.appendChild(_tb); }
-        _tb.title=_tt; _tb.textContent=_lbl;
-        _tb.style.cssText='margin-left:5px;padding:0 5px;border-radius:5px;font-size:9.5px;font-weight:900;vertical-align:middle;'+(_net>=0?'background:rgba(52,212,123,.16);color:#34d47b;border:1px solid rgba(52,212,123,.35)':'background:rgba(255,90,80,.14);color:#ff7e74;border:1px solid rgba(255,90,80,.35)');
-      } else if(_tb){ _tb.remove(); }
+      /* [v665] v663's 🏆/⚠ badge removed from the RACE board — boss 7/22: 점수판 반영은 레이스 숫자가 아니라
+         급여(월 보너스)에만. The adjustment now lives in playerPayProjection.monthAdj + the pay popup's
+         '└ 점수판 반영' line only; race RP/CUT chips, points and rank stay pure race performance. */
+      var _tb=row.querySelector('.badge.trustadj'); if(_tb) _tb.remove();
       // [v540] Day headline = points/HOUR (what the daily rank is decided by — quality per hour);
       // Week/Month headline = cumulative points (season contribution). Money is always in the chip.
       if(view==='week'||view==='month'){
