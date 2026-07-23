@@ -10295,6 +10295,11 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race .c-king .king-meta-row, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-meta-row{ display:none!important; }
 /* score = the hero number */
 #kb-race .c-king .king-score, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-score{ font-size:30px!important; font-weight:900!important; font-variant-numeric:tabular-nums!important; letter-spacing:-.015em!important; color:#f2d698!important; }
+/* [v666] WEEKLY KING % clipping fix (boss 7/22 screenshot: '140%' cut at the card edge) — the score box is a
+   narrow grid column with overflow:hidden while the % was a FIXED 30px, so 3-digit scores overflowed. The
+   score now sizes against its own box (container query) and can shrink to fit; label given breathing room. */
+#kb-race .c-king .king-right, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-right{ container-type:inline-size!important; }
+#kb-race .c-king .king-score, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-score{ font-size:clamp(15px, 24cqw, 30px)!important; white-space:nowrap!important; max-width:100%!important; overflow:visible!important; }
 #kb-race .c-king .loser-score, #kb-race #kbapp.bento.mt-grid-ready .c-king .loser-score{ color:#ff938c!important; }
 #kb-race .c-king .king-score-label, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-score-label{ font-size:8.5px!important; letter-spacing:.09em!important; color:rgba(235,235,245,.34)!important; }
 #kb-race .c-king .king-score-note, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-score-note{ font-size:9.5px!important; font-weight:700!important; color:rgba(235,235,245,.5)!important; }
@@ -10986,7 +10991,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v665';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v666';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
