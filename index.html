@@ -10986,7 +10986,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v660';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v661';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -24944,15 +24944,16 @@ async function renderTrust(){
       ...m,
       system: sys,
       leader: ((typeof PLAYER_LEADERS !== 'undefined') && PLAYER_LEADERS.has(m.id)) || m.db_role === 'leader',  // [v202] Team Leader auto-leader
-      warn_pts: _trMonthPts(t, _trMonth).warn,     // [v653] monthly, not lifetime
-      trust_pts: _trMonthPts(t, _trMonth).trust,   // [v653]
+      /* [v661] OFFICIAL ledger numbers on the CURRENT-month board (boss 7/22: the board must match the
+         점수판 totals he sets — it was showing history-derived sums that disagreed, e.g. Sid 15.5 vs 공식 10.5).
+         Archived past months stay history-derived (read-only, that's what they archive). */
+      warn_pts: _trIsCurrentMonth() ? (t.warn_pts || 0) : _trMonthPts(t, _trMonth).warn,
+      trust_pts: _trIsCurrentMonth() ? (t.trust_pts || 0) : _trMonthPts(t, _trMonth).trust,
       warn_pts_total: t.warn_pts || 0,             // [v653] lifetime totals kept for the detail panel
       trust_pts_total: t.trust_pts || 0,
       protected_until: t.protected_until,
       rank: t.rank || 'unranked',
-      // [v653] status must follow the MONTHLY score too, otherwise a clean month would still show "Risk"
-      // from lifetime points and the reset would look broken.
-      status: trustStatus({ warn_pts: _trMonthPts(t, _trMonth).warn, trust_pts: _trMonthPts(t, _trMonth).trust, protected_until: t.protected_until }, sys),
+      status: trustStatus({ warn_pts: (_trIsCurrentMonth() ? (t.warn_pts||0) : _trMonthPts(t, _trMonth).warn), trust_pts: (_trIsCurrentMonth() ? (t.trust_pts||0) : _trMonthPts(t, _trMonth).trust), protected_until: t.protected_until }, sys),
       protection_days: protectionDaysLeft(t),
       current_shift: det.current_shift,
       shift_summary: det.current_shift || '—',
@@ -25085,9 +25086,9 @@ async function renderTrust(){
             ${m.protection_days > 0 ? `<span class="lb-protect">🛡 D-${m.protection_days}</span>` : ''}
           </div>
           <div class="lb-kcard-sub">
-            <span class="lb-rankchip" style="background:${rank.bg};color:${rank.color};border:1px solid color-mix(in srgb, ${rank.color} 30%, transparent)">${m.system==='player' ? (rank.icon+' '+rank.label) : roleTitle(m.db_role||m.role)}</span>
-            <span class="lb-kstat">🏆<b style="color:var(--gr)">${m.trust_pts}</b></span>
-            <span class="lb-kstat">⚠<b style="color:${wpColor}">${m.warn_pts.toFixed(1).replace(/\.0$/,'')}</b>/${maxWp}</span>
+            ${(m.system==='player' && (m.rank||'unranked')==='unranked') ? '' : `<span class="lb-rankchip" style="background:${rank.bg};color:${rank.color};border:1px solid color-mix(in srgb, ${rank.color} 30%, transparent)">${m.system==='player' ? (rank.icon+' '+rank.label) : roleTitle(m.db_role||m.role)}</span>`}
+            <span class="lb-kstat" title="Trust Point">🏆<b style="color:var(--gr)">${m.trust_pts}</b></span>
+            <span class="lb-kstat" title="벌점 / 한도 ${maxWp}">⚠<b style="color:${wpColor}">${m.warn_pts.toFixed(1).replace(/\.0$/,'')}</b><span style="opacity:.5;font-size:.85em">&nbsp;/&nbsp;${maxWp}</span></span>
           </div>
         </div>
         <span class="lb-kcard-num" style="color:${os.numColor}">${os.num}</span>
