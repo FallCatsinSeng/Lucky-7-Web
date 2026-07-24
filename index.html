@@ -10991,7 +10991,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v666';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v667';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -35278,6 +35278,16 @@ try{
   CONFIG.weekSpentBeforeToday=_paidWk;
   const _f=ms=>{const d=new Date(ms);return String(d.getUTCMonth()+1).padStart(2,'0')+'/'+String(d.getUTCDate()).padStart(2,'0');};
   CONFIG.currentWeekRange=_f(_wkMon)+'-'+_f(_wkMon+6*86400000);    // real current week (was frozen at 06/29-07/03)
+  // [v667] WARN REFILL (boss 7/22: "워닝으로 짤린 것도 monthly 보너스에 넣어줘" — pool drains too fast, warn
+  // deductions flow BACK into the remaining monthly bonus). refill = Σ(official warn totals) × trust_warn_rp,
+  // capped so remaining never exceeds the full pool. 남은 상금 풀 admin card stays pure ledger; 남은 보너스
+  // card = ledger + this refill.
+  try{
+    const _tr=window.__KB_TRUST||{}; let _wsum=0;
+    Object.keys(_tr).forEach(k=>{ _wsum+=Math.max(0,+(_tr[k].warn)||0); });
+    const _wrp0=Number((window.__KB_SETTINGS||{}).trust_warn_rp);
+    CONFIG.warnRefillRp=Math.round(_wsum*(isFinite(_wrp0)?_wrp0:10000));
+  }catch(_){ CONFIG.warnRefillRp=0; }
 }catch(_){}
 // 백그라운드 갱신 (논블로킹): 성공 시 캐시에 저장 → 다음 새로고침부터 반영
 (async()=>{try{const live=await fetchLivePlayers();
@@ -35426,8 +35436,8 @@ const WEEKLY_POOL=Math.round((CONFIG.monthBudget||5000000)/(CONFIG.budgetWeeks||
 const WEEK_RANGE_TEXT=CONFIG.currentWeekRange||'06/29-07/03';
 const WEEK_SPENT=Math.max(0,(CONFIG.weekSpentBeforeToday||0));    // [v660] LEDGER ONLY (boss: 장부대로) — finalized payouts this week; live/refill no longer move the card
 const WEEK_REMAIN=Math.max(0,Math.min(WEEKLY_POOL,WEEKLY_POOL-WEEK_SPENT));
-const MONTH_SPENT=Math.max(0,(CONFIG.monthSpentBeforeToday||0));  // [v660] LEDGER ONLY — equals race_settings.paid_amount, so 남은 보너스 == 남은 상금 풀 always
-const MONTH_REMAIN=Math.max(0,Math.min((CONFIG.monthBudget||0),(CONFIG.monthBudget||0)-MONTH_SPENT));
+const MONTH_SPENT=Math.max(0,(CONFIG.monthSpentBeforeToday||0));  // [v660] LEDGER — race_settings.paid_amount와 동일
+const MONTH_REMAIN=Math.max(0,Math.min((CONFIG.monthBudget||0),(CONFIG.monthBudget||0)-MONTH_SPENT+(CONFIG.warnRefillRp||0)));   // [v667] + 벌점 환입 (상한 = 풀 전체)
 
 // 전체 랭킹: 기본 화면과 Live Race는 오늘 실제 기록 기준
 const ranked=[...PLAYERS].sort((a,b)=>(b.raceScore-a.raceScore)||(b.raceTotalPts-a.raceTotalPts)||(b.raceBountyV-a.raceBountyV)||(b.dayScore-a.dayScore)||(b.todayPay-a.todayPay)||((a.yRank||999)-(b.yRank||999)));   /* [v525] rank by 5-Juta race points */
@@ -36401,7 +36411,7 @@ $('btnStrat').onclick=()=>{
   /* [v660] LEDGER ONLY (boss: "장부대로") — the big 남은 보너스 number is pool − finalized payouts, identical to
      the 남은 상금 풀 admin card. Today's live spends still fire the coin animation but no longer move the number,
      and the v638 penalty refill no longer credits it (the ledger has no refill). */
-  let shownRemain=CONFIG.monthBudget||5000000,shownSpent=CONFIG.monthSpentBeforeToday||0,targetSpent=CONFIG.monthSpentBeforeToday||0,targetRemain=Math.max(0,(CONFIG.monthBudget||5000000)-targetSpent);
+  let shownRemain=CONFIG.monthBudget||5000000,shownSpent=CONFIG.monthSpentBeforeToday||0,targetSpent=CONFIG.monthSpentBeforeToday||0,targetRemain=Math.max(0,Math.min((CONFIG.monthBudget||5000000),(CONFIG.monthBudget||5000000)-targetSpent+(CONFIG.warnRefillRp||0)));   /* [v667] + 벌점 환입 */
   const total=()=>CONFIG.monthBudget||5000000;
   const remainPct=()=>Math.max(0,Math.min(1,shownRemain/Math.max(1,total())));
 
@@ -36409,7 +36419,7 @@ $('btnStrat').onclick=()=>{
     impact={x:W*.73+Math.random()*W*.13,y:H-18,r:8,life:1,parts:burst(W*.73+Math.random()*W*.13,H-30)};   /* visual only — ledger number untouched */
     if(!drop)spawnDrop(true);
   };
-  window.__budgetRainReset=function(){targetSpent=CONFIG.monthSpentBeforeToday||0;targetRemain=Math.max(0,total()-targetSpent);shownRemain=targetRemain;shownSpent=targetSpent;buildPile();};
+  window.__budgetRainReset=function(){targetSpent=CONFIG.monthSpentBeforeToday||0;targetRemain=Math.max(0,Math.min(total(),total()-targetSpent+(CONFIG.warnRefillRp||0)));shownRemain=targetRemain;shownSpent=targetSpent;buildPile();};   /* [v667] + 벌점 환입 */
 
   function rnd(i){const x=Math.sin(i*9283.31)*43758.5453;return x-Math.floor(x);}
   function size(){
