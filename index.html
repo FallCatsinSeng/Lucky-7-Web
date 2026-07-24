@@ -10991,7 +10991,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v667';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v668';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -35278,15 +35278,17 @@ try{
   CONFIG.weekSpentBeforeToday=_paidWk;
   const _f=ms=>{const d=new Date(ms);return String(d.getUTCMonth()+1).padStart(2,'0')+'/'+String(d.getUTCDate()).padStart(2,'0');};
   CONFIG.currentWeekRange=_f(_wkMon)+'-'+_f(_wkMon+6*86400000);    // real current week (was frozen at 06/29-07/03)
-  // [v667] WARN REFILL (boss 7/22: "워닝으로 짤린 것도 monthly 보너스에 넣어줘" — pool drains too fast, warn
-  // deductions flow BACK into the remaining monthly bonus). refill = Σ(official warn totals) × trust_warn_rp,
-  // capped so remaining never exceeds the full pool. 남은 상금 풀 admin card stays pure ledger; 남은 보너스
-  // card = ledger + this refill.
+  // [v667/v668] WARN REFILL (boss 7/22: "벌점 환입을 진짜 돈으로 인정") — the credited portion now lives INSIDE
+  // race_settings.total_pool (5,895,000 = 5M + 895K credited on 7/22; warn_refill_credited tracks it so the
+  // display can't double-count). CONFIG.monthBudget follows the REAL pool, and only refill EARNED SINCE the
+  // last credit shows as extra on top. 7/23 noon report flags pending refill for the next boss-approved credit.
   try{
+    const _st9=window.__KB_SETTINGS||{};
+    if(Number(_st9.total_pool)>0) CONFIG.monthBudget=Number(_st9.total_pool);
     const _tr=window.__KB_TRUST||{}; let _wsum=0;
     Object.keys(_tr).forEach(k=>{ _wsum+=Math.max(0,+(_tr[k].warn)||0); });
-    const _wrp0=Number((window.__KB_SETTINGS||{}).trust_warn_rp);
-    CONFIG.warnRefillRp=Math.round(_wsum*(isFinite(_wrp0)?_wrp0:10000));
+    const _wrp0=Number(_st9.trust_warn_rp); const _cred=Number(_st9.warn_refill_credited)||0;
+    CONFIG.warnRefillRp=Math.max(0, Math.round(_wsum*(isFinite(_wrp0)?_wrp0:10000)) - _cred);
   }catch(_){ CONFIG.warnRefillRp=0; }
 }catch(_){}
 // 백그라운드 갱신 (논블로킹): 성공 시 캐시에 저장 → 다음 새로고침부터 반영
