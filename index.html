@@ -10991,7 +10991,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v671';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v672';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15846,7 +15846,11 @@ async function renderMTSystem(mode){
     .mt-compact .mt-act-row::before{content:counter(mtrow);position:absolute;left:5px;top:5px;font:9px/1.2 ui-monospace,Consolas,monospace;color:rgba(235,235,245,.22);width:14px;text-align:right}
     .mt-compact .mt-inbox-item{display:flex;align-items:flex-start;gap:4px;padding:3px 4px 3px 24px!important;min-height:24px!important}
     .mt-compact .mt-inbox-item::before{content:counter(mtrow);position:absolute;left:5px;top:5px;font:9px/1.2 ui-monospace,Consolas,monospace;color:rgba(235,235,245,.22);width:14px;text-align:right}
-    .mt-compact .mt-act-title,.mt-compact .mt-inbox-text,.mt-compact .mt-passive-title,.mt-compact .mt-trash-tx{font:11.5px/1.45 ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:break-word!important;flex:1;min-width:0}
+    .mt-compact .mt-act-title,.mt-compact .mt-inbox-text,.mt-compact .mt-passive-title,.mt-compact .mt-trash-tx{font:11.5px/1.45 ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:break-word!important;word-break:keep-all!important;flex:1;min-width:0}
+    /* [v672] 세로 한글자 꺾임 방지 — 제목이 최소폭을 보장받고, 뱃지·버튼들은 자리가 없으면 다음 줄로 랩 */
+    .mt-compact .mt-act-row,.mt-compact .mt-passive-head{flex-wrap:wrap!important;row-gap:2px!important}
+    .mt-compact .mt-act-title,.mt-compact .mt-passive-title{flex:1 1 auto!important;min-width:120px!important}
+    .mt-compact .mt-inbox-text,.mt-compact .mt-trash-tx{min-width:100px!important}
     .mt-compact .mt-act-pri,.mt-compact .mt-passive-pri{width:15px!important;height:15px!important;font-size:9px!important;border-radius:4px!important;flex:none}
     .mt-compact .mt-act-dot{width:5px!important;height:5px!important}
     .mt-compact .mt-act-del,.mt-compact .mt-clf-x,.mt-compact .mt-trash-burn,.mt-compact .mt-passive-del{opacity:0;transition:opacity .12s}
