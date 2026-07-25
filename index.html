@@ -10991,7 +10991,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v670';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v671';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15824,9 +15824,17 @@ async function renderMTSystem(mode){
     const compactSkin = `<style id="mtCompactSkin">
     #ch-other .ph{font-size:20px!important;margin:2px 0!important}
     #ch-other .att-eyebrow{font-size:9px!important}
-    .mt-compact{display:grid!important;grid-template-columns:repeat(5,minmax(200px,1fr))!important;gap:8px!important;align-items:start!important}
-    @media(max-width:1280px){.mt-compact{grid-template-columns:repeat(5,minmax(215px,240px))!important;overflow-x:auto!important;padding-bottom:8px!important}}
-    .mt-compact .mt-kcol{border-radius:8px!important;background:rgba(255,255,255,.015)!important;border:1px solid var(--br,#262625)!important;box-shadow:none!important;padding:0!important}
+    .mt-compact{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:8px!important;align-items:start!important}
+    @media(max-width:1280px){.mt-compact{display:flex!important;overflow-x:auto!important;padding-bottom:8px!important}.mt-compact .mt-kcol{flex:0 0 230px!important}}
+    .mt-compact .mt-kcol{min-width:0!important;width:auto!important;max-width:none!important;border-radius:8px!important;background:rgba(255,255,255,.015)!important;border:1px solid var(--br,#262625)!important;border-top:2px solid color-mix(in srgb,var(--kc,var(--ac)) 55%,transparent)!important;box-shadow:none!important;padding:0!important;overflow:hidden!important}
+    /* [v671] 상단 역할 탭·멤버 칩을 보드와 같은 톤으로 통일 — 반투명 플랫, 모노 폰트, 강조는 채우기 대신 컬러 보더 */
+    #ch-other .mt-role-tabs{gap:6px!important;margin-bottom:8px!important}
+    #ch-other .mt-role-tab{background:rgba(255,255,255,.015)!important;border:1px solid var(--br,#262625)!important;border-radius:8px!important;padding:5px 12px!important;font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace!important;font-weight:700!important;letter-spacing:.05em!important;box-shadow:none!important;color:var(--tx3)!important}
+    #ch-other .mt-role-tab.on{background:rgba(255,255,255,.04)!important;border-color:var(--ac,#c2a04a)!important;color:var(--ac-strong,#d4b566)!important}
+    #ch-other .mt-role-tab .mt-role-cnt{background:rgba(255,255,255,.07)!important;color:inherit!important;font-size:9px!important;padding:0 5px!important;border-radius:5px!important}
+    #ch-other .mt-member-chips{gap:5px!important;margin-bottom:10px!important;padding-bottom:8px!important;border-bottom:1px solid rgba(255,255,255,.05)!important}
+    #ch-other .mt-member-chip{background:rgba(255,255,255,.015)!important;border:1px solid var(--br,#262625)!important;border-radius:8px!important;padding:3px 9px 3px 4px!important;font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace!important;box-shadow:none!important}
+    #ch-other .mt-member-chip.on{border-color:var(--ac,#c2a04a)!important;background:rgba(194,160,74,.08)!important;box-shadow:none!important}
     .mt-compact .mt-kcol-head{position:sticky;top:0;z-index:2;padding:6px 9px!important;font-size:10.5px!important;letter-spacing:.05em;background:var(--bg-c,#161615)!important;border-bottom:1px solid var(--br,#262625)!important;border-radius:8px 8px 0 0!important}
     .mt-compact .mt-kcol-cnt{font-size:9.5px!important;padding:0 6px!important;min-width:16px}
     .mt-compact .mt-kcol-body{max-height:calc(100vh - 250px);overflow-y:auto;padding:3px 4px 6px!important;counter-reset:mtrow}
