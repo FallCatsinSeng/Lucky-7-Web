@@ -10991,7 +10991,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v669';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v670';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15292,7 +15292,8 @@ let expandedTasks = new Set();
 // ═══════════════════════════════════════════════════
 let MT_INBOX = [];      // 정리 안 된 입력
 let MT_PASSIVE = [];    // 책임 영역 (컨테이너, 영구적)
-let MT_ACTIVE = [];     // 행동 (passive_id로 부모 연결, 완료되면 done)
+let MT_ACTIVE = [];     // 행동 ([v670] passive_id는 선택 — null이면 독립 행동. 책임에 안 묶여도 됨)
+let MT_TRASH = [];      // [v670] 휴지통 — 삭제된 항목 보관 {kind:'inbox'|'active'|'passive', item, deleted_at, by} · 14일 후 자동 소멸
 let mtViewMode = 'responsibility'; // 'responsibility'(책임뷰) | 'action'(행동뷰)
 let mtRoleTab = 'admin';   // 'admin' | 'op' | 'player'
 let mtMember = null;        // 선택된 멤버 이름 (null이면 자동)
@@ -15323,11 +15324,12 @@ function saveMTLocal(){
     sessionStorage.setItem('lucky7_mt_inbox', JSON.stringify(MT_INBOX));
     sessionStorage.setItem('lucky7_mt_passive', JSON.stringify(MT_PASSIVE));
     sessionStorage.setItem('lucky7_mt_active', JSON.stringify(MT_ACTIVE));
+    sessionStorage.setItem('lucky7_mt_trash', JSON.stringify(MT_TRASH));   // [v670]
   }catch(_){}
 }
 function saveMTSystem(){
   saveMTLocal();
-  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE });
+  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH });
   if(sb) saveMTToCloud();   // [v145] shared across the team
 }
 let _mtSynced = false, _mtSig = '', _mtSaving = false, _mtPollTimer = null;
@@ -15335,7 +15337,7 @@ async function saveMTToCloud(){
   if(!sb) return;
   _mtSaving = true;
   try{
-    const { error } = await _dbUpsert('mt_state', 'default', { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE });
+    const { error } = await _dbUpsert('mt_state', 'default', { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH });
     if(error){ console.warn('mt_state save:', error.message); toast('Board save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('mt_state save:', e && e.message); }
   finally{ setTimeout(() => { _mtSaving = false; }, 400); }
@@ -15349,6 +15351,8 @@ async function syncMTFromCloud(){
       MT_INBOX   = Array.isArray(d.inbox)   ? d.inbox   : [];
       MT_PASSIVE = Array.isArray(d.passive) ? d.passive : [];
       MT_ACTIVE  = Array.isArray(d.active)  ? d.active  : [];
+      MT_TRASH   = Array.isArray(d.trash)   ? d.trash   : [];   // [v670]
+      _mtPurgeOldTrash();                                        // [v670] 14일 지난 항목 자동 소멸
       saveMTLocal();
     } else if(error){ console.warn('mt_state load:', error.message); }
   }catch(e){ console.warn('mt_state load:', e && e.message); }
@@ -15362,12 +15366,12 @@ async function pollMTSystem(){
     const { data, error } = await sb.from('mt_state').select('data').eq('id','default').maybeSingle();
     if(error || !data || !data.data) return;
     const d = data.data;
-    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[] });
+    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[] });
     if(sig === _mtSig) return;                        // no remote change
     const ae = document.activeElement;
     const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
     if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId) return;  // mid-edit / mid-drag
-    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[];
+    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[];
     _mtSig = sig; saveMTLocal();
     renderMTSystem();
   }catch(_){}
@@ -15377,16 +15381,45 @@ function loadMTSystem(){
     const ri = sessionStorage.getItem('lucky7_mt_inbox');
     const rp = sessionStorage.getItem('lucky7_mt_passive');
     const ra = sessionStorage.getItem('lucky7_mt_active');
+    const rt = sessionStorage.getItem('lucky7_mt_trash');   // [v670]
     if(rp){
       MT_INBOX = ri ? JSON.parse(ri) : [];
       MT_PASSIVE = JSON.parse(rp);
       MT_ACTIVE = ra ? JSON.parse(ra) : [];
+      MT_TRASH = rt ? JSON.parse(rt) : [];
       return;
     }
   }catch(_){}
   _seedMTSystem();
 }
-function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; try{ saveMTLocal(); }catch(_){} }
+function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; try{ saveMTLocal(); }catch(_){} }
+// [v670] 휴지통 유틸 — 삭제는 전부 휴지통 경유 (복원 가능), 14일 지나면 자동 소멸
+function _mtPurgeOldTrash(){ try{ const cut=Date.now()-14*86400000; MT_TRASH=MT_TRASH.filter(t=>(t.deleted_at||0)>cut); }catch(_){ MT_TRASH=[]; } }
+function _mtToTrash(kind, item){ MT_TRASH.unshift({ id:Date.now()+Math.floor(Math.random()*999), kind, item, deleted_at:Date.now(), by:(currentUser?.name||'?') }); if(MT_TRASH.length>200) MT_TRASH.length=200; }
+function mtRestoreTrash(tid){
+  const i = MT_TRASH.findIndex(t=>t.id===tid); if(i<0) return;
+  const t = MT_TRASH.splice(i,1)[0];
+  if(t.kind==='inbox') MT_INBOX.unshift(t.item);
+  else if(t.kind==='active') MT_ACTIVE.unshift(t.item);
+  else if(t.kind==='passive') MT_PASSIVE.unshift(t.item);
+  saveMTSystem(); renderMTSystem(); toast('↩ 복원됨');
+}
+function mtPurgeTrash(tid){ const i=MT_TRASH.findIndex(t=>t.id===tid); if(i<0) return; MT_TRASH.splice(i,1); saveMTSystem(); renderMTSystem(); }
+function mtEmptyTrash(){ if(!MT_TRASH.length) return; if(!confirm('휴지통을 비울까요? ('+MT_TRASH.length+'개 영구 삭제)')) return; MT_TRASH=[]; saveMTSystem(); renderMTSystem(); toast('🗑 휴지통 비움'); }
+// [v670] 독립 행동 추가 — 책임(패시브)에 안 묶고 액티브에 바로 작성
+function mtQuickActive(inputEl){
+  const text=(inputEl.value||'').trim(); if(!text) return;
+  const me = window.mtViewingMember || currentUser?.name || 'MT';
+  MT_ACTIVE.unshift({ id:Date.now(), title:text, passive_id:null, owner:me, status:'todo', priority:'P2', created_at:new Date().toISOString().slice(0,10), comments:[], steps:[] });
+  inputEl.value=''; saveMTSystem(); renderMTSystem();
+}
+// [v670] 책임 영역도 인라인 입력으로 (프롬프트 대신)
+function mtQuickPassive(inputEl){
+  const text=(inputEl.value||'').trim(); if(!text) return;
+  const me = window.mtViewingMember || currentUser?.name || 'MT';
+  MT_PASSIVE.push({ id:Date.now(), title:text, owner:me, status:'active', priority:'P2', category:'Operation', sop:[] });
+  inputEl.value=''; saveMTSystem(); renderMTSystem();
+}
 
 // ═══════════════════════════════════════════════════
 // 담당 영역 (책임 범위) — 각 직원이 지속적으로 신경 쓸 것
@@ -15761,7 +15794,8 @@ async function renderMTSystem(mode){
       inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
       passive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
       active:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-      done:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+      done:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+      trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
     };
     const kcol = (key, label, cnt, hue, cards, extra) => `<div class="mt-kcol" data-kcol="${key}" style="--kc:${hue}"
         ondragover="mtKanbanOver(event)" ondragleave="mtKanbanLeave(event)" ondrop="mtKanbanDrop(event,'${key}')">
@@ -15772,13 +15806,73 @@ async function renderMTSystem(mode){
       <div class="mt-kcol-body">${cards}${extra||''}</div>
     </div>`;
 
-    bodyHTML = `${sopScheduleBanner(myPassive)}
+    // [v670] 휴지통 컬럼 — 삭제된 항목이 여기로 오고, 복원(↩)/영구삭제(✕) 가능. 14일 뒤 자동 소멸.
+    const trashKindIc = { inbox:'📥', active:'⚡', passive:'📦' };
+    const trashCards = MT_TRASH.length ? MT_TRASH.map(t => {
+      const days = Math.max(0, Math.round((Date.now()-(t.deleted_at||Date.now()))/86400000));
+      const label = (t.item && (t.item.title || t.item.text)) || '(제목 없음)';
+      return `<div class="mt-trash-item" title="${t.by||''} 삭제 · ${days}일 전 · ${14-days}일 후 자동 소멸">
+        <span class="mt-trash-ic">${trashKindIc[t.kind]||'·'}</span>
+        <span class="mt-trash-tx">${label}</span>
+        <span class="mt-trash-age">${days}d</span>
+        <button class="mt-trash-restore" onclick="mtRestoreTrash(${t.id})" title="복원">↩</button>
+        <button class="mt-trash-burn" onclick="mtPurgeTrash(${t.id})" title="영구 삭제">✕</button>
+      </div>`; }).join('') : '<div class="mt-kempty">비어 있음 · 삭제하면 여기로 (14일 보관)</div>';
+
+    // [v670] COMPACT EDITOR SKIN (boss 7/26: "코드 작성하듯 메모장 같은 느낌으로 컴팩트하게") — dense mono rows,
+    // wrapped text (글자 잘림 제거), hover-reveal buttons, sticky slim headers, line-number gutter, 5 columns.
+    const compactSkin = `<style id="mtCompactSkin">
+    #ch-other .ph{font-size:20px!important;margin:2px 0!important}
+    #ch-other .att-eyebrow{font-size:9px!important}
+    .mt-compact{display:grid!important;grid-template-columns:repeat(5,minmax(200px,1fr))!important;gap:8px!important;align-items:start!important}
+    @media(max-width:1280px){.mt-compact{grid-template-columns:repeat(5,minmax(215px,240px))!important;overflow-x:auto!important;padding-bottom:8px!important}}
+    .mt-compact .mt-kcol{border-radius:8px!important;background:rgba(255,255,255,.015)!important;border:1px solid var(--br,#262625)!important;box-shadow:none!important;padding:0!important}
+    .mt-compact .mt-kcol-head{position:sticky;top:0;z-index:2;padding:6px 9px!important;font-size:10.5px!important;letter-spacing:.05em;background:var(--bg-c,#161615)!important;border-bottom:1px solid var(--br,#262625)!important;border-radius:8px 8px 0 0!important}
+    .mt-compact .mt-kcol-cnt{font-size:9.5px!important;padding:0 6px!important;min-width:16px}
+    .mt-compact .mt-kcol-body{max-height:calc(100vh - 250px);overflow-y:auto;padding:3px 4px 6px!important;counter-reset:mtrow}
+    .mt-compact .mt-kcol-body::-webkit-scrollbar{width:5px}
+    .mt-compact .mt-kcol-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+    .mt-compact .mt-inbox-item,.mt-compact .mt-act,.mt-compact .mt-trash-item{counter-increment:mtrow;border:none!important;border-bottom:1px solid rgba(255,255,255,.045)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;margin:0!important;padding:0!important;position:relative}
+    .mt-compact .mt-inbox-item:hover,.mt-compact .mt-act:hover,.mt-compact .mt-trash-item:hover{background:rgba(255,255,255,.03)!important}
+    .mt-compact .mt-act-row{padding:3px 4px 3px 24px!important;min-height:24px!important;gap:5px!important}
+    .mt-compact .mt-act-row::before{content:counter(mtrow);position:absolute;left:5px;top:5px;font:9px/1.2 ui-monospace,Consolas,monospace;color:rgba(235,235,245,.22);width:14px;text-align:right}
+    .mt-compact .mt-inbox-item{display:flex;align-items:flex-start;gap:4px;padding:3px 4px 3px 24px!important;min-height:24px!important}
+    .mt-compact .mt-inbox-item::before{content:counter(mtrow);position:absolute;left:5px;top:5px;font:9px/1.2 ui-monospace,Consolas,monospace;color:rgba(235,235,245,.22);width:14px;text-align:right}
+    .mt-compact .mt-act-title,.mt-compact .mt-inbox-text,.mt-compact .mt-passive-title,.mt-compact .mt-trash-tx{font:11.5px/1.45 ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:break-word!important;flex:1;min-width:0}
+    .mt-compact .mt-act-pri,.mt-compact .mt-passive-pri{width:15px!important;height:15px!important;font-size:9px!important;border-radius:4px!important;flex:none}
+    .mt-compact .mt-act-dot{width:5px!important;height:5px!important}
+    .mt-compact .mt-act-del,.mt-compact .mt-clf-x,.mt-compact .mt-trash-burn,.mt-compact .mt-passive-del{opacity:0;transition:opacity .12s}
+    .mt-compact .mt-inbox-item:hover .mt-clf-x,.mt-compact .mt-act:hover .mt-act-del,.mt-compact .mt-trash-item:hover .mt-trash-burn,.mt-compact .mt-passive:hover .mt-passive-del{opacity:.8}
+    .mt-compact .mt-act-done .mt-act-title{text-decoration:line-through;opacity:.45}
+    .mt-compact .mt-kadd{font:11px ui-monospace,Consolas,monospace!important;padding:4px 8px!important;margin:4px!important;border-radius:6px!important;background:rgba(255,255,255,.03)!important}
+    .mt-compact .mt-kadd:focus-visible{outline:1px solid var(--ac,#c2a04a)}
+    .mt-compact .mt-kadd-btn{font-size:10px!important;padding:4px 8px!important;margin:4px!important}
+    .mt-compact .mt-kempty{font-size:10px!important;padding:10px 6px!important;opacity:.5}
+    .mt-compact .mt-passive{border:none!important;border-bottom:1px solid rgba(255,255,255,.045)!important;border-radius:0!important;background:transparent!important;margin:0!important}
+    .mt-compact .mt-passive-head{padding:4px 5px!important;min-height:24px!important;gap:5px!important}
+    .mt-compact .mt-passive-body{padding:3px 6px 6px!important}
+    .mt-compact .mt-clf{font-size:9px!important;padding:1px 5px!important}
+    .mt-compact .mt-act-steps,.mt-compact .mt-due{font-size:9px!important}
+    .mt-compact .mt-act-cm{font-size:9.5px!important}
+    .mt-compact .mt-act-st{font-size:11px!important}
+    .mt-trash-item{display:flex;align-items:flex-start;gap:5px;padding:3px 4px 3px 24px!important;min-height:24px}
+    .mt-trash-item::before{content:counter(mtrow);position:absolute;left:5px;top:5px;font:9px/1.2 ui-monospace,Consolas,monospace;color:rgba(235,235,245,.22);width:14px;text-align:right}
+    .mt-trash-ic{font-size:10px;flex:none;opacity:.7}
+    .mt-trash-tx{opacity:.65}
+    .mt-trash-age{font:9px ui-monospace,monospace;color:rgba(235,235,245,.35);flex:none}
+    .mt-trash-restore,.mt-trash-burn{background:none;border:none;cursor:pointer;font-size:11px;color:var(--tx3,#6c6b66);padding:0 3px;flex:none}
+    .mt-trash-restore:hover{color:var(--gr,#4d9a8a)}.mt-trash-burn:hover{color:var(--re,#c46a6a)}
+    .mt-wip{transform:scale(.85);transform-origin:left center}
+    </style>`;
+
+    bodyHTML = `${compactSkin}${sopScheduleBanner(myPassive)}
     ${wipOver ? `<div class="mt-wip-banner"><span class="mt-wip-banner-ic">⚠</span><div><div class="mt-wip-banner-t">진행 중인 행동이 ${doingN}개 — 권장 ${MT_WIP_LIMIT}개 초과</div><div class="mt-wip-banner-s">새로 시작하지 말고, 진행 중인 걸 먼저 끝내세요.</div></div></div>` : ''}
-    <div class="mt-kanban">
-      ${kcol('inbox','인박스',myInbox.length,'#5fa3d9',inboxCards,`<input class="mt-kadd" placeholder="+ 빠른 입력 (Enter)" onkeydown="if(event.key==='Enter')mtQuickInbox(this)">`)}
-      ${kcol('passive','책임',myPassive.length,'#b074ec',passiveCards,`<button class="mt-kadd-btn" onclick="mtAddPassive()">+ 책임 영역</button>`)}
-      ${kcol('active','액티브',activeNotDone.length,'#c2a04a',activeCards)}
+    <div class="mt-kanban mt-compact">
+      ${kcol('inbox','인박스',myInbox.length,'#5fa3d9',inboxCards,`<input class="mt-kadd" placeholder="+ 입력 후 Enter" onkeydown="if(event.key==='Enter')mtQuickInbox(this)">`)}
+      ${kcol('active','액티브',activeNotDone.length,'#c2a04a',activeCards,`<input class="mt-kadd" placeholder="+ 행동 바로 추가 (Enter)" onkeydown="if(event.key==='Enter')mtQuickActive(this)">`)}
+      ${kcol('passive','책임',myPassive.length,'#b074ec',passiveCards,`<input class="mt-kadd" placeholder="+ 책임 영역 추가 (Enter)" onkeydown="if(event.key==='Enter')mtQuickPassive(this)">`)}
       ${kcol('done','완료',doneActions.length,'#3aa05a',doneCards)}
+      ${kcol('trash','휴지통',MT_TRASH.length,'#8a8a8a',trashCards, MT_TRASH.length?`<button class="mt-kadd-btn" onclick="mtEmptyTrash()">🗑 휴지통 비우기</button>`:'')}
     </div>`;
   }
 
@@ -15911,6 +16005,8 @@ function mtAddInbox(){
   renderMTSystem();
 }
 function mtDeleteInbox(id){
+  const it = MT_INBOX.find(i => i.id === id);            // [v670] 휴지통 경유 (복원 가능)
+  if(it) _mtToTrash('inbox', it);
   MT_INBOX = MT_INBOX.filter(i => i.id !== id);
   saveMTSystem();
   renderMTSystem();
@@ -15967,6 +16063,14 @@ function mtKanbanDrop(e, col){
   const { type, id } = mtKDrag;
   mtKDrag = null;
   const me = window.mtViewingMember || currentUser?.name || 'MT';
+
+  // [v670] 휴지통으로 드래그 → 삭제 (복원 가능)
+  if(col === 'trash'){
+    if(type === 'inbox') mtDeleteInbox(id);
+    else if(type === 'active') mtDeleteActive(id);
+    else if(type === 'passive') mtDeletePassive(id);
+    return;
+  }
 
   // 1) Resolve the dragged item's title + owner, handle same-column / done cases, then remove from source
   let title = '', owner = me, carry = null;
@@ -16260,6 +16364,8 @@ function mtCycleActivePri(id){
   renderMTSystem();
 }
 function mtDeleteActive(id){
+  const it = MT_ACTIVE.find(a => a.id === id);           // [v670] 휴지통 경유 (복원 가능, confirm 불필요)
+  if(it) _mtToTrash('active', it);
   MT_ACTIVE = MT_ACTIVE.filter(a => a.id !== id);
   saveMTSystem();
   renderMTSystem();
@@ -16272,6 +16378,8 @@ function mtDeletePassive(id){
     ? `이 책임 영역과 하위 행동 ${kids.length}개를 삭제할까요?\nDelete this responsibility and its ${kids.length} action(s)?`
     : `이 책임 영역을 삭제할까요? / Delete this responsibility?\n\n${p.title}`;
   if(!confirm(msg)) return;
+  _mtToTrash('passive', p);                                                   // [v670] 책임 → 휴지통
+  kids.forEach(a => _mtToTrash('active', a));                                 // [v670] 하위 행동도 각각 복원 가능
   MT_ACTIVE = MT_ACTIVE.filter(a => a.passive_id !== id);
   MT_PASSIVE = MT_PASSIVE.filter(x => x.id !== id);
   saveMTSystem();
