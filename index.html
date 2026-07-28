@@ -10991,7 +10991,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v673';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v674';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21171,11 +21171,11 @@ function _srRecCardHTML(data){
   var _isStaleKey=function(k){ if(!k) return false; try{ if(typeof _teamCache!=='undefined' && Array.isArray(_teamCache)){ for(var _i=0;_i<_teamCache.length;_i++){ var _m=_teamCache[_i]; if(_m && _m.role==='player' && nmKey(_m.name)===k) return false; } } }catch(_){} return true; };   // [v502] true = this records key isn't a current roster player (orphan left by a rename) -> offer merge
 
   // ── [v351] 시프트 단위 그룹: 12H 주간/야간 + 8H 시프트 1/2/3 (로스터 직접 매핑 + Supabase 라이브 폴백) ──
-  var ROSTER={ claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',hana:'d12',ron:'d12',
-    ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',eric:'n12',
+  var ROSTER={ claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',ron:'d12',
+    ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',eric:'n12',hana:'n12',bin:'n12',mapo:'n12',
     bob:'s1',
-    san:'s2',bin:'s2',   /* [v570] 'eric' — matches the report booster name · [v625] synced with _RC_ROSTER: hana n12→d12 (boss 7/13), ron s1→d12 (Day 10), eric s2→n12 (Night 10) */
-    el:'s3',sil:'s3',miru:'s3',ditt:'s3' };
+    san:'s2',   /* [v570] 'eric' — matches the report booster name · [v674] audit vs live reports+staff DB (boss 7/28): hana d12→n12 (works 22:00-10:00, staff DB hours already night), bin s2→n12 (10h_night in staff DB, 22:00-08:00 KST), jake re-added s3 after rehire, mapo n12 was missing here */
+    el:'s3',sil:'s3',miru:'s3',ditt:'s3',jake:'s3' };
   var LEADERS={ claws:1, ace:1 };
   var k1=function(s){ return String(s||'').toLowerCase().trim().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').split(/\s+/)[0]||''; };
   var validShiftKey=function(k){ k=String(k||'').trim(); if(!k) return ''; if((typeof SHIFT_SCHEDULE!=='undefined'&&SHIFT_SCHEDULE[k])||(typeof SHIFTS!=='undefined'&&SHIFTS[k])) return k; return ''; };
@@ -22447,7 +22447,7 @@ var _RC_NAME_ALIAS={ ericson:'eric' };
 function _rcNorm(n){ var k=String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; return _RC_NAME_ALIAS[k]||k; }
 
 // shift-group mapping (same as _srRecCompute ROSTER fallback). 888 = 8H (s1/s2/s3), 1212 = 12H (d12/n12).
-var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12',hana:'d12', ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',eric:'n12',mapo:'n12', ron:'d12',bob:'s1', san:'s2',bin:'s2', el:'s3',sil:'s3',miru:'s3',ditt:'s3',jake:'s3' };   /* [v570] 'eric' aliased · [v594] hana n12→d12 · [v617] ron s1→d12 day group (boss 7/13: RON 8h→Day 10; day-side group like PROD) · [v618] eric s2→n12 (boss 7/13: ERICSON 8h→10h 17:00-03:00 Night 10) · [v641] mapo→n12 (12H Night), jake→s3 (8H Shift 3) */
+var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12', ace:'n12',sid:'n12',kaiji:'n12',vici:'n12',eric:'n12',mapo:'n12',hana:'n12',bin:'n12', ron:'d12',bob:'s1', san:'s2', el:'s3',sil:'s3',miru:'s3',ditt:'s3',jake:'s3' };   /* [v570] 'eric' aliased · [v594] hana n12→d12 · [v617] ron s1→d12 day group (boss 7/13: RON 8h→Day 10; day-side group like PROD) · [v618] eric s2→n12 (boss 7/13: ERICSON 8h→10h 17:00-03:00 Night 10) · [v641] mapo→n12 (12H Night), jake→s3 (8H Shift 3) */
 // [v593] per-player RACE START DATE (boss 7/9): race counts from 7/1 for everyone EXCEPT BOB/SAN/DITT who
 // join 7/6 — their earlier records stay in Records & Stats but are fully out of the race (no points, no cuts,
 // no hours, no period %). KAIJI is excluded entirely via hidden_staff, HANA/ERICSON/EL/SIL from 7/1 as-is.
