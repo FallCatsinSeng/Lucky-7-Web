@@ -11007,7 +11007,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v677';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v678';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -22232,6 +22232,10 @@ function _kb5jRender(){
 
     if(isAdmin){
       var _dsel = latest||'';
+      /* [v678] the 5s re-render rebuilt the date input with the default value, wiping whatever the admin
+         had just picked — boss pressed settle and the click landed on the wrong (reset) date all night 7/31.
+         Keep the admin's current choice across re-renders; default only on first paint. */
+      try{ var _prevFd=document.getElementById('k5-fdate'); if(_prevFd && _prevFd.value) _dsel=_prevFd.value; }catch(_){ }
       html+='<div id="k5-adminwrap" style="display:'+(window.__KB5J_ADMIN_OPEN?'block':'none')+'">';   /* [v552] collapsible admin area */
       /* [v554] ONE clear daily action, everything else tucked away \u2014 boss couldn't tell what to press. */
       html+='<div class="k5-card" style="margin-bottom:10px;padding:16px 18px">'
