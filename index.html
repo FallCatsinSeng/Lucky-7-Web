@@ -3008,12 +3008,21 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-kcard:hover{background:rgba(255,255,255,.03);box-shadow:none;border-color:rgba(255,255,255,.08)}
 .lb-kcard-main{padding:3px 5px 3px 11px;gap:7px;min-height:26px}
 .lb-krank{font:9px/1.2 ui-monospace,Consolas,monospace;color:rgba(235,235,245,.25);min-width:15px;text-align:right}
-.lb-kcard-id{display:flex;align-items:center;gap:7px;min-width:0}   /* 이름줄+서브줄 → 한 줄 */
-.lb-kcard-sub{margin-top:0;gap:6px;flex-shrink:0}
-.lb-kcard-id .lb-name{flex:0 1 auto;font:12px ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace;font-weight:700}
+.lb-kcard-id{display:flex;align-items:center;gap:7px;min-width:0;flex:1}   /* 이름줄+서브줄 → 한 줄 */
+/* [v691] 정렬 통일 (boss: 칩이 이름에 붙어 들쭉날쭉) — 이름이 남는 폭을 다 먹고, 칩·수치는 오른쪽 고정 컬럼으로 */
+.lb-name-row{flex:1 1 auto;min-width:0}
+.lb-name-row .lb-name{flex:0 1 auto}
+.lb-name-row .lb-tier{margin-left:auto}
+.lb-kcard-sub{margin-top:0;gap:0;flex-shrink:0}
+.lb-kcard-id .lb-name{font:12px ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace;font-weight:700}
 .lb-kcard-id .lb-tier{font-size:8.5px;font-weight:800;letter-spacing:.04em;padding:1px 6px;border-radius:5px;background:color-mix(in srgb,var(--c) 14%,transparent)}
-.lb-kstat{font:9.5px ui-monospace,Consolas,monospace;color:var(--tx3);background:none;border:none;padding:0}
-.lb-kstat b{font-size:10.5px}
+.lb-kstat{font:9.5px ui-monospace,Consolas,monospace;color:var(--tx3);background:none;border:none;padding:0;justify-content:flex-end}
+.lb-kcard-sub .lb-kstat:nth-of-type(1){width:44px}   /* 🏆 컬럼 고정폭 */
+.lb-kcard-sub .lb-kstat:nth-of-type(2){width:64px}   /* ⚠ /한도 컬럼 고정폭 */
+.lb-kstat b{font-size:10.5px;font-variant-numeric:tabular-nums}
+/* [v691] 잘하는/위험한 행이 스캔되게 — 상태별 옅은 행 배경 */
+.lb-kcard-trust{background:color-mix(in srgb,#d4a838 3.5%,transparent)}
+.lb-kcard-warn{background:color-mix(in srgb,#e0504a 4%,transparent)}
 .lb-rankchip{font-size:8px;padding:0 5px;border:none !important}
 .lb-kcard .lb-protect{font-size:8.5px;padding:0 5px}
 .lb-kcard-num{font:13.5px ui-monospace,Consolas,monospace;font-weight:800;min-width:30px;padding:0 3px;background:transparent;box-shadow:none;text-align:right}
@@ -10604,6 +10613,7 @@ body:has(#kb-race) #sb-right{display:none!important}
         <button class="pill" onclick="setFilter('online',this)">Online<span class="count" id="c-on">—</span></button>
         <button class="pill" onclick="setFilter('warning',this)">Warning<span class="count" id="c-warn">—</span></button>
         <button class="pill" onclick="setFilter('offline',this)">Offline<span class="count" id="c-off">—</span></button>
+        <span id="pc-cols" style="display:inline-flex;gap:3px;margin-left:10px" title="한 줄 카드 수"><button class="pill" data-n="auto" onclick="_pcSetCols('auto')">자동</button><button class="pill" data-n="4" onclick="_pcSetCols('4')">4</button><button class="pill" data-n="5" onclick="_pcSetCols('5')">5</button><button class="pill" data-n="6" onclick="_pcSetCols('6')">6</button></span>
         <button class="pill clear-btn" onclick="clearAll()" style="margin-left:auto" title="모든 PC의 시프트·리더·클라이언트 배정을 한 번에 해제">🗑 전체 초기화</button>
         <input class="input" id="q" placeholder="PC / 직원 / 클라이언트 검색…" oninput="renderPCs()" style="width:240px">
       </div>
@@ -11073,7 +11083,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v690';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v691';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19903,9 +19913,11 @@ function _srInjectCSS(){
 "#sr-app .sr-rec-tnm2{font-size:12.5px;max-width:none;font-weight:700;}",
 "#sr-app .sr-rec-tab .sr-pfp{font-size:11px;padding:2px 8px;}",
 "#sr-app .sr-tab-go{display:none;}",
-"#sr-app .sr-gband{margin-bottom:8px;border-radius:10px;}",
-"#sr-app .sr-gband-grid{gap:6px;}",
-"#sr-app .sr-gband-hd{padding:5px 11px;gap:8px;}",
+/* [v691] 구분감 강화 (boss 8/4: '테두리 선 같은 게 좀 더') — 밴드 테두리를 그룹색으로, 헤더 아래 선 진하게 */
+"#sr-app .sr-gband{margin-bottom:8px;border-radius:10px;border:1px solid color-mix(in srgb,var(--gc,#8a8a86) 32%,var(--br,#232322));box-shadow:0 1px 7px rgba(0,0,0,.28);}",
+"#sr-app .sr-gband-grid{gap:8px;}",
+"#sr-app .sr-gband-hd{padding:5px 11px;gap:8px;border-bottom:1px solid color-mix(in srgb,var(--gc,#8a8a86) 28%,var(--br,#232322));}",
+"#sr-app .sr-rec-tab{border:1px solid color-mix(in srgb,var(--gc,#8a8a86) 20%,var(--br,#2c2c2b));}",
 "#sr-app .sr-gband .sr-rec-tabs{padding:5px 8px;gap:4px;flex-wrap:wrap;overflow:visible;}",
 "#sr-app .sr-rec-tabs{padding-bottom:4px;margin-bottom:8px;gap:4px;}",
 "#sr-app .sr-gband-stat .sr-gband-stat-l{font-size:8.5px;}",
@@ -21681,7 +21693,7 @@ function _clockBoardHTML(sessions){
   var grid=ckPCS.map(function(p){
     var _leadObj=(p.leader&&typeof staffById==='function')?staffById(p.leader):null; var crown=(p.leader && (!_leadObj || (typeof _pcShowLeaderRow!=='function' || _pcShowLeaderRow(_leadObj))))?('<span class="ck-crown" title="'+(_L?'감독':'Supervisor')+'">♔</span>'):'';
     var leg=p.assigns.length?p.assigns.map(function(a,ai){ var rng=a.len>0?(_ckH2(a.start)+'–'+_ckH2(a.start+a.len)+' · '+a.len+'h'):(_L?'시간 미설정':'Time not set');
-      return '<div class="ck-lg ck-lg-go" onclick="_ckToStaffIdx('+p.id+','+ai+')" title="'+(_L?'이 직원 EXP 기록 열기':'Open this staff\u2019s EXP record')+'"><span class="ck-sw" style="background:'+_ckColor(a.name)+'"></span><span class="ck-nm">'+_srEsc(a.name)+'</span><span class="ck-tm">'+rng+'</span><span class="ck-go-ar">→</span></div>'; }).join(''):'<div class="ck-lg-empty">'+(_L?'직원 미배정':'Staff unassigned')+'</div>';
+      return '<div class="ck-lg ck-lg-go" id="ck-lg-'+p.id+'-'+ai+'" style="transition:opacity .25s" onclick="_ckToStaffIdx('+p.id+','+ai+')" title="'+(_L?'이 직원 EXP 기록 열기':'Open this staff\u2019s EXP record')+'"><span class="ck-sw" style="background:'+_ckColor(a.name)+'"></span><span class="ck-nm">'+_srEsc(a.name)+'</span><span class="ck-tm">'+rng+'</span><span class="ck-go-ar">→</span></div>'; }).join(''):'<div class="ck-lg-empty">'+(_L?'직원 미배정':'Staff unassigned')+'</div>';
     var rq=_ckReqOf(p.id); var cov=_ckCoverGap(rq,p.assigns);
     var badge=rq?(cov&&cov.gap>0?'<span class="ck-bdg gap">'+cov.gap+(_L?'시간 빔':'h gap')+'</span>':'<span class="ck-bdg ok">'+(_L?'충족':'Covered')+'</span>'):'<span class="ck-bdg unset">'+(_L?'시간 미설정':'Time not set')+'</span>';
     // [v690] 서비스 시간 배지 — 배정 합계가 클라 요청시간보다 길면 그 차이는 서비스로 들어가는 시간 (boss 8/4)
@@ -21725,7 +21737,19 @@ function _ckKstHour(){ var d=new Date(Date.now()+9*3600000); return d.getUTCHour
 function _ckState(){ if(!window._ckSt) window._ckSt={scrub:_ckKstHour(),playing:false,speed:2,follow:true}; return window._ckSt; }
 function _ckSpeed(x){ _ckState().speed=x; var seg=document.getElementById('ck-speed'); if(seg)[].forEach.call(seg.children,function(c){c.classList.toggle('on',+c.getAttribute('data-x')===x);}); }
 function _ckStop(){ var st=_ckState(); st.playing=false; if(_ckAnim){cancelAnimationFrame(_ckAnim);_ckAnim=null;} var b=document.getElementById('ck-play'); if(b){b.classList.remove('on'); var l=b.querySelector('.lab'); if(l)l.textContent=(_uiLang()==='ko'?'하루 재생':'Day Playback');} }
-function _ckNow(){ var st=_ckState(); st.follow=true; _ckStop(); st.scrub=_ckKstHour(); _ckApply(); }
+function _ckNow(){ // [v691] boss 8/4: '지금' 누르면 침이 스윕하며 현재 시각으로 돌아오는 애니메이션
+  var st=_ckState(); _ckStop(); st.follow=true;
+  var target=_ckKstHour(); var from=st.scrub;
+  var diff=((target-from)%24+24)%24;
+  if(diff<0.05 || diff>23.95){ from=(target+18)%24; diff=6; }   // 이미 제자리면 6시간 전에서 탁 돌아오게
+  var t0=performance.now(), dur=700;
+  if(_ckAnim)cancelAnimationFrame(_ckAnim);
+  function anim(t){ if(!document.getElementById('ck-board')){ _ckAnim=null; return; }
+    var p=Math.min(1,(t-t0)/dur), e=1-Math.pow(1-p,3);   // ease-out cubic
+    st.scrub=(from+diff*e)%24; _ckApply();
+    if(p<1) _ckAnim=requestAnimationFrame(anim); else { _ckAnim=null; st.scrub=target; _ckApply(); } }
+  _ckAnim=requestAnimationFrame(anim);
+}
 function _ckToggle(){ var st=_ckState(); if(st.playing){ _ckStop(); return; } st.playing=true; st.follow=false; var b=document.getElementById('ck-play'); if(b){b.classList.add('on'); var l=b.querySelector('.lab'); if(l)l.textContent=(_uiLang()==='ko'?'정지':'Stop');}
   var lastT=performance.now();
   function loop(t){ if(!_ckState().playing){ return; } if(!document.getElementById('ck-board')){ _ckStop(); return; } var dt=(t-lastT)/1000; lastT=t; st.scrub=(st.scrub+dt*st.speed)%24; _ckApply(); _ckAnim=requestAnimationFrame(loop); }
@@ -21743,6 +21767,8 @@ function _ckApply(){
     p.assigns.forEach(function(a,i){ var on=a.len>0?_ckInShift(hInt,a):false; if(on)onCount++;
       // [v690] boss 8/4: '지금' 상태에서도 시계추가 가리키는 시간에 근무 중인 링만 빛나게 (전에는 정지 시 전부 발광)
       var ring=document.getElementById('ck-ring-'+p.id+'-'+i); if(ring) ring.style.opacity=on?'1':'0.16';
+      // [v691] 시계 밑 직원 범례도 — 지금 근무 중이 아니면 흐리게
+      var lg=document.getElementById('ck-lg-'+p.id+'-'+i); if(lg) lg.style.opacity=(a.len>0 ? (on?'1':'0.38') : '0.55');
       var c=(exp.cum[a.key]||null); if(c) pcExp+=(c[hInt]||0); });
     totStaff+=onCount; totExp+=pcExp;
     var hand=document.getElementById('ck-hand-'+p.id); if(hand) hand.setAttribute('transform','rotate('+deg+' '+_CKCX+' '+_CKCY+')');
@@ -21761,7 +21787,7 @@ function _ckInit(){ try{ _ckLoadReq(); }catch(_){} var sc=document.getElementByI
   sc.addEventListener('pointerdown',function(e){ sc.setPointerCapture(e.pointerId); _ckSeekTo(e.clientX); sc._drag=true; });
   sc.addEventListener('pointermove',function(e){ if(sc._drag)_ckSeekTo(e.clientX); });
   sc.addEventListener('pointerup',function(){ sc._drag=false; });
-  _ckApply();
+  _ckNow();   // [v691] 보드 열릴 때도 침이 스윕하며 현재 시각으로
 }
 
 function _raceInjectCSS(){
@@ -31439,8 +31465,19 @@ async function renderPCHubTimeline(silent){
 
 
 
+// [v691] PC 현황 카드 열 개수 (boss 8/4: 자동/4/5/6 조절) — localStorage 'pc_cols'
+function _pcCols(){ try{ return localStorage.getItem('pc_cols')||'auto'; }catch(_){ return 'auto'; } }
+function _pcApplyCols(){
+  var g=document.getElementById('pc-grid'); if(!g) return;
+  var v=_pcCols();
+  g.style.gridTemplateColumns = (v==='auto') ? '' : ('repeat('+v+',minmax(0,1fr))');
+  var seg=document.getElementById('pc-cols');
+  if(seg)[].forEach.call(seg.children,function(c){ c.classList.toggle('on', c.getAttribute('data-n')===v); });
+}
+function _pcSetCols(v){ try{ localStorage.setItem('pc_cols', String(v)); }catch(_){} _pcApplyCols(); }
 function renderPCs(){
   try{ normalizePCs(); }catch(_){}
+  try{ _pcApplyCols(); }catch(_){}
   try{ _applyProfileShiftLens(); }catch(_){}   // [v631] profiles (staff_state) can land AFTER loadStaffPool — refresh real 8/10/12 contract hours on every render
   const q = (document.getElementById('q').value||'').toLowerCase();
   let list = PCS.filter(p => filter==='all' || p.status===filter);
