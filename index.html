@@ -11260,7 +11260,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v702';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v703';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -20135,6 +20135,9 @@ function _srInjectCSS(){
 "#sr-app .sr-rb-un{background:rgba(201,150,58,.18);color:var(--ac,#c9963a);}",
 "#sr-app .sr-rb-wu{background:rgba(196,106,106,.16);color:var(--re,#c46a6a);}",
 "#sr-app .sr-rb-no{background:var(--bg-i,#202020);color:var(--tx3,#6c6b66);}",
+"#sr-app .sr-rb-goal{background:rgba(77,154,138,.2);color:#5fd48a;}",   /* [v703] 3-tier day verdicts */
+"#sr-app .sr-rb-stbl{background:rgba(201,150,58,.18);color:var(--ac,#c9963a);}",
+"#sr-app .sr-rb-cut{background:rgba(224,80,74,.18);color:#e0665f;}",
 "#sr-app .sr-rb-st{background:var(--bg-i,#202020);color:var(--tx2,#989792);}",
 "#sr-app .sr-sb{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:var(--bg-i,#202020);color:var(--tx2,#989792);white-space:nowrap;}",
 "#sr-app .sr-sb-in{background:rgba(77,154,138,.14);color:var(--gr,#4d9a8a);}",
@@ -21534,6 +21537,8 @@ function _srRecCompute(reports, clients){
             // genuinely separate ~1h reports landing in the same calendar-hour cell, e.g. one submitted late.)
             if(!_ra.hb[_hk]) _ra.hb[_hk]={tgt:0};
             if(_tgt) _ra.hb[_hk].tgt=_tgt;          // target for this clock-hour (last seen wins)
+            if(_sh!=null) _ra.hb[_hk].sh=_sh;       // [v703] Goal/Stable quotas per hour for the 3-tier day verdict
+            if(_sl!=null) _ra.hb[_hk].sl=_sl;
             if(_flag) _ra.flags++;
           }
         }
@@ -21541,7 +21546,7 @@ function _srRecCompute(reports, clients){
     });
   });
   var daily=[];
-  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; var _hb=a.hb||{}; a.hours=Object.keys(_hb).length; a.quota=0; Object.keys(_hb).forEach(function(_hk){ a.quota+=(_hb[_hk].tgt||0); }); if(!(a.hours>0)) return; var perH=(a.hours>0?a.gain/a.hours:0); var targetH=(a.hours>0&&a.quota>0?a.quota/a.hours:0); var perf=(a.quota>0?((a.scored||0)/a.quota*100):null); var cleanPerf=(a.quota>0?((a.scoredClean||0)/a.quota*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,quota:a.quota,perH:perH,targetH:targetH,perf:perf,flags:(a.flags||0),cleanGain:(a.cleanGain||0),cleanPerf:cleanPerf,scored:(a.scored||0),scoredClean:(a.scoredClean||0),hoursFlag:(a.hours>16),minMs:a.minMs,maxMs:a.maxMs}); }); });
+  Object.keys(recAgg).forEach(function(nm){ Object.keys(recAgg[nm]).forEach(function(d){ var a=recAgg[nm][d]; var _hb=a.hb||{}; a.hours=Object.keys(_hb).length; a.quota=0; var goalQ=0, slQ=0, bandHrs=0; Object.keys(_hb).forEach(function(_hk){ a.quota+=(_hb[_hk].tgt||0); if(_hb[_hk].sh!=null){ goalQ+=_hb[_hk].sh; slQ+=(_hb[_hk].sl!=null?_hb[_hk].sl:_hb[_hk].sh); bandHrs++; } }); if(!(a.hours>0)) return; var perH=(a.hours>0?a.gain/a.hours:0); var targetH=(a.hours>0&&a.quota>0?a.quota/a.hours:0); var perf=(a.quota>0?((a.scored||0)/a.quota*100):null); var cleanPerf=(a.quota>0?((a.scoredClean||0)/a.quota*100):null); daily.push({name:nm,key:normName(nm),date:d,hours:a.hours,gain:a.gain,quota:a.quota,perH:perH,targetH:targetH,perf:perf,flags:(a.flags||0),cleanGain:(a.cleanGain||0),cleanPerf:cleanPerf,scored:(a.scored||0),scoredClean:(a.scoredClean||0),hoursFlag:(a.hours>16),minMs:a.minMs,maxMs:a.maxMs,goalQ:(bandHrs>0?goalQ:null),slQ:(bandHrs>0?slQ:null)}); }); });   /* [v703] goalQ/slQ = Σ per-hour Goal/Stable quotas → day verdict uses the race bands, not the stretch target */
   daily.sort(function(a,b){ if(a.date!==b.date) return a.date<b.date?1:-1; return a.name<b.name?-1:(a.name>b.name?1:0); });
   sessions.sort(function(a,b){ return (b.ms||0)-(a.ms||0); });
   return { daily:daily, sessions:sessions };
@@ -21616,7 +21621,15 @@ function _srRecCardHTML(data){
   var avInit=function(n){ var s=String(n||'').replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/i,'').trim(); var w=s.split(/\s+/)[0]||s; return (w.slice(0,2)||'?').toUpperCase(); };
   var pfCls=function(p){ return p==null?'no':(p>=100?'hot':(p>=80?'mid':'low')); };
   var pfColVar=function(p){ return p==null?'var(--tx3)':(p>=100?'var(--gr)':(p>=80?'var(--ac)':'var(--re)')); };
-  var dres=function(r){ if(r.flags>0) return '<span class="sr-rb sr-rb-jump">⚠ 점프'+(r.flags>1?' ×'+r.flags:'')+'</span>'; if(r.perf==null) return '<span class="sr-rb sr-rb-no">기준없음</span>'; if(r.perf>=100) return '<span class="sr-rb sr-rb-ok">달성</span>'; return '<span class="sr-rb sr-rb-un">미달</span>'; };
+  var dres=function(r){ if(r.flags>0) return '<span class="sr-rb sr-rb-jump">⚠ 점프'+(r.flags>1?' ×'+r.flags:'')+'</span>'; if(r.perf==null) return '<span class="sr-rb sr-rb-no">기준없음</span>';
+    /* [v703] 3-tier verdict on the RACE bands (boss 8/4: Prod at 97% read '미달' like Bin at 60% — the old
+       chip was binary vs the stretch target). Goal ≥ Σsh, Stable ≥ Σsl, below = Cut; falls back to the old
+       binary chip when a day has no sh/sl bands. Money/scoring untouched — this is the label only. */
+    if(r.goalQ!=null && r.goalQ>0){ var _sc=(r.scored||0);
+      if(_sc>=r.goalQ) return '<span class="sr-rb sr-rb-goal">GOAL</span>';
+      if(r.slQ!=null && _sc>=r.slQ) return '<span class="sr-rb sr-rb-stbl">STABLE</span>';
+      return '<span class="sr-rb sr-rb-cut">CUT</span>'; }
+    if(r.perf>=100) return '<span class="sr-rb sr-rb-ok">달성</span>'; return '<span class="sr-rb sr-rb-un">미달</span>'; };
   var hoursCell=function(r){ var _rng=(r.minMs!=null&&r.maxMs!=null)?('<div style="font-size:10px;color:var(--tx3);font-weight:600;font-variant-numeric:tabular-nums;margin-top:3px;white-space:nowrap">'+(krMode?'<b style="color:var(--ac)">KR</b> ':'')+fmtHM(r.minMs)+' ~ '+fmtHM(r.maxMs)+'</div>'):''; var _h=r.hours.toFixed(2)+'h'; return r.hoursFlag?('<td class="sr-re" title="24h 초과 — 체크아웃 누락 가능">⚠ '+_h+_rng+'</td>'):('<td>'+_h+_rng+'</td>'); };
   // shared daily-row builder (rank optional, showName toggles name col content)
   var rowHTML=function(r,gc,rank){ var diff=r.perH-r.targetH; var rkc=rank===1?'r1':rank===2?'r2':rank===3?'r3':''; var bw=r.perf!=null?Math.min(100,Math.round(r.perf)):0;
