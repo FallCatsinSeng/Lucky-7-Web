@@ -11007,7 +11007,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v681';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v682';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -25401,7 +25401,9 @@ async function renderTrust(){
         <div class="psub">Trust System · ${_uiLang()==='ko'?'카드 색 = 종합 상태 · 드래그로 시스템 이동':'card color = overall status · drag to move'}${canGrant ? (_uiLang()==='ko'?' · 🏆±/⚠± 점수 조정':' · 🏆± trust / ⚠± warning') : ''}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="ts-policy-main" onclick="tsCopyDiscord()" title="${_uiLang()==='ko'?'디스코드에 붙여넣을 수 있는 텍스트로 복사':'Copy as Discord-ready text'}">📤 ${_uiLang()==='ko'?'디스코드 복사':'Copy for Discord'}</button>
+        <button class="ts-policy-main" onclick="tsSendDiscord()" title="${_uiLang()==='ko'?'점수판을 웹훅으로 디스코드 채널에 바로 게시':'Post the board to Discord via webhook'}">📨 ${_uiLang()==='ko'?'디스코드 게시':'Post to Discord'}</button>
+        <button class="ts-policy-main" onclick="tsCopyDiscord()" title="${_uiLang()==='ko'?'디스코드에 붙여넣을 수 있는 텍스트로 복사':'Copy as Discord-ready text'}">📤 ${_uiLang()==='ko'?'복사':'Copy'}</button>
+        ${canGrant ? `<button class="ts-policy-main" onclick="tsSetWebhook()" title="${_uiLang()==='ko'?'디스코드 웹훅 URL 설정':'Set Discord webhook URL'}">⚙</button>` : ''}
         <button class="ts-policy-main" onclick="openPolicyPanel('player')">📋 평가 정책 보기</button>
       </div>
     </div>
@@ -25468,9 +25470,9 @@ const _TS_DC_GROUPS = [
   ['MAPO','JAKE'],
   ['Shuri','Mike']
 ];
-function tsCopyDiscord(){
+function _tsBoardText(){
   const g = window._tsCopyGroups;
-  if(!g){ toast('점수판을 먼저 열어주세요', true); return; }
+  if(!g){ return null; }
   const pad = (s,n) => String(s==null?'':s).padEnd(n);
   const shortKey = (name) => String(name||'').toLowerCase().replace(/^(mr|ms|mrs)[.\s]+/,'').trim().split(/\s+/)[0] || '';
   const prot = (m) => {
@@ -25523,12 +25525,71 @@ function tsCopyDiscord(){
     if(printed > 0) lines.push(sep);
     leftovers.forEach(m => lines.push(row(m, shortKey(m.name).toUpperCase())));
   }
-  const text = '```\n' + lines.join('\n') + '\n```';
+  return '```\n' + lines.join('\n') + '\n```';
+}
+function tsCopyDiscord(){
+  const text = _tsBoardText();
+  if(!text){ toast('점수판을 먼저 열어주세요', true); return; }
   const done = () => toast('📤 점수판 복사됨 — 디스코드에 붙여넣으세요');
   const fb = () => { try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
     document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done(); }catch(_){ toast('복사 실패 — 다시 시도해주세요', true); } };
   if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(fb); }
   else fb();
+}
+
+// ─── [v682] 디스코드 웹훅 연동 (boss 8/4) ───
+// 웹훅 URL은 trust_state 테이블의 id='webhook' row에 저장 (팀 공유, 한 번만 설정).
+// ① tsSendDiscord(): 점수판 전체를 웹훅으로 바로 게시  ② WP/TP 부여 시 자동 한 줄 알림.
+let _tsWebhook = null, _tsWebhookLoaded = false;
+async function _tsLoadWebhook(){
+  if(_tsWebhookLoaded || !sb) return;
+  try{
+    const { data } = await sb.from('trust_state').select('data').eq('id','webhook').maybeSingle();
+    _tsWebhook = (data && data.data && data.data.url) || null;
+  }catch(_){}
+  _tsWebhookLoaded = true;
+}
+async function tsSetWebhook(){
+  await _tsLoadWebhook();
+  const url = prompt('디스코드 웹훅 URL을 붙여넣으세요\n(디스코드 채널 → 설정 → 연동 → 웹훅 → URL 복사)\n비우고 확인하면 웹훅 해제됩니다.', _tsWebhook || '');
+  if(url === null) return;
+  const v = url.trim();
+  if(v && !/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//.test(v)){ toast('디스코드 웹훅 URL이 아닙니다', true); return; }
+  _tsWebhook = v || null;
+  try{ await _dbUpsert('trust_state', 'webhook', { url: _tsWebhook }); toast(_tsWebhook ? '✅ 웹훅 저장됨 — 이제 자동으로 디스코드에 올라갑니다' : '웹훅 해제됨'); }
+  catch(e){ toast('웹훅 저장 실패: ' + (e && e.message), true); }
+}
+async function _tsPostWebhook(content){
+  await _tsLoadWebhook();
+  if(!_tsWebhook) return false;
+  try{
+    const r = await fetch(_tsWebhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content }) });
+    return r.ok;
+  }catch(_){ return false; }
+}
+async function tsSendDiscord(){
+  const text = _tsBoardText();
+  if(!text){ toast('점수판을 먼저 열어주세요', true); return; }
+  await _tsLoadWebhook();
+  if(!_tsWebhook){ toast('웹훅이 아직 없습니다 — ⚙ 버튼으로 URL을 등록하세요', true); return; }
+  if(text.length > 1990){ toast('보드가 너무 깁니다 — 📤 복사 버튼을 사용하세요', true); return; }
+  const ok = await _tsPostWebhook(text);
+  toast(ok ? '📨 디스코드에 게시됨' : '전송 실패 — 웹훅 URL을 확인하세요', !ok);
+}
+// WP/TP 부여 자동 알림 — 이번 달 누적 포함 한 줄
+function _tsNotifyGrant(memberId, kind, pts){
+  try{
+    const nm = String(trustName(memberId)||'').replace(/^(mr|ms|mrs)[.\s]+/i,'').split(/\s+/)[0].toUpperCase();
+    const now = new Date();
+    const ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    const bp = _trBoardPts(TRUST_DATA[memberId] || {}, ym);
+    const by = (currentUser && currentUser.name) ? ' — by ' + currentUser.name : '';
+    const sign = pts > 0 ? '+' : '';
+    const msg = kind === 'trust'
+      ? `🏆 **${nm}** ${sign}${pts} TP · ${now.getMonth()+1}월 누적 ${bp.trust}${by}`
+      : `⚠️ **${nm}** ${sign}${Number(pts).toFixed(1)} Warning · ${now.getMonth()+1}월 누적 ${Number(bp.warn).toFixed(1)}${by}`;
+    _tsPostWebhook(msg);   // fire-and-forget — 실패해도 점수 부여는 그대로
+  }catch(_){}
 }
 
 // ─── Trust 빠른 부여 (Admin/OP) ───
@@ -25550,6 +25611,7 @@ async function quickGrantTrust(memberId, pts){
   }
   try{ logAction('update', (pts>=0 ? 'trust +'+pts+' (quick grant)' : 'trust '+pts+' (correction)'), _nm); }catch(_){}
   saveTrustState();
+  _tsNotifyGrant(memberId, 'trust', pts);   // [v682] 디스코드 웹훅 자동 알림
   renderTrust();
 }
 async function quickGrantWarn(memberId, pts){
@@ -25570,6 +25632,7 @@ async function quickGrantWarn(memberId, pts){
   }
   try{ logAction('warning', (pts>=0 ? 'warning +'+pts+' (quick)' : 'warning '+pts+' (forgiven)'), _nm); }catch(_){}
   saveTrustState();
+  _tsNotifyGrant(memberId, 'warn', pts);   // [v682] 디스코드 웹훅 자동 알림
   renderTrust();
 }
 
