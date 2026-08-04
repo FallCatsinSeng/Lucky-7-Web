@@ -11083,7 +11083,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v692';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v693';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21680,6 +21680,11 @@ function _clockBoardHTML(sessions){
     return { id:p.id, leader:p.leader, client:_ckClientName(p), assigns:assigns };
   });
   window._ckPCS=ckPCS;
+  // [v693] 하루 누적 경험치 (boss 8/4) — 기준일 24시 시점의 총합. 직원별·PC별·전체.
+  var _dayOf=function(k){ var c=exp.cum[k]; return c?(c[24]||0):0; };
+  var _dayGrand=0, _seenK={};
+  ckPCS.forEach(function(p){ p.dayExp=0; p.assigns.forEach(function(a){ a.dayExp=_dayOf(a.key); p.dayExp+=a.dayExp; if(!_seenK[a.key]){ _seenK[a.key]=1; _dayGrand+=a.dayExp; } }); });
+  window._ckDayGrand=_dayGrand;
 
   var _cols=_ckCols();
   var head='<div class="ck-bar"><div class="ck-bar-l"><button class="race-btn play" id="ck-play" onclick="_ckToggle()"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span class="lab">'+(_L?'하루 재생':'Day Playback')+'</span></button>'
@@ -21693,7 +21698,8 @@ function _clockBoardHTML(sessions){
   var grid=ckPCS.map(function(p){
     var _leadObj=(p.leader&&typeof staffById==='function')?staffById(p.leader):null; var crown=(p.leader && (!_leadObj || (typeof _pcShowLeaderRow!=='function' || _pcShowLeaderRow(_leadObj))))?('<span class="ck-crown" title="'+(_L?'감독':'Supervisor')+'">♔</span>'):'';
     var leg=p.assigns.length?p.assigns.map(function(a,ai){ var rng=a.len>0?(_ckH2(a.start)+'–'+_ckH2(a.start+a.len)+' · '+a.len+'h'):(_L?'시간 미설정':'Time not set');
-      return '<div class="ck-lg ck-lg-go" id="ck-lg-'+p.id+'-'+ai+'" style="transition:opacity .25s" onclick="_ckToStaffIdx('+p.id+','+ai+')" title="'+(_L?'이 직원 EXP 기록 열기':'Open this staff\u2019s EXP record')+'"><span class="ck-sw" style="background:'+_ckColor(a.name)+'"></span><span class="ck-nm">'+_srEsc(a.name)+'</span><span class="ck-tm">'+rng+'</span><span class="ck-go-ar">→</span></div>'; }).join(''):'<div class="ck-lg-empty">'+(_L?'직원 미배정':'Staff unassigned')+'</div>';
+      var dtx=(a.dayExp&&a.dayExp>0)?('<span class="ck-lg-exp" style="font-size:10px;font-weight:800;color:#36c66b;flex:none">+'+a.dayExp.toFixed(1)+'%</span>'):'';
+      return '<div class="ck-lg ck-lg-go" id="ck-lg-'+p.id+'-'+ai+'" style="transition:opacity .25s" onclick="_ckToStaffIdx('+p.id+','+ai+')" title="'+(_L?'이 직원 EXP 기록 열기':'Open this staff\u2019s EXP record')+'"><span class="ck-sw" style="background:'+_ckColor(a.name)+'"></span><span class="ck-nm">'+_srEsc(a.name)+'</span>'+dtx+'<span class="ck-tm">'+rng+'</span><span class="ck-go-ar">→</span></div>'; }).join(''):'<div class="ck-lg-empty">'+(_L?'직원 미배정':'Staff unassigned')+'</div>';
     var rq=_ckReqOf(p.id); var cov=_ckCoverGap(rq,p.assigns);
     var badge=rq?(cov&&cov.gap>0?'<span class="ck-bdg gap">'+cov.gap+(_L?'시간 빔':'h gap')+'</span>':'<span class="ck-bdg ok">'+(_L?'충족':'Covered')+'</span>'):'<span class="ck-bdg unset">'+(_L?'시간 미설정':'Time not set')+'</span>';
     // [v690] 서비스 시간 배지 — 배정 합계가 클라 요청시간보다 길면 그 차이는 서비스로 들어가는 시간 (boss 8/4)
@@ -21703,7 +21709,7 @@ function _clockBoardHTML(sessions){
     var rqtime=rq?('<div class="ck-reqt">◷ '+_ckH2(rq.s)+'–'+_ckH2(rq.e)+(_L?' 요청':' Requested')+(_ckCanEdit()?(' <button class="ck-reqbtn" onclick="_ckOpenReq('+p.id+')">'+(_L?'조정':'Adjust')+'</button>'):'')+'</div>'):(_ckCanEdit()?('<button class="ck-reqbtn full" onclick="_ckOpenReq('+p.id+')">◷ '+(_L?'요청시간 설정':'Set Request Time')+'</button>'):'');
     var cl='<div class="ck-client'+(p.client?'':' none')+'">'+badge+svc+'</div>'+rqtime;
     // [v690] 클라 이름은 카드 하단 → PC 번호 오른쪽으로 (boss 8/4)
-    return '<div class="ck-card" data-pc="'+p.id+'"><div class="ck-top"><span class="ck-top-l"><span class="ck-pcid">PC<span>-'+_srEsc(String(p.id).padStart(2,'0'))+'</span></span><span class="ck-topcl'+(p.client?'':' none')+'">'+(p.client?_srEsc(p.client):(_L?'클라 미배정':'No client'))+'</span></span><span class="ck-top-r">'+crown+'<span class="ck-exp" id="ck-exp-'+p.id+'">+0.0%</span></span></div>'
+    return '<div class="ck-card" data-pc="'+p.id+'"><div class="ck-top"><span class="ck-top-l"><span class="ck-pcid">PC<span>-'+_srEsc(String(p.id).padStart(2,'0'))+'</span></span><span class="ck-topcl'+(p.client?'':' none')+'">'+(p.client?_srEsc(p.client):(_L?'클라 미배정':'No client'))+'</span></span><span class="ck-top-r">'+crown+(p.dayExp>0?('<span class="ck-expday" title="'+(_L?'오늘 하루 누적 경험치':'Today total EXP')+'" style="font-size:10px;font-weight:800;color:rgba(54,198,107,.72)">Σ+'+p.dayExp.toFixed(1)+'%</span>'):'')+'<span class="ck-exp" id="ck-exp-'+p.id+'">+0.0%</span></span></div>'
       +'<div class="ck-clock">'+_ckClockSVG(p,p.assigns)+'<div class="ck-center" id="ck-center-'+p.id+'"><div class="hh">'+p.assigns.filter(function(a){return a.len>0;}).reduce(function(s,a){return s+a.len;},0)+'<span>h</span></div><div class="lab">'+(_L?'스케줄':'Schedule')+'</div></div></div>'
       +leg+cl+'</div>';
   }).join('');
@@ -21778,10 +21784,11 @@ function _ckApply(){
   });
   var nRunning=pcs.filter(function(p){return p.assigns.some(function(a){return a.len>0&&_ckInShift(hInt,a);});}).length;
   var _util=pcs.length?Math.round(nRunning/pcs.length*100):0;   // [v690] 가동률 = 지금 돌고 있는 PC ÷ 전체
+  var _dg=window._ckDayGrand||0;   // [v693] 하루 전체 누적
   var rd=document.getElementById('ck-read');
   if(rd) rd.innerHTML=_L
-    ? ('<b>'+_ckH2(hInt)+':00</b> 기준 · 근무 <b>'+totStaff+'</b>명 · 가동 <b>'+nRunning+'/'+pcs.length+'</b>대 · 가동률 <span class="hl">'+_util+'%</span> · 누적 EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>')
-    : ('<b>'+_ckH2(hInt)+':00</b> Standard · Work <b>'+totStaff+'</b> · Running <b>'+nRunning+'/'+pcs.length+'</b> · Utilization <span class="hl">'+_util+'%</span> · Total EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>');
+    ? ('<b>'+_ckH2(hInt)+':00</b> 기준 · 근무 <b>'+totStaff+'</b>명 · 가동 <b>'+nRunning+'/'+pcs.length+'</b>대 · 가동률 <span class="hl">'+_util+'%</span> · 누적 EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>'+(_dg>0?(' · 오늘 총 <span class="hl">+'+_dg.toFixed(1)+'%</span>'):''))
+    : ('<b>'+_ckH2(hInt)+':00</b> Standard · Work <b>'+totStaff+'</b> · Running <b>'+nRunning+'/'+pcs.length+'</b> · Utilization <span class="hl">'+_util+'%</span> · Total EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>'+(_dg>0?(' · Day total <span class="hl">+'+_dg.toFixed(1)+'%</span>'):''));
 }
 function _ckInit(){ try{ _ckLoadReq(); }catch(_){} var sc=document.getElementById('ck-scrub'); if(!sc||sc._wired) return; sc._wired=true;
   sc.addEventListener('pointerdown',function(e){ sc.setPointerCapture(e.pointerId); _ckSeekTo(e.clientX); sc._drag=true; });
