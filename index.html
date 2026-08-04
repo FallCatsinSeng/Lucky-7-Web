@@ -11260,7 +11260,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v701';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v702';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19430,7 +19430,52 @@ async function _srGetCalc(key,_noCache){
   var j=await r.json(); var d=Array.isArray(j.value)?j.value:[];
   _srCalcCache[key]={ts:Date.now(),data:d}; return d;
 }
-async function _srPutCalc(key,arr){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:arr})}); if(r.ok) delete _srCalcCache[key]; return r.ok; }   // [v407] invalidate cache on write
+// ═══════════════════════════════════════════════════
+// [v702] DATE-BANDED STANDARDS (boss 8/4: "적용되던 스탠다드도 바꿔버린 거예요?")
+// Until now a map held ONE flat sh/sl/target, so every standard edit silently re-scored ALL history —
+// July verdicts kept repainting every time a standard moved (PC7 ×1.2, PC8 ×0.82, today's 고고형님 raise).
+// Now each map carries bands:[{from:'YYYY-MM-DD', sh, sl, target}]. Scoring resolves the band whose
+// `from` ≤ the report's date; a report older than every band uses the EARLIEST band. Maps without bands
+// behave exactly as before (flat values), so nothing breaks while data migrates.
+// ═══════════════════════════════════════════════════
+function _stdBandsFor(m, r){
+  try{
+    if(!m) return m; var bs=m.bands; if(!Array.isArray(bs)||!bs.length) return m;
+    var d=String((r&&r.date)||'').slice(0,10); if(!d||d.length<10) return m;
+    var pick=null,i,b;
+    for(i=0;i<bs.length;i++){ b=bs[i]; if(!b||!b.from) continue; if(String(b.from)<=d && (!pick||String(b.from)>String(pick.from))) pick=b; }
+    if(!pick){ for(i=0;i<bs.length;i++){ b=bs[i]; if(!b||!b.from) continue; if(!pick||String(b.from)<String(pick.from)) pick=b; } }
+    if(!pick) return m;
+    var out=Object.assign({},m);
+    ['sh','sl','target'].forEach(function(k){ if(pick[k]!=null && pick[k]!=='') out[k]=pick[k]; });
+    return out;
+  }catch(_){ return m; }
+}
+// [v702] history keeper — runs on EVERY clients save: seeds a baseline band on maps that have none
+// (from 2000-01-01 = "this value applied since forever", which matches today's behaviour), and when the
+// flat values differ from the latest band it appends a new band effective TODAY (KST). Editors keep
+// writing flat sh/sl/target exactly as before; the ledger of changes builds itself.
+function _stdMaintainBands(arr){
+  try{
+    if(!Array.isArray(arr)) return arr;
+    var today=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+    arr.forEach(function(c){ if(!c||!Array.isArray(c.maps)) return;
+      c.maps.forEach(function(m){ if(!m) return;
+        var has=function(v){ return v!=null && v!==''; };
+        if(!has(m.sh)&&!has(m.sl)&&!has(m.target)) return;   // empty card — nothing to band
+        if(!Array.isArray(m.bands)||!m.bands.length){ m.bands=[{from:'2000-01-01',sh:m.sh,sl:m.sl,target:m.target}]; return; }
+        var last=null; m.bands.forEach(function(b){ if(b&&b.from&&(!last||String(b.from)>String(last.from))) last=b; });
+        if(!last){ m.bands.push({from:'2000-01-01',sh:m.sh,sl:m.sl,target:m.target}); return; }
+        var same=function(a,b){ return String(a==null?'':a)===String(b==null?'':b); };
+        if(same(last.sh,m.sh)&&same(last.sl,m.sl)&&same(last.target,m.target)) return;   // unchanged
+        if(String(last.from)===today){ last.sh=m.sh; last.sl=m.sl; last.target=m.target; }   // same-day re-edit updates today's band
+        else m.bands.push({from:today,sh:m.sh,sl:m.sl,target:m.target});
+      });
+    });
+  }catch(_){ }
+  return arr;
+}
+async function _srPutCalc(key,arr){ if(key==='clients') arr=_stdMaintainBands(arr); var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:arr})}); if(r.ok) delete _srCalcCache[key]; return r.ok; }   // [v407] invalidate cache on write · [v702] clients saves auto-maintain standard bands
 // [v268] Append new items server-side — sends only the NEW records (small body, no size limit) instead of
 // re-uploading the whole reports array. Faster, and avoids the Express 100KB body cap that was blocking saves.
 async function _srAppendCalc(key,items){ var r=await _srFetchRetry(_SR_SERVER+'/api/calc-data/'+key+'/append',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})}); if(r.ok) delete _srCalcCache[key]; return {ok:r.ok, status:r.status}; }   // [v407] invalidate cache on write
@@ -20803,7 +20848,7 @@ async function renderShiftAdmin(silent){
       for(i=allRs.length-1;i>=0;i--){ if(allRs[i].tag==='checkin'){ci=allRs[i];break;} if(allRs[i].tag==='checkout'){break;} }
 
       var sGain=0,sQuota=0,sHours=0, _shb={};   // [v384] count by real ROLLING-GAP hour run (createdAt), not a fixed clock grid — see _SR_HOUR_GAP_MS
-      if(ci){ var ciMs=reportMs(ci); var _sLastMs=null,_sSeq=0; allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); var _sms=reportMs(r); var _shk; if(_sms!=null){ if(_sLastMs==null||(_sms-_sLastMs)>_SR_HOUR_GAP_MS)_sSeq++; _sLastMs=_sms; _shk='h'+_sSeq; } else { _shk='r'+r.id; } if(!_shb[_shk])_shb[_shk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_shb[_shk].tgt=Number(mo.target); } }); sHours=Object.keys(_shb).length; Object.keys(_shb).forEach(function(_k){ sQuota+=(_shb[_k].tgt||0); }); }
+      if(ci){ var ciMs=reportMs(ci); var _sLastMs=null,_sSeq=0; allRs.forEach(function(r){ if(isTestMap(r)||isDup[r.id])return; if((r.tag==='status'||r.tag==='checkout')&&reportMs(r)>=ciMs&&r.client===ci.client){ sGain+=(segGain[r.id]||0); var _sms=reportMs(r); var _shk; if(_sms!=null){ if(_sLastMs==null||(_sms-_sLastMs)>_SR_HOUR_GAP_MS)_sSeq++; _sLastMs=_sms; _shk='h'+_sSeq; } else { _shk='r'+r.id; } if(!_shb[_shk])_shb[_shk]={tgt:0}; var mo=_stdBandsFor(findMap(clients,r),r); if(mo&&Number(mo.target)>0)_shb[_shk].tgt=Number(mo.target); } }); sHours=Object.keys(_shb).length; Object.keys(_shb).forEach(function(_k){ sQuota+=(_shb[_k].tgt||0); }); }
       var sPct=sQuota>0?(sGain/sQuota*100):0;
 
       // [v259] Anchor each report to its shift's CHECK-IN date (same as payroll's shiftDateOf), so a night
@@ -20817,7 +20862,7 @@ async function renderShiftAdmin(silent){
         if(r.tag==='checkin'){ tReports.push({start:r.start,end:r.end,map:r.map,tag:'checkin',gain:null,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:false,ms:reportMs(r)}); return; }
         if(r.tag==='status'||r.tag==='checkout'||!r.tag){
           var g=(segGain[r.id]||0), dup=!!isDup[r.id];
-          if(!dup){ tGain+=g; var _tms=reportMs(r); var _thk; if(_tms!=null){ if(_tLastMs==null||(_tms-_tLastMs)>_SR_HOUR_GAP_MS)_tSeq++; _tLastMs=_tms; _thk='h'+_tSeq; } else { _thk='r'+r.id; } if(!_thb[_thk])_thb[_thk]={tgt:0}; var mo=findMap(clients,r); if(mo&&Number(mo.target)>0)_thb[_thk].tgt=Number(mo.target); }
+          if(!dup){ tGain+=g; var _tms=reportMs(r); var _thk; if(_tms!=null){ if(_tLastMs==null||(_tms-_tLastMs)>_SR_HOUR_GAP_MS)_tSeq++; _tLastMs=_tms; _thk='h'+_tSeq; } else { _thk='r'+r.id; } if(!_thb[_thk])_thb[_thk]={tgt:0}; var mo=_stdBandsFor(findMap(clients,r),r); if(mo&&Number(mo.target)>0)_thb[_thk].tgt=Number(mo.target); }
           tReports.push({start:r.start,end:r.end,map:r.map,tag:(r.tag||'status'),gain:g,lv:(segLv[r.id]!=null?segLv[r.id]:r.lvAfter),exp:r.expAfter,dup:dup,ms:reportMs(r)});
         }
       });
@@ -21450,7 +21495,7 @@ function _srRecCompute(reports, clients){
       if(isTestMap(r)) return;
       var _rd=shiftDateOf(r);
       var _tag=(r.tag==='checkin')?'checkin':((r.tag==='checkout')?'checkout':'status');
-      var _rmo=findMap(clients,r);
+      var _rmo=_stdBandsFor(findMap(clients,r),r);   /* [v702] score with the standard that was live on the report's date */
       var _tgt=(_rmo&&Number(_rmo.target)>0)?Number(_rmo.target):null;
       // [v386] Surface the Stable hi/lo band alongside the Goal target, so Records can show the full
       // Goal/Stable/Cut breakdown, not just the single Goal number.
@@ -26654,7 +26699,7 @@ async function renderMyPerformance(){
 
     const byDate = {}; days.forEach(d => byDate[d] = { gain:0, quota:0, hours:0, ade:0 });
     settleRs.forEach(r => { const d=shiftDateOf(r); if(!byDate[d]) return;
-      const mo=findMap(clients,r); const tg=mo&&Number(mo.target)>0?Number(mo.target):null;
+      const mo=_stdBandsFor(findMap(clients,r),r); const tg=mo&&Number(mo.target)>0?Number(mo.target):null;
       byDate[d].gain  += (segGain[r.id]!=null?segGain[r.id]:0);
       byDate[d].ade   += (segAde[r.id]||0);
       byDate[d].hours += 1;
