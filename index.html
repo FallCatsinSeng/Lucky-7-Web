@@ -11073,7 +11073,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v689';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v690';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21669,9 +21669,11 @@ function _clockBoardHTML(sessions){
   });
   window._ckPCS=ckPCS;
 
+  var _cols=_ckCols();
   var head='<div class="ck-bar"><div class="ck-bar-l"><button class="race-btn play" id="ck-play" onclick="_ckToggle()"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span class="lab">'+(_L?'하루 재생':'Day Playback')+'</span></button>'
     +'<button class="race-btn" id="ck-now" onclick="_ckNow()">'+(_L?'지금':'Now')+'</button>'
-    +'<div class="race-seg" id="ck-speed"><button data-x="1" onclick="_ckSpeed(1)">1×</button><button data-x="2" class="on" onclick="_ckSpeed(2)">2×</button><button data-x="4" onclick="_ckSpeed(4)">4×</button></div></div>'
+    +'<div class="race-seg" id="ck-speed"><button data-x="1" onclick="_ckSpeed(1)">1×</button><button data-x="2" class="on" onclick="_ckSpeed(2)">2×</button><button data-x="4" onclick="_ckSpeed(4)">4×</button></div>'
+    +'<div class="race-seg" id="ck-cols" title="'+(_L?'한 줄에 몇 개':'Cards per row')+'">'+[4,5,6,7].map(function(n){return '<button data-n="'+n+'" class="'+(n===_cols?'on':'')+'" onclick="_ckSetCols('+n+')">'+n+'</button>';}).join('')+'</div></div>'
     +'<div class="ck-scrub" id="ck-scrub"><div class="ck-scrub-tr"></div><div class="ck-scrub-fl" id="ck-scrub-fl"></div><div class="ck-scrub-hd" id="ck-scrub-hd"></div></div>'
     +'<div class="ck-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'
     +'<div class="race-read" id="ck-read">'+(exp.date?(_L?('재생을 누르면 하루가 흐르며 근무 시프트와 그 시간까지 올린 EXP%가 같이 표시됩니다. · 기준일 '+exp.date):('Press play to watch the day unfold with shift hours and EXP% gained up to that point. \u00B7 As of '+exp.date)):(_L?'세션 데이터가 없어 EXP 오버레이는 비활성화. 시프트만 표시됩니다.':'No session data, so the EXP overlay is disabled. Showing shifts only.'))+'</div></div>';
@@ -21682,14 +21684,19 @@ function _clockBoardHTML(sessions){
       return '<div class="ck-lg ck-lg-go" onclick="_ckToStaffIdx('+p.id+','+ai+')" title="'+(_L?'이 직원 EXP 기록 열기':'Open this staff\u2019s EXP record')+'"><span class="ck-sw" style="background:'+_ckColor(a.name)+'"></span><span class="ck-nm">'+_srEsc(a.name)+'</span><span class="ck-tm">'+rng+'</span><span class="ck-go-ar">→</span></div>'; }).join(''):'<div class="ck-lg-empty">'+(_L?'직원 미배정':'Staff unassigned')+'</div>';
     var rq=_ckReqOf(p.id); var cov=_ckCoverGap(rq,p.assigns);
     var badge=rq?(cov&&cov.gap>0?'<span class="ck-bdg gap">'+cov.gap+(_L?'시간 빔':'h gap')+'</span>':'<span class="ck-bdg ok">'+(_L?'충족':'Covered')+'</span>'):'<span class="ck-bdg unset">'+(_L?'시간 미설정':'Time not set')+'</span>';
+    // [v690] 서비스 시간 배지 — 배정 합계가 클라 요청시간보다 길면 그 차이는 서비스로 들어가는 시간 (boss 8/4)
+    var svc=''; if(rq && rq.s!=null && rq.e!=null){ var _re2=rq.e; if(_re2<=rq.s)_re2+=24; var _span=_re2-rq.s;
+      var _tot=p.assigns.reduce(function(s,a){return s+(a.len||0);},0); var _extra=Math.round((_tot-_span)*10)/10;
+      if(_extra>0) svc='<span class="ck-bdg svc" title="'+(_L?('요청 '+_span+'h인데 배정 '+_tot+'h — '+_extra+'h는 서비스'):('requested '+_span+'h, assigned '+_tot+'h — '+_extra+'h free service'))+'">🎁 +'+_extra+'h '+(_L?'서비스':'svc')+'</span>'; }
     var rqtime=rq?('<div class="ck-reqt">◷ '+_ckH2(rq.s)+'–'+_ckH2(rq.e)+(_L?' 요청':' Requested')+(_ckCanEdit()?(' <button class="ck-reqbtn" onclick="_ckOpenReq('+p.id+')">'+(_L?'조정':'Adjust')+'</button>'):'')+'</div>'):(_ckCanEdit()?('<button class="ck-reqbtn full" onclick="_ckOpenReq('+p.id+')">◷ '+(_L?'요청시간 설정':'Set Request Time')+'</button>'):'');
-    var cl='<div class="ck-client'+(p.client?'':' none')+'">◎ '+(p.client?_srEsc(p.client):(_L?'클라 미배정':'Client unassigned'))+badge+'</div>'+rqtime;
-    return '<div class="ck-card" data-pc="'+p.id+'"><div class="ck-top"><span class="ck-pcid">PC<span>-'+_srEsc(String(p.id).padStart(2,'0'))+'</span></span><span class="ck-top-r">'+crown+'<span class="ck-exp" id="ck-exp-'+p.id+'">+0.0%</span></span></div>'
+    var cl='<div class="ck-client'+(p.client?'':' none')+'">'+badge+svc+'</div>'+rqtime;
+    // [v690] 클라 이름은 카드 하단 → PC 번호 오른쪽으로 (boss 8/4)
+    return '<div class="ck-card" data-pc="'+p.id+'"><div class="ck-top"><span class="ck-top-l"><span class="ck-pcid">PC<span>-'+_srEsc(String(p.id).padStart(2,'0'))+'</span></span><span class="ck-topcl'+(p.client?'':' none')+'">'+(p.client?_srEsc(p.client):(_L?'클라 미배정':'No client'))+'</span></span><span class="ck-top-r">'+crown+'<span class="ck-exp" id="ck-exp-'+p.id+'">+0.0%</span></span></div>'
       +'<div class="ck-clock">'+_ckClockSVG(p,p.assigns)+'<div class="ck-center" id="ck-center-'+p.id+'"><div class="hh">'+p.assigns.filter(function(a){return a.len>0;}).reduce(function(s,a){return s+a.len;},0)+'<span>h</span></div><div class="lab">'+(_L?'스케줄':'Schedule')+'</div></div></div>'
       +leg+cl+'</div>';
   }).join('');
 
-  return '<div id="ck-board" class="ck-wrap">'+head+'<div class="ck-grid">'+grid+'</div></div>';
+  return '<div id="ck-board" class="ck-wrap">'+head+'<div class="ck-grid" id="ck-grid" style="grid-template-columns:repeat('+_cols+',minmax(0,1fr))">'+grid+'</div></div>';
 }
 
 async function _ckLoadReq(){ if(window._ckReqLoaded) return; window._ckReqLoaded=true; try{ if(typeof _srGetCalc!=='function') return; var arr=await _srGetCalc('clock_req'); var m={}; if(Array.isArray(arr)) arr.forEach(function(x){ if(x&&x.pc!=null) m[x.pc]={s:Number(x.s),e:Number(x.e)}; }); window._ckReq=m; if(window._srRecMode==='clock' && typeof _srRecReRender==='function') _srRecReRender(); }catch(_){} }
@@ -21704,6 +21711,14 @@ function _ckOpenReq(pc){ if(!_ckCanEdit()) return; var cur=_ckReqOf(pc)||{s:9,e:
     +'<div class="ck-modal-btns"><button class="race-btn" onclick="_ckReqClose()">'+(_L?'취소':'Cancel')+'</button>'+(_ckReqOf(pc)?('<button class="race-btn" style="color:#d9665c" onclick="_ckSaveReq('+pc+',null,null);_ckReqClose()">'+(_L?'삭제':'Delete')+'</button>'):'')+'<button class="race-btn play" onclick="var s=+document.getElementById(\'ck-rq-s\').value,e=+document.getElementById(\'ck-rq-e\').value;_ckSaveReq('+pc+',s,e);_ckReqClose()">'+(_L?'저장':'Save')+'</button></div></div>';
   document.body.appendChild(ov); ov.addEventListener('click',function(e){ if(e.target===ov)_ckReqClose(); });
 }
+/* ── [v690] 열 개수 조절 (boss 8/4: 4~7개 내가 고르게) ── */
+function _ckCols(){ try{ var n=parseInt(localStorage.getItem('ck_cols')||'5',10); return (n>=4&&n<=7)?n:5; }catch(_){ return 5; } }
+function _ckSetCols(n){
+  try{ localStorage.setItem('ck_cols', String(n)); }catch(_){}
+  var g=document.getElementById('ck-grid'); if(g) g.style.gridTemplateColumns='repeat('+n+',minmax(0,1fr))';
+  var seg=document.getElementById('ck-cols'); if(seg)[].forEach.call(seg.children,function(c){c.classList.toggle('on',+c.getAttribute('data-n')===n);});
+}
+
 /* ── transport ── */
 var _ckAnim=null;
 function _ckKstHour(){ var d=new Date(Date.now()+9*3600000); return d.getUTCHours()+d.getUTCMinutes()/60; }
@@ -21726,7 +21741,8 @@ function _ckApply(){
   pcs.forEach(function(p){
     var onCount=0, pcExp=0;
     p.assigns.forEach(function(a,i){ var on=a.len>0?_ckInShift(hInt,a):false; if(on)onCount++;
-      var ring=document.getElementById('ck-ring-'+p.id+'-'+i); if(ring) ring.style.opacity=(st.playing||!st.follow)?(on?'1':'0.16'):'1';
+      // [v690] boss 8/4: '지금' 상태에서도 시계추가 가리키는 시간에 근무 중인 링만 빛나게 (전에는 정지 시 전부 발광)
+      var ring=document.getElementById('ck-ring-'+p.id+'-'+i); if(ring) ring.style.opacity=on?'1':'0.16';
       var c=(exp.cum[a.key]||null); if(c) pcExp+=(c[hInt]||0); });
     totStaff+=onCount; totExp+=pcExp;
     var hand=document.getElementById('ck-hand-'+p.id); if(hand) hand.setAttribute('transform','rotate('+deg+' '+_CKCX+' '+_CKCY+')');
@@ -21735,10 +21751,11 @@ function _ckApply(){
     else if(ce){ var sched=p.assigns.filter(function(a){return a.len>0;}).reduce(function(s,a){return s+a.len;},0); ce.querySelector('.hh').innerHTML=sched+'<span>h</span>'; ce.querySelector('.lab').textContent=(_L?'스케줄':'Schedule'); }
   });
   var nRunning=pcs.filter(function(p){return p.assigns.some(function(a){return a.len>0&&_ckInShift(hInt,a);});}).length;
+  var _util=pcs.length?Math.round(nRunning/pcs.length*100):0;   // [v690] 가동률 = 지금 돌고 있는 PC ÷ 전체
   var rd=document.getElementById('ck-read');
   if(rd) rd.innerHTML=_L
-    ? ('<b>'+_ckH2(hInt)+':00</b> 기준 · 근무 <b>'+totStaff+'</b>명 · 가동 <b>'+nRunning+'</b>대 · 누적 EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>')
-    : ('<b>'+_ckH2(hInt)+':00</b> Standard · Work <b>'+totStaff+'</b> · Running <b>'+nRunning+'</b> · Total EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>');
+    ? ('<b>'+_ckH2(hInt)+':00</b> 기준 · 근무 <b>'+totStaff+'</b>명 · 가동 <b>'+nRunning+'/'+pcs.length+'</b>대 · 가동률 <span class="hl">'+_util+'%</span> · 누적 EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>')
+    : ('<b>'+_ckH2(hInt)+':00</b> Standard · Work <b>'+totStaff+'</b> · Running <b>'+nRunning+'/'+pcs.length+'</b> · Utilization <span class="hl">'+_util+'%</span> · Total EXP <span class="hl">'+(totExp>0?'+':'')+totExp.toFixed(1)+'%</span>');
 }
 function _ckInit(){ try{ _ckLoadReq(); }catch(_){} var sc=document.getElementById('ck-scrub'); if(!sc||sc._wired) return; sc._wired=true;
   sc.addEventListener('pointerdown',function(e){ sc.setPointerCapture(e.pointerId); _ckSeekTo(e.clientX); sc._drag=true; });
@@ -21764,6 +21781,11 @@ function _raceInjectCSS(){
     ".race-seg{display:inline-flex;background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#33332f);border-radius:10px;padding:2px}",
     ".race-seg button{appearance:none;border:none;background:transparent;color:var(--tx3,#6c6b66);font:inherit;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer}",
     ".race-seg button.on{background:var(--bg-a,#232323);color:var(--tx,#e6e5e2)}",
+    /* [v690] 시계 보드: 상단 클라 이름 + 서비스 배지 (both #sr-app and #pc-timeline-panel) */
+    ".ck-top-l{display:flex;align-items:center;gap:7px;min-width:0}",
+    ".ck-topcl{font-size:11px;font-weight:700;color:var(--ac,#c2a04a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}",
+    ".ck-topcl.none{color:var(--tx3,#6c6b66);font-weight:600}",
+    ".ck-bdg.svc{color:#4dc07a;background:rgba(77,192,122,.12);border-color:rgba(77,192,122,.32)}",
     ".race-king{display:flex;align-items:center;gap:14px;background:linear-gradient(180deg,rgba(194,160,74,.08),rgba(255,255,255,.015));border:1px solid var(--ac-bord,rgba(194,160,74,.4));border-radius:18px;padding:16px 18px;margin-bottom:14px}",
     ".race-king-av{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;font-size:17px;font-weight:800;color:#1a1405;flex:none;box-shadow:0 0 0 2px var(--ac,#c2a04a)}",
     ".race-king-info{flex:1;min-width:0}",
