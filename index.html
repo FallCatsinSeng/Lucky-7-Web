@@ -8764,6 +8764,88 @@ body:has(#kb-race) #sb-right{display:none!important}
   font-family:Georgia,"Times New Roman",serif;
 }
 #kb-race .mt-weekly-stars{position:absolute;bottom:13px;font-size:16px;letter-spacing:.38em;color:#ffc85e;text-shadow:0 0 12px rgba(229,181,103,.64)}
+
+/* ═══ [v696] WEEKLY BONUS — 간판(plaque) → 조명 든 무대 공간(scene) (boss 8/4: "이름만 적지 말고 공간처럼") ═══
+   같은 DOM을 재해석: 컨테이너 = 뒷벽+원근 바닥의 알코브, crown = 펜던트 조명(빛기둥), text = 벽의 은은한 네온,
+   stars = 바닥 반사. 느린 앰비언트 셔머로 살아있는 공간감. */
+#kb-race .mt-weekly-bonus-sign{
+  border-radius:18px;
+  border:1px solid rgba(229,181,103,.28);
+  background:
+    /* 천장 스포트라이트 콘 */
+    linear-gradient(180deg,rgba(255,224,150,.14),rgba(255,224,150,.045) 34%,transparent 58%),
+    /* 뒷벽 은은한 비네트 */
+    radial-gradient(120% 90% at 50% 30%,rgba(229,181,103,.10),transparent 62%),
+    /* 원근 바닥 (하단 34%) */
+    linear-gradient(180deg,transparent 66%,rgba(229,181,103,.07) 67%,rgba(12,10,8,.9) 100%),
+    linear-gradient(180deg,rgba(30,23,14,.92),rgba(10,9,8,.96));
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.5),inset 0 -26px 34px -22px rgba(229,181,103,.18),0 24px 44px rgba(0,0,0,.42);
+}
+#kb-race .mt-weekly-bonus-sign::before{
+  inset:auto 12% 8% 12%;height:1px;border:none;border-radius:0;
+  background:linear-gradient(90deg,transparent,rgba(255,226,154,.36),transparent);   /* 무대 앞선 */
+  box-shadow:0 -14px 26px 6px rgba(229,181,103,.10);
+}
+#kb-race .mt-weekly-bonus-sign::after{
+  inset:0;border:none;border-radius:18px;pointer-events:none;
+  background:radial-gradient(46% 30% at 50% 12%,rgba(255,232,168,.16),transparent 70%);   /* 조명 웅덩이 */
+  animation:mtWkAmb 5.5s ease-in-out infinite;
+}
+@keyframes mtWkAmb{0%,100%{opacity:.55}50%{opacity:1}}
+#kb-race .mt-weekly-crown{
+  top:10px;font-size:20px;color:#ffe9b0;
+  text-shadow:0 0 10px rgba(255,213,107,.85),0 0 34px rgba(229,181,103,.5);
+  filter:drop-shadow(0 16px 22px rgba(255,213,107,.28));   /* 펜던트 조명 */
+}
+#kb-race .mt-weekly-rule{top:auto;bottom:34%;left:22%;right:22%;height:1px;opacity:.5;box-shadow:0 0 8px rgba(229,181,103,.3)}   /* 뒷벽 선반 라인 */
+#kb-race .mt-weekly-text{
+  margin-top:6px;font-weight:650;letter-spacing:.22em;font-size:clamp(26px,3.8vw,40px);line-height:1.18;
+  color:rgba(255,236,190,.94);
+  text-shadow:0 0 14px rgba(255,205,100,.5),0 0 44px rgba(229,181,103,.32);   /* 부드러운 단일 글로우 — 3중 네온 제거 */
+  font-family:Georgia,"Times New Roman",serif;
+}
+#kb-race .mt-weekly-stars{
+  bottom:7%;font-size:11px;letter-spacing:.6em;color:rgba(255,200,94,.5);
+  text-shadow:0 0 8px rgba(229,181,103,.4);
+  transform:scaleY(-1);opacity:.55;filter:blur(.4px);   /* 바닥 반사 */
+}
+
+/* ═══ [v696] WEEKLY KING / LAST — 앰비언트 · 미니멀 · 세련 (boss 8/4) ═══
+   원칙: 배경 글로우로 분위기, 요소는 조용하게 — 필 배지 제거→라벨:값 텍스트, 원형 아바타 링,
+   얇은 대형 스코어, 헤어라인 반분선. */
+#kb-race .c-king{
+  padding:16px 18px!important;
+  border-color:rgba(255,255,255,.07)!important;
+  background:
+    radial-gradient(420px 150px at 12% 18%,rgba(229,181,103,.13),transparent 65%),
+    radial-gradient(420px 150px at 88% 85%,rgba(196,90,80,.10),transparent 65%),
+    linear-gradient(180deg,rgba(16,16,20,.92),rgba(10,10,13,.96))!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 18px 40px rgba(0,0,0,.3)!important;
+}
+#kb-race .king-half.king-top{padding-bottom:12px}
+#kb-race .king-half.king-bottom{padding-top:12px;border-top:1px solid rgba(255,255,255,.055)}
+#kb-race .king-badge{
+  width:44px;height:44px;border-radius:50%;font-size:15px;font-weight:800;letter-spacing:.04em;
+  background:rgba(229,181,103,.12);color:#f0d391;
+  box-shadow:inset 0 0 0 1px rgba(229,181,103,.45),0 0 22px rgba(229,181,103,.18);
+}
+#kb-race .loser-badge{background:rgba(196,90,80,.10);color:#e0968c;box-shadow:inset 0 0 0 1px rgba(196,90,80,.4),0 0 22px rgba(196,90,80,.14)}
+#kb-race .king-overline{font-size:9.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:rgba(240,201,120,.75)}
+#kb-race .loser-overline{color:rgba(224,150,140,.7)}
+#kb-race .king-overline .king-state{font-size:9px;font-weight:700;letter-spacing:.14em;color:rgba(235,235,245,.4);background:none;border:none;padding:0}
+#kb-race .king-name-line{font-size:21px;font-weight:650;letter-spacing:.05em;color:rgba(255,255,255,.96);margin-top:2px}
+#kb-race .king-sub-line{font-size:11px;color:rgba(235,235,245,.42);letter-spacing:.02em}
+#kb-race .king-mini-pill{background:none!important;border:none!important;padding:0!important;border-radius:0!important;font-size:9.5px;letter-spacing:.12em;color:rgba(235,235,245,.4)}
+#kb-race .king-mini-pill b{font-size:12px;font-weight:650;color:rgba(255,245,220,.9)}
+#kb-race .king-mini-pill.cut b,#kb-race .king-mini-pill.gap b{color:rgba(240,180,170,.9)}
+#kb-race .king-meta-row{gap:16px;margin-top:5px}
+#kb-race .king-score{font-size:30px;font-weight:250;letter-spacing:-.01em;color:#ffe6a8;text-shadow:0 0 24px rgba(229,181,103,.35)}
+#kb-race .loser-score{color:#e8a89e;text-shadow:0 0 24px rgba(196,90,80,.3)}
+#kb-race .king-score-label{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(235,235,245,.35)}
+#kb-race .king-score-note{font-size:10px;color:rgba(235,235,245,.45)}
+#kb-race .k-bar{height:2px;border-radius:2px;background:rgba(255,255,255,.06);margin-top:10px}
+#kb-race .k-bar i{border-radius:2px;background:linear-gradient(90deg,rgba(229,181,103,.5),#ffe6a8);box-shadow:0 0 10px rgba(229,181,103,.35)}
+#kb-race .k-bar.loser-bar i{background:linear-gradient(90deg,rgba(196,90,80,.5),#e8a89e);box-shadow:0 0 10px rgba(196,90,80,.3)}
 #kb-race #kbapp.bento.mt-grid-ready .c-money .mc-head,
 #kb-race #kbapp.bento .c-money .mc-head{position:relative!important;z-index:7!important;background:linear-gradient(180deg,rgba(13,13,18,.84),rgba(13,13,18,.38))!important;backdrop-filter:blur(6px)!important;-webkit-backdrop-filter:blur(6px)!important}
 #kb-race #kbapp.bento.mt-grid-ready .c-money .mc-controls,
@@ -11083,7 +11165,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v695';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v697';   // keep in lockstep with the BUILD comment at the top of this file (v696 race design + v697 관제탑 합본)
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -17487,6 +17569,33 @@ async function renderOverview(){
   // 할 일 카운트
   const todoCount = overdueTasks.length + warnMembers.length + (isManager?tasksNeedReply.length:0) + unregistered.length + (unreadAnns.length>0?1:0) + (isManager&&newApplicants.length>0?1:0);
 
+  // ── [v697] 관제탑 (boss 8/4: "종합현황이 쓸모없다 → 관제탑으로") — 아침에 확인할 4가지 ──
+  // ① 어제 레이스 정산 (LEFT: race_payouts + race_settings)
+  let _ovRace=null;
+  if(sb && isManager){ try{
+    const _r1=await sb.from('race_payouts').select('final_payout_amount').eq('shift_date',_ydayIso);
+    const _r2=await sb.from('race_settings').select('remaining_pool,total_pool,payout_status').eq('id',1).maybeSingle();
+    const _rows=(_r1&&_r1.data)||[];
+    _ovRace={ n:_rows.length, paid:_rows.reduce((s,r)=>s+(Number(r.final_payout_amount)||0),0),
+      remain:(_r2&&_r2.data)?Number(_r2.data.remaining_pool):null,
+      paused:!!(_r2&&_r2.data&&_r2.data.payout_status==='paused') };
+  }catch(_){}}
+  // ④ 트러스트 이번 달 요약 (렌더 시점 데이터 — 없으면 로드)
+  let _ovTrust=null;
+  if(isManager){ try{
+    if(typeof loadTrustState==='function') await loadTrustState();
+    const _ym=todayIso.slice(0,7);
+    let _tp=0,_wp=0,_topN='',_topV=0;
+    Object.keys(TRUST_DATA||{}).forEach(k=>{
+      if(typeof _trBoardPts!=='function') return;
+      const bp=_trBoardPts(TRUST_DATA[k]||{},_ym);
+      _tp+=bp.trust; _wp+=bp.warn;
+      if(bp.trust>_topV){ _topV=bp.trust; _topN=(typeof trustName==='function'?trustName(k):k); }
+    });
+    _ovTrust={ tp:_tp, wp:_wp, topN:_topN, topV:_topV };
+  }catch(_){}}
+  const _ovMoney=v=>'Rp '+String(Math.round(Number(v)||0)).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+
   // 인사 — 언어별 (en/id/ko)
   const now = new Date();
   const h = now.getHours();
@@ -17549,6 +17658,35 @@ async function renderOverview(){
     </div>
 
     <div class="owd-online" id="dash-online"></div>
+
+    ${isManager?`
+    <!-- [v697] 관제탑 — 아침에 볼 4가지: 어제 정산 · 오늘 리포트 · 가동 · 트러스트 -->
+    <div class="owd-grid" style="margin-bottom:14px">
+      <div class="owd-widget" onclick="setActiveChannel('pl-race')">
+        <div class="owd-w-head"><span class="owd-w-ic">🏁</span> 어제 정산 <span style="margin-left:auto;font-size:9.5px;color:var(--tx3)">${_ydayIso.slice(5).replace('-','/')}</span></div>
+        ${_ovRace?`
+        <div class="owd-w-big"><span class="owd-big-num" style="color:${_ovRace.n?'var(--gr)':'var(--ye)'}">${_ovRace.n?_ovRace.n+'명':'미정산'}</span><span class="owd-big-lbl">${_ovRace.n?_ovMoney(_ovRace.paid):'또는 0명 정산'}</span></div>
+        <div class="owd-w-foot"><span class="owd-chip ${_ovRace.paused?'owd-chip-re':'owd-chip-gr'}">${_ovRace.paused?'지급 일시정지':'지급 중'}</span>${_ovRace.remain!=null?`<span class="owd-chip">풀 ${_ovMoney(_ovRace.remain)}</span>`:''}</div>`
+        :`<div class="owd-w-big"><span class="owd-big-num" style="color:var(--tx3)">—</span><span class="owd-big-lbl">데이터 없음</span></div>`}
+      </div>
+      <div class="owd-widget" onclick="setActiveChannel('pl-records')">
+        <div class="owd-w-head"><span class="owd-w-ic">📡</span> 오늘 리포트</div>
+        <div class="owd-w-big"><span class="owd-big-num" id="ov-rep-n" style="color:var(--tx2)">…</span><span class="owd-big-lbl" id="ov-rep-sub">불러오는 중</span></div>
+        <div class="owd-w-foot" id="ov-rep-foot"></div>
+      </div>
+      <div class="owd-widget" onclick="setActiveChannel('pc-status')">
+        <div class="owd-w-head"><span class="owd-w-ic">🖥</span> PC 가동</div>
+        <div class="owd-w-big"><span class="owd-big-num" style="color:${pcActive?'var(--gr)':'var(--tx3)'}">${pcActive}<small style="font-size:14px;color:var(--tx3)">/${pcTotal}</small></span><span class="owd-big-lbl">가동률 ${pcTotal?Math.round(pcActive/pcTotal*100):0}%</span></div>
+        <div class="owd-w-foot"><span class="owd-chip">근무 ${workingN}명</span></div>
+      </div>
+      <div class="owd-widget" onclick="setActiveChannel('op-trust')">
+        <div class="owd-w-head"><span class="owd-w-ic">🏆</span> 트러스트 이번 달</div>
+        ${_ovTrust?`
+        <div class="owd-w-big"><span class="owd-big-num" style="color:var(--ac)">${_ovTrust.tp}<small style="font-size:13px;color:var(--tx3)"> TP</small></span><span class="owd-big-lbl">워닝 ${_ovTrust.wp.toFixed(1).replace(/\.0$/,'')}점</span></div>
+        <div class="owd-w-foot">${_ovTrust.topN?`<span class="owd-chip owd-chip-ac">1위 ${_ovTrust.topN} · ${_ovTrust.topV}</span>`:'<span class="owd-chip">이번 달 부여 없음</span>'}</div>`
+        :`<div class="owd-w-big"><span class="owd-big-num" style="color:var(--tx3)">—</span></div>`}
+      </div>
+    </div>`:''}
 
     <div class="owd-grid">
       <!-- 오늘 할 일 -->
@@ -17624,6 +17762,40 @@ async function renderOverview(){
     </div>
   </div>`;
   renderOnlinePresence(); // [v67 #5] fill the dashboard online widget
+  if(isManager){ try{ _ovFillReports(); }catch(_){} }   // [v697] 관제탑 리포트 카드 비동기 채움
+}
+
+// [v697] 관제탑 '오늘 리포트' 카드 — 무거운 원본은 캐시 우선 + 비동기라 오버뷰 진입을 안 막음
+async function _ovFillReports(){
+  try{
+    let rows;
+    const c=window._myPerfCache;
+    if(c && (Date.now()-c.ts)<60000){ rows=c.rows; }
+    else{
+      const _hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
+      const res=await fetch(REPORT_SUPABASE_URL+'/rest/v1/calc_data?key=in.(reports,staff,clients)&select=*',{headers:_hdr});
+      rows=await res.json().catch(()=>[]);
+      if(Array.isArray(rows)&&rows.length) window._myPerfCache={ts:Date.now(),rows};
+    }
+    const byKey={}; (rows||[]).forEach(r=>{ byKey[r.key]=(r.value!==undefined?r.value:r.data); });
+    const reps=Array.isArray(byKey.reports)?byKey.reports:[];
+    const now=Date.now();
+    const tIso=new Date(now+9*3600000).toISOString().slice(0,10);   // KST 오늘
+    const today=reps.filter(r=>r&&r.date===tIso);
+    const boosters={}; let lastMs=0;
+    today.forEach(r=>{ const k=String(r.booster||''); const ms=Number(r.createdAt)||0;
+      if(!boosters[k]||ms>boosters[k].ms) boosters[k]={ms,tag:r.tag}; if(ms>lastMs)lastMs=ms; });
+    const names=Object.keys(boosters);
+    const stale=names.filter(k=>{ const b=boosters[k]; return b.tag!=='checkout' && (now-b.ms)>2*3600000; });
+    const el=id=>document.getElementById(id);
+    if(!el('ov-rep-n')) return;   // 이미 다른 페이지로 이동
+    el('ov-rep-n').textContent=today.length+'건';
+    el('ov-rep-n').style.color=today.length?'var(--gr)':'var(--ye)';
+    el('ov-rep-sub').textContent=names.length+'명 보고'+(lastMs?(' · 최근 '+new Date(lastMs+9*3600000).toISOString().slice(11,16)):'');
+    el('ov-rep-foot').innerHTML = stale.length
+      ? '<span class="owd-chip owd-chip-re">2시간+ 무소식 '+stale.length+'명 · '+stale.slice(0,3).join(', ')+(stale.length>3?'…':'')+'</span>'
+      : (names.length?'<span class="owd-chip owd-chip-gr">전원 정상 보고 중 ✓</span>':'<span class="owd-chip">오늘 보고 없음</span>');
+  }catch(_){}
 }
 
 // ═══════════════════════════════════════════════════
