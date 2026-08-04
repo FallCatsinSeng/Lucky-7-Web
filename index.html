@@ -11260,7 +11260,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v700';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v701';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23312,8 +23312,10 @@ function _raceCardHTML(daily, sessions){
 async function renderRecords(silent){
   var otherView=document.getElementById('ch-other'); if(!otherView) return;
   var _grr=((currentUser&&currentUser.role)||'').toLowerCase();
-  var _canRec=(currentUserRole==='admin')||_grr==='ceo'||_grr==='manager';
-  if(!_canRec){ if(!silent) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>기록 · 통계</h2></div><div class="sr-empty">대표 · 매니저 전용입니다.</div></div></div>'; return; }
+  /* [v701] boss 8/3: team leaders (KAIJI/BRUCE, raw role 'leader') and HR may VIEW the page too —
+     read-only is preserved because every mutating control below is isAdmin-gated. */
+  var _canRec=(currentUserRole==='admin')||_grr==='ceo'||_grr==='manager'||_grr==='leader'||_grr==='hr';
+  if(!_canRec){ if(!silent) otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>기록 · 통계</h2></div><div class="sr-empty">대표 · 매니저 · 팀리더 전용입니다.</div></div></div>'; return; }
   _srInjectCSS();
   if(silent && window._srRecMode==='clock'){ return; }   // [v355] don't clobber clock playback
   // [v365] instant paint from cache so the page is never blank while the network catches up
