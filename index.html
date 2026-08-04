@@ -11007,7 +11007,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v679';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v680';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15620,10 +15620,9 @@ async function renderMTSystem(mode){
   };
 
   // ── ACTIVE 카드 (행동) ──
+  // [v680] 액티브·책임 완전 분리 (boss 8/4) — 행동은 책임에 안 묶임. parent/cat 조회 제거.
   const activeCard = a => {
     const pm = MT_PRI[a.priority] || MT_PRI.P2;
-    const parent = MT_PASSIVE.find(p => p.id === a.passive_id);
-    const cat = parent ? MT_CATEGORIES[parent.category] : null;
     const ageHint = (() => {
       if(a.status === 'done') return '';
       const created = new Date((a.created_at||'') + 'T00:00:00');
@@ -15700,9 +15699,9 @@ async function renderMTSystem(mode){
     return `<div class="mt-act ${a.status==='done'?'mt-act-done':''} ${expanded?'mt-act-exp':''}" draggable="true"
         ondragstart="mtKanbanDragStart(event,'active',${a.id})" ondragend="mtKanbanDragEnd(event)"
         ondragover="mtActiveReorderOver(event,${a.id})" ondragleave="mtActiveReorderLeave(event)" ondrop="mtActiveReorderDrop(event,${a.id})"
-        data-aid="${a.id}" title="${cat?cat.label+' · '+parent.title:''}">
+        data-aid="${a.id}">
       <div class="mt-act-row" onclick="toggleActiveExpand(${a.id})">
-        <span class="mt-act-dot" style="background:${cat?cat.color:'var(--br2)'}"></span>
+        <span class="mt-act-dot" style="background:var(--br2)"></span>
         <button class="mt-act-pri" style="background:${pm.color}" onclick="event.stopPropagation();mtCycleActivePri(${a.id})" title="우선순위 ${pm.num}">${pm.num}</button>
         <span class="mt-act-title">${a.title}</span>
         ${steps.length?`<span class="mt-act-steps" title="체크리스트">☑ ${stepDone}/${steps.length}</span>`:''}
@@ -15716,20 +15715,12 @@ async function renderMTSystem(mode){
   };
 
   // ── PASSIVE 컨테이너 (책임 영역) ──
+  // [v680] 액티브·책임 완전 분리 (boss 8/4) — 하위 행동 집계/행동 탭/과부하 경고 제거, 책임 카드는 SOP만 가짐.
   const passiveCard = p => {
     const pm = MT_PRI[p.priority] || MT_PRI.P2;
     const cat = MT_CATEGORIES[p.category] || { label:p.category, color:'#9a9a9a', icon:'📁' };
-    const children = myActive.filter(a => a.passive_id === p.id);  // 배열 순서 = 수동 정렬 (드래그)
-    const childActive = children.filter(a => a.status !== 'done');
-    const childDone = children.filter(a => a.status === 'done');
     const isOpen = mtExpandedPassive.has(p.id);
-    const overloaded = childActive.length >= MT_PASSIVE_LOAD;  // 행동 과부하 = 병목
     const sop = p.sop || [];
-    const tab = mtPassiveTab[p.id] || 'actions';
-
-    const actionsPane = `<div class="mt-add-action">
-        <input class="mt-add-input" id="mt-add-${p.id}" placeholder="+ 행동 추가 (예: Jonathan 면접 시간 잡기)" onkeydown="if(event.key==='Enter')mtAddAction(${p.id})">
-      </div>`;
 
     const sopPane = `<div class="mt-sop">
       <div class="mt-sop-desc">이 책임의 <b>표준 절차(SOP)</b>. 한 번 정의해두면 <b>실행</b> 버튼으로 단계들이 행동으로 자동 생성돼요. 반복 업무를 누가 하든 똑같이.</div>
@@ -15754,30 +15745,19 @@ async function renderMTSystem(mode){
       ${sop.length ? `<button class="mt-sop-run" onclick="mtRunSop(${p.id})">▶ SOP 실행 → 행동 ${sop.length}개 생성</button>` : ''}
     </div>`;
 
-    return `<div class="mt-passive ${overloaded?'mt-passive-overload':''} ${isOpen?'mt-passive-open':''}" data-pid="${p.id}"
+    return `<div class="mt-passive ${isOpen?'mt-passive-open':''}" data-pid="${p.id}"
         ondragover="mtPassiveDragOver(event)" ondragleave="mtPassiveDragLeave(event)"
         ondrop="mtPassiveDrop(event, ${p.id})">
       <div class="mt-passive-head" draggable="true" ondragstart="mtPassiveReorderStart(event, ${p.id})" ondragend="mtPassiveReorderEnd(event)" onclick="mtTogglePassive(${p.id})">
         <span class="mt-passive-handle" draggable="true" onclick="event.stopPropagation()" ondragstart="event.stopPropagation();mtPassiveReorderStart(event, ${p.id})" ondragend="mtPassiveReorderEnd(event)" title="드래그로 책임 순서 변경">⠿</span>
-        <span class="mt-passive-cat-dot" style="background:${overloaded?'var(--re)':cat.color}" title="${cat.label}"></span>
+        <span class="mt-passive-cat-dot" style="background:${cat.color}" title="${cat.label}"></span>
         <span class="mt-passive-title">${p.title}</span>
         <button class="mt-passive-pri" style="background:${pm.color}" onclick="event.stopPropagation();mtCyclePassivePri(${p.id})" title="우선순위 ${pm.num} (${pm.label})">${pm.num}</button>
         ${sop.length ? `<span class="mt-passive-sopbadge" title="SOP ${sop.length}단계">📋 ${sop.length}</span>` : ''}
-        <div class="mt-passive-stat">
-          ${overloaded ? `<span class="mt-overload">⚠ ${childActive.length}</span>`
-            : childActive.length ? `<span class="mt-stat-active">${childActive.length}</span>` : '<span class="mt-stat-idle">·</span>'}
-          ${childDone.length ? `<span class="mt-stat-done">✓${childDone.length}</span>` : ''}
-        </div>
         <button class="mt-passive-del" onclick="event.stopPropagation();mtDeletePassive(${p.id})" title="삭제 / Delete">✕</button>
         <span class="mt-passive-arrow ${isOpen?'open':''}">▾</span>
       </div>
-      ${isOpen ? `<div class="mt-passive-body">
-        <div class="mt-ptabs">
-          <button class="mt-ptab ${tab==='actions'?'on':''}" onclick="mtSwitchPassiveTab(${p.id},'actions')">⚡ 행동 ${childActive.length?`<span class="mt-ptab-n">${childActive.length}</span>`:''}</button>
-          <button class="mt-ptab ${tab==='sop'?'on':''}" onclick="mtSwitchPassiveTab(${p.id},'sop')">📋 SOP ${sop.length?`<span class="mt-ptab-n">${sop.length}</span>`:''}</button>
-        </div>
-        ${tab==='sop' ? sopPane : actionsPane}
-      </div>` : ''}
+      ${isOpen ? `<div class="mt-passive-body">${sopPane}</div>` : ''}
     </div>`;
   };
 
@@ -16007,11 +15987,10 @@ function openMTGuide(){
 
       <div class="mtg-sec">
         <div class="mtg-sec-t">🖱 조작법</div>
-        <div class="mtg-rule">· 책임 카드 안 <b>[+ 행동 추가]</b> → 그 책임의 행동 생성</div>
+        <div class="mtg-rule">· 행동은 <b>액티브 컬럼</b>에서 바로 추가 — 책임과는 독립</div>
         <div class="mtg-rule">· 행동의 <b>○ → ◐ → ●</b> 클릭 → 대기/진행/완료</div>
         <div class="mtg-rule">· 우선순위 아이콘 클릭 → 🔥긴급 / ⚡중요 / 🌱장기</div>
-        <div class="mtg-rule">· 행동을 <b>다른 책임으로 드래그</b> → 소속 이동</div>
-        <div class="mtg-rule">· INBOX 항목을 책임 카드로 드래그 → 행동으로</div>
+        <div class="mtg-rule">· 책임 카드 펼치면 <b>SOP</b> — 실행 시 행동들이 액티브에 생성</div>
       </div>
 
       <div class="mtg-sec">
@@ -16057,18 +16036,15 @@ function mtClassify(inboxId, target){
   renderMTSystem();
 }
 function mtClassifyToActive(inboxId){
-  // 행동으로 — 어느 책임에 넣을지 선택 필요. 가장 최근 책임에 임시 배치 + 안내
+  // [v680] 행동은 항상 독립 — 책임에 안 묶임 (액티브·책임 분리, boss 8/4)
   const item = MT_INBOX.find(i => i.id === inboxId);
   if(!item) return;
   const me = window.mtViewingMember || currentUser?.name || 'MT';
-  const myPassive = MT_PASSIVE.filter(p => p.owner === me && p.status === 'active');
-  const target = myPassive[0] || null;
   const newId = Math.max(100, ...MT_ACTIVE.map(a=>a.id)) + 1;
-  MT_ACTIVE.push({ id:newId, title:item.text, passive_id: target ? target.id : null, owner:me, priority:'P2', status:'todo', due:null, steps:[], created_at:isoDate(new Date()) });
-  if(target) mtExpandedPassive.add(target.id);
+  MT_ACTIVE.push({ id:newId, title:item.text, passive_id:null, owner:me, priority:'P2', status:'todo', due:null, steps:[], created_at:isoDate(new Date()) });
   MT_INBOX = MT_INBOX.filter(i => i.id !== inboxId);
   saveMTSystem();
-  toast(target ? `"${target.title}"에 행동으로 추가 — 다른 책임으로 드래그 가능` : '행동으로 추가됨 / Added as action');
+  toast('행동으로 추가됨 / Added as action');
   renderMTSystem();
 }
 
@@ -16284,10 +16260,9 @@ function mtRunSop(pid){
   const me = window.mtViewingMember || currentUser?.name || 'MT';
   let nextId = Math.max(100, ...MT_ACTIVE.map(a => a.id)) + 1;
   p.sop.forEach(step => {
-    MT_ACTIVE.push({ id:nextId++, title:step, passive_id:pid, owner:p.owner || me, priority:p.priority || 'P2', status:'todo', due:null, steps:[], created_at:isoDate(new Date()) });
+    // [v680] 액티브·책임 분리 — SOP가 만든 행동도 독립 행동으로 액티브에 들어감
+    MT_ACTIVE.push({ id:nextId++, title:step, passive_id:null, owner:p.owner || me, priority:p.priority || 'P2', status:'todo', due:null, steps:[], created_at:isoDate(new Date()) });
   });
-  mtExpandedPassive.add(pid);
-  mtPassiveTab[pid] = 'actions';  // 실행 후 행동 탭으로 전환
   toast(`"${p.title}" SOP 실행 → 행동 ${p.sop.length}개 생성`);
   saveMTSystem();
   renderMTSystem();
@@ -16367,15 +16342,7 @@ function sopScheduleBanner(passives){
 }
 
 // ─── ACTIVE 인터랙션 ───
-function mtAddAction(passiveId){
-  const inp = document.getElementById('mt-add-' + passiveId);
-  if(!inp || !inp.value.trim()) return;
-  const me = window.mtViewingMember || currentUser?.name || 'MT';
-  const newId = Math.max(100, ...MT_ACTIVE.map(a=>a.id)) + 1;
-  MT_ACTIVE.push({ id:newId, title:inp.value.trim(), passive_id:passiveId, owner:me, priority:'P2', status:'todo', due:null, steps:[], created_at:isoDate(new Date()) });
-  saveMTSystem();
-  renderMTSystem();
-}
+// [v680] mtAddAction 제거 — 책임 카드 안 행동 추가 입력이 사라짐 (액티브·책임 분리). 행동 추가는 액티브 컬럼의 mtQuickActive로.
 function mtCycleActive(id){
   const a = MT_ACTIVE.find(x => x.id === id);
   if(!a) return;
@@ -16404,14 +16371,10 @@ function mtDeleteActive(id){
 function mtDeletePassive(id){
   const p = MT_PASSIVE.find(x => x.id === id);
   if(!p) return;
-  const kids = MT_ACTIVE.filter(a => a.passive_id === id);
-  const msg = kids.length
-    ? `이 책임 영역과 하위 행동 ${kids.length}개를 삭제할까요?\nDelete this responsibility and its ${kids.length} action(s)?`
-    : `이 책임 영역을 삭제할까요? / Delete this responsibility?\n\n${p.title}`;
-  if(!confirm(msg)) return;
+  // [v680] 액티브·책임 분리 — 책임 삭제가 행동을 더는 같이 지우지 않음. 옛 링크만 끊어줌.
+  if(!confirm(`이 책임 영역을 삭제할까요? / Delete this responsibility?\n\n${p.title}`)) return;
   _mtToTrash('passive', p);                                                   // [v670] 책임 → 휴지통
-  kids.forEach(a => _mtToTrash('active', a));                                 // [v670] 하위 행동도 각각 복원 가능
-  MT_ACTIVE = MT_ACTIVE.filter(a => a.passive_id !== id);
+  MT_ACTIVE.forEach(a => { if(a.passive_id === id) a.passive_id = null; });
   MT_PASSIVE = MT_PASSIVE.filter(x => x.id !== id);
   saveMTSystem();
   renderMTSystem();
@@ -16448,7 +16411,7 @@ function mtActiveDrop(e, targetId){
   if(fromIdx < 0 || tgtIdx < 0){ mtDragActiveId = null; return; }
   const moved = MT_ACTIVE[fromIdx];
   const target = MT_ACTIVE[tgtIdx];
-  moved.passive_id = target.passive_id;  // 다른 책임의 행동 위에 놓으면 그 책임으로 이동
+  // [v680] 액티브·책임 분리 — 드래그는 순서만 바꾸고 소속(passive_id)은 건드리지 않음
   // 배열에서 빼서 target 앞에 삽입
   MT_ACTIVE.splice(fromIdx, 1);
   const newTgt = MT_ACTIVE.findIndex(a => a.id === targetId);
@@ -16479,30 +16442,9 @@ function mtPassiveDrop(e, passiveId){
     mtKDrag = null;
     return;
   }
-  if(mtDragInboxId){
-    // INBOX → 이 책임의 행동으로
-    const item = MT_INBOX.find(i => i.id === mtDragInboxId);
-    if(item){
-      const newId = Math.max(100, ...MT_ACTIVE.map(a=>a.id)) + 1;
-      MT_ACTIVE.push({ id:newId, title:item.text, passive_id:passiveId, owner:me, priority:'P2', status:'todo', due:null, steps:[], created_at:isoDate(new Date()) });
-      MT_INBOX = MT_INBOX.filter(i => i.id !== mtDragInboxId);
-      mtExpandedPassive.add(passiveId);
-      const p = MT_PASSIVE.find(x=>x.id===passiveId);
-      toast(`"${p?.title}"에 행동 추가됨`);
-    }
-    mtDragInboxId = null;
-  } else if(mtDragActiveId){
-    // ACTIVE → 다른 책임으로 이동
-    const a = MT_ACTIVE.find(x => x.id === mtDragActiveId);
-    if(a && a.passive_id !== passiveId){
-      a.passive_id = passiveId;
-      mtExpandedPassive.add(passiveId);
-      const p = MT_PASSIVE.find(x=>x.id===passiveId);
-      toast(`행동을 "${p?.title}"으로 이동`);
-    }
-    mtDragActiveId = null;
-  }
-  saveMTSystem();
+  // [v680] 액티브·책임 분리 — 인박스/행동을 책임 카드에 떨어뜨려도 연결하지 않음 (드래그 상태만 정리)
+  mtDragInboxId = null;
+  mtDragActiveId = null;
   renderMTSystem();
 }
 
@@ -25278,6 +25220,9 @@ async function renderTrust(){
     <button class="tk-pill ${_trHalf?'on':''}" onclick="_trHalf=!_trHalf;renderTrust()" title="${_uiLang()==='ko'?'0.5점(반점) 단위로 부여':'Grant in 0.5 (half-point) steps'}" style="margin-left:auto;${_trHalf?'color:var(--gold,#e0a83a);border-color:color-mix(in srgb,var(--gold,#e0a83a) 55%,transparent)':''}">½ ${_uiLang()==='ko'?'반점':_uiLang()==='id'?'Setengah':'Half'}${_trHalf?' ✓':''}</button>
   `;
 
+  // [v680] 디스코드 복붙용 스냅샷 — tsCopyDiscord()가 렌더 시점의 보드 그대로 뽑아감 (boss 8/4)
+  window._tsCopyGroups = { op: opMembers, leader: leaderMembers, player: playerMembers, month: _trMonth };
+
   // summary stats reflect the ACTIVE team only (resigned excluded)
   const all = [...opMembers, ...leaderMembers, ...playerMembers];
   const totalTP = all.reduce((s,m) => s + m.trust_pts, 0);
@@ -25455,7 +25400,10 @@ async function renderTrust(){
         <div class="ph">점수판</div>
         <div class="psub">Trust System · ${_uiLang()==='ko'?'카드 색 = 종합 상태 · 드래그로 시스템 이동':'card color = overall status · drag to move'}${canGrant ? (_uiLang()==='ko'?' · 🏆±/⚠± 점수 조정':' · 🏆± trust / ⚠± warning') : ''}</div>
       </div>
-      <button class="ts-policy-main" onclick="openPolicyPanel('player')">📋 평가 정책 보기</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="ts-policy-main" onclick="tsCopyDiscord()" title="${_uiLang()==='ko'?'디스코드에 붙여넣을 수 있는 텍스트로 복사':'Copy as Discord-ready text'}">📤 ${_uiLang()==='ko'?'디스코드 복사':'Copy for Discord'}</button>
+        <button class="ts-policy-main" onclick="openPolicyPanel('player')">📋 평가 정책 보기</button>
+      </div>
     </div>
 
     <!-- 오브 범례 -->
@@ -25505,6 +25453,39 @@ async function renderTrust(){
     </div>
     ${(resignedMembers.length > 0 || canChangeRank()) ? buildResignStrip(resignedMembers) : ''}
   </div>`;
+}
+
+// ─── [v680] 점수판 → 디스코드 복붙 텍스트 (boss 8/4: PC 현황 버튼처럼) ───
+// 양식: Name/Shift/Warn/TP/Status/Protected 고정폭 표. 코드블럭(```)으로 감싸 디스코드에서 줄 안 깨짐.
+function tsCopyDiscord(){
+  const g = window._tsCopyGroups;
+  if(!g){ toast('점수판을 먼저 열어주세요', true); return; }
+  const pad = (s,n) => String(s==null?'':s).padEnd(n);
+  const w1 = (v) => Number(v||0).toFixed(1);                       // Warn은 항상 소수 1자리
+  const prot = (m) => {
+    if(!(m.protection_days > 0) || !m.protected_until) return '—';
+    const d = String(m.protected_until).slice(5,10).replace('-','/'); // YYYY-MM-DD → MM/DD
+    return 'until ' + d;
+  };
+  const row = (m) => pad(String(m.name||'').toUpperCase(),14) + pad(m.shift_summary||'—',12)
+    + pad(w1(m.warn_pts),8) + pad(m.trust_pts,6) + pad('● '+(m.status?.label||'—'),13) + prot(m);
+  const sep = '─'.repeat(62);
+  const lines = [];
+  lines.push('PLAYER TRUST SYSTEM · LIVE SCORES (' + (g.month||'') + ')');
+  lines.push('');
+  lines.push(pad('Name',14) + pad('Shift',12) + pad('Warn',8) + pad('TP',6) + pad('Status',13) + 'Protected');
+  lines.push(sep);
+  const blocks = [g.leader, g.player].filter(arr => arr && arr.length);
+  blocks.forEach((arr, bi) => {
+    if(bi > 0) lines.push(sep);
+    arr.forEach(m => lines.push(row(m)));
+  });
+  const text = '```\n' + lines.join('\n') + '\n```';
+  const done = () => toast('📤 점수판 복사됨 — 디스코드에 붙여넣으세요');
+  const fb = () => { try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done(); }catch(_){ toast('복사 실패 — 다시 시도해주세요', true); } };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(fb); }
+  else fb();
 }
 
 // ─── Trust 빠른 부여 (Admin/OP) ───
