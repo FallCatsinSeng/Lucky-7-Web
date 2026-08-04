@@ -11039,7 +11039,7 @@ const CHANNEL_TREE = {
       id:'race-cat', name:'RACE', catIcon:'trend', perms:['all'],
       channels:[
         { id:'pl-exp-standard',  name:'성과 계산기',  icon:'target',module:'calc-embed', kind:'view' },
-        { id:'pl-records',       name:'기록·통계',    icon:'scroll', module:'records', kind:'view', perms:['admin','hr'] },
+        { id:'pl-records',       name:'기록·통계',    icon:'scroll', module:'records', kind:'view', perms:['admin','hr','leader'] },   /* [v700] boss 8/3: KAIJI/BRUCE (team leaders) may VIEW records & stats to coach EXP — all edit/delete/add controls stay isAdmin-gated so it is read-only for them */
         { id:'pl-race',          name:'레이스',       icon:'trend',  module:'race', kind:'view', perms:['all'] },
         { id:'pl-calc-std',      name:'기준표',       icon:'target', module:'calc-standards', kind:'view', perms:['admin','op','leader'] }   /* [v647] leader = VIEW only; editing is gated separately by expCanEdit() */
       ]
@@ -11260,7 +11260,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v699';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v700';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21887,7 +21887,7 @@ function _srRecCardHTML(data){
     ? _clockBoardHTML(sessions)
     : (mode==='client')
     ? (periodTab+'<div class="sr-clgrid">'+clientCards+'</div>'+(_trainN?('<div class="sr-cltrain-hd">'+(_uiLang()==='ko'?'\ud83c\udf93 \ud2b8\ub808\uc774\ub2dd \ud074\ub77c · 기준 없음':'\ud83c\udf93 Training · no standard')+'<span class="sr-cltrain-cnt">'+_trainN+'</span></div><div class="sr-clgrid">'+_trainCards+'</div>'):''))
-    : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">'+(_uiLang()==='ko'?'일일 기록':'Daily log')+' · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">'+(_uiLang()==='ko'?'🗑 전체 초기화':'🗑 Reset all')+'</button></span></div>'+bands+resignedSec);
+    : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">'+(_uiLang()==='ko'?'일일 기록':'Daily log')+' · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+(((typeof currentUserRole!=='undefined'&&currentUserRole==='admin'))?('<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">'+(_uiLang()==='ko'?'🗑 전체 초기화':'🗑 Reset all')+'</button>'):'')+'</span></div>'+bands+resignedSec);
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span><span class="sr-badge">실시간</span></div>'
     +'<div class="sr-rec-sub">'+(_uiLang()==='ko'?'전 직원·클라이언트 기록 — 시프트 그룹(12H 주/야 · 8H S1·2·3) 또는 클라별. 항목을 누르면 상세가 펼쳐집니다.':'All staff · client log — shift group (12H Day/Night · 8H S1·2·3) or by client. Tap an item to expand.')+'</div>'
