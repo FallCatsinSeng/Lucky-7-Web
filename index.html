@@ -11007,7 +11007,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v684';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v685';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19843,6 +19843,17 @@ function _srInjectCSS(){
 "#sr-app .sr-gband-tt{font-size:12.5px;}",
 "#sr-app .sr-gband-cnt{font-size:10px;padding:1px 7px;}",
 "#sr-app .sr-gauge{transform:scale(.82);transform-origin:right center;}",
+/* [v685] 전체 뷰의 그룹 밴드를 다열 그리드로 — 한 밴드가 화면 전폭을 혼자 차지하며 생기던 빈 공간 제거 (boss 8/4).
+   넓은 화면 2~3열, 좁으면 자동 1열. 상단 툴바 여백도 축소. */
+"#sr-app .sr-gband-grid{grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:6px;}",
+"#sr-app .sr-gband-grid .sr-gband{margin-bottom:0;height:100%;display:flex;flex-direction:column;}",
+"#sr-app .sr-gband-grid .sr-gband .sr-rec-tabs{flex:1;align-content:flex-start;border-bottom:none;}",
+"#sr-app .sr-modetab{margin:2px 0 10px;padding:3px;}",
+"#sr-app .sr-modetab button{padding:6px 14px;font-size:12px;}",
+"#sr-app .sr-modetab.sr-period{margin:-2px 0 10px !important;}",
+"#sr-app .sr-rec-sub{margin-bottom:8px;}",
+"#sr-app .sr-gseg{margin-bottom:8px;}",
+"#sr-app .sr-rec-bar{margin:2px 0 8px;}",
 "#sr-app .sr-focus-back{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--tx2,#989792);background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);border-radius:10px;padding:7px 13px;cursor:pointer;margin:2px 0 16px;font-family:inherit;}",
 "#sr-app .sr-focus-back:hover{color:var(--tx,#e6e5e2);border-color:var(--tx3,#5f5e5a);}",
 "#sr-app .sr-focus-hd{display:flex;align-items:center;gap:15px;padding:18px;border:1px solid var(--br,#232322);border-left:4px solid var(--gc,#c2a04a);border-radius:16px;background:linear-gradient(100deg,var(--gcb,transparent),transparent 58%);margin-bottom:16px;}",
