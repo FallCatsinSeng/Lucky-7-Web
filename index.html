@@ -8846,6 +8846,61 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race .k-bar{height:2px;border-radius:2px;background:rgba(255,255,255,.06);margin-top:10px}
 #kb-race .k-bar i{border-radius:2px;background:linear-gradient(90deg,rgba(229,181,103,.5),#ffe6a8);box-shadow:0 0 10px rgba(229,181,103,.35)}
 #kb-race .k-bar.loser-bar i{background:linear-gradient(90deg,rgba(196,90,80,.5),#e8a89e);box-shadow:0 0 10px rgba(196,90,80,.3)}
+
+/* ═══ [v698] 보너스 존 씬 빌드 + 카드 언어 통일 (boss 8/4: "뒷배경 창작, 퀄리티 올려, 테두리 통일, 10가지") ═══
+   창작 배경: 야경 스카이라인 SVG(달 · 창문 불빛 SMIL 플리커 · 안테나 경고등) — 레이스 캔버스의 빌딩 세계관과 동일.
+   위클리(머니 무대)와 먼슬리(예산 카드)가 같은 씬을 공유하고, 페이지 전 카드 테두리를 골드 헤어라인으로 통일. */
+
+/* 1) 위클리 무대 뒷배경 — 스카이라인 씬 (공은 이 앞에서 떨어짐) */
+#kb-race #kbapp.bento.mt-grid-ready .c-money .mc-canvas-wrap::before,
+#kb-race #kbapp.bento .c-money .mc-canvas-wrap::before{
+  height:100%!important;top:0!important;
+  background:
+    linear-gradient(180deg,rgba(9,11,20,.14),transparent 30%,transparent 62%,rgba(0,0,0,.44)),
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 260' preserveAspectRatio='xMidYMax slice'><circle cx='522' cy='58' r='24' fill='%23f7e3b0' opacity='.85'/><circle cx='522' cy='58' r='44' fill='%23f7e3b0' opacity='.10'/><g fill='%23131722'><rect x='0' y='150' width='52' height='110'/><rect x='58' y='120' width='40' height='140'/><rect x='104' y='160' width='34' height='100'/><rect x='150' y='105' width='48' height='155'/><rect x='205' y='140' width='30' height='120'/><rect x='242' y='90' width='44' height='170'/><rect x='292' y='150' width='36' height='110'/><rect x='334' y='118' width='52' height='142'/><rect x='392' y='142' width='30' height='118'/><rect x='430' y='96' width='46' height='164'/><rect x='484' y='150' width='38' height='110'/><rect x='528' y='124' width='44' height='136'/><rect x='578' y='146' width='62' height='114'/></g><rect x='262' y='72' width='3' height='20' fill='%23131722'/><circle cx='263.5' cy='70' r='2.4' fill='%23ff6a5e'><animate attributeName='opacity' values='1;.15;1' dur='2.6s' repeatCount='indefinite'/></circle><g fill='%23e5b567'><rect x='160' y='120' width='6' height='4' opacity='.75'/><rect x='172' y='132' width='6' height='4' opacity='.5'/><rect x='250' y='104' width='6' height='4' opacity='.8'><animate attributeName='opacity' values='.8;.15;.8' dur='3.8s' begin='.4s' repeatCount='indefinite'/></rect><rect x='264' y='118' width='6' height='4' opacity='.55'/><rect x='340' y='130' width='6' height='4' opacity='.7'><animate attributeName='opacity' values='.7;.1;.7' dur='5.1s' begin='1.2s' repeatCount='indefinite'/></rect><rect x='352' y='144' width='6' height='4' opacity='.45'/><rect x='438' y='110' width='6' height='4' opacity='.8'/><rect x='450' y='124' width='6' height='4' opacity='.5'><animate attributeName='opacity' values='.5;.95;.5' dur='4.4s' begin='2s' repeatCount='indefinite'/></rect><rect x='540' y='134' width='6' height='4' opacity='.65'/><rect x='60' y='128' width='6' height='4' opacity='.6'/><rect x='72' y='140' width='6' height='4' opacity='.4'><animate attributeName='opacity' values='.4;.9;.4' dur='6s' begin='.8s' repeatCount='indefinite'/></rect><rect x='596' y='154' width='6' height='4' opacity='.55'/></g><rect x='0' y='196' width='640' height='64' fill='%23e5b567' opacity='.05'/></svg>") bottom center/cover no-repeat,
+    radial-gradient(520px 220px at 62% 46%,rgba(229,181,103,.10),transparent 65%);
+  opacity:1!important;
+}
+/* 2) 유리 반사 하이라이트 — 무대 위 사선 광 */
+#kb-race #kbapp.bento .c-money .mc-canvas-wrap::after{
+  content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.045) 50%,transparent 58%);
+}
+/* 3) 컴팩트 네온 사인 재등장 — 좌상단 마운트, 공 낙하 안 가림 (벤토에서 숨겨져 있던 것을 재설계로 복귀) */
+#kb-race #kbapp.bento .c-money .mt-weekly-bonus-sign{
+  display:flex!important;flex-direction:row!important;gap:10px!important;align-items:center!important;justify-content:center!important;
+  left:14px!important;top:12px!important;width:218px!important;height:54px!important;min-height:0!important;
+  border-radius:12px!important;transform-origin:50% -14px;animation:mtWkSway 6.5s ease-in-out infinite;
+  background:linear-gradient(180deg,rgba(28,22,13,.9),rgba(11,10,9,.94))!important;
+  border:1px solid rgba(229,181,103,.5)!important;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.5),0 0 22px rgba(229,181,103,.22),0 14px 24px rgba(0,0,0,.4)!important;
+}
+@keyframes mtWkSway{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(1deg)}}
+#kb-race #kbapp.bento .c-money .mt-weekly-bonus-sign::before{content:"";position:absolute;top:-13px;left:50%;width:1.5px;height:13px;transform:translateX(-50%);inset:auto;border:none;background:rgba(229,181,103,.55);box-shadow:24px 0 0 rgba(229,181,103,.35),-24px 0 0 rgba(229,181,103,.35)}   /* 행잉 와이어 */
+#kb-race #kbapp.bento .c-money .mt-weekly-bonus-sign::after{inset:0;border:none;border-radius:12px;background:radial-gradient(70% 70% at 50% 0%,rgba(255,232,168,.12),transparent 70%);animation:mtWkAmb 5.5s ease-in-out infinite}
+#kb-race #kbapp.bento .c-money .mt-weekly-crown{position:static!important;font-size:15px!important;filter:none;text-shadow:0 0 8px rgba(255,213,107,.8)}
+#kb-race #kbapp.bento .c-money .mt-weekly-text{margin-top:0!important;font-size:14.5px!important;letter-spacing:.3em!important;line-height:1.35!important;text-align:left!important}
+#kb-race #kbapp.bento .c-money .mt-weekly-text br{display:none}
+#kb-race #kbapp.bento .c-money .mt-weekly-rule,#kb-race #kbapp.bento .c-money .mt-weekly-stars{display:none!important}
+/* 4) 사인 유리 셔머 — mount 요소 재활용 */
+#kb-race #kbapp.bento .c-money .mt-weekly-mount{position:absolute;inset:0;border-radius:12px;overflow:hidden;pointer-events:none}
+#kb-race #kbapp.bento .c-money .mt-weekly-mount::before{content:"";position:absolute;top:-40%;bottom:-40%;width:30%;left:-45%;transform:rotate(16deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.10),transparent);animation:mtWkSheen 7s ease-in-out infinite}
+@keyframes mtWkSheen{0%,55%{left:-45%}85%,100%{left:135%}}
+/* 5) 먼슬리 보너스 — 같은 씬 세계관 (우측에 스카이라인 + 달, 좌측은 금액 가독성 유지) */
+#kb-race #kbapp.bento.mt-grid-ready .c-budget,
+#kb-race #kbapp.bento .c-budget{
+  background:
+    linear-gradient(90deg,rgba(13,12,16,.94) 0%,rgba(13,12,16,.6) 46%,rgba(13,12,16,.3) 100%),
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 260' preserveAspectRatio='xMidYMax slice'><circle cx='522' cy='58' r='24' fill='%23f7e3b0' opacity='.85'/><circle cx='522' cy='58' r='44' fill='%23f7e3b0' opacity='.10'/><g fill='%23131722'><rect x='0' y='150' width='52' height='110'/><rect x='58' y='120' width='40' height='140'/><rect x='104' y='160' width='34' height='100'/><rect x='150' y='105' width='48' height='155'/><rect x='205' y='140' width='30' height='120'/><rect x='242' y='90' width='44' height='170'/><rect x='292' y='150' width='36' height='110'/><rect x='334' y='118' width='52' height='142'/><rect x='392' y='142' width='30' height='118'/><rect x='430' y='96' width='46' height='164'/><rect x='484' y='150' width='38' height='110'/><rect x='528' y='124' width='44' height='136'/><rect x='578' y='146' width='62' height='114'/></g><g fill='%23e5b567'><rect x='438' y='110' width='6' height='4' opacity='.8'/><rect x='450' y='124' width='6' height='4' opacity='.5'><animate attributeName='opacity' values='.5;.95;.5' dur='4.4s' begin='2s' repeatCount='indefinite'/></rect><rect x='540' y='134' width='6' height='4' opacity='.65'/><rect x='340' y='130' width='6' height='4' opacity='.7'><animate attributeName='opacity' values='.7;.1;.7' dur='5.1s' begin='1.2s' repeatCount='indefinite'/></rect><rect x='596' y='154' width='6' height='4' opacity='.55'/></g></svg>") right -30px bottom -8px/440px auto no-repeat,
+    linear-gradient(100deg,rgba(52,37,20,.5),rgba(13,13,20,.9) 46%,rgba(7,7,9,.9))!important;
+  border-color:rgba(229,181,103,.30)!important;
+}
+/* 6) 카드 테두리 언어 통일 — 리더보드·내위치·킹 카드도 같은 골드 헤어라인 (boss: 오른쪽만 테두리 없음) */
+#kb-race .c-board{border:1px solid rgba(229,181,103,.20)!important;background:linear-gradient(180deg,rgba(16,16,20,.88),rgba(10,10,13,.94))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 18px 40px rgba(0,0,0,.3)!important}
+#kb-race .c-me{border:1px solid rgba(229,181,103,.20)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 18px 40px rgba(0,0,0,.3)!important}
+#kb-race .c-king{border-color:rgba(229,181,103,.20)!important}
+/* 7) 모바일 — 컴팩트 사인 축소 유지 */
+@media(max-width:700px){#kb-race #kbapp.bento .c-money .mt-weekly-bonus-sign{width:176px!important;height:46px!important;top:9px!important;left:10px!important}#kb-race #kbapp.bento .c-money .mt-weekly-text{font-size:12px!important;letter-spacing:.22em!important}}
 #kb-race #kbapp.bento.mt-grid-ready .c-money .mc-head,
 #kb-race #kbapp.bento .c-money .mc-head{position:relative!important;z-index:7!important;background:linear-gradient(180deg,rgba(13,13,18,.84),rgba(13,13,18,.38))!important;backdrop-filter:blur(6px)!important;-webkit-backdrop-filter:blur(6px)!important}
 #kb-race #kbapp.bento.mt-grid-ready .c-money .mc-controls,
@@ -10472,6 +10527,46 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race .c-king .k-bar>i, #kb-race #kbapp.bento.mt-grid-ready .c-king .k-bar>i{ border-radius:999px!important; background:linear-gradient(90deg,#e0ac52,#f6d99a)!important; box-shadow:none!important; }
 #kb-race .c-king .loser-bar>i, #kb-race #kbapp.bento.mt-grid-ready .c-king .loser-bar>i{ background:linear-gradient(90deg,#d94b44,#ff8a82)!important; }
 
+/* ═══ [v698] FINAL CASCADE (boss 8/4) — 반드시 이 시트의 진짜 마지막: v559/v565/v666/디자인시스템(.card)
+   전부보다 늦게 선언되어 캐스케이드를 이긴다. 여기 위로 새 규칙 추가 금지. ═══ */
+/* 위클리 네온 사인 재표시 — 위쪽 display:none(구 벤토 규칙)보다 높은 특이성 + 마지막 선언 */
+#kb-race #kbapp.bento .c-money .mc-stage .mt-weekly-bonus-sign{display:flex!important}
+/* 카드 테두리 언어 통일 — 전 카드 골드 헤어라인 (boss: 리더보드만 테두리 없음) */
+#kb-race .card{box-shadow:0 14px 36px rgba(0,0,0,.26)!important}
+#kb-race .c-board{border:1px solid rgba(229,181,103,.20)!important;background:linear-gradient(180deg,rgba(16,16,20,.88),rgba(10,10,13,.94))!important}
+#kb-race .c-me{border:1px solid rgba(229,181,103,.20)!important}
+#kb-race .c-race{border:1px solid rgba(229,181,103,.22)!important}
+/* KING/LAST — 앰비언트 미니멀 최종형 (v565 게임룩 대체: 무드는 배경 글로우가, 요소는 조용하게) */
+#kb-race .c-king, #kb-race #kbapp.bento.mt-grid-ready .c-king{
+  border:1px solid rgba(229,181,103,.20)!important;border-radius:16px!important;
+  background:
+    radial-gradient(420px 150px at 12% 18%,rgba(229,181,103,.13),transparent 65%),
+    radial-gradient(420px 150px at 88% 85%,rgba(196,90,80,.10),transparent 65%),
+    linear-gradient(180deg,rgba(16,16,20,.92),rgba(10,10,13,.96))!important;
+}
+#kb-race #kbapp.bento.mt-grid-ready .c-king .king-half.king-top{background:transparent!important}
+#kb-race #kbapp.bento.mt-grid-ready .c-king .king-half.king-bottom{background:transparent!important;border-top:1px solid rgba(255,255,255,.055)!important}
+#kb-race .c-king .king-badge, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-badge{background:rgba(229,181,103,.10)!important;color:#f0d391!important;box-shadow:inset 0 0 0 1px rgba(229,181,103,.45),0 0 22px rgba(229,181,103,.16)!important}
+#kb-race .c-king .loser-badge, #kb-race #kbapp.bento.mt-grid-ready .c-king .loser-badge{background:rgba(196,90,80,.09)!important;color:#e0968c!important;box-shadow:inset 0 0 0 1px rgba(196,90,80,.4),0 0 22px rgba(196,90,80,.13)!important}
+#kb-race .c-king .king-overline, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-overline{font-size:9.5px!important;font-weight:700!important;letter-spacing:.22em!important;text-transform:uppercase!important;color:rgba(240,201,120,.72)!important}
+#kb-race .c-king .loser-overline, #kb-race #kbapp.bento.mt-grid-ready .c-king .loser-overline{color:rgba(224,150,140,.7)!important}
+#kb-race .c-king .king-state, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-state{background:none!important;border:none!important;padding:0!important;height:auto!important;font-size:9px!important;letter-spacing:.14em!important;color:rgba(235,235,245,.38)!important}
+#kb-race .c-king .king-name-line, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-name-line{font-size:20px!important;font-weight:650!important;letter-spacing:.04em!important;color:rgba(255,255,255,.96)!important}
+#kb-race .c-king .king-score, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-score{font-weight:250!important;letter-spacing:-.01em!important;color:#ffe6a8!important;text-shadow:0 0 24px rgba(229,181,103,.35)!important}
+#kb-race .c-king .loser-score, #kb-race #kbapp.bento.mt-grid-ready .c-king .loser-score{color:#e8a89e!important;text-shadow:0 0 24px rgba(196,90,80,.3)!important}
+#kb-race .c-king .king-score-label, #kb-race #kbapp.bento.mt-grid-ready .c-king .king-score-label{letter-spacing:.18em!important;text-transform:uppercase!important;color:rgba(235,235,245,.32)!important}
+#kb-race .c-king .k-bar, #kb-race #kbapp.bento.mt-grid-ready .c-king .k-bar{height:2px!important;border-radius:2px!important;background:rgba(255,255,255,.06)!important}
+#kb-race .c-king .k-bar>i, #kb-race #kbapp.bento.mt-grid-ready .c-king .k-bar>i{border-radius:2px!important;background:linear-gradient(90deg,rgba(229,181,103,.5),#ffe6a8)!important;box-shadow:0 0 10px rgba(229,181,103,.3)!important}
+#kb-race .c-king .loser-bar>i, #kb-race #kbapp.bento.mt-grid-ready .c-king .loser-bar>i{background:linear-gradient(90deg,rgba(196,90,80,.5),#e8a89e)!important;box-shadow:0 0 10px rgba(196,90,80,.25)!important}
+/* 먼슬리 보너스 씬 — 뒤쪽 budgetRain/벤토 규칙보다 늦게 재선언 (위클리와 같은 스카이라인 세계관) */
+#kb-race .c-budget, #kb-race #kbapp.bento.mt-grid-ready .c-budget, #kb-race #kbapp.bento .c-budget{
+  background:
+    linear-gradient(90deg,rgba(13,12,16,.94) 0%,rgba(13,12,16,.6) 46%,rgba(13,12,16,.3) 100%),
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 260' preserveAspectRatio='xMidYMax slice'><circle cx='522' cy='58' r='24' fill='%23f7e3b0' opacity='.85'/><circle cx='522' cy='58' r='44' fill='%23f7e3b0' opacity='.10'/><g fill='%23131722'><rect x='0' y='150' width='52' height='110'/><rect x='58' y='120' width='40' height='140'/><rect x='104' y='160' width='34' height='100'/><rect x='150' y='105' width='48' height='155'/><rect x='205' y='140' width='30' height='120'/><rect x='242' y='90' width='44' height='170'/><rect x='292' y='150' width='36' height='110'/><rect x='334' y='118' width='52' height='142'/><rect x='392' y='142' width='30' height='118'/><rect x='430' y='96' width='46' height='164'/><rect x='484' y='150' width='38' height='110'/><rect x='528' y='124' width='44' height='136'/><rect x='578' y='146' width='62' height='114'/></g><g fill='%23e5b567'><rect x='438' y='110' width='6' height='4' opacity='.8'/><rect x='450' y='124' width='6' height='4' opacity='.5'><animate attributeName='opacity' values='.5;.95;.5' dur='4.4s' begin='2s' repeatCount='indefinite'/></rect><rect x='540' y='134' width='6' height='4' opacity='.65'/><rect x='340' y='130' width='6' height='4' opacity='.7'><animate attributeName='opacity' values='.7;.1;.7' dur='5.1s' begin='1.2s' repeatCount='indefinite'/></rect><rect x='596' y='154' width='6' height='4' opacity='.55'/></g></svg>") right -30px bottom -8px/440px auto no-repeat,
+    linear-gradient(100deg,rgba(52,37,20,.5),rgba(13,13,20,.9) 46%,rgba(7,7,9,.9))!important;
+  border:1px solid rgba(229,181,103,.30)!important;
+}
+
 </style>
 </head>
 <body>
@@ -11165,7 +11260,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v697';   // keep in lockstep with the BUILD comment at the top of this file (v696 race design + v697 관제탑 합본)
+var _APP_BUILD = 'v698';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
