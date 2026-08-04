@@ -11007,7 +11007,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v680';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v681';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -25456,30 +25456,73 @@ async function renderTrust(){
 }
 
 // ─── [v680] 점수판 → 디스코드 복붙 텍스트 (boss 8/4: PC 현황 버튼처럼) ───
-// 양식: Name/Shift/Warn/TP/Status/Protected 고정폭 표. 코드블럭(```)으로 감싸 디스코드에서 줄 안 깨짐.
+// [v681] boss가 쓰던 양식 그대로: 짧은 이름(MR. 뗀 대문자), 기수(입사 배치)별 ── 구분,
+// 8시간 근무자는 끝에 "Shift 1/2/3" 표기, 구분선 74칸. LEADER+PLAYER 한 표에 통합.
+// _TS_DC_GROUPS = boss의 디스코드 리스트 순서/그룹 그대로 — 새 멤버는 자동으로 맨 아래 블록에 추가되고,
+// 여기 없는(퇴사한) 이름은 자동으로 빠짐. 로스터 바뀌면 이 배열만 고치면 됨.
+const _TS_DC_GROUPS = [
+  ['CLAWS','KAIJI','PROD','JEFF','BRUCE','RON','SIL'],
+  ['MIRU','BOB','SAN'],
+  ['DITT','BIN','LUKE'],
+  ['HANA','KYROS'],
+  ['MAPO','JAKE'],
+  ['Shuri','Mike']
+];
 function tsCopyDiscord(){
   const g = window._tsCopyGroups;
   if(!g){ toast('점수판을 먼저 열어주세요', true); return; }
   const pad = (s,n) => String(s==null?'':s).padEnd(n);
-  const w1 = (v) => Number(v||0).toFixed(1);                       // Warn은 항상 소수 1자리
+  const shortKey = (name) => String(name||'').toLowerCase().replace(/^(mr|ms|mrs)[.\s]+/,'').trim().split(/\s+/)[0] || '';
   const prot = (m) => {
     if(!(m.protection_days > 0) || !m.protected_until) return '—';
-    const d = String(m.protected_until).slice(5,10).replace('-','/'); // YYYY-MM-DD → MM/DD
-    return 'until ' + d;
+    return 'until ' + String(m.protected_until).slice(5,10).replace('-','/');   // YYYY-MM-DD → MM/DD
   };
-  const row = (m) => pad(String(m.name||'').toUpperCase(),14) + pad(m.shift_summary||'—',12)
-    + pad(w1(m.warn_pts),8) + pad(m.trust_pts,6) + pad('● '+(m.status?.label||'—'),13) + prot(m);
-  const sep = '─'.repeat(62);
+  const SHIFT_TAG = { '8h_s1':'Shift 1', '8h_s2':'Shift 2', '8h_s3':'Shift 3' };
+  const row = (m, label) => {
+    let r = pad(label,14) + pad(m.shift_summary||'—',12) + pad(Number(m.warn_pts||0).toFixed(1),8)
+      + pad(m.trust_pts,5) + pad('● '+(m.status?.label||'—'),13) + prot(m);
+    let tag = null; try{ tag = SHIFT_TAG[_effShiftKey(m)]; }catch(_){}
+    if(tag) r += '  ' + tag;
+    return r;
+  };
+  // 보드의 리더+플레이어를 한 풀로 합치고, boss 리스트 순서대로 뽑아 쓴다
+  const pool = {};
+  [...(g.leader||[]), ...(g.player||[])].forEach(m => { pool[shortKey(m.name)] = m; });
+  const sep = '─'.repeat(74);
+  // 기간 라벨: 이번 달이면 (8/1 ~ 8/4), 지난 달 보기면 (YYYY-MM)
+  let period = '';
+  try{
+    const now = new Date();
+    const curYm = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    period = (g.month === curYm)
+      ? ' (' + (now.getMonth()+1) + '/1 ~ ' + (now.getMonth()+1) + '/' + now.getDate() + ')'
+      : (g.month ? ' (' + g.month + ')' : '');
+  }catch(_){}
   const lines = [];
-  lines.push('PLAYER TRUST SYSTEM · LIVE SCORES (' + (g.month||'') + ')');
+  lines.push('PLAYER TRUST SYSTEM · LIVE SCORES' + period);
   lines.push('');
-  lines.push(pad('Name',14) + pad('Shift',12) + pad('Warn',8) + pad('TP',6) + pad('Status',13) + 'Protected');
+  lines.push(pad('Name',14) + pad('Shift',12) + pad('Warn',8) + pad('TP',6) + pad('Status',13) + 'Protected');   // 헤더 칸폭은 boss 원본 그대로 (TP 헤더만 6, 데이터는 5)
   lines.push(sep);
-  const blocks = [g.leader, g.player].filter(arr => arr && arr.length);
-  blocks.forEach((arr, bi) => {
-    if(bi > 0) lines.push(sep);
-    arr.forEach(m => lines.push(row(m)));
+  let printed = 0;
+  _TS_DC_GROUPS.forEach(group => {
+    const rows = [];
+    group.forEach(label => {
+      const m = pool[label.toLowerCase()];
+      if(!m) return;                       // 퇴사/제외 인원은 자동 스킵
+      rows.push(row(m, label));
+      delete pool[label.toLowerCase()];
+    });
+    if(!rows.length) return;
+    if(printed > 0) lines.push(sep);
+    rows.forEach(r => lines.push(r));
+    printed++;
   });
+  // 리스트에 없는 새 멤버 → 맨 아래 블록에 자동 추가
+  const leftovers = Object.values(pool);
+  if(leftovers.length){
+    if(printed > 0) lines.push(sep);
+    leftovers.forEach(m => lines.push(row(m, shortKey(m.name).toUpperCase())));
+  }
   const text = '```\n' + lines.join('\n') + '\n```';
   const done = () => toast('📤 점수판 복사됨 — 디스코드에 붙여넣으세요');
   const fb = () => { try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
