@@ -11260,7 +11260,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v698';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v699';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -37553,33 +37553,112 @@ $('btnStrat').onclick=()=>{
       ctx.beginPath();ctx.moveTo(sx-bw/2,byo);ctx.lineTo(sx+bw/2,byo);ctx.lineTo(sx+bw/2-3,byo+bh);ctx.lineTo(sx-bw/2+3,byo+bh);ctx.closePath();ctx.fill();
       ctx.fillStyle='rgba(255,235,170,.22)';ctx.fillRect(sx-bw/2+3,byo,bw-6,1.3);}});
   }
-  function drawWeeklyBackdrop(ts){
-    const cx=W*.5, cy=vCY, fs=Math.min(Math.round(W*.135),96);
+  /* [v699] boss 8/4 — 배경은 CSS가 아니라 이 캔버스가 그린다(그래서 v696~698 CSS 씬은 캔버스에 덮여
+     안 보였음). '금고 벽 + 유령 글자'를 걷어내고 진짜 야경 도시를 캔버스에 그린다.
+     _cityRnd = 시드 고정 의사난수 → 스카이라인은 매 프레임 동일, 깜빡임만 시간 함수. */
+  function _cityRnd(i){ const x=Math.sin(i*127.1+311.7)*43758.5453; return x-Math.floor(x); }
+  function drawCityBackdrop(ts, horizon){
+    // 1) 밤하늘 — 위 짙은 남색, 지평선은 도시 불빛에 물든 앰버
+    const sky=ctx.createLinearGradient(0,0,0,horizon);
+    sky.addColorStop(0,'#080a14');sky.addColorStop(.52,'#0e1220');sky.addColorStop(.86,'#1c1a1c');sky.addColorStop(1,'#2a2015');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,W,horizon);
+    // 2) 별 — 느리게 반짝
     ctx.save();
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.font='1000 '+fs+'px Georgia,"Times New Roman",serif';
-    const glowP=.09+.03*Math.sin(ts*.0016);
-    ctx.shadowColor='rgba(229,181,103,'+(0.26+0.06*Math.sin(ts*.0016))+')';ctx.shadowBlur=26;
-    ctx.fillStyle='rgba(229,181,103,'+glowP+')';
-    ctx.fillText('WEEKLY',cx,cy-fs*.55);
-    ctx.fillText('BONUS',cx,cy+fs*.55);
-    ctx.shadowBlur=0;
-    ctx.lineWidth=1;ctx.strokeStyle='rgba(255,226,154,.05)';
-    ctx.strokeText('WEEKLY',cx,cy-fs*.55);ctx.strokeText('BONUS',cx,cy+fs*.55);
-    // small dim stars under
-    ctx.font='700 '+Math.round(fs*.16)+'px sans-serif';ctx.fillStyle='rgba(255,200,94,.14)';
-    ctx.fillText('★ ★ ★ ★ ★',cx,cy+fs*1.02);
+    for(let i=0;i<46;i++){
+      const sx=_cityRnd(i)*W, sy=_cityRnd(i+90)*horizon*.52;
+      ctx.globalAlpha=(.35+.35*Math.sin(ts*.0012+i*1.7))*(.5+_cityRnd(i+40)*.5);
+      ctx.fillStyle='#dfe6f5';ctx.fillRect(sx,sy,1.2,1.2);
+    }
     ctx.restore();
+    // 3) 달 + 헤일로
+    const mx=W*.80, my=horizon*.24, mr=Math.max(11,Math.min(W*.028,22));
+    ctx.save();
+    const halo=ctx.createRadialGradient(mx,my,mr*.6,mx,my,mr*4.6);
+    halo.addColorStop(0,'rgba(247,227,176,.16)');halo.addColorStop(1,'rgba(247,227,176,0)');
+    ctx.fillStyle=halo;ctx.beginPath();ctx.arc(mx,my,mr*4.6,0,7);ctx.fill();
+    ctx.fillStyle='rgba(247,227,176,.92)';ctx.beginPath();ctx.arc(mx,my,mr,0,7);ctx.fill();
+    ctx.fillStyle='rgba(200,186,150,.18)';
+    ctx.beginPath();ctx.arc(mx-mr*.28,my-mr*.2,mr*.22,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(mx+mr*.3,my+mr*.28,mr*.15,0,7);ctx.fill();
+    ctx.restore();
+    // 4) 원경(흐림) → 근경(선명) 2겹 스카이라인 + 창문 불빛
+    [{n:14,hMin:.24,hMax:.46,col:'#0f131e',win:.10,dim:true},
+     {n:11,hMin:.40,hMax:.72,col:'#151a26',win:.30,dim:false}].forEach((L,li)=>{
+      ctx.save(); if(L.dim) ctx.globalAlpha=.75;
+      let x=-10;
+      for(let i=0;i<L.n;i++){
+        const seed=li*50+i;
+        const bw=Math.max(18,W*(.045+_cityRnd(seed)*.055));
+        const bh=horizon*(L.hMin+_cityRnd(seed+7)*(L.hMax-L.hMin));
+        const by=horizon-bh;
+        ctx.fillStyle=L.col;ctx.fillRect(x,by,bw,bh);
+        if(_cityRnd(seed+13)>.72) ctx.fillRect(x+bw*.35,by-6,bw*.18,6);   // 옥탑 물탱크
+        const cols=Math.max(2,Math.floor(bw/13)), rows=Math.max(3,Math.floor(bh/17));
+        for(let c=0;c<cols;c++) for(let r=0;r<rows;r++){
+          const ws=seed*97+c*13+r*7;
+          if(_cityRnd(ws)>L.win) continue;
+          let a=.28+_cityRnd(ws+3)*.5;
+          if(_cityRnd(ws+5)>.86) a*=(.25+.75*Math.abs(Math.sin(ts*.0006+ws)));   // 일부만 점멸
+          ctx.fillStyle='rgba(229,181,103,'+a.toFixed(3)+')';
+          ctx.fillRect(x+6+c*((bw-10)/cols), by+8+r*((bh-12)/rows), 3.2, 4.4);
+        }
+        x+=bw+Math.max(4,W*.012*_cityRnd(seed+21));
+        if(x>W+20) break;
+      }
+      ctx.restore();
+    });
+    // 5) 안테나 경고등
+    const bx=W*.30, bTop=horizon*.30;
+    ctx.fillStyle='#151a26';ctx.fillRect(bx-1.2,bTop,2.4,14);
+    ctx.fillStyle='rgba(255,106,94,'+(0.35+0.6*Math.abs(Math.sin(ts*.0022))).toFixed(3)+')';
+    ctx.beginPath();ctx.arc(bx,bTop-1,2.3,0,7);ctx.fill();
+    // 6) 도시 불빛 헤이즈
+    const haze=ctx.createLinearGradient(0,horizon*.70,0,horizon);
+    haze.addColorStop(0,'rgba(229,181,103,0)');haze.addColorStop(1,'rgba(229,181,103,.13)');
+    ctx.fillStyle=haze;ctx.fillRect(0,horizon*.70,W,horizon*.30);
+  }
+  /* WEEKLY BONUS — 벽의 유령 글자 → 옥상 네온 마퀴 간판(프레임·전구·와이어·흔들림). 공간 안의 사물. */
+  function drawWeeklyBackdrop(ts){
+    const floorY=H-52;
+    const sw=Math.min(W*.34,230), sh=Math.max(46,Math.min(W*.085,62));
+    const sx=W*.5-sw/2, sy=floorY*.30;
+    ctx.save();
+    ctx.translate(sx+sw/2, sy-12); ctx.rotate(Math.sin(ts*.0009)*.9*Math.PI/180); ctx.translate(-(sx+sw/2), -(sy-12));
+    ctx.strokeStyle='rgba(229,181,103,.34)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(sx+sw*.22,sy-12);ctx.lineTo(sx+sw*.22,sy);
+    ctx.moveTo(sx+sw*.78,sy-12);ctx.lineTo(sx+sw*.78,sy);ctx.stroke();
+    const pg=ctx.createLinearGradient(0,sy,0,sy+sh);
+    pg.addColorStop(0,'rgba(30,23,14,.92)');pg.addColorStop(1,'rgba(12,10,9,.95)');
+    ctx.fillStyle=pg;ctx.fillRect(sx,sy,sw,sh);
+    ctx.strokeStyle='rgba(229,181,103,'+(0.45+0.18*Math.sin(ts*.0016)).toFixed(3)+')';ctx.lineWidth=1.4;
+    ctx.strokeRect(sx+.7,sy+.7,sw-1.4,sh-1.4);
+    ctx.strokeStyle='rgba(255,226,154,.16)';ctx.lineWidth=1;ctx.strokeRect(sx+5,sy+5,sw-10,sh-10);
+    const bulbs=Math.max(6,Math.floor(sw/26));
+    for(let i=0;i<bulbs;i++){
+      const bxp=sx+8+i*((sw-16)/(bulbs-1));
+      const on=(.45+.55*Math.abs(Math.sin(ts*.003+i*.9)))*.75;
+      ctx.fillStyle='rgba(255,232,168,'+on.toFixed(3)+')';
+      ctx.beginPath();ctx.arc(bxp,sy+3.2,1.5,0,7);ctx.fill();
+      ctx.beginPath();ctx.arc(bxp,sy+sh-3.2,1.5,0,7);ctx.fill();
+    }
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    const fs=Math.max(13,Math.round(sh*.30));
+    ctx.font='700 '+fs+'px Georgia,"Times New Roman",serif';
+    ctx.shadowColor='rgba(255,205,100,'+(0.5+0.14*Math.sin(ts*.0016)).toFixed(3)+')';ctx.shadowBlur=16;
+    ctx.fillStyle='rgba(255,238,196,.95)';
+    ctx.fillText('WEEKLY',W*.5,sy+sh*.34);
+    ctx.fillText('BONUS',W*.5,sy+sh*.70);
+    ctx.shadowBlur=0;
+    ctx.restore();
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const cast=ctx.createRadialGradient(W*.5,sy+sh,10,W*.5,sy+sh,Math.max(W*.32,140));
+    cast.addColorStop(0,'rgba(255,205,100,.10)');cast.addColorStop(1,'rgba(255,205,100,0)');
+    ctx.fillStyle=cast;ctx.fillRect(0,0,W,floorY);ctx.restore();
   }
   function drawVaultRoom(ts){
     const floorY=H-52;
-    // back wall — warm graded (not black)
-    const wall=ctx.createLinearGradient(0,0,0,floorY);
-    wall.addColorStop(0,'#171009');wall.addColorStop(.5,'#22180d');wall.addColorStop(1,'#2b1f11');
-    ctx.fillStyle=wall;ctx.fillRect(0,0,W,floorY);
-    // faint vertical wall seams for depth
-    ctx.strokeStyle='rgba(0,0,0,.13)';ctx.lineWidth=1;
-    for(let i=1;i<4;i++){const x=Math.round(W*i/4)+.5;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,floorY);ctx.stroke();}
+    // [v699] 금고 벽 → 야경 도시 (boss 8/4). 벽 그라디언트/이음새 제거, 씬이 배경을 대신한다.
+    drawCityBackdrop(ts, floorY);
     // ambient warm glow around the sphere lights the wall naturally
     ctx.save();ctx.globalCompositeOperation='lighter';
     const amb=ctx.createRadialGradient(vCX,vCY,vR*.4,vCX,vCY,Math.max(W,H)*.5);
