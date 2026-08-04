@@ -11083,7 +11083,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v691';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v692';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -26279,9 +26279,17 @@ async function renderMyPerformance(){
   const trendOf = (hist) => { const a=(hist[0]+hist[1]+hist[2])/3, b=(hist[4]+hist[5]+hist[6])/3; if(a<=0) return 0; return (b-a)/a*100; };
 
   try {
-    const _hdr = { apikey: REPORT_ANON, Authorization: 'Bearer ' + REPORT_ANON };
-    const _res = await fetch(REPORT_SUPABASE_URL + '/rest/v1/calc_data?key=in.(reports,staff,clients)&select=*', { headers: _hdr });
-    const _rows = await _res.json().catch(()=>[]);
+    // [v692] 리포트 페이지가 들어갈 때마다 전 리포트 원본(~0.5MB)을 새로 받던 것 → 60초 메모리 캐시.
+    // 재방문은 즉시 그리고, 60초 지나면 다음 방문 때 새로 받는다 (리포트 작성 직후 확인에도 충분히 신선).
+    let _rows;
+    const _mpc = window._myPerfCache;
+    if(_mpc && (Date.now() - _mpc.ts) < 60000){ _rows = _mpc.rows; }
+    else {
+      const _hdr = { apikey: REPORT_ANON, Authorization: 'Bearer ' + REPORT_ANON };
+      const _res = await fetch(REPORT_SUPABASE_URL + '/rest/v1/calc_data?key=in.(reports,staff,clients)&select=*', { headers: _hdr });
+      _rows = await _res.json().catch(()=>[]);
+      if(Array.isArray(_rows) && _rows.length) window._myPerfCache = { ts: Date.now(), rows: _rows };
+    }
     if(!Array.isArray(_rows)) console.warn('calc_data read returned:', _rows);
     const _byKey = {};
     if(Array.isArray(_rows)) _rows.forEach(r => { _byKey[r.key] = (r.value !== undefined ? r.value : r.data); });
@@ -29190,6 +29198,20 @@ function routeContent(){
   // 채널 전환 시 패널/카운터 자동 정리
   if(openApplicantId){ closeApplicant(); }
   if(typeof stopAttCounter === 'function') stopAttCounter();
+
+  // [v692] 카테고리 전환 즉각 반응 (boss 8/4: "눌러도 이전 화면이 머물러 있다") — async 렌더러가 데이터를
+  // 기다리는 동안 이전 페이지가 그대로 남아 '안 눌린 것처럼' 보였음. 모듈이 실제로 바뀔 때는 옛 화면을
+  // 즉시 로딩 표시로 갈아끼워 클릭 반응이 0ms로 보이게 한다. 같은 모듈 재렌더(폴링·새로고침)는 건드리지 않음.
+  try{
+    var _newMod = ch ? ch.module : null;
+    if(_newMod && _newMod !== window._lastRouteModule && _newMod !== 'pc-hub' && otherView){
+      otherView.innerHTML = '<style>@keyframes _rtspin{to{transform:rotate(360deg)}}</style>'
+        + '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:90px 0;color:var(--tx3);font-size:13px">'
+        + '<span style="display:inline-block;width:15px;height:15px;border:2px solid var(--br2,#333);border-top-color:var(--ac,#c2a04a);border-radius:50%;animation:_rtspin .7s linear infinite"></span>'
+        + (_uiLang()==='ko'?'불러오는 중…':'Loading…') + '</div>';
+    }
+    window._lastRouteModule = _newMod;
+  }catch(_){}
 
   // 안전장치: Player/Staff는 우측 사이드바 절대 안 보임
   const isLowRole = currentUserRole === 'player' || currentUserRole === 'staff';
