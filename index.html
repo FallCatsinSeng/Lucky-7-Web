@@ -11007,7 +11007,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v685';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v686';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -25499,6 +25499,17 @@ const _TS_DC_GROUPS = [
   ['MAPO','JAKE'],
   ['Shuri','Mike']
 ];
+// [v686] 시프트 표기 헬퍼 — 보드와 웹훅 알림이 같은 매핑을 공유 (boss 8/4: 알림에도 시프트·보호기간)
+// [v683] STAFF_DETAILS.current_shift는 대부분 비어 있어서 배정 시프트 키(_effShiftKey)에서 뽑는다. boss 표기:
+const _TS_SHIFT_COL = { '12h_day':'Day 12', '12h_night':'Night 12', '10h_morning':'Day 10',
+  '10h_night':'Night 10', '10h_evening':'Evening 10', '8h_s1':'Day 8', '8h_s2':'Night 8', '8h_s3':'Night 8' };
+const _TS_SHIFT_TAG = { '8h_s1':'Shift 1', '8h_s2':'Shift 2', '8h_s3':'Shift 3' };
+function _tsShiftText(m){
+  let sk = null; try{ sk = _effShiftKey(m); }catch(_){}
+  const col = _TS_SHIFT_COL[sk] || m.shift_summary || null;
+  if(!col) return null;
+  return col + (_TS_SHIFT_TAG[sk] ? ' ' + _TS_SHIFT_TAG[sk] : '');
+}
 function _tsBoardText(){
   const g = window._tsCopyGroups;
   if(!g){ return null; }
@@ -25508,11 +25519,7 @@ function _tsBoardText(){
     if(!(m.protection_days > 0) || !m.protected_until) return '—';
     return 'until ' + String(m.protected_until).slice(5,10).replace('-','/');   // YYYY-MM-DD → MM/DD
   };
-  const SHIFT_TAG = { '8h_s1':'Shift 1', '8h_s2':'Shift 2', '8h_s3':'Shift 3' };
-  // [v683] Shift 컬럼은 STAFF_DETAILS.current_shift가 아니라 배정 시프트 키(_effShiftKey)에서 뽑는다 —
-  // current_shift는 대부분 비어 있어서 전원 '—'로 나왔음 (boss 8/4). boss 표기로 변환:
-  const SHIFT_COL = { '12h_day':'Day 12', '12h_night':'Night 12', '10h_morning':'Day 10',
-    '10h_night':'Night 10', '10h_evening':'Evening 10', '8h_s1':'Day 8', '8h_s2':'Night 8', '8h_s3':'Night 8' };
+  const SHIFT_TAG = _TS_SHIFT_TAG, SHIFT_COL = _TS_SHIFT_COL;
   const row = (m, label) => {
     let sk = null; try{ sk = _effShiftKey(m); }catch(_){}
     const shiftTxt = SHIFT_COL[sk] || m.shift_summary || '—';
@@ -25611,18 +25618,28 @@ async function tsSendDiscord(){
   const ok = await _tsPostWebhook(text);
   toast(ok ? '📨 디스코드에 게시됨' : '전송 실패 — 웹훅 URL을 확인하세요', !ok);
 }
-// WP/TP 부여 자동 알림 — 이번 달 누적 포함 한 줄
+// WP/TP 부여 자동 알림 — 시프트 · 이번 달 누적 · 보호기간까지 한 줄 ([v686] boss 8/4)
 function _tsNotifyGrant(memberId, kind, pts){
   try{
     const nm = String(trustName(memberId)||'').replace(/^(mr|ms|mrs)[.\s]+/i,'').split(/\s+/)[0].toUpperCase();
     const now = new Date();
     const ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-    const bp = _trBoardPts(TRUST_DATA[memberId] || {}, ym);
+    const t = TRUST_DATA[memberId] || {};
+    const bp = _trBoardPts(t, ym);
+    const det = (typeof STAFF_DETAILS !== 'undefined' && STAFF_DETAILS[memberId]) || {};
+    const shift = _tsShiftText({ id: memberId, current_shift: det.current_shift });
+    let protTxt = '';
+    try{
+      if(t.protected_until && typeof protectionDaysLeft === 'function' && protectionDaysLeft(t) > 0){
+        protTxt = ' · 🛡 ~' + String(t.protected_until).slice(5,10).replace('-','/');
+      }
+    }catch(_){}
     const by = (currentUser && currentUser.name) ? ' — by ' + currentUser.name : '';
     const sign = pts > 0 ? '+' : '';
+    const mid = (shift ? ' · ' + shift : '');
     const msg = kind === 'trust'
-      ? `🏆 **${nm}** ${sign}${pts} TP · ${now.getMonth()+1}월 누적 ${bp.trust}${by}`
-      : `⚠️ **${nm}** ${sign}${Number(pts).toFixed(1)} Warning · ${now.getMonth()+1}월 누적 ${Number(bp.warn).toFixed(1)}${by}`;
+      ? `🏆 **${nm}** ${sign}${pts} TP${mid} · ${now.getMonth()+1}월 누적 ${bp.trust}${protTxt}${by}`
+      : `⚠️ **${nm}** ${sign}${Number(pts).toFixed(1)} Warning${mid} · ${now.getMonth()+1}월 누적 ${Number(bp.warn).toFixed(1)}${protTxt}${by}`;
     _tsPostWebhook(msg);   // fire-and-forget — 실패해도 점수 부여는 그대로
   }catch(_){}
 }
