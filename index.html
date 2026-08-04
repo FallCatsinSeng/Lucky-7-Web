@@ -11083,7 +11083,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v694';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v695';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21168,6 +21168,12 @@ function _srRecCompute(reports, clients){
     var _g=[]; allRs.forEach(function(r){ if(isTestMap(r)||isBreakMap(r)||isDup[r.id]||r.tag==='checkin'||r.ignored)return; var gg=segGain[r.id]; if(gg!=null&&gg>0)_g.push(gg); });
     var _med=0; if(_g.length){ var _gs=_g.slice().sort(function(a,b){return a-b;}); _med=_gs[Math.floor(_gs.length/2)]; }
     var _jThr=Math.max(5, 6*Math.max(_med,0.3));   // flag if a single hour gained > 6x the usual, with a 5% floor
+    // [v695] 사망→경험치복구 감지 (boss 8/4, Jake 8/4 04-05시 케이스): 직전 리포트가 사망(dead>0)이면 다음
+    // 리포트의 점프 기준을 '평소 중앙값 + 4%p'로 낮춘다. 복구는 항상 +5%p 안팎이라 이 기준엔 무조건 걸리지만,
+    // 정상 사냥(중앙값 근처)은 안 걸린다. 고경험치 캐릭(기준 6×중앙값이 5%를 넘는 순수쌤·검쌤급)에서 복구가
+    // 그대로 통과해 시간당 1위를 먹던 구멍을 막는다. race-engine.js와 반드시 lockstep.
+    var _dThr=Math.max(_med+4, 4.5);
+    var _prevDead=false;
     var _hourSeqByDate={};   // [v384] per-date rolling-gap hour sequence — see _SR_HOUR_GAP_MS
     // [v588] ATS manual-play sessions. Auto/break-time ATS normally runs < 2h and is left auto-excluded; a
     // hand-played ATS block (2h+ ) is flagged atsManual=true at submit (boss 7/9). An ATS session (booster+
@@ -21185,7 +21191,8 @@ function _srRecCompute(reports, clients){
       var _sl=(_rmo&&_rmo.sl!=null&&_rmo.sl!=='')?Number(_rmo.sl):null; if(_sl!=null&&!isFinite(_sl))_sl=null;
       var _dup=!!isDup[r.id];
       var _gain=(_tag==='checkin')?null:(_dup?0:(segGain[r.id]||0));
-      var _flag=(_gain!=null)&&(_gain>80 || _gain>_jThr);
+      var _pd=_prevDead; if(_tag!=='checkin') _prevDead=(Number(r.dead)||0)>0;   // [v695] 직전 리포트 사망 여부 (체크인은 상태 유지)
+      var _flag=(_gain!=null)&&(_gain>80 || _gain>_jThr || (_pd && _gain>_dThr));   // [v695] 사망 직후엔 낮은 기준으로 복구 점프 차단
       var _rms=reportMs(r);
       var _ignored=!!r.ignored;   // [v447] 미반영 — excluded from performance calc/averages/stats, but still shown (greyed) in the session log
       var _isBreak=isBreakMap(r) && !(_tgt!=null && _tgt>0 && _atsMan[normName(r.booster)+'|'+_rd+'|'+String(r.client||'').trim()]);   // [v588] ATS scores ONLY when it has a real standard AND the session was flagged hand-played (2h+ submit prompt); otherwise excluded (auto/rest-time). Race engine follows via sess.brk.
@@ -22310,7 +22317,13 @@ function _kb5jRender(){
     // [v553] the 5-Juta panel follows the app language toggle (_uiLang / lucky7_lang) \u2014 it was hardcoded English
     var _K5KO=(function(){ try{ return (typeof _uiLang==='function'?_uiLang():'ko')==='ko'; }catch(_){ return true; } })();
     var T5=function(en,ko){ return _K5KO?ko:en; };
-    html+='<div class="k5-head">\uD83C\uDFC1 <b>5 JUTA</b> RACE SYSTEM <span class="k5-tag">'+T5('INDIVIDUAL','\uAC1C\uC778\uC804')+'</span>'+(isAdmin?'<button id="k5-admin-toggle" class="k5-btn" style="margin-left:6px;background:rgba(10,132,255,.14);border-color:rgba(10,132,255,.4);color:#6ab2ff" onclick="_kb5jToggleAdmin()">\u2699\uFE0F '+(window.__KB5J_ADMIN_OPEN?T5('ADMIN MODE ON','\uAD00\uB9AC\uC790 \uBAA8\uB4DC ON'):T5('ADMIN','\uAD00\uB9AC\uC790'))+'</button>':'')+'</div>';
+    // [v695] boss 8/4: \uAD00\uB9AC\uC790 \uCEE8\uD2B8\uB864\uC744 \uBCF8 \uD398\uC774\uC9C0\uC5D0 \uC11E\uC9C0 \uC54A\uACE0 \uBCC4\uB3C4 '\uAD00\uB9AC\uC790 \uD398\uC774\uC9C0'\uB85C \u2014 \uBC84\uD2BC \uB204\uB974\uBA74 \uD398\uC774\uC9C0 \uC790\uCCB4\uAC00 \uBC14\uB01C
+    var _admPage = isAdmin && window.__KB5J_ADMIN_PAGE===true;
+    html+='<div class="k5-head">\uD83C\uDFC1 <b>5 JUTA</b> RACE SYSTEM '
+      +(_admPage
+        ? ('<span class="k5-tag" style="background:rgba(10,132,255,.15);border-color:rgba(10,132,255,.4);color:#6ab2ff">'+T5('ADMIN','\uAD00\uB9AC\uC790 \uBAA8\uB4DC')+'</span><button class="k5-btn" style="margin-left:6px" onclick="_kb5jAdminPage(0)">\u2190 '+T5('Back to race','\uB808\uC774\uC2A4 \uBCF4\uB4DC\uB85C')+'</button>')
+        : ('<span class="k5-tag">'+T5('INDIVIDUAL','\uAC1C\uC778\uC804')+'</span>'+(isAdmin?'<button id="k5-admin-toggle" class="k5-btn" style="margin-left:6px;background:rgba(10,132,255,.14);border-color:rgba(10,132,255,.4);color:#6ab2ff" onclick="_kb5jAdminPage(1)">\u2699\uFE0F '+T5('ADMIN','\uAD00\uB9AC\uC790')+'</button>':'')))
+      +'</div>';
 
     // A. Race Pool Card
     html+='<div class="k5-pool">'
@@ -22324,13 +22337,13 @@ function _kb5jRender(){
       +'<div class="k5-card"><span>'+T5('Payout Status','지급 상태')+'</span><b class="'+(paused?'red':'green')+'">'+(paused?T5('PAUSED','일시정지'):T5('ACTIVE','지급 중'))+'</b>'+(isAdmin?('<small>'+T5('multiplier ','배율 ')+Math.round(mult*100)+'%</small>'):'')+'</div>'
       +'</div>';
 
-    if(isAdmin){
+    if(_admPage){
       var _dsel = latest||'';
       /* [v678] the 5s re-render rebuilt the date input with the default value, wiping whatever the admin
          had just picked — boss pressed settle and the click landed on the wrong (reset) date all night 7/31.
          Keep the admin's current choice across re-renders; default only on first paint. */
       try{ var _prevFd=document.getElementById('k5-fdate'); if(_prevFd && _prevFd.value) _dsel=_prevFd.value; }catch(_){ }
-      html+='<div id="k5-adminwrap" style="display:'+(window.__KB5J_ADMIN_OPEN?'block':'none')+'">';   /* [v552] collapsible admin area */
+      html+='<div id="k5-adminwrap" style="display:block">';   /* [v695] admin은 이제 별도 페이지 — 항상 펼침 */
       /* [v554] ONE clear daily action, everything else tucked away \u2014 boss couldn't tell what to press. */
       html+='<div class="k5-card" style="margin-bottom:10px;padding:16px 18px">'
         +'<div style="font-size:12px;font-weight:800;color:var(--tx2);margin-bottom:10px">'+T5('Daily settlement \u2014 pick a date, press the gold button. Done.','\uC77C\uC77C \uC815\uC0B0 \u2014 \uB0A0\uC9DC \uACE0\uB974\uACE0 \uAE08\uC0C9 \uBC84\uD2BC \uD558\uB098\uB9CC \uB204\uB974\uBA74 \uB05D.')+'</div>'
@@ -22368,17 +22381,20 @@ function _kb5jRender(){
       var _projected=_avgDaily>0?(_paidNow+_avgDaily*(_daysLeft||0)):_paidNow;
       var _limit=Number(st.daily_payout_limit)||0;
       var _tooFast=(_avgDaily>0 && (_remain < _avgDaily*3 || (_limit>0 && _avgDaily>_limit)));
-      /* [v554] budget: three loud cards \u2192 one quiet strip; the alert only shows when it matters */
-      html+='<div class="k5-card" style="margin-bottom:10px;padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;font-size:12px;color:var(--tx2)">'
-        +'<span>\uD83D\uDCC9 '+T5('Spending','\uC9C0\uCD9C')+' <b class="'+(_limit>0&&_avgDaily>_limit?'red':'')+'" style="font-size:13px">'+money(_avgDaily)+'</b>/'+T5('day','\uC77C')+'</span>'
-        +'<span>'+T5('Projected','\uC608\uC0C1 \uCD5C\uC885')+' <b style="font-size:13px">'+money(_projected)+'</b></span>'
-        +'<span>'+T5('Pool lasts','\uD480 \uC18C\uC9C4\uAE4C\uC9C0')+' <b class="'+(_tooFast?'red':'green')+'" style="font-size:13px">'+(_daysLeft!=null?(_daysLeft+T5('d','\uC77C')):'\u2014')+'</b></span>'
-        +(_tooFast?('<span class="red" style="font-weight:800">\u26A0\uFE0F '+T5('Too fast \u2014 lower rate or multiplier','\uC18C\uC9C4 \uC18D\uB3C4 \uBE60\uB984 \u2014 \uD658\uC728/\uBC30\uC728 \uC870\uC815 \uAD8C\uC7A5')+'</span>'):'')
-      +'</div>';
+      /* [v695] monthly burn-down redesign (boss 8/4) \u2014 quiet strip \u2192 3 clean stat tiles + burn bar, same k5-pool grid look */
+      var _burnPct=(function(){ var tp2=Number(st.total_pool)||1; return Math.max(0,Math.min(100,Math.round((Number(st.paid_amount)||0)/tp2*100))); })();
+      html+='<div class="k5-pool" style="margin-bottom:10px">'
+        +'<div class="k5-card"><span>\uD83D\uDCC9 '+T5('Daily spend','\uC77C \uC9C0\uCD9C')+'</span><b class="'+(_limit>0&&_avgDaily>_limit?'red':'')+'">'+money(_avgDaily)+'</b><small>'+T5('avg per settled day','\uC815\uC0B0\uC77C \uD3C9\uADE0')+(_limit>0?(' \u00B7 '+T5('alarm ','\uC54C\uB78C ')+money(_limit)):'')+'</small></div>'
+        +'<div class="k5-card"><span>\uD83C\uDFAF '+T5('Projected month total','\uC608\uC0C1 \uCD5C\uC885 \uC9C0\uAE09')+'</span><b>'+money(_projected)+'</b><small>'+T5('at current pace','\uD604\uC7AC \uC18D\uB3C4 \uAE30\uC900')+'</small></div>'
+        +'<div class="k5-card"><span>\u23F3 '+T5('Pool lasts','\uD480 \uC18C\uC9C4\uAE4C\uC9C0')+'</span><b class="'+(_tooFast?'red':'green')+'">'+(_daysLeft!=null?('D-'+_daysLeft):'\u2014')+'</b>'
+          +'<div style="margin-top:7px;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden"><div style="height:100%;width:'+_burnPct+'%;border-radius:4px;background:'+(_burnPct>80?'#ff453a':(_burnPct>55?'#f0c869':'#34d399'))+'"></div></div>'
+          +'<small>'+_burnPct+'% '+T5('spent','\uC18C\uC9C4')+' \u00B7 '+T5('paid ','\uC9C0\uAE09 ')+money(st.paid_amount)+'</small></div>'
+        +'</div>';
+      if(_tooFast){ html+='<div class="k5-card" style="margin-bottom:10px;padding:10px 16px;border-color:rgba(255,69,58,.45);background:rgba(255,69,58,.07)"><span class="red" style="font-weight:800;font-size:12.5px">\u26A0\uFE0F '+T5('Burning too fast \u2014 lower the rate or multiplier','\uC18C\uC9C4 \uC18D\uB3C4 \uBE60\uB984 \u2014 \uD658\uC728/\uBC30\uC728 \uC870\uC815 \uAD8C\uC7A5')+'</span></div>'; }
       html+='</div>';   /* [v552] end k5-adminwrap */
     }
 
-    if(!latest){ html+='<div class="k5-tblwrap"><div class="k5-empty">'+T5('No race data yet \u2014 hourly reports will appear here.','\uc544\uc9c1 \ub808\uc774\uc2a4 \ub370\uc774\ud130\uac00 \uc5c6\uc2b5\ub2c8\ub2e4 \u2014 \uc2dc\uac04\ubcc4 \ub9ac\ud3ec\ud2b8\uac00 \uc5ec\uae30 \ud45c\uc2dc\ub429\ub2c8\ub2e4.')+'</div></div>'; }
+    if(!_admPage && !latest){ html+='<div class="k5-tblwrap"><div class="k5-empty">'+T5('No race data yet \u2014 hourly reports will appear here.','\uc544\uc9c1 \ub808\uc774\uc2a4 \ub370\uc774\ud130\uac00 \uc5c6\uc2b5\ub2c8\ub2e4 \u2014 \uc2dc\uac04\ubcc4 \ub9ac\ud3ec\ud2b8\uac00 \uc5ec\uae30 \ud45c\uc2dc\ub429\ub2c8\ub2e4.')+'</div></div>'; }
     else{
       // [v533] B (per-shift ranking) removed here: the King Bounty board above now shows the ranking grouped
       // per shift group in the mockup style, so the plain ranking tables were redundant. Pool (A), Admin
@@ -22392,7 +22408,16 @@ function _kb5jRender(){
     var el=document.createElement('div'); el.id='kb5j'; el.innerHTML=html;
     var old=_kbNode.querySelector('#kb5j');
     if(old) old.replaceWith(el); else _kbNode.appendChild(el);
+    // [v695] 관리자 페이지 모드면 킹바운티 보드 등 나머지를 통째로 숨겨 '페이지가 바뀐' 것처럼
+    try{ [].forEach.call(_kbNode.children,function(c){ if(c.id!=='kb5j') c.style.display=_admPage?'none':''; }); }catch(_){ }
   }catch(err){ try{ console.warn('kb5j render', err); }catch(_){ } }
+}
+
+// [v695] 관리자 페이지 전환 (boss 8/4: 토글로 섞어 보여주지 말고 페이지를 바꿔라)
+function _kb5jAdminPage(on){
+  window.__KB5J_ADMIN_PAGE = !!on;
+  try{ _kb5jRender(); }catch(_){ }
+  try{ var t=document.getElementById('ch-other'); if(t) t.scrollTop=0; window.scrollTo(0,0); }catch(_){ }
 }
 
 
