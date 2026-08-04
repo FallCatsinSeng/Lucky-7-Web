@@ -2247,6 +2247,34 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .set-grand{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:15px 18px;background:var(--ac-bg);border:1px solid var(--ac-bord);border-radius:13px}
 .set-grand span{font-size:12.5px;font-weight:700;letter-spacing:.05em;color:var(--ac);text-transform:uppercase}
 .set-grand b{font-size:18px;font-weight:800;color:var(--ac-strong);font-variant-numeric:tabular-nums}
+
+/* ═══ [v689] 정산 노트패드 스킨 (boss 8/4: "일일 업무처럼 메모장 느낌으로, 구원 씨가 잘 쓰게") ═══
+   모노 폰트 + 촘촘한 행 + 헤어라인 구분선. 직원 박스는 카드 대신 에디터 블록처럼. */
+.set-emp{border-radius:9px;margin-bottom:7px;background:rgba(255,255,255,.012)}
+.set-emp-head{padding:5px 11px;gap:8px;background:rgba(255,255,255,.03)}
+.set-emp-head .set-av{width:20px;height:20px;border-radius:6px;font-size:8.5px}
+.set-emp-idx{font:9.5px ui-monospace,Consolas,monospace;color:rgba(235,235,245,.3);min-width:14px}
+.set-emp-name{font:12.5px ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace;font-weight:700}
+.set-emp-net{font-size:13px;font-family:ui-monospace,Consolas,monospace}
+.set-rate-badge{font-size:9px;padding:1px 6px}
+.set-emp-items{padding:1px 11px 1px}
+.set-emp-item{gap:6px;border-bottom:1px solid rgba(255,255,255,.055)}
+.set-emp-tw{font-size:11px;color:rgba(235,235,245,.25)}
+.set-emp-lbl{font:12px ui-monospace,Consolas,'Malgun Gothic',monospace;padding:4.5px 6px 4.5px 2px}
+.set-emp-amt{font:12px ui-monospace,Consolas,monospace;padding:4.5px 6px;width:104px}
+.set-emp-unit{font-size:9.5px;width:14px}
+.set-emp-sgn{width:20px;height:20px;font-size:12px;border-radius:5px}
+.set-emp-del{width:18px;height:18px;font-size:10.5px}
+.set-emp-empty{padding:6px 4px;font-size:11px}
+.set-emp-add{padding:5px 11px 3px;gap:4px}
+.set-emp-chip{font-size:10px;padding:2px 7px;border-radius:5px}
+.set-emp-total{padding:5px 11px;border-top:1px dashed rgba(255,255,255,.12)}
+.set-emp-total span{font-size:9.5px}
+.set-emp-total b{font-size:13px;font-family:ui-monospace,Consolas,monospace}
+.set-gsec{margin:12px 2px 6px;font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;letter-spacing:.05em}
+.set-gsec-sum{font-family:ui-monospace,Consolas,monospace}
+.set-grand{margin-top:12px;padding:10px 14px;border-radius:10px}
+.set-grand b{font-size:16px;font-family:ui-monospace,Consolas,monospace}
 .exs-wrap{max-width:760px}
 .exs-card{background:var(--bg-c);border:1px solid var(--br);border-radius:14px;overflow:hidden;margin-top:8px}
 .exs-head,.exs-row{display:grid;grid-template-columns:1.5fr 72px 104px 128px 36px;align-items:center}
@@ -2964,28 +2992,42 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-act-ic{font-size:12px;line-height:1}
 @media (max-width:720px){.lb-board{grid-template-columns:1fr}}
 
-/* ═══ [v688] 점수판 미니멀 스킨 (boss 8/4: "미니멀하고 퍼펙트하게, 눈에 확 들어오게") ═══
-   원칙: 카드 상태가 3초 안에 읽히게 — ① 이름 크게 ② 오른쪽 큰 숫자에 상태색 배지
-   ③ TP/워닝을 명확한 미니 칩으로 ④ 잡음(그라데이션·잔장식) 제거. 뒤에 선언되어 위 규칙을 덮음. */
-.lb-kcard{border-radius:10px;background:color-mix(in srgb,var(--bg-c) 55%,var(--bg))}
-.lb-kcard::before{width:4px;opacity:1}
-.lb-kcard:hover{box-shadow:0 2px 10px rgba(0,0,0,.3)}
-.lb-kcard-main{padding:8px 10px 8px 14px;gap:10px}
-.lb-krank{font-size:11px;color:var(--tx4);min-width:16px}
-.lb-kcard-id .lb-name{font-size:14px;font-weight:800}
-.lb-kcard-id .lb-tier{font-size:9px;font-weight:800;letter-spacing:.04em;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,var(--c) 15%,transparent)}
-.lb-kcard-sub{margin-top:3.5px;gap:6px}
-.lb-kstat{font-size:10px;font-weight:700;color:var(--tx2);background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.055);padding:1.5px 8px;border-radius:6px}
-.lb-kstat b{font-size:11.5px}
-.lb-rankchip{border:none !important}
-.lb-kcard-num{font-size:16px;min-width:42px;padding:6px 8px;border-radius:9px;text-align:center;background:color-mix(in srgb,var(--c) 14%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 32%,transparent)}
-.lb-kcard-empty .lb-kcard-num{background:transparent;box-shadow:inset 0 0 0 1px var(--br);color:var(--tx4)}
-.lb-col{border-radius:12px}
-.lb-col-head{padding:9px 13px;background:linear-gradient(180deg,color-mix(in srgb,var(--col-c) 9%,transparent),transparent);border-top-width:2.5px}
-.lb-col-body{gap:4px;padding:6px;}
-.lb-legend{margin:10px 0 12px;padding:8px 13px;gap:11px}
-.ts-summary{margin-top:14px;margin-bottom:12px;gap:8px}
-.ts-sum-card{padding:9px 12px;gap:2px;border-radius:10px}
+/* ═══ [v689] 점수판 노트패드 스킨 (boss 8/4: "일일 보드처럼 메모장 느낌, 카드 빈 공간 제거") ═══
+   MT 보드의 compact editor 스킨과 같은 문법 — 모노 폰트, 한 줄 행, 헤어라인 구분선, 컬럼별 색 틴트,
+   버튼은 hover에만. 카드는 2줄(이름/서브)에서 1줄로 접힘. 뒤에 선언되어 위 규칙을 덮음. */
+.lb-col{background:color-mix(in srgb,var(--col-c,#8a8a86) 3.5%,rgba(255,255,255,.012));border:1px solid color-mix(in srgb,var(--col-c,#8a8a86) 22%,var(--br));border-top:2.5px solid color-mix(in srgb,var(--col-c,#8a8a86) 70%,transparent);border-radius:9px;box-shadow:0 1px 8px rgba(0,0,0,.25)}
+.lb-col-head{padding:6px 10px;background:color-mix(in srgb,var(--col-c,#8a8a86) 13%,var(--bg-c));border-bottom:1px solid color-mix(in srgb,var(--col-c,#8a8a86) 30%,var(--br))}
+.lb-col-name{font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;letter-spacing:.05em;color:color-mix(in srgb,var(--col-c,#8a8a86) 75%,#fff)}
+.lb-col-cnt{font-size:9.5px;padding:0 6px;min-width:16px}
+.lb-col-stat{font-size:10px}
+.lb-col-stat b{font-size:11.5px}
+.lb-col-body{gap:0;padding:2px 4px 6px;counter-reset:lbrow}
+.lb-kcard{counter-increment:lbrow;border:none;border-bottom:1px solid rgba(255,255,255,.08);border-radius:0;background:transparent}
+.lb-kcard:last-child{border-bottom:none}
+.lb-kcard::before{width:3px;top:3px;bottom:3px;border-radius:2px}
+.lb-kcard:hover{background:rgba(255,255,255,.03);box-shadow:none;border-color:rgba(255,255,255,.08)}
+.lb-kcard-main{padding:3px 5px 3px 11px;gap:7px;min-height:26px}
+.lb-krank{font:9px/1.2 ui-monospace,Consolas,monospace;color:rgba(235,235,245,.25);min-width:15px;text-align:right}
+.lb-kcard-id{display:flex;align-items:center;gap:7px;min-width:0}   /* 이름줄+서브줄 → 한 줄 */
+.lb-kcard-sub{margin-top:0;gap:6px;flex-shrink:0}
+.lb-kcard-id .lb-name{flex:0 1 auto;font:12px ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace;font-weight:700}
+.lb-kcard-id .lb-tier{font-size:8.5px;font-weight:800;letter-spacing:.04em;padding:1px 6px;border-radius:5px;background:color-mix(in srgb,var(--c) 14%,transparent)}
+.lb-kstat{font:9.5px ui-monospace,Consolas,monospace;color:var(--tx3);background:none;border:none;padding:0}
+.lb-kstat b{font-size:10.5px}
+.lb-rankchip{font-size:8px;padding:0 5px;border:none !important}
+.lb-kcard .lb-protect{font-size:8.5px;padding:0 5px}
+.lb-kcard-num{font:13.5px ui-monospace,Consolas,monospace;font-weight:800;min-width:30px;padding:0 3px;background:transparent;box-shadow:none;text-align:right}
+.lb-kcard-empty .lb-kcard-num{color:var(--tx4)}
+.lb-kactions{gap:3px}
+.lb-kactions button{opacity:0;transition:opacity .12s}
+.lb-kcard:hover .lb-kactions button{opacity:.9}
+.lb-kactions .lb-act-tp,.lb-kactions .lb-act-wp,.lb-kactions .lb-act-rm,.lb-kactions .lb-act-tpm,.lb-kactions .lb-act-react{width:22px;height:22px;border-radius:6px}
+.lb-act-ic{font-size:10.5px}
+.lb-legend{margin:8px 0 10px;padding:6px 12px;gap:10px;font-size:10px}
+.lb-legend-item{font-size:10px}
+.lb-legend-orb{width:12px;height:12px}
+.ts-summary{margin-top:12px;margin-bottom:10px;gap:8px}
+.ts-sum-card{padding:8px 12px;gap:2px;border-radius:9px}
 @media (max-width:1000px){.ts-summary{grid-template-columns:repeat(3,1fr)}}
 .lb-row{
   display:flex;align-items:center;gap:14px;
@@ -11031,7 +11073,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v688';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v689';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -15844,8 +15886,10 @@ async function renderMTSystem(mode){
     const compactSkin = `<style id="mtCompactSkin">
     #ch-other .ph{font-size:20px!important;margin:2px 0!important}
     #ch-other .att-eyebrow{font-size:9px!important}
-    .mt-compact{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:12px!important;align-items:start!important}
-    @media(max-width:1280px){.mt-compact{display:flex!important;overflow-x:auto!important;padding-bottom:8px!important}.mt-compact .mt-kcol{flex:0 0 230px!important}}
+    .mt-compact{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important;align-items:start!important}   /* [v689] 5→4열: 휴지통은 아래 스트립으로 */
+    .mt-compact.mt-single{grid-template-columns:1fr!important;margin-top:10px!important}
+    .mt-compact.mt-single .mt-kcol-body{max-height:200px}
+    @media(max-width:1280px){.mt-compact:not(.mt-single){display:flex!important;overflow-x:auto!important;padding-bottom:8px!important}.mt-compact:not(.mt-single) .mt-kcol{flex:0 0 230px!important}}
     /* [v673] 구분감 강화 — 컬럼마다 고유색 틴트 배경 + 컬러 테두리, 헤더 진하게, 행 구분선 강화 */
     .mt-compact .mt-kcol{min-width:0!important;width:auto!important;max-width:none!important;border-radius:9px!important;background:color-mix(in srgb,var(--kc,var(--ac)) 3.5%,rgba(255,255,255,.012))!important;border:1px solid color-mix(in srgb,var(--kc,var(--ac)) 22%,var(--br,#262625))!important;border-top:2.5px solid color-mix(in srgb,var(--kc,var(--ac)) 70%,transparent)!important;box-shadow:0 1px 8px rgba(0,0,0,.25)!important;padding:0!important;overflow:hidden!important}
     /* [v671] 상단 역할 탭·멤버 칩을 보드와 같은 톤으로 통일 — 반투명 플랫, 모노 폰트, 강조는 채우기 대신 컬러 보더 */
@@ -15900,13 +15944,16 @@ async function renderMTSystem(mode){
     .mt-wip{transform:scale(.85);transform-origin:left center}
     </style>`;
 
+    // [v689] boss 8/4: 컬럼 순서 = 인박스 → 패시브(책임) → 액티브 → 완료, 휴지통은 보드 아래 전폭 스트립
     bodyHTML = `${compactSkin}${sopScheduleBanner(myPassive)}
     ${wipOver ? `<div class="mt-wip-banner"><span class="mt-wip-banner-ic">⚠</span><div><div class="mt-wip-banner-t">진행 중인 행동이 ${doingN}개 — 권장 ${MT_WIP_LIMIT}개 초과</div><div class="mt-wip-banner-s">새로 시작하지 말고, 진행 중인 걸 먼저 끝내세요.</div></div></div>` : ''}
     <div class="mt-kanban mt-compact">
       ${kcol('inbox','인박스',myInbox.length,'#5fa3d9',inboxCards,`<input class="mt-kadd" placeholder="+ 입력 후 Enter" onkeydown="if(event.key==='Enter')mtQuickInbox(this)">`)}
-      ${kcol('active','액티브',activeNotDone.length,'#c2a04a',activeCards,`<input class="mt-kadd" placeholder="+ 행동 바로 추가 (Enter)" onkeydown="if(event.key==='Enter')mtQuickActive(this)">`)}
       ${kcol('passive','책임',myPassive.length,'#b074ec',passiveCards,`<input class="mt-kadd" placeholder="+ 책임 영역 추가 (Enter)" onkeydown="if(event.key==='Enter')mtQuickPassive(this)">`)}
+      ${kcol('active','액티브',activeNotDone.length,'#c2a04a',activeCards,`<input class="mt-kadd" placeholder="+ 행동 바로 추가 (Enter)" onkeydown="if(event.key==='Enter')mtQuickActive(this)">`)}
       ${kcol('done','완료',doneActions.length,'#3aa05a',doneCards)}
+    </div>
+    <div class="mt-kanban mt-compact mt-single">
       ${kcol('trash','휴지통',MT_TRASH.length,'#8a8a8a',trashCards, MT_TRASH.length?`<button class="mt-kadd-btn" onclick="mtEmptyTrash()">🗑 휴지통 비우기</button>`:'')}
     </div>`;
   }
@@ -26664,7 +26711,7 @@ async function renderAnnouncements(){
         <div class="ph">${_uiLang()==='ko'?'공지사항':'Notices'}</div>
         <div class="psub">${_uiLang()==='ko'?('전체 '+visibleAnns.length+'건 · 안 읽은 공지 '+unreadN+'건'):('Total '+visibleAnns.length+' · '+unreadN+' unread')}${currentUserRole !== 'admin' ? (_uiLang()==='ko'?' · 본인 권한 범위':' · within your access') : ''}</div>
       </div>
-      ${canPost ? `<button class="btn btn-ac" onclick="showNewAnn=!showNewAnn;renderAnnouncements()">${_uiLang()==='ko'?'+ 새 공지':'+ New notice'}</button>` : ''}
+      ${canPost ? `<button class="btn" onclick="_annSetWebhook()" title="${_uiLang()==='ko'?'공지 → 디스코드 웹훅 설정':'Set Discord webhook for notices'}">⚙</button><button class="btn btn-ac" onclick="showNewAnn=!showNewAnn;renderAnnouncements()">${_uiLang()==='ko'?'+ 새 공지':'+ New notice'}</button>` : ''}
     </div>
 
     <div class="ann-scope-row">${scopePills}</div>
@@ -26838,6 +26885,38 @@ function _annRenderDraftFiles(){
       + '</div>';
   }).join('');
 }
+// ─── [v689] 공지 → 디스코드 웹훅 (boss 8/4: "공지 올리면 자동으로 디스코드에 올라가게") ───
+// URL은 announce_state 테이블 id='webhook' row에 저장 (점수판 웹훅과 동일 패턴, 채널은 별도).
+let _annWebhook = null, _annWebhookLoaded = false;
+async function _annLoadWebhook(){
+  if(_annWebhookLoaded || !sb) return;
+  try{
+    const { data } = await sb.from('announce_state').select('data').eq('id','webhook').maybeSingle();
+    _annWebhook = (data && data.data && data.data.url) || null;
+  }catch(_){}
+  _annWebhookLoaded = true;
+}
+async function _annSetWebhook(){
+  await _annLoadWebhook();
+  const url = prompt('공지용 디스코드 웹훅 URL을 붙여넣으세요\n(공지 채널 → 설정 → 연동 → 웹훅 → URL 복사)\n비우고 확인하면 해제됩니다.', _annWebhook || '');
+  if(url === null) return;
+  const v = url.trim();
+  if(v && !/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//.test(v)){ toast('디스코드 웹훅 URL이 아닙니다', true); return; }
+  _annWebhook = v || null;
+  try{ await _dbUpsert('announce_state', 'webhook', { url: _annWebhook }); toast(_annWebhook ? '✅ 공지 웹훅 저장됨 — 발행하면 디스코드에도 올라갑니다' : '공지 웹훅 해제됨'); }
+  catch(e){ toast('웹훅 저장 실패: ' + (e && e.message), true); }
+}
+async function _annPostWebhook(a){
+  await _annLoadWebhook();
+  if(!_annWebhook) return;
+  try{
+    const CAT_IC = { notice:'📢', event:'🎉', rule:'📏', urgent:'🚨' };
+    let body = String(a.content||'').trim();
+    if(body.length > 1700) body = body.slice(0,1700) + '…';
+    const content = `${CAT_IC[a.category]||'📢'} **[공지] ${a.title}**${a.mustRead?' 🔴 필독':''}\n${body}${a.files&&a.files.length?`\n📎 첨부 ${a.files.length}개 — 웹사이트에서 확인`:''}\n— ${a.author}`;
+    fetch(_annWebhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content }) }).catch(function(){});
+  }catch(_){}
+}
 function addAnn(){
   const title = document.getElementById('na-title').value.trim();
   if(!title){ toast(_uiLang()==='ko'?'제목 입력하세요':'Enter a title', true); return; }
@@ -26865,6 +26944,7 @@ function addAnn(){
   showNewAnn = false;
   toast(_uiLang()==='ko'?('공지 발행됨 (대상: '+ANN_SCOPES[scope].label+')'):('Notice published (audience: '+ANN_SCOPES[scope].label+')'));
   try{ logAction('create', 'published notice', title); }catch(_){}
+  try{ _annPostWebhook(ANNOUNCEMENTS[0]); }catch(_){}   // [v689] 디스코드 자동 게시 (웹훅 미설정이면 무동작)
   saveAnnouncements();
   renderAnnouncements();
 }
