@@ -11305,7 +11305,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v726';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v727';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -26195,11 +26195,32 @@ async function tsSetWebhook(){
   try{ await _dbUpsert('trust_state', 'webhook', { url: _tsWebhook }); toast(_tsWebhook ? '✅ 웹훅 저장됨 — 이제 자동으로 디스코드에 올라갑니다' : '웹훅 해제됨'); }
   catch(e){ toast('웹훅 저장 실패: ' + (e && e.message), true); }
 }
+// [v727] boss 8/5 "게시 버튼 누르면 글이 너무 길다고 함" — 디스코드 일반 메시지(content)는 2000자 한도라
+// 23명짜리 표(2600자+)가 항상 걸렸다. 길면 임베드(설명 필드 4096자, 메시지당 임베드 최대 10개)로 자동
+// 승격해서 보낸다 — 그래도 넘치면 줄 경계로 쪼개 여러 임베드에 나눠 담고, 절대 데이터를 잘라서 버리지
+// 않는다(과거엔 이 케이스 자체가 없었지만 인원이 계속 느는 구조라 미리 대비).
+function _tsChunkByLines(text, maxLen){
+  const lines = String(text||'').split('\n');
+  const chunks = []; let cur = '';
+  lines.forEach(function(ln){
+    const next = cur ? cur + '\n' + ln : ln;
+    if(next.length > maxLen && cur){ chunks.push(cur); cur = ln; } else { cur = next; }
+  });
+  if(cur) chunks.push(cur);
+  return chunks;
+}
 async function _tsPostWebhook(content){
   await _tsLoadWebhook();
   if(!_tsWebhook) return false;
   try{
-    const r = await fetch(_tsWebhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content }) });
+    let body;
+    if(content.length <= 1900){
+      body = { content };
+    } else {
+      const chunks = _tsChunkByLines(content, 4000).slice(0, 10);
+      body = { embeds: chunks.map(function(c){ return { description:c, color:0xc9963a }; }) };
+    }
+    const r = await fetch(_tsWebhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     return r.ok;
   }catch(_){ return false; }
 }
@@ -26208,7 +26229,7 @@ async function tsSendDiscord(){
   if(!text){ toast('점수판을 먼저 열어주세요', true); return; }
   await _tsLoadWebhook();
   if(!_tsWebhook){ toast('웹훅이 아직 없습니다 — ⚙ 버튼으로 URL을 등록하세요', true); return; }
-  if(text.length > 1990){ toast('보드가 너무 깁니다 — 📤 복사 버튼을 사용하세요', true); return; }
+  // [v727] 길이 제한은 _tsPostWebhook이 임베드로 알아서 처리 — 여기서 미리 막을 필요 없음
   const ok = await _tsPostWebhook(text);
   toast(ok ? '📨 디스코드에 게시됨' : '전송 실패 — 웹훅 URL을 확인하세요', !ok);
 }
@@ -26246,6 +26267,11 @@ function _tsNotifyGrant(memberId, kind, pts){
         ? `🏆 **${nm}** ${sign}${pts} TP${mid} · ${now.getMonth()+1}월 누적 ${bp.trust}${protTxt}${by}`
         : `⚠️ **${nm}** ${sign}${Number(pts).toFixed(1)} Warning${mid} · ${now.getMonth()+1}월 누적 ${Number(bp.warn).toFixed(1)}${protTxt}${by}`;
     }
+    // [v727] boss 8/5 "Player Trust System 표도 같이 나와야 될 것 같다 — 플레이어들이 전체 현황을
+    // 확인해야 하니까" — 개별 알림 한 줄 밑에 전체 보드를 이어붙여 한 메시지로 같이 게시한다. 매번
+    // 게시라 채널이 바빠질 수 있음(보스가 이 방식으로 선택, 8/5) — 표는 점수판을 열어야 만들어지므로
+    // (window._tsCopyGroups) 페이지가 안 열려있으면 조용히 한 줄 알림만 나간다.
+    try{ const board = _tsBoardText(); if(board) msg += '\n\n' + board; }catch(_){}
     _tsPostWebhook(msg);   // fire-and-forget — 실패해도 점수 부여는 그대로
   }catch(_){}
 }
