@@ -11294,7 +11294,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v717';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v718';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -37868,7 +37868,23 @@ $('btnStrat').onclick=()=>{
     // 10 richer background lighting, still minimal and readable.
     const bg=ctx.createLinearGradient(0,0,W,H);bg.addColorStop(0,'rgba(229,181,103,.13)');bg.addColorStop(.45,'rgba(20,20,26,.09)');bg.addColorStop(1,'rgba(0,0,0,.20)');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
     ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(W*.78,H*.24,5,W*.78,H*.24,W*.32);g.addColorStop(0,'rgba(255,230,161,.22)');g.addColorStop(.55,'rgba(255,230,161,.05)');g.addColorStop(1,'rgba(255,230,161,0)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.restore();
-    drawPile();
+    // [v718] boss 8/5 "쓰레기같고 촌스러워" — 지폐 더미 클립아트 대신, 남은 풀을 은은한 골드 광량으로만
+    // 표현한다(레퍼런스 톤). 잔액이 줄면 빛이 약해지고 35% 아래에서 붉은 기가 돈다.
+    (function(){
+      const pct=remainPct();
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const g=ctx.createRadialGradient(W*.74,H*.62,6,W*.74,H*.62,Math.max(W,H)*.55);
+      g.addColorStop(0,'rgba(255,214,132,'+(0.06+0.16*pct).toFixed(3)+')');
+      g.addColorStop(.5,'rgba(229,181,103,'+(0.02+0.05*pct).toFixed(3)+')');
+      g.addColorStop(1,'rgba(229,181,103,0)');
+      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      if(pct<.35){
+        const w=ctx.createRadialGradient(W*.74,H*.62,6,W*.74,H*.62,Math.max(W,H)*.42);
+        w.addColorStop(0,'rgba(255,96,86,'+(0.10*(1-pct/.35)).toFixed(3)+')'); w.addColorStop(1,'rgba(255,96,86,0)');
+        ctx.fillStyle=w; ctx.fillRect(0,0,W,H);
+      }
+      ctx.restore();
+    })();
     if(!reduced){nextDrop-=dt;if(nextDrop<=0&&!drop){spawnDrop(false);nextDrop=1.05+Math.random()*1.15;}drawDrop(dt);}
     drawImpact(dt);
     raf=requestAnimationFrame(frame);
@@ -38233,43 +38249,34 @@ $('btnStrat').onclick=()=>{
     ctx.fillStyle=vg; ctx.fillRect(0,0,W,horizon);
     ctx.restore();
   }
+  // [v718] boss 8/5 — 첨부 레퍼런스(index_bento_moneycups) 대조 결과: 저 화면이 깔끔한 이유는 장식이 없기
+  // 때문이다. 배경은 상단 골드 글로우와 떠다니는 입자뿐이고, 시선은 구체와 컵(선수)에만 간다.
+  // v699의 야경 도시, v712~715의 금고 방/기둥/바닥 인레이는 전부 걷어내고 그 최소 구성으로 되돌린다.
+  // (히어로는 씬이 아니라 숫자와 애니메이션이다.)
   function drawVaultRoom(ts){
-    const floorY=H-52;
-    // [v712] 야경 도시 → 골드 3D 룸 (boss 8/5)
-    drawGoldRoom(ts, floorY);
-    // ambient warm glow around the sphere lights the wall naturally
-    ctx.save();ctx.globalCompositeOperation='lighter';
-    const amb=ctx.createRadialGradient(vCX,vCY,vR*.4,vCX,vCY,Math.max(W,H)*.5);
-    amb.addColorStop(0,'rgba(229,181,103,.15)');amb.addColorStop(.5,'rgba(229,181,103,.05)');amb.addColorStop(1,'rgba(229,181,103,0)');
-    ctx.fillStyle=amb;ctx.fillRect(0,0,W,floorY);ctx.restore();
-    // WEEKLY BONUS as the dim wall backdrop (sphere will sit in front of it)
-    drawWeeklyBackdrop(ts);
-    // faint recessed vault ring behind the sphere (subtle, not the hero anymore)
-    const dcx=vCX,dcy=vCY,dr=vR+Math.min(W*.06,34);
-    ctx.save();ctx.globalAlpha=.5;drawVaultDoor(dcx,dcy,dr,ts);ctx.restore();
-    // soft, wide spotlight (natural)
-    ctx.save();ctx.globalCompositeOperation='lighter';
-    const sp=ctx.createLinearGradient(0,0,0,floorY);sp.addColorStop(0,'rgba(255,226,150,.08)');sp.addColorStop(.7,'rgba(255,205,110,.03)');sp.addColorStop(1,'rgba(255,205,110,0)');
-    ctx.fillStyle=sp;ctx.beginPath();ctx.moveTo(vCX-22,0);ctx.lineTo(vCX+22,0);ctx.lineTo(vCX+W*.30,floorY);ctx.lineTo(vCX-W*.30,floorY);ctx.closePath();ctx.fill();ctx.restore();
-    drawStacks(floorY);
-    // wall–floor seam ambient occlusion (grounds everything)
-    const ao=ctx.createLinearGradient(0,floorY-24,0,floorY);ao.addColorStop(0,'rgba(0,0,0,0)');ao.addColorStop(1,'rgba(0,0,0,.36)');ctx.fillStyle=ao;ctx.fillRect(0,floorY-24,W,24);
-    // polished floor with perspective
-    const fl=ctx.createLinearGradient(0,floorY,0,H);
-    fl.addColorStop(0,'#3a2a16');fl.addColorStop(.12,'#4a3319');fl.addColorStop(.5,'#2a1e11');fl.addColorStop(1,'#120c07');
-    ctx.fillStyle=fl;ctx.fillRect(0,floorY,W,H-floorY);
-    ctx.fillStyle='rgba(229,181,103,.22)';ctx.fillRect(0,floorY,W,1.5);
-    // sphere reflection smear on the floor
-    ctx.save();ctx.globalAlpha=.13;
-    const refl=ctx.createLinearGradient(0,floorY,0,H);refl.addColorStop(0,'rgba(255,220,150,.55)');refl.addColorStop(1,'rgba(255,220,150,0)');
-    ctx.fillStyle=refl;ctx.fillRect(vCX-vR*.7,floorY,vR*1.4,H-floorY);ctx.restore();
-    // floor sheen band
-    const sheen=ctx.createLinearGradient(0,floorY,0,floorY+26);sheen.addColorStop(0,'rgba(255,222,150,.10)');sheen.addColorStop(1,'rgba(255,222,150,0)');ctx.fillStyle=sheen;ctx.fillRect(0,floorY,W,26);
-    // soft vignette
-    const vg=ctx.createRadialGradient(W/2,H*.44,H*.24,W/2,H*.5,Math.max(W,H)*.75);
-    vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.46)');ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
-  }
-  function drawVault(ts){
+    const floorY = H-52;
+    // 1) 위에서 내려오는 골드 광원 — 구체를 자연스럽게 띄운다
+    const key = ctx.createRadialGradient(W*0.5, -H*0.10, 10, W*0.5, -H*0.10, Math.max(W,H)*0.95);
+    key.addColorStop(0,'rgba(229,181,103,.16)');
+    key.addColorStop(.45,'rgba(229,181,103,.05)');
+    key.addColorStop(1,'rgba(229,181,103,0)');
+    ctx.fillStyle=key; ctx.fillRect(0,0,W,H);
+    // 2) 구체 주변 은은한 앰비언트
+    ctx.save(); ctx.globalCompositeOperation='lighter';
+    const amb=ctx.createRadialGradient(vCX,vCY,vR*0.4,vCX,vCY,Math.max(W,H)*0.42);
+    amb.addColorStop(0,'rgba(255,214,140,'+(0.10+0.03*Math.sin(ts*0.0012)).toFixed(3)+')');
+    amb.addColorStop(1,'rgba(255,214,140,0)');
+    ctx.fillStyle=amb; ctx.fillRect(0,0,W,H); ctx.restore();
+    // 3) 컵이 놓인 바닥선 — 선 하나로 접지감만 준다
+    const shelf=ctx.createLinearGradient(0,floorY-10,0,floorY+2);
+    shelf.addColorStop(0,'rgba(0,0,0,0)'); shelf.addColorStop(1,'rgba(0,0,0,.30)');
+    ctx.fillStyle=shelf; ctx.fillRect(0,floorY-10,W,12);
+    ctx.fillStyle='rgba(229,181,103,.18)'; ctx.fillRect(0,floorY,W,1);
+    // 4) 가장자리만 살짝 눌러 대비 확보
+    const vg=ctx.createRadialGradient(W*0.5,H*0.45,Math.min(W,H)*0.30,W*0.5,H*0.5,Math.max(W,H)*0.78);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.42)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+  }  function drawVault(ts){
     const cx=vCX,cy=vCY,r=vR,frac=mcClamp(remain/pool,0,1);
     // suspension cable from ceiling
     ctx.strokeStyle='rgba(170,182,205,.45)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,cy-r-3);ctx.stroke();
