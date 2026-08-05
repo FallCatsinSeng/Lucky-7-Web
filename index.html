@@ -8007,7 +8007,10 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race .c-combo{grid-area:combo}#kb-race .c-raid{grid-area:raid}#kb-race .c-eta{grid-area:eta}#kb-race .c-danger{grid-area:danger}
 
 #kb-race .c-money{grid-area:money;position:relative;overflow:hidden;padding:0;min-height:470px;background:linear-gradient(145deg,rgba(229,181,103,.095),rgba(20,20,26,.72) 48%,rgba(10,132,255,.045));border-color:rgba(229,181,103,.18)}
-#kb-race .c-money::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(720px 240px at 50% -12%,rgba(229,181,103,.13),transparent 65%),radial-gradient(520px 220px at 100% 30%,rgba(10,132,255,.08),transparent 62%)}
+/* [v721] boss 8/5 "디자인 너무 맥시멀하다" — 이 ::before가 진짜 범인이었다. 캔버스(moneyCv) JS가 아니라
+   .c-money 카드 자체의 CSS 장식층: 우측 100% 30% 지점에 앉은 파란 radial-gradient가 카드 한쪽 구석에
+   달처럼 떠 보이는 원인이었다(v718~720의 캔버스 정리는 다른 레이어라 이걸 못 건드렸다). 완전히 제거. */
+#kb-race .c-money::before{content:"";position:absolute;inset:0;pointer-events:none}
 #kb-race .mc-wrap{position:relative;z-index:1;height:100%;display:grid;grid-template-rows:auto minmax(250px,1fr) auto;min-height:470px}
 #kb-race .mc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 10px;border-bottom:.5px solid rgba(255,255,255,.07)}
 #kb-race .mc-title{min-width:0}#kb-race .mc-eyebrow{font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}#kb-race .mc-title h3{margin:0;font-size:15px;font-weight:800;letter-spacing:.01em}#kb-race .mc-title p{margin:4px 0 0;color:var(--tx3);font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -11294,7 +11297,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v720';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v721';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
