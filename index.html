@@ -11301,7 +11301,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v724';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v725';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -29048,7 +29048,14 @@ function getChannelLabel(chId){
 
 // 개인별 페이지 접근 오버라이드 — role 기본값보다 우선 적용
 // 정산은 일단 판다·토리·구원만 출입 (vallen 등 매니저도 명시적 차단)
-const USER_OVERRIDES = {};
+// [v725] boss 8/5 "카이지랑 브루스한테도 점수판 열어서 직원들 점수 줄 수 있게 해줘" — 둘 다 role='leader'
+// 이고 ROLE_PERMS['op-trust'].leader는 false(팀 리더 전체 차단)라서, role 전체를 열지 않고 이 둘만 개인
+// 오버라이드로 예외. quickGrantTrust/quickGrantWarn(점수 부여) 자체엔 별도 권한 게이트가 없고 op-trust
+// 페이지 접근 여부로만 막혀있어서, 이 오버라이드 하나로 "열기 + 점수 주기" 둘 다 가능해진다.
+const USER_OVERRIDES = {
+  'be712846-4345-479a-9415-d5be727ed304': { 'op-trust': true },  // Mr.Bruce (leader)
+  '3b5eabc9-32ab-4ee8-ae2b-e781b7ce5ba6': { 'op-trust': true },  // Mr.Kaiji (leader)
+};
 function userPageAccess(u, chId){
   const ov = USER_OVERRIDES[u.id];
   if(ov && chId in ov) return ov[chId];     // 개인 오버라이드 우선
