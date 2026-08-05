@@ -8871,14 +8871,14 @@ body:has(#kb-race) #sb-right{display:none!important}
    창작 배경: 야경 스카이라인 SVG(달 · 창문 불빛 SMIL 플리커 · 안테나 경고등) — 레이스 캔버스의 빌딩 세계관과 동일.
    위클리(머니 무대)와 먼슬리(예산 카드)가 같은 씬을 공유하고, 페이지 전 카드 테두리를 골드 헤어라인으로 통일. */
 
-/* 1) 위클리 무대 뒷배경 — 스카이라인 씬 (공은 이 앞에서 떨어짐) */
+/* [v722] boss 8/5 "너무 맥시멀하다" — 실제 범인은 여기였다. 이 ::before가 스카이라인 SVG(오른쪽 위 달 +
+   13개 빌딩 실루엣 + 깜빡이는 창문·항공 비콘)를 카드 배경에 통째로 깔고 있었다. moneyCv 캔버스가 아니라
+   CSS 배경이라서 v718~721의 캔버스 정리(drawVaultRoom 등)로는 전혀 지워지지 않았다 — 완전히 다른 레이어.
+   SVG·여분의 radial-gradient 전부 제거, 바닥만 살짝 눌러주는 리니어 그라데이션 하나만 남긴다. */
 #kb-race #kbapp.bento.mt-grid-ready .c-money .mc-canvas-wrap::before,
 #kb-race #kbapp.bento .c-money .mc-canvas-wrap::before{
   height:100%!important;top:0!important;
-  background:
-    linear-gradient(180deg,rgba(9,11,20,.14),transparent 30%,transparent 62%,rgba(0,0,0,.44)),
-    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 260' preserveAspectRatio='xMidYMax slice'><circle cx='522' cy='58' r='24' fill='%23f7e3b0' opacity='.85'/><circle cx='522' cy='58' r='44' fill='%23f7e3b0' opacity='.10'/><g fill='%23131722'><rect x='0' y='150' width='52' height='110'/><rect x='58' y='120' width='40' height='140'/><rect x='104' y='160' width='34' height='100'/><rect x='150' y='105' width='48' height='155'/><rect x='205' y='140' width='30' height='120'/><rect x='242' y='90' width='44' height='170'/><rect x='292' y='150' width='36' height='110'/><rect x='334' y='118' width='52' height='142'/><rect x='392' y='142' width='30' height='118'/><rect x='430' y='96' width='46' height='164'/><rect x='484' y='150' width='38' height='110'/><rect x='528' y='124' width='44' height='136'/><rect x='578' y='146' width='62' height='114'/></g><rect x='262' y='72' width='3' height='20' fill='%23131722'/><circle cx='263.5' cy='70' r='2.4' fill='%23ff6a5e'><animate attributeName='opacity' values='1;.15;1' dur='2.6s' repeatCount='indefinite'/></circle><g fill='%23e5b567'><rect x='160' y='120' width='6' height='4' opacity='.75'/><rect x='172' y='132' width='6' height='4' opacity='.5'/><rect x='250' y='104' width='6' height='4' opacity='.8'><animate attributeName='opacity' values='.8;.15;.8' dur='3.8s' begin='.4s' repeatCount='indefinite'/></rect><rect x='264' y='118' width='6' height='4' opacity='.55'/><rect x='340' y='130' width='6' height='4' opacity='.7'><animate attributeName='opacity' values='.7;.1;.7' dur='5.1s' begin='1.2s' repeatCount='indefinite'/></rect><rect x='352' y='144' width='6' height='4' opacity='.45'/><rect x='438' y='110' width='6' height='4' opacity='.8'/><rect x='450' y='124' width='6' height='4' opacity='.5'><animate attributeName='opacity' values='.5;.95;.5' dur='4.4s' begin='2s' repeatCount='indefinite'/></rect><rect x='540' y='134' width='6' height='4' opacity='.65'/><rect x='60' y='128' width='6' height='4' opacity='.6'/><rect x='72' y='140' width='6' height='4' opacity='.4'><animate attributeName='opacity' values='.4;.9;.4' dur='6s' begin='.8s' repeatCount='indefinite'/></rect><rect x='596' y='154' width='6' height='4' opacity='.55'/></g><rect x='0' y='196' width='640' height='64' fill='%23e5b567' opacity='.05'/></svg>") bottom center/cover no-repeat,
-    radial-gradient(520px 220px at 62% 46%,rgba(229,181,103,.10),transparent 65%);
+  background:linear-gradient(180deg,transparent,transparent 70%,rgba(0,0,0,.30));
   opacity:1!important;
 }
 /* 2) 유리 반사 하이라이트 — 무대 위 사선 광 */
@@ -11297,7 +11297,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v721';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v722';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
