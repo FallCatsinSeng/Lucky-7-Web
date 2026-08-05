@@ -7939,13 +7939,16 @@ body:has(#kb-race) #sb-right{display:none!important}
 
 /* [v723] boss 8/5 "위클리 보너스 카드 없애, monthly bonus도 없애고, 배경 깔끔하게" — 두 카드(#budgetRainCard
    = MONTHLY BONUS, #moneyCard = WEEKLY BONUS) 전부 숨긴다. grid-template-areas에서도 budget/money 행을
-   제거해서(위 sed로 전체 반영) 빈 칸 없이 top→race→board로 바로 이어지게 한다. */
-#kb-race #budgetRainCard,#kb-race #moneyCard{display:none!important}
+   제거해서(위 sed로 전체 반영) 빈 칸 없이 top→race→board로 바로 이어지게 한다.
+   [v729] boss 8/6 "레이스 복구좀 해 — 그 위클리 풀이 아예 없어졌다" — v723에서 같이 숨겼던 위클리 풀
+   (#moneyCard = WEEKLY BONUS, 풀 구체 + 컵 바)을 되살린다. 주간 풀 금액을 볼 데가 여기밖에 없었음.
+   MONTHLY BONUS(#budgetRainCard)는 보스 요청대로 계속 숨긴 상태 유지. */
+#kb-race #budgetRainCard{display:none!important}
 #kb-race .c-budget{grid-area:budget;position:relative;overflow:hidden;min-height:156px;padding:0;border-color:rgba(229,181,103,.20);background:linear-gradient(100deg,rgba(229,181,103,.12),rgba(20,20,26,.72) 54%,rgba(10,132,255,.05))}
 #kb-race .c-budget canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
 #kb-race .br-content{position:relative;z-index:1;height:100%;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px}
 #kb-race .br-left{min-width:0}#kb-race .br-eyebrow{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}#kb-race .br-title{font-size:22px;font-weight:900;letter-spacing:.01em;line-height:1.05}#kb-race .br-title b{color:var(--gold)}#kb-race .br-sub{margin-top:7px;font-size:12px;color:var(--tx2);font-weight:600}#kb-race .br-right{display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));gap:8px;min-width:420px}#kb-race .br-kpi{padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.06);border:.5px solid rgba(255,255,255,.10);text-align:right}#kb-race .br-kpi span{display:block;color:var(--tx3);font-size:9px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}#kb-race .br-kpi b{display:block;margin-top:4px;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums;color:#fff}#kb-race .br-kpi.total b{color:var(--gold)}#kb-race .br-kpi.remain b{color:var(--green)}#kb-race .br-progress{position:absolute;left:20px;right:20px;bottom:13px;height:4px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden}#kb-race .br-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--gold),#ffe9a6);border-radius:999px;transition:width .7s cubic-bezier(.2,1,.3,1)}
-@media(max-width:880px){#kb-race .bento{grid-template-areas:"top" "race" "board"}#kb-race .c-budget{min-height:210px}#kb-race .br-content{align-items:flex-start;flex-direction:column}#kb-race .br-right{width:100%;min-width:0;grid-template-columns:1fr}#kb-race .br-kpi{text-align:left}#kb-race .br-title{font-size:20px}}
+@media(max-width:880px){#kb-race .bento{grid-template-areas:"top" "race" "money" "board"}#kb-race .c-budget{min-height:210px}#kb-race .br-content{align-items:flex-start;flex-direction:column}#kb-race .br-right{width:100%;min-width:0;grid-template-columns:1fr}#kb-race .br-kpi{text-align:left}#kb-race .br-title{font-size:20px}}
 
 #kb-race .c-race{grid-area:race;position:relative;padding:0;overflow:hidden;min-height:228px}
 #kb-race .c-race canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -8089,7 +8092,7 @@ body:has(#kb-race) #sb-right{display:none!important}
 
 @media(max-width:880px){
   #kb-race .bento{grid-template-columns:1fr;grid-template-rows:none;
-    grid-template-areas:"top" "race" "board";}
+    grid-template-areas:"top" "race" "money" "board";}
   #kb-race .c-board{max-height:none}#kb-race .lb{max-height:50vh}
   #kb-race .rw-cols{grid-template-columns:1fr}
 }
@@ -8182,7 +8185,7 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race .mc-rows{max-height:244px!important}
 #kb-race .mc-head{padding:12px 14px 8px!important}#kb-race .mc-title h3{font-size:14px!important}#kb-race .mc-title p{font-size:10.5px!important}#kb-race .mc-kpi{padding:6px 8px!important;min-width:76px!important}#kb-race .mc-controls{padding:8px 12px!important}#kb-race .mc-buttons button{padding:7px 9px!important}
 @media(max-width:880px){
-  #kb-race .bento{grid-template-rows:none!important;grid-template-areas:"top" "race" "board"!important}
+  #kb-race .bento{grid-template-rows:none!important;grid-template-areas:"top" "race" "money" "board"!important}
   #kb-race .c-budget{min-height:145px!important}#kb-race .br-content{flex-direction:column!important;align-items:flex-start!important}#kb-race .br-right{width:100%!important;min-width:0!important;grid-template-columns:repeat(3,1fr)!important}#kb-race .br-kpi{text-align:left!important}#kb-race .br-title{font-size:19px!important}#kb-race .c-race{min-height:200px!important}#kb-race .c-money,#kb-race .mc-wrap{min-height:0!important}
 }
 @media(max-width:560px){#kb-race .br-right{grid-template-columns:1fr!important}#kb-race .c-budget{min-height:218px!important}}
@@ -8489,7 +8492,7 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race .mc-row.top-bonus .mc-bar{background:linear-gradient(90deg,#d8a13a,#ffe4a0)!important;box-shadow:0 0 18px rgba(229,181,103,.42)!important}
 
 @media(max-width:880px){
-  #kb-race .bento{grid-template-areas:"top" "race" "board"!important}
+  #kb-race .bento{grid-template-areas:"top" "race" "money" "board"!important}
   #kb-race .c-king{padding:12px 13px!important}
   #kb-race .king-strip{align-items:flex-start;flex-direction:column;gap:12px}
   #kb-race .king-right{width:100%;align-items:flex-start}
@@ -8554,7 +8557,7 @@ body:has(#kb-race) #sb-right{display:none!important}
 }
 @media(max-width:880px){
   #kb-race,#kb-race{overflow-y:auto!important}
-  #kb-race .bento{height:auto!important;max-height:none!important;overflow:visible!important;grid-template-areas:"top" "race" "board"!important}
+  #kb-race .bento{height:auto!important;max-height:none!important;overflow:visible!important;grid-template-areas:"top" "race" "money" "board"!important}
   #kb-race .c-budget{min-height:178px!important;max-height:none!important;height:auto!important}
   #kb-race .c-budget .br-content.left-focus{min-height:178px!important;height:auto!important;padding:96px 14px 20px 14px!important}
   #kb-race .c-king{display:block!important;min-height:0!important;height:auto!important;max-height:none!important}
@@ -9751,7 +9754,7 @@ body:has(#kb-race) #sb-right{display:none!important}
   #kb-race .c-king .king-score{font-size:34px!important}
 }
 @media(max-width:880px){
-  #kb-race #kbapp.bento{grid-template-columns:1fr!important;grid-template-rows:none!important;grid-template-areas:"top" "race" "board"!important;padding:12px!important}
+  #kb-race #kbapp.bento{grid-template-columns:1fr!important;grid-template-rows:none!important;grid-template-areas:"top" "race" "money" "board"!important;padding:12px!important}
   #kb-race #budgetRainCard.c-budget{height:auto!important;min-height:142px!important;max-height:none!important}
   #kb-race #budgetRainCard #budgetRain{opacity:.30!important;transform:translateX(8px) scale(.82)!important}
   #kb-race #budgetRainCard .br-topband{left:14px!important;right:14px!important;top:12px!important;align-items:flex-start!important;flex-direction:column!important;gap:8px!important}
@@ -11305,7 +11308,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v727';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v729';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -39401,20 +39404,25 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
     window.MT_LITE_MODE=true;
     document.documentElement.classList.add('mt-lite');
     var COLS=12, ROWH=38, GAP=10, MINW=2, MINH=2;
-    var KEY='mt_bento_layout_v33';
+    var KEY='mt_bento_layout_v34';
     var MIN_H={top:1,budget:3,race:4,king:6,money:6,board:6};
     // [v724] boss 8/5 removed the budget/money cards (display:none). Their SAVED localStorage rects (from
     // before removal) don't auto-collapse — grid items don't reflow around a hidden sibling's fixed
     // grid-row/column, so race+board were left exactly where they were, with a big empty hole where
     // budget+money used to sit. Bumping the storage key (same migration pattern as v1→v2 below) makes every
     // browser drop its stale v32 layout and pick up the new DEFAULT, where race now fills that vacated slot.
-    var OLD_KEYS=['mt_bento_layout_v1','mt_bento_layout_v2','mt_bento_layout_v32'];
+    // [v729] boss 8/6 위클리 풀(money) 복구 — 카드를 다시 보이게만 하면 v33 DEFAULT엔 money 자리가 아예
+    // 없어서(위 카드 수집 루프가 display:none을 건너뛰던 시절에 만든 레이아웃) 저장된 v33 rect를 그대로
+    // 쓰는 브라우저에선 카드가 엉뚱한 행으로 밀린다. 키를 v34로 올려 전부 새 DEFAULT를 받게 한다:
+    // 왼쪽 열은 race(2~8행) 위 / money(9~20행) 아래로 쌓고, 오른쪽 board를 2~20행으로 늘려 바닥을 맞춘다.
+    var OLD_KEYS=['mt_bento_layout_v1','mt_bento_layout_v2','mt_bento_layout_v32','mt_bento_layout_v33'];
     var LOCK={top:1};
     var DEFAULT={
       top:{c:1,r:1,w:12,h:1},
-      race:{c:1,r:2,w:8,h:13},
+      race:{c:1,r:2,w:8,h:7},
       king:{c:9,r:6,w:4,h:6},
-      board:{c:9,r:2,w:4,h:13}
+      money:{c:1,r:9,w:8,h:12},
+      board:{c:9,r:2,w:4,h:19}
     };
     var bento=document.getElementById('kbapp')||document.querySelector('.bento');
     if(!bento) return;
