@@ -11294,7 +11294,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v718';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v719';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -21634,9 +21634,16 @@ function _srRecCardHTML(data){
   var k1=function(s){ return String(s||'').toLowerCase().trim().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').split(/\s+/)[0]||''; };
   var validShiftKey=function(k){ k=String(k||'').trim(); if(!k) return ''; if((typeof SHIFT_SCHEDULE!=='undefined'&&SHIFT_SCHEDULE[k])||(typeof SHIFTS!=='undefined'&&SHIFTS[k])) return k; return ''; };
   var shiftKeyToGrp=function(key){ key=String(key||'').toLowerCase(); if(!key) return '';
-    if(key==='12h_day'||key==='10h_day') return 'd12'; if(key==='12h_night'||key==='10h_night') return 'n12';
+    // [v719] 10H is its own day/night bucket now, not folded into 12H (boss 8/5: "8 10 12 이렇게 근무시간이
+    // 나뉘거든, 10시간도 데이/야간으로 나눠줘, 기준은 알아서"). Evening(17:00-03:00) leans NIGHT — it overlaps
+    // the 21:00-03:00 night window (6h) more than the 17:00-21:00 day tail (4h), matching the existing
+    // payroll bucket (_TS_SHIFT_COL already pays 10h_evening as "Night 10").
+    if(key==='12h_day') return 'd12'; if(key==='12h_night') return 'n12';
+    if(key==='10h_morning'||key==='10h_day') return 'd10'; if(key==='10h_night'||key==='10h_evening') return 'n10';
     if(key==='8h_s1') return 's1'; if(key==='8h_s2') return 's2'; if(key==='8h_s3') return 's3';
     if(key.indexOf('s1')>=0) return 's1'; if(key.indexOf('s2')>=0) return 's2'; if(key.indexOf('s3')>=0) return 's3';
+    if(key.indexOf('evening')>=0) return 'n10';
+    if(key.indexOf('10h')>=0){ if(key.indexOf('night')>=0) return 'n10'; if(key.indexOf('day')>=0||key.indexOf('morning')>=0) return 'd10'; }
     if(key.indexOf('day')>=0) return 'd12'; if(key.indexOf('night')>=0) return 'n12'; return ''; };
   var profShiftKey=function(c){ if(!c) return ''; var p=c.personal||{}; return validShiftKey(c.manual_shift)||validShiftKey(c.shift)||validShiftKey(c.pref_shift)||validShiftKey(p.manual_shift)||validShiftKey(p.shift)||validShiftKey(p.pref_shift); };
   var liveProfileFor=function(key){ try{ if(typeof STAFF_PROFILE==='undefined') return null;
@@ -21651,11 +21658,13 @@ function _srRecCardHTML(data){
   };
   var GMETA={ d12:{ic:'☀️',tt:'12H 주간',gc:'#5fa3d9',gcb:'rgba(95,163,217,.13)'},
     n12:{ic:'🌙',tt:'12H 야간',gc:'#a98fd6',gcb:'rgba(169,143,214,.13)'},
+    d10:{ic:'🌤️',tt:'10H 주간',gc:'#4aa0c2',gcb:'rgba(74,160,194,.13)'},
+    n10:{ic:'🌘',tt:'10H 야간',gc:'#8a74d6',gcb:'rgba(138,116,214,.13)'},
     s1:{ic:'🌅',tt:'8H 시프트 1',gc:'#e0954a',gcb:'rgba(224,149,74,.13)'},
     s2:{ic:'🌆',tt:'8H 시프트 2',gc:'#d97064',gcb:'rgba(217,112,100,.13)'},
     s3:{ic:'🌃',tt:'8H 시프트 3',gc:'#5bb39a',gcb:'rgba(91,179,154,.13)'},
     un:{ic:'❔',tt:'미배정',gc:'#8a8a86',gcb:'rgba(140,140,140,.10)'} };
-  var GORDER=['d12','n12','s1','s2','s3','un'];
+  var GORDER=['d12','n12','d10','n10','s1','s2','s3','un'];
 
   var universe={};
   daily.forEach(function(r){ if(!universe[r.key])universe[r.key]={name:r.name,recs:0,gain:0,quota:0,hasRec:false,flags:0,cleanGain:0,scored:0,scoredClean:0,hours:0}; var u=universe[r.key]; u.recs++; u.gain+=r.gain; u.quota+=r.quota; u.hasRec=true; u.flags+=(r.flags||0); u.cleanGain+=(r.cleanGain||0); u.scored+=(r.scored||0); u.scoredClean+=(r.scoredClean||0); u.hours+=(r.hours||0); });
@@ -21915,11 +21924,11 @@ function _srRecCardHTML(data){
   }
 
   // ════════════════ OVERVIEW (그룹 밴드) ════════════════
-  var byG={d12:[],n12:[],s1:[],s2:[],s3:[],un:[]};
+  var byG={d12:[],n12:[],d10:[],n10:[],s1:[],s2:[],s3:[],un:[]};
   Object.keys(universe).forEach(function(k){ if(_isHiddenKey(k)) return;   /* [v415] resigned/hidden staff out of every band */ var g=universe[k].grp||'un'; (byG[g]=byG[g]||[]).push(k); });
   var grpCount=function(g){ return (byG[g]||[]).length; };
   var segBtn=function(g,label){ var on=(curG===g); var n=(g==='all')?Object.keys(universe).filter(function(_k){return !_isHiddenKey(_k);}).length:grpCount(g); var st=(on&&g!=='all'&&GMETA[g])?(' style="color:'+GMETA[g].gc+';background:'+GMETA[g].gcb+'"'):''; return '<button class="'+(on?'on':'')+'" data-g="'+g+'"'+st+' onclick="_srRecGroupBy(\''+g+'\')">'+label+' <span class="n">'+n+'</span></button>'; };
-  var seg='<div class="sr-gseg">'+segBtn('all','전체')+segBtn('d12','☀️ 12H 주간')+segBtn('n12','🌙 12H 야간')+segBtn('s1','🌅 8H S1')+segBtn('s2','🌆 8H S2')+segBtn('s3','🌃 8H S3')+(grpCount('un')?segBtn('un','❔ 미배정'):'')+'</div>';
+  var seg='<div class="sr-gseg">'+segBtn('all','전체')+segBtn('d12','☀️ 12H 주간')+segBtn('n12','🌙 12H 야간')+segBtn('d10','🌤️ 10H 주간')+segBtn('n10','🌘 10H 야간')+segBtn('s1','🌅 8H S1')+segBtn('s2','🌆 8H S2')+segBtn('s3','🌃 8H S3')+(grpCount('un')?segBtn('un','❔ 미배정'):'')+'</div>';
   var dailyByKey={}; daily.forEach(function(r){ (dailyByKey[r.key]=dailyByKey[r.key]||[]).push(r); });
 
   // [v501] current roster player keys — a records card whose key is NOT here (but HAS records) is an
@@ -22000,7 +22009,7 @@ function _srRecCardHTML(data){
     : (periodTab+seg+'<div class="sr-rec-bar"><span class="sr-rec-cnt">'+(_uiLang()==='ko'?'일일 기록':'Daily log')+' · '+daily.length+'</span><span class="sr-rec-actions"><button class="sr-rec-csv" onclick="_srRecCSV()">⬇ CSV</button>'+((typeof currentUserRole!=='undefined'&&currentUserRole==='admin')?'<button class="sr-rec-csv sr-rec-danger" onclick="_srRecKeepToday()">'+(_uiLang()==='ko'?'🗑 오늘만 남기기':'🗑 Keep today only')+'</button>':'')+(((typeof currentUserRole!=='undefined'&&currentUserRole==='admin'))?('<button class="sr-rec-csv sr-rec-danger" onclick="_srRecResetAll()">'+(_uiLang()==='ko'?'🗑 전체 초기화':'🗑 Reset all')+'</button>'):'')+'</span></div>'+bands+resignedSec);
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span><span class="sr-badge">실시간</span></div>'
-    +'<div class="sr-rec-sub">'+(_uiLang()==='ko'?'전 직원·클라이언트 기록 — 시프트 그룹(12H 주/야 · 8H S1·2·3) 또는 클라별. 항목을 누르면 상세가 펼쳐집니다.':'All staff · client log — shift group (12H Day/Night · 8H S1·2·3) or by client. Tap an item to expand.')+'</div>'
+    +'<div class="sr-rec-sub">'+(_uiLang()==='ko'?'전 직원·클라이언트 기록 — 시프트 그룹(12H 주/야 · 10H 주/야 · 8H S1·2·3) 또는 클라별. 항목을 누르면 상세가 펼쳐집니다.':'All staff · client log — shift group (12H Day/Night · 10H Day/Night · 8H S1·2·3) or by client. Tap an item to expand.')+'</div>'
     +modetab
     +body
     +'</div>';
@@ -26875,6 +26884,9 @@ async function renderMyPerformance(){
         return null; };
       const grpKey = (k,name)=>{ const s=liveShift[k]||'';
         if(/shift1/.test(s)) return 's1'; if(/shift2/.test(s)) return 's2'; if(/shift3/.test(s)) return 's3';
+        // [v719] 10H buckets separately from 12H now, and evening(17-03) leans NIGHT (more overlap with
+        // 21:00-03:00 than with the 17:00-21:00 day tail) — matches Records & Stats' shiftKeyToGrp.
+        if(/10h/.test(s)){ if(/night|evening/.test(s)) return 'n10'; if(/day|morning/.test(s)) return 'd10'; }
         if(/night/.test(s)) return 'n12'; if(/day|morning|evening/.test(s)) return 'd12';
         return (typeof _rcGroupOf==='function'?_rcGroupOf(name):'un'); };
       // [v706] exclusion parity with the race: hidden staff (kaiji etc.) and trainees never rank publicly
@@ -26898,7 +26910,7 @@ async function renderMyPerformance(){
           tG:a.tG,tGoalQ:a.tGoalQ,tSlQ:a.tSlQ,tH:a.tH,tPerH:a.tPerH,tTgtH:a.tTgtH}; })
         .filter(r=>r.hours>0 && r.weekPerf!=null);
       rows.sort((a,b)=>(b.weekPerf||0)-(a.weekPerf||0));
-      const GN={d12:'☀️ 주간조',n12:'🌙 야간조',s1:'🌅 시프트1',s2:'🌆 시프트2',s3:'🌃 시프트3',un:'—'};
+      const GN={d12:'☀️ 주간조',n12:'🌙 야간조',d10:'🌤️ 주간조(10H)',n10:'🌘 야간조(10H)',s1:'🌅 시프트1',s2:'🌆 시프트2',s3:'🌃 시프트3',un:'—'};
       const lblOf=(r)=> r.lbl || GN[r.grp] || '—';
       const chip=(r)=>{ if(!r||r.tGoalQ==null||!(r.tGoalQ>0)) return ['—','#8b93a1','rgba(255,255,255,.05)'];
         if(r.tG>=r.tGoalQ) return ['GOAL','#5fd48a','rgba(77,154,138,.18)'];
