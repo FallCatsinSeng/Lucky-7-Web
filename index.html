@@ -3011,7 +3011,11 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-kcard-id{display:flex;align-items:center;gap:7px;min-width:0;flex:1}   /* 이름줄+서브줄 → 한 줄 */
 /* [v691] 정렬 통일 (boss: 칩이 이름에 붙어 들쭉날쭉) — 이름이 남는 폭을 다 먹고, 칩·수치는 오른쪽 고정 컬럼으로 */
 .lb-name-row{flex:1 1 auto;min-width:0}
-.lb-name-row .lb-name{flex:0 1 auto}
+/* [v726] boss 8/5 "웹사이트를 줄이면 이름이 잘려버려" — .lb-tier 배지가 flex-shrink:0(절대 안 줄어듦)라서
+   폭이 좁아지면 이름 혼자 전부 떠안아 R./P./C.처럼 한 글자로 뭉개졌다. 이름에 최소폭(6글자)을 줘서 좁을 땐
+   배지 쪽 여백(margin-left:auto)이 먼저 줄고, 그래도 안 되면 배지가 다음 줄로 넘어가게 한다. */
+.lb-name-row{flex-wrap:wrap;row-gap:1px}
+.lb-name-row .lb-name{flex:0 1 auto;min-width:6ch}
 .lb-name-row .lb-tier{margin-left:auto}
 .lb-kcard-sub{margin-top:0;gap:0;flex-shrink:0}
 .lb-kcard-id .lb-name{font:12px ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace;font-weight:700}
@@ -11301,7 +11305,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v725';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v726';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -26227,9 +26231,21 @@ function _tsNotifyGrant(memberId, kind, pts){
     const by = (currentUser && currentUser.name) ? ' — by ' + currentUser.name : '';
     const sign = pts > 0 ? '+' : '';
     const mid = (shift ? ' · ' + shift : '');
-    const msg = kind === 'trust'
-      ? `🏆 **${nm}** ${sign}${pts} TP${mid} · ${now.getMonth()+1}월 누적 ${bp.trust}${protTxt}${by}`
-      : `⚠️ **${nm}** ${sign}${Number(pts).toFixed(1)} Warning${mid} · ${now.getMonth()+1}월 누적 ${Number(bp.warn).toFixed(1)}${protTxt}${by}`;
+    // [v726] boss 8/5 "죽은건 디스코드 웹훅으로 전송이 안되네" — quickGrantDead가 _tsNotifyGrant를 아예
+    // 호출하지 않았고(TP/WP만 호출), 이 함수도 trust/warn 두 갈래뿐이라 kind='dead'를 받을 수 없었다.
+    // 사망은 누적을 이번 달 사망 횟수로 세고(점수판 💀 칸과 동일 기준), 취소는 ↩로 구분해 보낸다.
+    let msg;
+    if(kind === 'dead'){
+      let deadN = 0;
+      try{ deadN = (t.deaths||[]).filter(d => d && String(d.date).slice(0,7) === ym).length; }catch(_){}
+      msg = pts >= 0
+        ? `💀 **${nm}** 사망 1회${mid} · ${now.getMonth()+1}월 누적 ${deadN}회${by}`
+        : `↩ **${nm}** 사망 기록 취소${mid} · ${now.getMonth()+1}월 누적 ${deadN}회${by}`;
+    } else {
+      msg = kind === 'trust'
+        ? `🏆 **${nm}** ${sign}${pts} TP${mid} · ${now.getMonth()+1}월 누적 ${bp.trust}${protTxt}${by}`
+        : `⚠️ **${nm}** ${sign}${Number(pts).toFixed(1)} Warning${mid} · ${now.getMonth()+1}월 누적 ${Number(bp.warn).toFixed(1)}${protTxt}${by}`;
+    }
     _tsPostWebhook(msg);   // fire-and-forget — 실패해도 점수 부여는 그대로
   }catch(_){}
 }
@@ -26298,6 +26314,7 @@ async function quickGrantDead(memberId, n){
   }
   try{ logAction('update', (n>=0?'death recorded':'death record removed'), _nm); }catch(_){}
   saveTrustState();
+  _tsNotifyGrant(memberId, 'dead', n);   // [v726] 사망도 TP/WP처럼 디스코드 웹훅 알림 (boss 8/5)
   renderTrust();
 }
 // ─── 점수판 카드 드래그 (시스템 간 이동) ───
