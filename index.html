@@ -11294,7 +11294,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v719';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v720';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -20316,10 +20316,21 @@ function _srInjectCSS(){
 "#sr-app .sr-sec-h .sr-rec-csv{margin:0;}",
 "#sr-app .sr-gseg button.on[data-g=d12]{color:#5fa3d9;background:rgba(95,163,217,.13);}",
 "#sr-app .sr-gseg button.on[data-g=n12]{color:#a98fd6;background:rgba(169,143,214,.13);}",
+"#sr-app .sr-gseg button.on[data-g=d10]{color:#4aa0c2;background:rgba(74,160,194,.13);}",
+"#sr-app .sr-gseg button.on[data-g=n10]{color:#8a74d6;background:rgba(138,116,214,.13);}",
 "#sr-app .sr-gseg button.on[data-g=s1]{color:#e0954a;background:rgba(224,149,74,.13);}",
 "#sr-app .sr-gseg button.on[data-g=s2]{color:#d97064;background:rgba(217,112,100,.13);}",
 "#sr-app .sr-gseg button.on[data-g=s3]{color:#5bb39a;background:rgba(91,179,154,.13);}",
 "#sr-app .sr-gseg button.on[data-g=un]{color:#8a8a86;background:rgba(140,140,140,.12);}",
+/* [v720] boss 8/5: 시프트 그룹 칩을 "카드를 길게/중간/짧게" — 시프트 길이(12H/10H/8H)가 폭으로 바로 읽히게.
+   기존 균일한 pill 대신 데이터-길이(data-dur) 기반으로 폭·패딩·글자크기를 3단 스케일하고, 길이 묶음 사이에
+   얇은 구분선(sr-gdiv)을 넣어 12H | 10H | 8H 군집이 한눈에 갈린다. */
+"#sr-app .sr-gseg{align-items:center;}",
+"#sr-app .sr-gseg button[data-dur]{justify-content:center;}",
+"#sr-app .sr-gseg button[data-dur='12']{min-width:124px;padding:8px 16px;font-size:13.5px;}",
+"#sr-app .sr-gseg button[data-dur='10']{min-width:102px;padding:7px 13px;font-size:12.5px;}",
+"#sr-app .sr-gseg button[data-dur='8']{min-width:80px;padding:6px 11px;font-size:11.5px;}",
+"#sr-app .sr-gseg .sr-gdiv{width:1px;align-self:stretch;background:var(--br2,#2f2f2d);margin:3px 2px;flex:none;}",
 "#sr-app .sr-modetab{display:inline-flex;background:var(--bg-i,#1a1a1a);border:1px solid var(--br2,#2f2f2d);border-radius:12px;padding:4px;gap:3px;margin:2px 0 18px;}",
 "#sr-app .sr-modetab button{appearance:none;border:none;background:transparent;color:var(--tx2,#989792);font:inherit;font-size:13px;font-weight:700;padding:8px 18px;border-radius:9px;cursor:pointer;}",
 "#sr-app .sr-modetab button:hover{color:var(--tx,#e6e5e2);}",
@@ -21927,8 +21938,15 @@ function _srRecCardHTML(data){
   var byG={d12:[],n12:[],d10:[],n10:[],s1:[],s2:[],s3:[],un:[]};
   Object.keys(universe).forEach(function(k){ if(_isHiddenKey(k)) return;   /* [v415] resigned/hidden staff out of every band */ var g=universe[k].grp||'un'; (byG[g]=byG[g]||[]).push(k); });
   var grpCount=function(g){ return (byG[g]||[]).length; };
-  var segBtn=function(g,label){ var on=(curG===g); var n=(g==='all')?Object.keys(universe).filter(function(_k){return !_isHiddenKey(_k);}).length:grpCount(g); var st=(on&&g!=='all'&&GMETA[g])?(' style="color:'+GMETA[g].gc+';background:'+GMETA[g].gcb+'"'):''; return '<button class="'+(on?'on':'')+'" data-g="'+g+'"'+st+' onclick="_srRecGroupBy(\''+g+'\')">'+label+' <span class="n">'+n+'</span></button>'; };
-  var seg='<div class="sr-gseg">'+segBtn('all','전체')+segBtn('d12','☀️ 12H 주간')+segBtn('n12','🌙 12H 야간')+segBtn('d10','🌤️ 10H 주간')+segBtn('n10','🌘 10H 야간')+segBtn('s1','🌅 8H S1')+segBtn('s2','🌆 8H S2')+segBtn('s3','🌃 8H S3')+(grpCount('un')?segBtn('un','❔ 미배정'):'')+'</div>';
+  // [v720] dur param = shift-length hours → data-dur drives the width/type-scale in CSS so 12H/10H/8H read
+  // as long/medium/short cards at a glance (boss 8/5: "12시간은 카드를 길게 10시간은 중간 8시간은 짧게").
+  var segBtn=function(g,label,dur){ var on=(curG===g); var n=(g==='all')?Object.keys(universe).filter(function(_k){return !_isHiddenKey(_k);}).length:grpCount(g); var st=(on&&g!=='all'&&GMETA[g])?(' style="color:'+GMETA[g].gc+';background:'+GMETA[g].gcb+'"'):''; var dd=dur?(' data-dur="'+dur+'"'):''; return '<button class="'+(on?'on':'')+'" data-g="'+g+'"'+dd+st+' onclick="_srRecGroupBy(\''+g+'\')">'+label+' <span class="n">'+n+'</span></button>'; };
+  var GDIV='<span class="sr-gdiv"></span>';
+  var seg='<div class="sr-gseg">'+segBtn('all','전체')
+    +segBtn('d12','☀️ 12H 주간',12)+segBtn('n12','🌙 12H 야간',12)+GDIV
+    +segBtn('d10','🌤️ 10H 주간',10)+segBtn('n10','🌘 10H 야간',10)+GDIV
+    +segBtn('s1','🌅 8H S1',8)+segBtn('s2','🌆 8H S2',8)+segBtn('s3','🌃 8H S3',8)
+    +(grpCount('un')?(GDIV+segBtn('un','❔ 미배정')):'')+'</div>';
   var dailyByKey={}; daily.forEach(function(r){ (dailyByKey[r.key]=dailyByKey[r.key]||[]).push(r); });
 
   // [v501] current roster player keys — a records card whose key is NOT here (but HAS records) is an
@@ -37877,26 +37895,10 @@ $('btnStrat').onclick=()=>{
   }
   function frame(ts){const dt=Math.min(((ts-last)||16)/1000,.05);last=ts;updateHUD();
     ctx.clearRect(0,0,W,H);
-    // 10 richer background lighting, still minimal and readable.
-    const bg=ctx.createLinearGradient(0,0,W,H);bg.addColorStop(0,'rgba(229,181,103,.13)');bg.addColorStop(.45,'rgba(20,20,26,.09)');bg.addColorStop(1,'rgba(0,0,0,.20)');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-    ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(W*.78,H*.24,5,W*.78,H*.24,W*.32);g.addColorStop(0,'rgba(255,230,161,.22)');g.addColorStop(.55,'rgba(255,230,161,.05)');g.addColorStop(1,'rgba(255,230,161,0)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.restore();
-    // [v718] boss 8/5 "쓰레기같고 촌스러워" — 지폐 더미 클립아트 대신, 남은 풀을 은은한 골드 광량으로만
-    // 표현한다(레퍼런스 톤). 잔액이 줄면 빛이 약해지고 35% 아래에서 붉은 기가 돈다.
-    (function(){
-      const pct=remainPct();
-      ctx.save(); ctx.globalCompositeOperation='lighter';
-      const g=ctx.createRadialGradient(W*.74,H*.62,6,W*.74,H*.62,Math.max(W,H)*.55);
-      g.addColorStop(0,'rgba(255,214,132,'+(0.06+0.16*pct).toFixed(3)+')');
-      g.addColorStop(.5,'rgba(229,181,103,'+(0.02+0.05*pct).toFixed(3)+')');
-      g.addColorStop(1,'rgba(229,181,103,0)');
-      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-      if(pct<.35){
-        const w=ctx.createRadialGradient(W*.74,H*.62,6,W*.74,H*.62,Math.max(W,H)*.42);
-        w.addColorStop(0,'rgba(255,96,86,'+(0.10*(1-pct/.35)).toFixed(3)+')'); w.addColorStop(1,'rgba(255,96,86,0)');
-        ctx.fillStyle=w; ctx.fillRect(0,0,W,H);
-      }
-      ctx.restore();
-    })();
+    // [v720] boss 8/5 "디자인 너무 맥시멀하다 — 전처럼 심플하게 하자." v718이 배경 장식(방)은 걷어냈지만
+    // 이 캔버스의 기존 2겹 글로우 위에 풀-잔량 글로우를 또 얹어서 오히려 빛 레이어가 더 쌓였다(그 중
+    // 하나가 카드 우측 상단에 달처럼 보이는 원인). 전부 걷어내고 이 캔버스는 비워둔다 — moneyCv(구체·컵)
+    // 하나만 남기는 게 레퍼런스의 "장식 없음"에 맞다.
     if(!reduced){nextDrop-=dt;if(nextDrop<=0&&!drop){spawnDrop(false);nextDrop=1.05+Math.random()*1.15;}drawDrop(dt);}
     drawImpact(dt);
     raf=requestAnimationFrame(frame);
@@ -38267,26 +38269,14 @@ $('btnStrat').onclick=()=>{
   // (히어로는 씬이 아니라 숫자와 애니메이션이다.)
   function drawVaultRoom(ts){
     const floorY = H-52;
-    // 1) 위에서 내려오는 골드 광원 — 구체를 자연스럽게 띄운다
-    const key = ctx.createRadialGradient(W*0.5, -H*0.10, 10, W*0.5, -H*0.10, Math.max(W,H)*0.95);
-    key.addColorStop(0,'rgba(229,181,103,.16)');
-    key.addColorStop(.45,'rgba(229,181,103,.05)');
-    key.addColorStop(1,'rgba(229,181,103,0)');
-    ctx.fillStyle=key; ctx.fillRect(0,0,W,H);
-    // 2) 구체 주변 은은한 앰비언트
-    ctx.save(); ctx.globalCompositeOperation='lighter';
-    const amb=ctx.createRadialGradient(vCX,vCY,vR*0.4,vCX,vCY,Math.max(W,H)*0.42);
-    amb.addColorStop(0,'rgba(255,214,140,'+(0.10+0.03*Math.sin(ts*0.0012)).toFixed(3)+')');
-    amb.addColorStop(1,'rgba(255,214,140,0)');
-    ctx.fillStyle=amb; ctx.fillRect(0,0,W,H); ctx.restore();
-    // 3) 컵이 놓인 바닥선 — 선 하나로 접지감만 준다
-    const shelf=ctx.createLinearGradient(0,floorY-10,0,floorY+2);
-    shelf.addColorStop(0,'rgba(0,0,0,0)'); shelf.addColorStop(1,'rgba(0,0,0,.30)');
-    ctx.fillStyle=shelf; ctx.fillRect(0,floorY-10,W,12);
-    ctx.fillStyle='rgba(229,181,103,.18)'; ctx.fillRect(0,floorY,W,1);
-    // 4) 가장자리만 살짝 눌러 대비 확보
-    const vg=ctx.createRadialGradient(W*0.5,H*0.45,Math.min(W,H)*0.30,W*0.5,H*0.5,Math.max(W,H)*0.78);
-    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.42)');
+    // [v720] boss 8/5 "디자인 너무 맥시멀하다 — 전처럼 심플하게." v718이 방(벽·기둥·바닥)은 걷어냈지만
+    // 그 자리에 전체화면 글로우를 2겹(key+ambient) 새로 얹었고, budgetRain 캔버스의 기존 글로우까지 겹쳐서
+    // 카드 한쪽이 달처럼 빛나 보일 만큼 빛 레이어가 쌓였다. 전부 걷어내고 바닥선 하나 + 옅은 비네트만
+    // 남긴다 — 글로우는 구체 자신(drawVault)의 것 하나로 충분하다.
+    ctx.fillStyle='rgba(9,8,13,.35)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='rgba(229,181,103,.16)'; ctx.fillRect(0,floorY,W,1);
+    const vg=ctx.createRadialGradient(W*0.5,H*0.45,Math.min(W,H)*0.35,W*0.5,H*0.5,Math.max(W,H)*0.85);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.28)');
     ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
   }  function drawVault(ts){
     const cx=vCX,cy=vCY,r=vR,frac=mcClamp(remain/pool,0,1);
