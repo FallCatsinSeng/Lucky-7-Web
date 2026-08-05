@@ -26098,28 +26098,46 @@ const _TS_DC_GROUPS = [
 const _TS_SHIFT_COL = { '12h_day':'Day 12', '12h_night':'Night 12', '10h_morning':'Day 10',
   '10h_night':'Night 10', '10h_evening':'Evening 10', '8h_s1':'Day 8', '8h_s2':'Night 8', '8h_s3':'Night 8' };
 const _TS_SHIFT_TAG = { '8h_s1':'Shift 1', '8h_s2':'Shift 2', '8h_s3':'Shift 3' };
+// [v728] boss/Vallen 8/5: 실서버 보드엔 RON(Day 10)·BIN(Night 10)의 "Shift N"이 안 붙는데 Vallen이 손으로
+// 관리하는 리스트엔 RON=Shift 1, BIN=Shift 2로 돼있음 — "Shift N"은 8시간 근무조가 아니라 boss가 관리하는
+// 스쿼드 번호라서 10h 근무자도 소속될 수 있는 것. 이걸 뒷받침할 진짜 데이터를 찾아봤는데:
+//  · STAFF_DETAILS/STAFF_PROFILE엔 그런 수동 스쿼드 필드가 없음(시프트 키만 있음, _effShiftKey 참고)
+//  · EMBEDDED_PLAYERS.slot(레이스 보드용, 별개 데이터셋)엔 BIN='Shift 2'가 있어 맞아떨어지지만,
+//    RON은 v616에서 "base-pay 자동계산이 Day 10 요율을 쓰게" slot을 일부러 비워둔 상태라 못 믿음.
+// → 진짜 소스가 없으니 이름 기준 수동 오버라이드 표로 관리(USER_OVERRIDES와 같은 패턴). boss/Vallen이
+//   로스터 바뀔 때 이 표만 고치면 됨.
+const _TS_SQUAD_OVERRIDE = { ron:'Shift 1', bin:'Shift 2' };
+function _tsShortKey(name){
+  return String(name||'').toLowerCase().replace(/^(mr|ms|mrs)[.\s]+/,'').trim().split(/\s+/)[0] || '';
+}
 function _tsShiftText(m){
   let sk = null; try{ sk = _effShiftKey(m); }catch(_){}
   const col = _TS_SHIFT_COL[sk] || m.shift_summary || null;
   if(!col) return null;
-  return col + (_TS_SHIFT_TAG[sk] ? ' ' + _TS_SHIFT_TAG[sk] : '');
+  let nm = m.name; try{ if(!nm) nm = trustName(m.id); }catch(_){}
+  const tag = _TS_SQUAD_OVERRIDE[_tsShortKey(nm)] || _TS_SHIFT_TAG[sk];
+  return col + (tag ? ' ' + tag : '');
 }
 function _tsBoardText(){
   const g = window._tsCopyGroups;
   if(!g){ return null; }
   const pad = (s,n) => String(s==null?'':s).padEnd(n);
-  const shortKey = (name) => String(name||'').toLowerCase().replace(/^(mr|ms|mrs)[.\s]+/,'').trim().split(/\s+/)[0] || '';
+  const shortKey = _tsShortKey;
   const prot = (m) => {
     if(!(m.protection_days > 0) || !m.protected_until) return '—';
     return 'until ' + String(m.protected_until).slice(5,10).replace('-','/');   // YYYY-MM-DD → MM/DD
   };
   const SHIFT_TAG = _TS_SHIFT_TAG, SHIFT_COL = _TS_SHIFT_COL;
+  // [v728] boss 8/5: 표에서 리더(KAIJI/BRUCE, g.leader)가 일반 플레이어와 똑같이 보여서 구분이 안 됨 —
+  // Name 칸 앞에 ★ 마커를 붙이되, pad()가 채우는 총 너비(14) 안에서 마커까지 포함해 계산해서 뒤 칼럼들이
+  // 밀리지 않게 한다(마커 붙은 이름도 결국 pad(...,14) 한 번만 거침).
   const row = (m, label) => {
     let sk = null; try{ sk = _effShiftKey(m); }catch(_){}
     const shiftTxt = SHIFT_COL[sk] || m.shift_summary || '—';
-    let r = pad(label,14) + pad(shiftTxt,12) + pad(Number(m.warn_pts||0).toFixed(1),8)
+    const nameCell = (m.leader ? '★ ' : '') + label;
+    let r = pad(nameCell,14) + pad(shiftTxt,12) + pad(Number(m.warn_pts||0).toFixed(1),8)
       + pad(m.trust_pts,5) + pad('● '+(m.status?.label||'—'),13) + pad(Number(m.dead||0),9) + prot(m);   /* [v710] Dead column */
-    const tag = SHIFT_TAG[sk];
+    const tag = _TS_SQUAD_OVERRIDE[shortKey(m.name)] || SHIFT_TAG[sk];   /* [v728] RON/BIN 수동 스쿼드 오버라이드 우선 */
     if(tag) r += '  ' + tag;
     return r;
   };
