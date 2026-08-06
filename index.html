@@ -11308,7 +11308,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v729';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v730';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -26217,32 +26217,51 @@ async function tsSetWebhook(){
   catch(e){ toast('웹훅 저장 실패: ' + (e && e.message), true); }
 }
 // [v727] boss 8/5 "게시 버튼 누르면 글이 너무 길다고 함" — 디스코드 일반 메시지(content)는 2000자 한도라
-// 23명짜리 표(2600자+)가 항상 걸렸다. 길면 임베드(설명 필드 4096자, 메시지당 임베드 최대 10개)로 자동
-// 승격해서 보낸다 — 그래도 넘치면 줄 경계로 쪼개 여러 임베드에 나눠 담고, 절대 데이터를 잘라서 버리지
-// 않는다(과거엔 이 케이스 자체가 없었지만 인원이 계속 느는 구조라 미리 대비).
-function _tsChunkByLines(text, maxLen){
+// 23명짜리 표(2600자+)가 항상 걸렸다.
+// [v730] boss 8/6 "이렇게 띄우지 마 그냥 웹훅에는 간단하게 띄우는게 낫겠다 전처럼" — v727의 임베드 승격
+// 방식이 원인이었다. 임베드는 디스코드에서 일반 메시지보다 폭이 좁게 렌더링돼서(특히 스레드/사이드바)
+// 표의 고정폭 칼럼이 줄마다 줄바꿈되며 다 깨져 보였다(스크린샷 확인). 임베드를 완전히 버리고, 대신 일반
+// 메시지(content)를 여러 개로 쪼개 순서대로 게시한다 — 전처럼 코드블럭이 원래 폭 그대로 나온다. 표 전체가
+// ```…``` 코드펜스 하나로 감싸여 있으므로, 쪼개는 줄 경계에서 펜스가 열린 채로 끊기면 그 메시지엔 닫는
+// 펜스를, 다음 메시지엔 여는 펜스를 다시 붙여서 각 메시지가 그 자체로 완결된 코드블럭이 되게 한다.
+function _tsSplitForDiscord(text, maxLen){
   const lines = String(text||'').split('\n');
-  const chunks = []; let cur = '';
-  lines.forEach(function(ln){
-    const next = cur ? cur + '\n' + ln : ln;
-    if(next.length > maxLen && cur){ chunks.push(cur); cur = ln; } else { cur = next; }
+  const messages = [];
+  let cur = '', curStartedInFence = false, inFence = false;
+  function flush(){
+    if(!cur) return;
+    let msg = curStartedInFence ? '```\n' + cur : cur;
+    const fenceLines = (cur.match(/^```/gm) || []).length + (curStartedInFence ? 1 : 0);
+    if(fenceLines % 2 !== 0) msg += '\n```';
+    messages.push(msg);
+  }
+  lines.forEach(function(line){
+    const isFenceLine = /^```/.test(line);
+    const next = cur ? cur + '\n' + line : line;
+    if(next.length > maxLen && cur){
+      flush();
+      cur = line;
+      curStartedInFence = inFence;
+    } else {
+      cur = next;
+    }
+    if(isFenceLine) inFence = !inFence;
   });
-  if(cur) chunks.push(cur);
-  return chunks;
+  flush();
+  return messages;
 }
 async function _tsPostWebhook(content){
   await _tsLoadWebhook();
   if(!_tsWebhook) return false;
   try{
-    let body;
-    if(content.length <= 1900){
-      body = { content };
-    } else {
-      const chunks = _tsChunkByLines(content, 4000).slice(0, 10);
-      body = { embeds: chunks.map(function(c){ return { description:c, color:0xc9963a }; }) };
+    const parts = content.length <= 1900 ? [content] : _tsSplitForDiscord(content, 1900);
+    let allOk = true;
+    for(let i=0; i<parts.length; i++){
+      const r = await fetch(_tsWebhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content: parts[i] }) });
+      if(!r.ok) allOk = false;
+      if(i < parts.length - 1) await new Promise(function(res){ setTimeout(res, 350); });   // 순서 보장 + 웹훅 rate limit 여유
     }
-    const r = await fetch(_tsWebhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    return r.ok;
+    return allOk;
   }catch(_){ return false; }
 }
 async function tsSendDiscord(){
@@ -26288,11 +26307,11 @@ function _tsNotifyGrant(memberId, kind, pts){
         ? `🏆 **${nm}** ${sign}${pts} TP${mid} · ${now.getMonth()+1}월 누적 ${bp.trust}${protTxt}${by}`
         : `⚠️ **${nm}** ${sign}${Number(pts).toFixed(1)} Warning${mid} · ${now.getMonth()+1}월 누적 ${Number(bp.warn).toFixed(1)}${protTxt}${by}`;
     }
-    // [v727] boss 8/5 "Player Trust System 표도 같이 나와야 될 것 같다 — 플레이어들이 전체 현황을
-    // 확인해야 하니까" — 개별 알림 한 줄 밑에 전체 보드를 이어붙여 한 메시지로 같이 게시한다. 매번
-    // 게시라 채널이 바빠질 수 있음(보스가 이 방식으로 선택, 8/5) — 표는 점수판을 열어야 만들어지므로
-    // (window._tsCopyGroups) 페이지가 안 열려있으면 조용히 한 줄 알림만 나간다.
-    try{ const board = _tsBoardText(); if(board) msg += '\n\n' + board; }catch(_){}
+    // [v727] boss 8/5 "Player Trust System 표도 같이 나와야 될 것 같다" — 한 줄 알림 밑에 전체 보드를
+    // 붙여서 매번 같이 게시했었음.
+    // [v730] boss 8/6 (스크린샷: GUWON이 보내던 예전 한 줄짜리 알림 — "전에 이렇게 보냈던 것처럼 그냥
+    // 웹훅에는 이렇게만 보내자 전체표 보내는건 ㄴㄴ") — v727의 보드 첨부를 되돌린다. 채널이 알림마다
+    // 표로 바빠지는 게 싫다는 피드백. 전체 표는 tsSendDiscord()의 '게시' 버튼으로 필요할 때만 보낸다.
     _tsPostWebhook(msg);   // fire-and-forget — 실패해도 점수 부여는 그대로
   }catch(_){}
 }
