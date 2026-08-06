@@ -8111,6 +8111,16 @@ body:has(#kb-race) #sb-right{display:none!important}
 /* ---- header inline button (copy) ---- */
 #kb-race .ch-btn{margin-left:auto;cursor:pointer;background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.12);color:var(--tx2);font:inherit;font-size:10px;font-weight:600;padding:3px 9px;border-radius:999px;text-transform:none;letter-spacing:0}
 #kb-race .ch-btn:hover{background:rgba(255,255,255,.16);color:#fff}
+/* [v736] boss 8/6 "RANK라고 써있는거 지우고, 디스코드 복사 버튼을 좀 크게 시인성 좋고 직관적이게" —
+   헤더에서 "📊 RANK" 라벨을 빼고(카드 자체가 이미 랭크보드라 굳이 필요 없음), 남은 복사 버튼을
+   디스코드 브랜드색 + 아이콘·텍스트가 다 보이는 큰 버튼으로 키운다. */
+#kb-race .ch-btn-discord{
+  margin-left:auto;padding:8px 16px;font-size:13px;font-weight:800;border-radius:10px;
+  background:linear-gradient(180deg,#5865F2,#4752c4);color:#fff;border:1px solid rgba(255,255,255,.2);
+  box-shadow:0 4px 14px rgba(88,101,242,.38);letter-spacing:.01em;display:inline-flex;align-items:center;gap:6px;
+}
+#kb-race .ch-btn-discord:hover{background:linear-gradient(180deg,#6772f5,#5865F2);box-shadow:0 6px 18px rgba(88,101,242,.55);color:#fff}
+#kb-race .ch-btn-discord:active{transform:translateY(1px)}
 
 /* ---- keyboard shortcut hint ---- */
 #kb-race #kbdHint{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:5;font-size:10.5px;color:var(--tx3);background:rgba(20,20,26,.6);border:.5px solid rgba(255,255,255,.07);border-radius:999px;padding:4px 12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);pointer-events:none;white-space:nowrap}
@@ -8919,12 +8929,8 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race #kbapp.bento .c-money .mt-weekly-text{margin-top:0!important;font-size:14.5px!important;letter-spacing:.3em!important;line-height:1.35!important;text-align:left!important}
 #kb-race #kbapp.bento .c-money .mt-weekly-text br{display:none}
 #kb-race #kbapp.bento .c-money .mt-weekly-rule,#kb-race #kbapp.bento .c-money .mt-weekly-stars{display:none!important}
-/* [v733] boss 8/6 — v731/v732에서 RACE 사인에 넣었던 월간 풀 잔액을 되돌리고("아니다 그냥 RACE로
-   다시 바꾸자"), WEEKLY BONUS 사인 밑에 작은 캡션으로 붙였다가([v733]),
-   [v735] boss 8/6 "Weekly Bonus 라고 되어있는거 없애고 월잔액 저거 넣어줘 그냥" — 캡션을 없애고
-   "WEEKLY BONUS" 문구 자체를 금액으로 바꿔치기한다(updateHUD 근처 #weeklySignText 참고). 자간(.3em)이
-   "WEEKLY BONUS" 같은 짧은 단어 전제라 숫자엔 넘치므로 .money에서 좁힌다.*/
-#kb-race #kbapp.bento .c-money .mt-weekly-text.money{letter-spacing:.02em!important;font-size:13px!important}
+/* [v731→v736] boss 8/6 — RACE 사인 → WEEKLY BONUS 캡션 → WEEKLY BONUS 문구 자체 교체까지 여러 번
+   시도했다가 "이거 그냥 없애버려 디자인에서"로 최종 정리. WEEKLY BONUS 사인은 고정 문구 그대로.*/
 /* 4) 사인 유리 셔머 — mount 요소 재활용 */
 #kb-race #kbapp.bento .c-money .mt-weekly-mount{position:absolute;inset:0;border-radius:12px;overflow:hidden;pointer-events:none}
 #kb-race #kbapp.bento .c-money .mt-weekly-mount::before{content:"";position:absolute;top:-40%;bottom:-40%;width:30%;left:-45%;transform:rotate(16deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.10),transparent);animation:mtWkSheen 7s ease-in-out infinite}
@@ -11320,7 +11326,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v735';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v736';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -36142,7 +36148,7 @@ setInterval(renderTimeline, 60000);
         <div class="mt-weekly-bonus-sign" aria-hidden="true">
           <span class="mt-weekly-crown">♛</span>
           <span class="mt-weekly-rule"></span>
-          <span class="mt-weekly-text" id="weeklySignText">WEEKLY&nbsp;&nbsp;BONUS</span>
+          <span class="mt-weekly-text">WEEKLY&nbsp;&nbsp;BONUS</span>
           <span class="mt-weekly-stars">★ ★ ★ ★ ★</span>
           <div class="mt-weekly-mount" aria-hidden="true"></div>
         </div>
@@ -36242,7 +36248,7 @@ setInterval(renderTimeline, 60000);
   </div>
 
   <div class="card c-board" role="region" aria-label="일 주 월 리더보드">
-    <div class="ch">📊 RANK <button id="copyBtn" type="button" class="ch-btn" title="순위표 복사 (단축키 C)">📋</button></div>
+    <div class="ch"><button id="copyBtn" type="button" class="ch-btn ch-btn-discord" title="순위표 복사 (단축키 C)">📋 Discord 복사</button></div>
     <div class="lbwrap">
       <div class="lbtabs" role="tablist" aria-label="리더보드 보기">
         <button type="button" data-v="day" class="on" role="tab" aria-selected="true">일</button>
@@ -38000,13 +38006,10 @@ $('btnStrat').onclick=()=>{
     const weekPoolEl=document.getElementById('brWeekPool'); if(weekPoolEl)weekPoolEl.textContent=fmtRp(WEEKLY_POOL);
     if(leftEl){const leftTxt=fmtRp(Math.round(shownRemain)).replace(/^Rp\s*/,'');const pctTxt=(remainPct>=99.95?'100':remainPct.toFixed(1))+'%';leftEl.innerHTML=leftTxt+' <span class="rp">RP</span><span class="remain-pct">'+pctTxt+'</span>';fitRemain(leftEl);}
     if(barEl)barEl.style.width=spentPct+'%';
-    // [v733] boss 8/6 처음엔 RACE 사인에 넣었다가("아니다 그냥 RACE로 다시 바꾸자") WEEKLY BONUS 사인
-    // 밑에 작은 캡션으로("이쪽에다가 작은 글꼴로 적어두는것도 괜찮을듯") 옮겼었음.
-    // [v735] boss 8/6 "Weekly Bonus 라고 되어있는거 없애고 월잔액 저거 넣어줘 그냥" — 캡션을 따로 두지
-    // 않고 "WEEKLY BONUS" 문구 자체를 이 금액으로 갈아치운다. 자간(.3em)이 원래 "WEEKLY BONUS" 같은
-    // 짧은 단어 기준이라 그대로 두면 숫자가 넘치므로 .money 클래스로 자간을 좁힌다.
-    const weeklySignEl=document.getElementById('weeklySignText');
-    if(weeklySignEl){ weeklySignEl.textContent=fmtRp(Math.round(shownRemain)); weeklySignEl.classList.add('money'); }
+    // [v731→v735] boss 8/6 여러 차례 시도(RACE 사인 → WEEKLY BONUS 캡션 → WEEKLY BONUS 문구 자체 교체)
+    // 끝에 "이거 그냥 없애버려 디자인에서" — 월간 풀 잔액을 어느 사인에도 표시하지 않기로 최종 정리.
+    // WEEKLY BONUS 사인은 원래 고정 문구 그대로 되돌림(위 HTML 참고). shownRemain 계산 자체는 그대로
+    // 유지(다른 곳 — brTotal/brRemainLarge — 이 여전히 씀, #budgetRainCard는 계속 숨김).
   }
   function drawImpact(dt){
     if(!impact)return;impact.life-=dt*2.35;impact.r+=dt*76;
@@ -39333,7 +39336,17 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
       '```'
     ].join('\n');
   }
-  standingsText=buildDiscordNotice;
+  // [v736] boss 8/6 "지금 한글로 나오잖아 저거 영어로 디코에 복붙되게끔 바꿔줘야할듯" — 복사되는
+  // 내용의 모든 라벨이 T(ko,en)/isKo()로 사이트 표시 언어(LANG)를 따라갔었다. 사이트가 한국어일 때
+  // 복사하면 공지가 한글로 나가버림 — 실제 디스코드에 올라가는 텍스트는 항상 영어여야 하므로,
+  // 생성하는 동안만 LANG을 'en'으로 바꿔치기하고 끝나면 원래대로 되돌린다(동기 함수라 화면엔 티 안 남 —
+  // 사이트 자체의 표시 언어/버튼 라벨은 그대로 유지됨).
+  standingsText=function(){
+    const prevLang=LANG;
+    LANG='en';
+    try{ return buildDiscordNotice(); }
+    finally{ LANG=prevLang; }
+  };
   const oldCopy=copyStandings;
   copyStandings=function(){
     const t=standingsText();
@@ -39343,7 +39356,7 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
   };
   const btn=document.getElementById('copyBtn');
   if(btn){
-    btn.textContent='📣';
+    btn.innerHTML='📋 '+T('Discord 복사','Copy to Discord');
     btn.title=T('디스코드 공지 복사','Copy Discord notice');
     btn.setAttribute('aria-label',btn.title);
     btn.onclick=copyStandings;
