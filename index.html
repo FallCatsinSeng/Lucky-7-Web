@@ -8730,6 +8730,11 @@ body:has(#kb-race) #sb-right{display:none!important}
   color:#ffe8a8;text-shadow:0 0 8px rgba(255,195,86,.72),0 0 26px rgba(229,181,103,.55),0 3px 0 rgba(77,42,10,.75);
   white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",system-ui,sans-serif;
 }
+/* [v731] boss 8/6 "먼슬리 풀은 없애고, 지금 RACE라고 적힌 문구 자리에 monthly pool 얼마 남았는지
+   적어놓자" — 네온사인 자리에 "RACE" 대신 월간 보너스 풀 잔액을 압축 표기(예: Rp 1.2M)로 보여준다.
+   숫자는 "RACE"보다 길어서 기존 폭(4글자 기준 clamp)대로 두면 넘친다 — 폭을 줄이고 자간도 좁힌다.
+   #budgetRainCard 자체(과거의 코인비 애니메이션·큰 숫자 카드)는 계속 숨김 — 화면엔 이 작은 표기 하나만.*/
+#kb-race .mt-sign-text.money{font-size:clamp(20px,3vw,32px);letter-spacing:.04em}
 #kb-race .mt-sign-line{width:min(64px,12%);height:2px;background:linear-gradient(90deg,transparent,#f0c36a,transparent);box-shadow:0 0 12px rgba(229,181,103,.5)}
 
 #kb-race #kbapp.bento.mt-grid-ready .c-money,
@@ -11308,7 +11313,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v730';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v731';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -36160,7 +36165,7 @@ setInterval(renderTimeline, 60000);
       <span class="mt-sign-light l3"></span>
       <span class="mt-sign-inner">
         <span class="mt-sign-line"></span>
-        <span class="mt-sign-text">RACE</span>
+        <span class="mt-sign-text" id="raceSignText">RACE</span>
         <span class="mt-sign-line"></span>
       </span>
     </div>
@@ -37984,6 +37989,17 @@ $('btnStrat').onclick=()=>{
     const weekPoolEl=document.getElementById('brWeekPool'); if(weekPoolEl)weekPoolEl.textContent=fmtRp(WEEKLY_POOL);
     if(leftEl){const leftTxt=fmtRp(Math.round(shownRemain)).replace(/^Rp\s*/,'');const pctTxt=(remainPct>=99.95?'100':remainPct.toFixed(1))+'%';leftEl.innerHTML=leftTxt+' <span class="rp">RP</span><span class="remain-pct">'+pctTxt+'</span>';fitRemain(leftEl);}
     if(barEl)barEl.style.width=spentPct+'%';
+    // [v731] boss 8/6 — #budgetRainCard(이 카드 전체)는 계속 숨김이지만, 이 루프는 카드가 안 보여도
+    // 그대로 돌면서 shownRemain을 계산한다(카드 hidden 여부와 무관하게 canvas는 항상 존재하므로).
+    // 그 계산값을 RACE 네온사인 텍스트로 그대로 미러링 — "RACE" 고정 문구 대신 월간 풀 잔액을 보여준다.
+    const signEl=document.getElementById('raceSignText');
+    if(signEl){
+      const abs=Math.abs(shownRemain);
+      const short=abs>=1000000 ? (abs/1000000).toFixed(abs>=10000000?0:1).replace(/\.0$/,'')+'M'
+        : abs>=1000 ? (abs/1000).toFixed(abs>=100000?0:1).replace(/\.0$/,'')+'K' : String(Math.round(abs));
+      signEl.textContent='Rp '+short;
+      signEl.classList.add('money');
+    }
   }
   function drawImpact(dt){
     if(!impact)return;impact.life-=dt*2.35;impact.r+=dt*76;
@@ -39156,7 +39172,11 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
     r.setAttribute('aria-label',titlePlain+' · 상세 급여 열기');
     r.title=titlePlain;
     if(HAS_FOCUS&&p.name===me.name)r.id='meRow';
-    r.innerHTML='<span class="rk">'+(rank===1?'\ud83d\udc51':rank)+'</span><span class="av" aria-hidden="true">'+E(p.emoji)+'</span>'+`<span class="nm"><span class="nm-main">${E(p.name)}${HAS_FOCUS&&p.name===me.name?'<span class="badge you">YOU</span>':''}</span><span class="nm-sub">${leaderMetaOf(p)}</span></span>`+'<span class="ex"><span class="eavg">'+m.main+'</span><span class="ewon"></span></span>';
+    // [v731] boss 8/6 "\ub9ac\ub354\ubcf4\ub4dc\uc5d0 \uc815\ubcf4\uac00 \ub108\ubb34 \ub9ce\ub2e4 \u2014 Day/Night \uc2dc\ud504\ud2b8, \uae30\ubcf8\uae09 \uba87 \uc8fc\ub530, \ud3ec\uc778\ud2b8, \ud37c\uc13c\ud2b8
+    // \ub2e4 \ub098\uc640\uc788\ub294\ub370, \uadf8\ub0e5 \uc624\ub978\ucabd\uc5d0 \ub3c8 \uc0c1\uc2b9/\uae4e\uc778\uac70 \u00b7 \ud37c\uc13c\ud2b8 \u00b7 \uc774\ub984 \uc815\ub3c4\ub9cc \uc788\uc73c\uba74 \ub420\ub4ef" \u2014 nm-sub(\uc2dc\ud504\ud2b8 \u00b7
+    // \uae30\ubcf8\uae09 \ub77c\uc778)\ub97c \ud589\uc5d0\uc11c \ube80\ub2e4. leaderMetaOf(p)\ub294 title/aria-label(\uc2a4\ud06c\ub9b0\ub9ac\ub354 \u00b7 \ud638\ubc84 \ud234\ud301)\uc5d4 \uadf8\ub300\ub85c
+    // \ub0a8\uaca8\uc11c \uc815\ubcf4 \uc790\uccb4\uac00 \uc5c6\uc5b4\uc9c0\ub294 \uac8c \uc544\ub2c8\ub77c \uc0c1\uc2dc \ub178\ucd9c\ub9cc \uc904\uc778\ub2e4.
+    r.innerHTML='<span class="rk">'+(rank===1?'\ud83d\udc51':rank)+'</span><span class="av" aria-hidden="true">'+E(p.emoji)+'</span>'+`<span class="nm"><span class="nm-main">${E(p.name)}${HAS_FOCUS&&p.name===me.name?'<span class="badge you">YOU</span>':''}</span></span>`+'<span class="ex"><span class="eavg">'+m.main+'</span><span class="ewon"></span></span>';
     return r;
   };
   const prevRender=renderBoard;
@@ -39390,13 +39410,14 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
       var _tb=row.querySelector('.badge.trustadj'); if(_tb) _tb.remove();
       // [v540] Day headline = points/HOUR (what the daily rank is decided by — quality per hour);
       // Week/Month headline = cumulative points (season contribution). Money is always in the chip.
+      // [v731] boss 8/6 "정보가 너무 많다 — 퍼센트만 있으면 될듯" — 누적 PT(sl-rank-avg)를 뺀다.
+      // _pts/_tp는 이제 화면에 안 쓰지만, title 툴팁·기존 로직과 변수명을 그대로 두어 diff를 최소화.
       if(view==='week'||view==='month'){
-        var _pts=(view==='week')?(+p.raceWeekPts||0):(+p.raceMonthPts||0);
-        var _avg=(view==='week')?(+p.raceWeekAvg||0):(+p.raceMonthAvg||0);   // [v569] the ACTUAL rank metric (diluted avg = PT ÷ 근무시간). Show it so the order reads right — the big PT is cumulative (money), the small ⌀ is why the rank.
-        eavg.innerHTML='<span class="sl-main-num" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'순위 기준 · 기준 대비 실력 %':'rank basis · % of standard')+'">'+_avg.toFixed(0)+'%</span><span class="sl-main-cap">기준</span><span class="sl-rank-avg" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'누적 포인트 · 돈 기준':'cumulative points · money basis')+'">'+_pts+' PT</span>';
+        var _avg=(view==='week')?(+p.raceWeekAvg||0):(+p.raceMonthAvg||0);   // [v569] the ACTUAL rank metric (diluted avg = PT ÷ 근무시간)
+        eavg.innerHTML='<span class="sl-main-num" title="'+(typeof LANG!=='undefined'&&LANG==='ko'?'순위 기준 · 기준 대비 실력 %':'rank basis · % of standard')+'">'+_avg.toFixed(0)+'%</span>';
       } else {
-        var _pph=(+p.raceScore||0); var _tp=(+p.raceTotalPts||0);
-        eavg.innerHTML='<span class="sl-main-num">'+(+_pph||0).toFixed(0)+'%</span><span class="sl-main-cap">기준 · '+_tp+'PT</span>';
+        var _pph=(+p.raceScore||0);
+        eavg.innerHTML='<span class="sl-main-num">'+(+_pph||0).toFixed(0)+'%</span>';
       }
       var _pen=(inc.state==='penalty');   // [v546] inline red beats every gold rule
       ewon.innerHTML='<span class="sl-inc-label"'+(_pen?' style="color:#FF453A!important;background:rgba(255,69,58,.14);border-radius:4px;padding:1px 4px"':'')+'>'+inc.label+'</span><span class="sl-inc-amount"'+(_pen?' style="color:#FF453A!important"':'')+'>'+inc.amount+'</span>';
