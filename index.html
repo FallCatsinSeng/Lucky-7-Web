@@ -8730,18 +8730,10 @@ body:has(#kb-race) #sb-right{display:none!important}
   color:#ffe8a8;text-shadow:0 0 8px rgba(255,195,86,.72),0 0 26px rgba(229,181,103,.55),0 3px 0 rgba(77,42,10,.75);
   white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",system-ui,sans-serif;
 }
-/* [v731] boss 8/6 "먼슬리 풀은 없애고, 지금 RACE라고 적힌 문구 자리에 monthly pool 얼마 남았는지
-   적어놓자" — 네온사인 자리에 "RACE" 대신 월간 보너스 풀 잔액을 보여준다.
-   #budgetRainCard 자체(과거의 코인비 애니메이션·큰 숫자 카드)는 계속 숨김 — 화면엔 이 표기 하나만.
-   [v732] boss 8/6 "적당하게 적어놓지 말고 얼마 남았는지 디테일하게, 줄어드는 애니메이션도 있어야지" —
-   v731의 "Rp 1.2M" 축약 표기를 버리고 정확한 금액(Rp 1,003,646)을 그대로 쓴다. 자릿수가 늘어난 만큼
-   폰트는 JS에서 실제 폭에 맞춰 자동으로 줄인다(스크롤폭 체크 루프, updateHUD 참고). 밑에 얇은 바
-   (mt-sign-bar)를 추가해 잔액 비율(remainPct)만큼 채워서, 숫자가 매 프레임 살살 줄어드는 것과 별개로
-   눈에 보이는 "줄어드는" 게이지가 있게 한다. */
-#kb-race .mt-sign-stack{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:1 1 auto;min-width:0;padding:0 6px}
-#kb-race .mt-sign-text.money{letter-spacing:.02em;max-width:100%;overflow:hidden;text-overflow:clip}
-#kb-race .mt-sign-bar-track{width:82%;height:4px;border-radius:999px;background:rgba(255,255,255,.14);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
-#kb-race .mt-sign-bar-fill{display:block;height:100%;width:100%;border-radius:999px;background:linear-gradient(90deg,#c9963a,#ffe9a6);box-shadow:0 0 8px rgba(229,181,103,.65);transition:width .25s linear}
+/* [v731→v733] boss 8/6 처음엔 이 RACE 사인에 월간 풀 잔액을 넣었다가("먼슬리 풀은 없애고 RACE 자리에
+   monthly pool 얼마 남았는지 적어놓자") 다시 마음 바꿔 원상복구함("아니다 그냥 RACE로 다시 바꾸자") —
+   대신 WEEKLY BONUS 사인 쪽에 작게 붙임(.mt-weekly-monthnote, updateHUD 근처 참고). 사인은 원래
+   "RACE" 고정 문구 그대로.*/
 #kb-race .mt-sign-line{width:min(64px,12%);height:2px;background:linear-gradient(90deg,transparent,#f0c36a,transparent);box-shadow:0 0 12px rgba(229,181,103,.5)}
 
 #kb-race #kbapp.bento.mt-grid-ready .c-money,
@@ -8925,6 +8917,11 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race #kbapp.bento .c-money .mt-weekly-text{margin-top:0!important;font-size:14.5px!important;letter-spacing:.3em!important;line-height:1.35!important;text-align:left!important}
 #kb-race #kbapp.bento .c-money .mt-weekly-text br{display:none}
 #kb-race #kbapp.bento .c-money .mt-weekly-rule,#kb-race #kbapp.bento .c-money .mt-weekly-stars{display:none!important}
+/* [v733] boss 8/6 — v731/v732에서 RACE 사인에 넣었던 월간 풀 잔액을 되돌리고("아니다 그냥 RACE로
+   다시 바꾸자"), 대신 WEEKLY BONUS 사인 밑에 작은 글꼴로 붙인다("이쪽에다가 작은 글꼴로 그냥 월 풀이
+   얼마 남았는지 적어두는것도 괜찮을듯"). 사인 박스(.mt-weekly-bonus-sign, position:absolute) 바로
+   아래에 얹는 캡션 한 줄 — 게이지바 없이 숫자만, 값은 updateHUD()의 기존 shownRemain을 그대로 미러링.*/
+#kb-race .mt-weekly-monthnote{position:absolute;left:0;top:100%;margin-top:4px;width:100%;text-align:center;font-size:9px;font-weight:700;letter-spacing:.01em;color:rgba(255,232,168,.68);text-shadow:0 1px 3px rgba(0,0,0,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 /* 4) 사인 유리 셔머 — mount 요소 재활용 */
 #kb-race #kbapp.bento .c-money .mt-weekly-mount{position:absolute;inset:0;border-radius:12px;overflow:hidden;pointer-events:none}
 #kb-race #kbapp.bento .c-money .mt-weekly-mount::before{content:"";position:absolute;top:-40%;bottom:-40%;width:30%;left:-45%;transform:rotate(16deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.10),transparent);animation:mtWkSheen 7s ease-in-out infinite}
@@ -11320,7 +11317,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v732';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v733';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -36145,6 +36142,7 @@ setInterval(renderTimeline, 60000);
           <span class="mt-weekly-text">WEEKLY&nbsp;&nbsp;BONUS</span>
           <span class="mt-weekly-stars">★ ★ ★ ★ ★</span>
           <div class="mt-weekly-mount" aria-hidden="true"></div>
+          <span class="mt-weekly-monthnote" id="weeklySignMonthNote">월 잔액 —</span>
         </div>
         <div class="mc-canvas-wrap"><canvas id="moneyCv"></canvas></div>
         <div class="mc-ledger">
@@ -36172,10 +36170,7 @@ setInterval(renderTimeline, 60000);
       <span class="mt-sign-light l3"></span>
       <span class="mt-sign-inner">
         <span class="mt-sign-line"></span>
-        <span class="mt-sign-stack">
-          <span class="mt-sign-text" id="raceSignText">RACE</span>
-          <span class="mt-sign-bar-track"><i id="raceSignBar" class="mt-sign-bar-fill"></i></span>
-        </span>
+        <span class="mt-sign-text">RACE</span>
         <span class="mt-sign-line"></span>
       </span>
     </div>
@@ -37999,25 +37994,12 @@ $('btnStrat').onclick=()=>{
     const weekPoolEl=document.getElementById('brWeekPool'); if(weekPoolEl)weekPoolEl.textContent=fmtRp(WEEKLY_POOL);
     if(leftEl){const leftTxt=fmtRp(Math.round(shownRemain)).replace(/^Rp\s*/,'');const pctTxt=(remainPct>=99.95?'100':remainPct.toFixed(1))+'%';leftEl.innerHTML=leftTxt+' <span class="rp">RP</span><span class="remain-pct">'+pctTxt+'</span>';fitRemain(leftEl);}
     if(barEl)barEl.style.width=spentPct+'%';
-    // [v731] boss 8/6 — #budgetRainCard(이 카드 전체)는 계속 숨김이지만, 이 루프는 카드가 안 보여도
-    // 그대로 돌면서 shownRemain을 계산한다(카드 hidden 여부와 무관하게 canvas는 항상 존재하므로).
-    // 그 계산값을 RACE 네온사인 텍스트로 그대로 미러링 — "RACE" 고정 문구 대신 월간 풀 잔액을 보여준다.
-    // [v732] boss 8/6 "적당하게 적어놓지 말고 디테일하게, 줄어드는 애니메이션도 있어야지" — v731의 M/K
-    // 축약을 버리고 정확한 금액을 그대로 표시(shownRemain은 매 프레임 목표치로 서서히 수렴하는 값이라
-    // 그대로 두면 이미 부드럽게 줄어드는 애니메이션이 된다 — 축약 표기는 그 변화가 너무 작아서 안
-    // 보였을 뿐). 자릿수가 늘어 폭을 넘칠 수 있어 scrollWidth를 보며 폰트를 줄인다. 추가로 얇은 바를
-    // 잔액 비율만큼 채워 눈에 보이는 "줄어드는" 게이지를 하나 더 준다.
-    const signEl=document.getElementById('raceSignText'), signBarEl=document.getElementById('raceSignBar');
-    if(signEl){
-      signEl.textContent=fmtRp(Math.round(shownRemain));
-      signEl.classList.add('money');
-      const stack=signEl.parentElement;
-      const maxW=(stack && stack.clientWidth) ? stack.clientWidth : 200;
-      let fs=34; signEl.style.fontSize=fs+'px';
-      let guard=0;
-      while(signEl.scrollWidth>maxW && fs>13 && guard++<40){ fs--; signEl.style.fontSize=fs+'px'; }
-    }
-    if(signBarEl) signBarEl.style.width=(remainPct>=99.95?100:Math.max(0,remainPct)).toFixed(1)+'%';
+    // [v733] boss 8/6 — v731/v732 put this on the RACE neon sign, then boss reversed course ("아니다
+    // 그냥 RACE로 다시 바꾸자") and pointed at the WEEKLY BONUS sign instead: "이쪽에다가 작은 글꼴로
+    // 그냥 월 풀이 얼마 남았는지 적어두는것도 괜찮을듯". Small caption under the WEEKLY BONUS plaque,
+    // same live shownRemain value, no gauge bar this time — just the number.
+    const monthNoteEl=document.getElementById('weeklySignMonthNote');
+    if(monthNoteEl) monthNoteEl.textContent='월 잔액 '+fmtRp(Math.round(shownRemain));
   }
   function drawImpact(dt){
     if(!impact)return;impact.life-=dt*2.35;impact.r+=dt*76;
