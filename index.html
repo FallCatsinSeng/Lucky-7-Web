@@ -8726,14 +8726,16 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race .mt-sign-inner::before{content:"";position:absolute;inset:8px;border-radius:7px;border:1px solid rgba(255,221,143,.32);pointer-events:none}
 #kb-race .mt-sign-inner::after{content:"";position:absolute;inset:-5px;border-radius:13px;border:1px solid rgba(229,181,103,.30);pointer-events:none}
 #kb-race .mt-sign-text{
-  font-size:clamp(30px,4.6vw,54px);line-height:1;font-weight:1000;letter-spacing:.11em;
+  font-size:clamp(24px,3.6vw,42px);line-height:1;font-weight:1000;letter-spacing:.08em;
   color:#ffe8a8;text-shadow:0 0 8px rgba(255,195,86,.72),0 0 26px rgba(229,181,103,.55),0 3px 0 rgba(77,42,10,.75);
   white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",system-ui,sans-serif;
 }
 /* [v731→v733] boss 8/6 처음엔 이 RACE 사인에 월간 풀 잔액을 넣었다가("먼슬리 풀은 없애고 RACE 자리에
    monthly pool 얼마 남았는지 적어놓자") 다시 마음 바꿔 원상복구함("아니다 그냥 RACE로 다시 바꾸자") —
    대신 WEEKLY BONUS 사인 쪽에 작게 붙임(.mt-weekly-monthnote, updateHUD 근처 참고). 사인은 원래
-   "RACE" 고정 문구 그대로.*/
+   "RACE" 고정 문구 그대로.
+   [v734] boss 8/6 "글씨체가 너무 커 저거 칸에 딱 들어오게끔 조정" — 글자가 사인 안쪽 테두리에 거의
+   닿을 만큼 커서(clamp 최대 54px) 줄였다. 최대값 54→42px, 자간도 .11em→.08em로 좁혀서 여백을 준다.*/
 #kb-race .mt-sign-line{width:min(64px,12%);height:2px;background:linear-gradient(90deg,transparent,#f0c36a,transparent);box-shadow:0 0 12px rgba(229,181,103,.5)}
 
 #kb-race #kbapp.bento.mt-grid-ready .c-money,
@@ -11317,7 +11319,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v733';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v734';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -37272,6 +37274,10 @@ try{
       +'#mrc-ov .mrc-none{font-size:12px;color:#6f6f6b}';
     document.head.appendChild(st);
   }
+  // [v734] boss 8/6 "내 레이스 버튼이 두개야" — jm.parentNode(레이스 페이지 바깥 상시 DOM)에 매번
+  // insertBefore로 새 버튼을 꽂기만 하고 예전 걸 지우지 않아서, __kbInit()이 다시 돌 때마다(페이지를
+  // 나갔다 다시 들어올 때마다) 버튼이 하나씩 쌓였다. 새로 만들기 전에 기존 걸 먼저 지운다.
+  const _oldMrBtn=document.getElementById('myRaceBtn'); if(_oldMrBtn) _oldMrBtn.remove();
   const _mrBtn=document.createElement('button');
   _mrBtn.type='button'; _mrBtn.className='lbjump'; _mrBtn.id='myRaceBtn'; _mrBtn.textContent='🏁 내 레이스';
   _mrBtn.style.cssText='border-color:rgba(229,181,103,.45);background:rgba(229,181,103,.14);color:#E5B567;font-weight:800';
@@ -39670,8 +39676,11 @@ console.info('AUTO100 build applied',AUTO100_BUILD.version,v3Audit());
         el.style.setProperty('cursor','default','important');
         el.style.setProperty('z-index','900','important');
       };
-      _kbHost().appendChild(editDock); _kbHost().appendChild(dock);
-      _pin(dock, 14); _pin(editDock, 58);
+      // [v734] boss 8/6 "이거 버튼 그냥 없애줘" (GRID READY 배지 + 라이트 버튼 pill) — dock 자체를 DOM에
+      // 안 붙인다. badge/hint/btnReset/btnLite는 setEditing()이 계속 참조하지만 detached 상태라
+      // 화면엔 안 보이고 에러도 안 남 — '편집'(editDock) 버튼은 그대로 유지.
+      _kbHost().appendChild(editDock);
+      _pin(editDock, 14);
     }  // [v466] grid-edit docks (Race layout editor) are CEO/Manager (admin) only
     btnEdit.addEventListener('click',function(){setEditing(!editing);});
     btnReset.addEventListener('click',function(){layout=normalize(DEFAULT);applyCSS();save();});
