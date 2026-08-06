@@ -3024,6 +3024,22 @@ body{font-family:'Inter',-apple-system,sans-serif;font-size:var(--t-body);line-h
 .lb-kcard-sub .lb-kstat:nth-of-type(1){width:44px}   /* 🏆 컬럼 고정폭 */
 .lb-kcard-sub .lb-kstat:nth-of-type(2){width:64px}   /* ⚠ /한도 컬럼 고정폭 */
 .lb-kstat b{font-size:10.5px;font-variant-numeric:tabular-nums}
+/* [v740] boss 8/6 "이거 UI 개판인거 안보이냐" — 점수판 카드에서 이름·티어배지·수치가 서로 겹쳐 찍혔다
+   (스크린샷: "Mr.Ka⚡7.5 5→54"). 실측으로 원인 확인: .lb-kcard-id가 [이름줄 | 수치줄]을 한 줄에 놓는데
+   수치줄(.lb-kcard-sub)은 flex-shrink:0 + 고정폭(44+64px)이라 절대 안 줄고, 이름줄(.lb-name-row)만
+   flex:1 1 auto·min-width:0으로 계속 밀려 결국 **폭이 0px**이 됐다. 폭 0 컨테이너 안에서 이름과 배지가
+   밖으로 흘러나와 서로/수치줄과 겹친 것. v726은 min-width를 .lb-name(자식)에만 줘서 줄 자체가 0이 되는
+   건 못 막았다.
+   추가 원인: .lb-kactions(hover에서만 보이는 버튼 6개)가 opacity:0인 채로 레이아웃 폭 146px를 상시
+   점유해서, 300px 카드에서 이름칸에 72px밖에 안 남았다. 절대배치로 빼내 폭을 돌려준다(72→225px).
+   보드가 3열(카드 ~300px)이라 한 줄에 다 넣는 건 애초에 불가능 — 이름줄을 통째로 한 줄 쓰고 수치줄을
+   그 아래로 내린다. 고정폭 컬럼은 그대로라 카드끼리 수치는 세로로 정렬된다. */
+.lb-kcard-id{flex-wrap:wrap;row-gap:3px}
+.lb-kcard-id>.lb-name-row{flex:1 1 100%;min-width:0}
+.lb-kcard-id>.lb-kcard-sub{flex:0 0 auto}
+.lb-kcard{position:relative}
+.lb-kcard .lb-kactions{position:absolute;right:8px;top:50%;transform:translateY(-50%);border-radius:8px;padding:3px 4px;background:transparent;opacity:0;pointer-events:none;transition:opacity .12s}
+.lb-kcard:hover .lb-kactions{opacity:1;pointer-events:auto;background:rgba(20,20,26,.94);box-shadow:0 2px 10px rgba(0,0,0,.4)}
 /* [v691] 잘하는/위험한 행이 스캔되게 — 상태별 옅은 행 배경 */
 .lb-kcard-trust{background:color-mix(in srgb,#d4a838 3.5%,transparent)}
 .lb-kcard-warn{background:color-mix(in srgb,#e0504a 4%,transparent)}
@@ -11358,7 +11374,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v739';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v740';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
