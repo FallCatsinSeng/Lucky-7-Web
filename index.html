@@ -8730,10 +8730,10 @@ body:has(#kb-race) #sb-right{display:none!important}
   color:#ffe8a8;text-shadow:0 0 8px rgba(255,195,86,.72),0 0 26px rgba(229,181,103,.55),0 3px 0 rgba(77,42,10,.75);
   white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",system-ui,sans-serif;
 }
-/* [v731→v733] boss 8/6 처음엔 이 RACE 사인에 월간 풀 잔액을 넣었다가("먼슬리 풀은 없애고 RACE 자리에
+/* [v731→v735] boss 8/6 처음엔 이 RACE 사인에 월간 풀 잔액을 넣었다가("먼슬리 풀은 없애고 RACE 자리에
    monthly pool 얼마 남았는지 적어놓자") 다시 마음 바꿔 원상복구함("아니다 그냥 RACE로 다시 바꾸자") —
-   대신 WEEKLY BONUS 사인 쪽에 작게 붙임(.mt-weekly-monthnote, updateHUD 근처 참고). 사인은 원래
-   "RACE" 고정 문구 그대로.
+   잔액 표기는 결국 WEEKLY BONUS 사인의 "WEEKLY BONUS" 문구 자체를 갈아치우는 걸로 정착(#weeklySignText,
+   updateHUD 근처 참고). 이 RACE 사인은 원래 "RACE" 고정 문구 그대로.
    [v734] boss 8/6 "글씨체가 너무 커 저거 칸에 딱 들어오게끔 조정" — 글자가 사인 안쪽 테두리에 거의
    닿을 만큼 커서(clamp 최대 54px) 줄였다. 최대값 54→42px, 자간도 .11em→.08em로 좁혀서 여백을 준다.*/
 #kb-race .mt-sign-line{width:min(64px,12%);height:2px;background:linear-gradient(90deg,transparent,#f0c36a,transparent);box-shadow:0 0 12px rgba(229,181,103,.5)}
@@ -8920,10 +8920,11 @@ body:has(#kb-race) #sb-right{display:none!important}
 #kb-race #kbapp.bento .c-money .mt-weekly-text br{display:none}
 #kb-race #kbapp.bento .c-money .mt-weekly-rule,#kb-race #kbapp.bento .c-money .mt-weekly-stars{display:none!important}
 /* [v733] boss 8/6 — v731/v732에서 RACE 사인에 넣었던 월간 풀 잔액을 되돌리고("아니다 그냥 RACE로
-   다시 바꾸자"), 대신 WEEKLY BONUS 사인 밑에 작은 글꼴로 붙인다("이쪽에다가 작은 글꼴로 그냥 월 풀이
-   얼마 남았는지 적어두는것도 괜찮을듯"). 사인 박스(.mt-weekly-bonus-sign, position:absolute) 바로
-   아래에 얹는 캡션 한 줄 — 게이지바 없이 숫자만, 값은 updateHUD()의 기존 shownRemain을 그대로 미러링.*/
-#kb-race .mt-weekly-monthnote{position:absolute;left:0;top:100%;margin-top:4px;width:100%;text-align:center;font-size:9px;font-weight:700;letter-spacing:.01em;color:rgba(255,232,168,.68);text-shadow:0 1px 3px rgba(0,0,0,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+   다시 바꾸자"), WEEKLY BONUS 사인 밑에 작은 캡션으로 붙였다가([v733]),
+   [v735] boss 8/6 "Weekly Bonus 라고 되어있는거 없애고 월잔액 저거 넣어줘 그냥" — 캡션을 없애고
+   "WEEKLY BONUS" 문구 자체를 금액으로 바꿔치기한다(updateHUD 근처 #weeklySignText 참고). 자간(.3em)이
+   "WEEKLY BONUS" 같은 짧은 단어 전제라 숫자엔 넘치므로 .money에서 좁힌다.*/
+#kb-race #kbapp.bento .c-money .mt-weekly-text.money{letter-spacing:.02em!important;font-size:13px!important}
 /* 4) 사인 유리 셔머 — mount 요소 재활용 */
 #kb-race #kbapp.bento .c-money .mt-weekly-mount{position:absolute;inset:0;border-radius:12px;overflow:hidden;pointer-events:none}
 #kb-race #kbapp.bento .c-money .mt-weekly-mount::before{content:"";position:absolute;top:-40%;bottom:-40%;width:30%;left:-45%;transform:rotate(16deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.10),transparent);animation:mtWkSheen 7s ease-in-out infinite}
@@ -11319,7 +11320,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v734';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v735';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -36141,10 +36142,9 @@ setInterval(renderTimeline, 60000);
         <div class="mt-weekly-bonus-sign" aria-hidden="true">
           <span class="mt-weekly-crown">♛</span>
           <span class="mt-weekly-rule"></span>
-          <span class="mt-weekly-text">WEEKLY&nbsp;&nbsp;BONUS</span>
+          <span class="mt-weekly-text" id="weeklySignText">WEEKLY&nbsp;&nbsp;BONUS</span>
           <span class="mt-weekly-stars">★ ★ ★ ★ ★</span>
           <div class="mt-weekly-mount" aria-hidden="true"></div>
-          <span class="mt-weekly-monthnote" id="weeklySignMonthNote">월 잔액 —</span>
         </div>
         <div class="mc-canvas-wrap"><canvas id="moneyCv"></canvas></div>
         <div class="mc-ledger">
@@ -38000,12 +38000,13 @@ $('btnStrat').onclick=()=>{
     const weekPoolEl=document.getElementById('brWeekPool'); if(weekPoolEl)weekPoolEl.textContent=fmtRp(WEEKLY_POOL);
     if(leftEl){const leftTxt=fmtRp(Math.round(shownRemain)).replace(/^Rp\s*/,'');const pctTxt=(remainPct>=99.95?'100':remainPct.toFixed(1))+'%';leftEl.innerHTML=leftTxt+' <span class="rp">RP</span><span class="remain-pct">'+pctTxt+'</span>';fitRemain(leftEl);}
     if(barEl)barEl.style.width=spentPct+'%';
-    // [v733] boss 8/6 — v731/v732 put this on the RACE neon sign, then boss reversed course ("아니다
-    // 그냥 RACE로 다시 바꾸자") and pointed at the WEEKLY BONUS sign instead: "이쪽에다가 작은 글꼴로
-    // 그냥 월 풀이 얼마 남았는지 적어두는것도 괜찮을듯". Small caption under the WEEKLY BONUS plaque,
-    // same live shownRemain value, no gauge bar this time — just the number.
-    const monthNoteEl=document.getElementById('weeklySignMonthNote');
-    if(monthNoteEl) monthNoteEl.textContent='월 잔액 '+fmtRp(Math.round(shownRemain));
+    // [v733] boss 8/6 처음엔 RACE 사인에 넣었다가("아니다 그냥 RACE로 다시 바꾸자") WEEKLY BONUS 사인
+    // 밑에 작은 캡션으로("이쪽에다가 작은 글꼴로 적어두는것도 괜찮을듯") 옮겼었음.
+    // [v735] boss 8/6 "Weekly Bonus 라고 되어있는거 없애고 월잔액 저거 넣어줘 그냥" — 캡션을 따로 두지
+    // 않고 "WEEKLY BONUS" 문구 자체를 이 금액으로 갈아치운다. 자간(.3em)이 원래 "WEEKLY BONUS" 같은
+    // 짧은 단어 기준이라 그대로 두면 숫자가 넘치므로 .money 클래스로 자간을 좁힌다.
+    const weeklySignEl=document.getElementById('weeklySignText');
+    if(weeklySignEl){ weeklySignEl.textContent=fmtRp(Math.round(shownRemain)); weeklySignEl.classList.add('money'); }
   }
   function drawImpact(dt){
     if(!impact)return;impact.life-=dt*2.35;impact.r+=dt*76;
