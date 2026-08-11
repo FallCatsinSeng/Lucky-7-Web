@@ -11384,7 +11384,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v745';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v746';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -26221,6 +26221,19 @@ function _tsBoardText(){
   if(!g){ return null; }
   const pad = (s,n) => String(s==null?'':s).padEnd(n);
   const shortKey = _tsShortKey;
+  // [v746] boss 8/12 "점수판 복붙하는거 ANSI 코드로 색깔 넣어줘 — 형식은 그대로" — 디스코드는 ```ansi
+  // 코드블럭 안에서만 색을 렌더한다. 주의점: escape 코드도 글자수에 포함되므로 pad()로 먼저 색을 입히면
+  // 칸이 전부 틀어진다. 그래서 cpad()는 **원본 문자열 길이로 폭을 계산**하고 색은 글자에만 감싼 뒤 공백을
+  // 색 밖에 붙인다 — 렌더 폭은 색 없을 때와 100% 동일하다.
+  // 구분선(────)은 일부러 색을 넣지 않는다: _tsSplitForDiscord가 그룹 경계를 /^[─━═-]{10,}$/ 로 잡는데
+  // 앞에 escape 코드가 붙으면 그 정규식이 깨져서 분할이 망가진다.
+  const ESC = String.fromCharCode(27);   // 소스에 원시 제어문자/이스케이프를 남기지 않는다(편집기·도구가 깨뜨림)
+  const A = { reset:ESC+'[0m', bYellow:'1;33', bWhite:'1;37', red:'0;31', green:'0;32', yellow:'0;33', cyan:'0;36', gray:'0;30' };
+  const C = (s,code) => code ? (ESC+'['+code+'m'+s+A.reset) : String(s);
+  const cpad = (s,n,code) => {
+    const t = String(s==null?'':s);
+    return C(t,code) + ' '.repeat(Math.max(0, n - t.length));
+  };
   const prot = (m) => {
     if(!(m.protection_days > 0) || !m.protected_until) return '—';
     return 'until ' + String(m.protected_until).slice(5,10).replace('-','/');   // YYYY-MM-DD → MM/DD
@@ -26232,13 +26245,30 @@ function _tsBoardText(){
   // 따라 반각/전각 폭이 달라서(디스코드 monospace에서 전각으로 렌더) pad()가 센 글자수와 실제 렌더 폭이
   // 어긋났고, 그래서 그 두 줄만 뒤 칼럼이 통째로 밀렸다. 마커를 아예 없애고(=모든 줄이 순수 ASCII라 폭이
   // 정확히 맞음), 리더는 표 맨 위에 모아 구분선 하나로 분리한다.
-  const row = (m, label) => {
+  // [v746] 색은 "값이 기본이 아닐 때"만 입힌다 — 전부 칠하면 읽기 어렵고 escape 코드 때문에 글자수만
+  // 불어나 분할 메시지가 늘어난다. 칸 폭은 cpad()가 원본 길이로 계산하므로 색 유무와 무관하게 동일하다.
+  const statusCode = (lbl) => {
+    const s = String(lbl||'');
+    if(!s || s === '—') return null;
+    if(/good/i.test(s)) return A.green;
+    if(/coach/i.test(s)) return A.yellow;
+    return A.red;                                   // Formal / 위험 등 그 외 경고 단계
+  };
+  const row = (m, label, isLeader) => {
     let sk = null; try{ sk = _effShiftKey(m); }catch(_){}
     const shiftTxt = SHIFT_COL[sk] || m.shift_summary || '—';
-    let r = pad(label,14) + pad(shiftTxt,12) + pad(Number(m.warn_pts||0).toFixed(1),8)
-      + pad(m.trust_pts,5) + pad('● '+(m.status?.label||'—'),13) + pad(Number(m.dead||0),9) + prot(m);   /* [v710] Dead column */
+    const warnN = Number(m.warn_pts||0), tpN = Number(m.trust_pts||0), deadN = Number(m.dead||0);
+    const stLbl = (m.status && m.status.label) || '—';
+    const protTxt = prot(m);
+    let r = cpad(label,14, isLeader ? A.bYellow : null)
+      + cpad(shiftTxt,12, null)
+      + cpad(warnN.toFixed(1),8, warnN > 0 ? A.red : null)
+      + cpad(m.trust_pts,5, tpN > 0 ? A.green : null)
+      + cpad('● '+stLbl,13, statusCode(stLbl))
+      + cpad(deadN,9, deadN > 0 ? A.red : null)
+      + (protTxt === '—' ? protTxt : C(protTxt, A.cyan));   /* [v710] Dead column */
     const tag = _TS_SQUAD_OVERRIDE[shortKey(m.name)] || SHIFT_TAG[sk];   /* [v728] RON/BIN 수동 스쿼드 오버라이드 우선 */
-    if(tag) r += '  ' + tag;
+    if(tag) r += '  ' + C(tag, A.gray);
     return r;
   };
   // 보드의 리더+플레이어를 한 풀로 합치고, boss 리스트 순서대로 뽑아 쓴다
@@ -26255,9 +26285,9 @@ function _tsBoardText(){
       : (g.month ? ' (' + g.month + ')' : '');
   }catch(_){}
   const lines = [];
-  lines.push('PLAYER TRUST SYSTEM · LIVE SCORES' + period);
+  lines.push(C('PLAYER TRUST SYSTEM · LIVE SCORES' + period, A.bYellow));
   lines.push('');
-  lines.push(pad('Name',14) + pad('Shift',12) + pad('Warn',8) + pad('TP',6) + pad('Status',12) + pad('Dead',10) + 'Protected');   // 헤더 칸폭은 boss 원본 그대로 (TP 헤더만 6, 데이터는 5) · [v710] +Dead
+  lines.push(C(pad('Name',14) + pad('Shift',12) + pad('Warn',8) + pad('TP',6) + pad('Status',12) + pad('Dead',10) + 'Protected', A.bWhite));   // 헤더 칸폭은 boss 원본 그대로 (TP 헤더만 6, 데이터는 5) · [v710] +Dead
   lines.push(sep);
   let printed = 0;
   // [v739] 리더(KAIJI/BRUCE)를 표 맨 위에 따로 모으고 구분선 하나로 분리 — boss "그냥 선을 하나 그어서
@@ -26267,7 +26297,7 @@ function _tsBoardText(){
   (g.leader||[]).forEach(m => {
     const k = shortKey(m.name);
     if(!pool[k]) return;
-    leaderRows.push(row(m, k.toUpperCase()));
+    leaderRows.push(row(m, k.toUpperCase(), true));   /* [v746] 리더 이름만 굵은 노랑 */
     delete pool[k];
   });
   if(leaderRows.length){
@@ -26293,7 +26323,7 @@ function _tsBoardText(){
     if(printed > 0) lines.push(sep);
     leftovers.forEach(m => lines.push(row(m, shortKey(m.name).toUpperCase())));
   }
-  return '```\n' + lines.join('\n') + '\n```';
+  return '```ansi\n' + lines.join('\n') + '\n```';   /* [v746] ansi 펜스여야 디스코드가 색을 렌더한다 */
 }
 function tsCopyDiscord(){
   const text = _tsBoardText();
@@ -26342,13 +26372,16 @@ async function tsSetWebhook(){
 function _tsSplitForDiscord(text, maxLen){
   const lines = String(text||'').split('\n');
   const isSep = (s) => /^[─━═-]{10,}$/.test(String(s||'').trim());
+  // [v746] 원문의 여는 펜스를 그대로 재사용한다. 점수판이 ```ansi 로 바뀌었는데 여기서 항상 ``` 로 다시
+  // 열면 두 번째 메시지부터 색이 통째로 날아간다(언어 태그가 없으면 디스코드가 ANSI를 렌더하지 않음).
+  const openFence = (lines[0] && /^```/.test(lines[0])) ? lines[0] : '```';
   const messages = [];
   let buf = [], startedInFence = false;
   const lenOf = (arr) => arr.join('\n').length;
   function emit(arr, openedInFence){
     if(!arr.length) return;
     let body = arr.join('\n');
-    let msg = openedInFence ? '```\n' + body : body;
+    let msg = openedInFence ? openFence + '\n' + body : body;
     const fences = (body.match(/^```/gm) || []).length + (openedInFence ? 1 : 0);
     if(fences % 2 !== 0) msg += '\n```';
     messages.push(msg);
