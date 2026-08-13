@@ -11385,7 +11385,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v747';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v748';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -24380,7 +24380,12 @@ function _csOpenEditor(i){
     sword:pick(c.weapon, mc.sword),
     armor:pick(c.armor_set, mc.armor),
     ac:pick(c.ac, mc.ac),
-    maps:(Array.isArray(mc.maps)?mc.maps:[]).map(function(m){ m=m||{}; return {ko:String(m.ko||''), en:String(m.en||''), lv:(m.level!=null?m.level:(m.lv!=null?m.lv:'')), target:(m.target!=null?m.target:''), sh:(m.sh!=null?m.sh:''), sl:(m.sl!=null?m.sl:'')}; })
+    /* [v748] bands를 반드시 들고 다닌다. 이게 빠져 있어서 편집 모달로 한 번 저장하면 그 클라이언트의
+       기준 변경 이력(bands)이 통째로 사라졌다 — _stdMaintainBands는 bands가 없으면 "이 값이 예전부터
+       쭉 적용됐다"는 뜻으로 2000-01-01 밴드 하나를 새로 심기 때문에, 방금 바꾼 기준이 과거 전체에
+       소급 적용된다. 실제 피해: PC8을 0.12로 낮춘 뒤 편집 모달을 거치자 Bin 476%, PROD 550%로 월간
+       지수가 폭주했다(평소 0.5~0.7%/h ÷ 0.12). 급여에 직결되는 값이라 이력 보존이 필수다. */
+    maps:(Array.isArray(mc.maps)?mc.maps:[]).map(function(m){ m=m||{}; return {ko:String(m.ko||''), en:String(m.en||''), lv:(m.level!=null?m.level:(m.lv!=null?m.lv:'')), target:(m.target!=null?m.target:''), sh:(m.sh!=null?m.sh:''), sl:(m.sl!=null?m.sl:''), bands:(Array.isArray(m.bands)?m.bands:undefined)}; })
   };
   var modal=document.getElementById('cs-ed-modal'); var bg=document.getElementById('cs-ed-bg'); if(!modal||!bg) return;
   modal.innerHTML=_csEdShell();
@@ -24437,7 +24442,11 @@ async function _csEditSave(){
     var tg=(m.target!=null&&m.target!=='')?Number(m.target):0; if(!isFinite(tg)) tg=0;
     var sh=(m.sh!=null&&m.sh!=='')?Number(m.sh):''; if(sh!==''&&!isFinite(sh)) sh='';
     var sl=(m.sl!=null&&m.sl!=='')?Number(m.sl):''; if(sl!==''&&!isFinite(sl)) sl='';
-    return { ko:ko||_mapToKo(en), en:en||ko, level:(m.lv!=null&&m.lv!=='')?numOrEmpty(m.lv):'', target:tg, sh:sh, sl:sl };
+    /* [v748] bands를 그대로 넘긴다. 여기서 빠뜨리면 _stdMaintainBands가 "이력 없음"으로 보고
+       2000-01-01 밴드를 새로 심어, 방금 저장한 기준이 과거 전 기간에 소급 적용된다(급여 직결). */
+    var out={ ko:ko||_mapToKo(en), en:en||ko, level:(m.lv!=null&&m.lv!=='')?numOrEmpty(m.lv):'', target:tg, sh:sh, sl:sl };
+    if(Array.isArray(m.bands) && m.bands.length) out.bands=m.bands;
+    return out;
   });
   var rec={ no:numOrEmpty(e.no), pc:numOrEmpty(e.pc), name:name, nick:String(e.nick||'').trim(), job:String(e.job||'').trim(), lv:numOrEmpty(e.lv), sword:numOrEmpty(e.sword), armor:numOrEmpty(e.armor), ac:numOrEmpty(e.ac), maps:maps };
   var arr; try{ arr=await _srGetCalc('clients'); }catch(err){ toast('Couldn\u2019t reach the report server — not saved',true); return; }
