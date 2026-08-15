@@ -11385,7 +11385,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v748';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v749';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23774,11 +23774,32 @@ let PCB_STATE = {};            // { [pcId]: { col, note } } — 사용자가 지
 let _pcbDragPc = null;
 let _pcbLoaded = false;
 
+/* ── [v749] 배치 플래너 (boss 8/13) ──────────────────────────────────────────────────────
+   보스가 클라이언트가 들어올 때마다 디스코드 글을 직접 고쳐가며 "PC23에 넣었던 사람을 PC21로"
+   식으로 인력을 이리저리 옮겨 짜던 작업을 화면으로 옮긴 것. 요구는 "가지고 놀면서 인력을 어디
+   넣을지 구상"하는 것 — 즉 기록용이 아니라 **구상용**이다.
+   그래서 초안(draft)으로 만든다: 여기서 아무리 끌어다 놔도 실제 PC 배정(PCS)은 건드리지 않는다.
+   드래그할 때마다 실배정이 바뀌면 지금 근무 중인 사람의 시프트가 실시간으로 흔들려 위험하다.
+   완성되면 디스코드로 내보내고(보스가 쓰던 그 형식 그대로), 실제 반영은 PC 현황에서 한다.
+   PCB_PLAN  : { [pcKey]: [ {slot, staffId} ... ] }  — 초안 배치
+   PCB_EXTRA : [ {pc, account, col} ]                — 아직 PCS에 없는 계획용 PC (21·22·23 같은)  */
+let PCB_PLAN = {};
+let PCB_EXTRA = [];
+const PCB_SLOTS = [
+  { id:1, name:'SHIFT 1', time:'09:00–17:00', jkt:'07–15 JKT' },
+  { id:2, name:'SHIFT 2', time:'17:00–01:00', jkt:'15–23 JKT' },
+  { id:3, name:'SHIFT 3', time:'01:00–09:00', jkt:'23–07 JKT' }
+];
+let _pcbDrag = null;           // { staffId, fromKey, fromSlot } — 인력 드래그
+
 async function _pcbLoad(){
   if(_pcbLoaded || !sb) return;
   try{
     const { data } = await sb.from('trust_state').select('data').eq('id','pc_board').maybeSingle();
-    if(data && data.data && typeof data.data === 'object') PCB_STATE = data.data;
+    const d = (data && data.data && typeof data.data==='object') ? data.data : {};
+    /* v747은 { [pcId]:{col,note} } 를 통째로 저장했다. 그 형태도 그대로 읽히게 둔다(마이그레이션 불필요) */
+    if(d.__v2){ PCB_STATE = d.state||{}; PCB_PLAN = d.plan||{}; PCB_EXTRA = Array.isArray(d.extra)?d.extra:[]; }
+    else { PCB_STATE = d; PCB_PLAN = {}; PCB_EXTRA = []; }
   }catch(e){ console.warn('pc_board load failed:', e && e.message); }
   _pcbLoaded = true;
 }
@@ -23787,9 +23808,48 @@ function _pcbSave(){
   if(!sb) return;
   clearTimeout(_pcbSaveTimer);
   _pcbSaveTimer = setTimeout(async () => {
-    try{ await _dbUpsert('trust_state','pc_board', PCB_STATE); }
+    try{ await _dbUpsert('trust_state','pc_board', { __v2:true, state:PCB_STATE, plan:PCB_PLAN, extra:PCB_EXTRA }); }
     catch(e){ toast('보드 저장 실패: ' + (e && e.message), true); }
   }, 500);
+}
+/* 초안이 비어 있으면 실제 배정에서 한 번 가져와 채운다(빈 화면에서 시작하지 않게).
+   시작시각으로 SHIFT 1/2/3을 추정 — 09시경=1, 17시경=2, 01시경=3, 그 외는 가장 가까운 칸. */
+function _pcbSlotOf(start){
+  const s = ((Number(start)||0)%24+24)%24;
+  const d = h => Math.min(Math.abs(s-h), 24-Math.abs(s-h));
+  const c = [{id:1,h:9},{id:2,h:17},{id:3,h:1}].sort((a,b)=>d(a.h)-d(b.h));
+  return c[0].id;
+}
+function _pcbSeedPlanFromLive(){
+  PCB_PLAN = {};
+  (typeof PCS!=='undefined'?PCS:[]).forEach(p=>{
+    const rows=[];
+    (p.assignments||[]).slice().sort((a,b)=>a.start-b.start).forEach(a=>{
+      const slot=_pcbSlotOf(a.start);
+      if(!rows.some(r=>r.slot===slot)) rows.push({slot, staffId:a.staff});
+      else rows.push({slot:[1,2,3].find(s=>!rows.some(r=>r.slot===s))||slot, staffId:a.staff});
+    });
+    if(rows.length) PCB_PLAN[String(p.id)] = rows;
+  });
+}
+/* 재직 중인 전 직원 (초안 인력 풀의 원본) */
+function _pcbAllStaff(){
+  return (typeof STAFF!=='undefined'?STAFF:[])
+    .filter(s => !((STAFF_DETAILS[s.id]||{}).resigned))
+    .map(s => ({ id:s.id, name:s.name }))
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+}
+function _pcbStaffName(id){
+  if(!id) return '';
+  try{ if(typeof TRUST_NAME_BY_ID!=='undefined' && TRUST_NAME_BY_ID[id]) return TRUST_NAME_BY_ID[id]; }catch(_){}
+  const s=(typeof STAFF!=='undefined'?STAFF:[]).find(x=>x.id===id);
+  return s?s.name:String(id).slice(0,8);
+}
+/* 초안 어딘가에 이미 배치된 사람 id 집합 */
+function _pcbPlanned(){
+  const set=new Set();
+  Object.values(PCB_PLAN).forEach(rows=>(rows||[]).forEach(r=>{ if(r.staffId) set.add(r.staffId); }));
+  return set;
 }
 /* 저장된 분류가 없으면 실제 배정 상태로 자동 판정한다 — 처음 열었을 때도 보드가 이미 채워져 있게 */
 function _pcbAutoCol(info){
@@ -23806,13 +23866,19 @@ function _pcbGather(){
       from: a.start, to: (a.start + a.len) % 24, len: a.len
     }));
     return {
+      key: String(p.id),
       pc: p.id,
+      planned: false,
       clientName: c ? c.name : '',
       clientLabel: c ? (c.label||'') : '',
       lv: c ? (c.level||'') : '',
       job: c ? (c.char_class||'') : '',
       staff
     };
+  });
+  /* [v749] 아직 PCS에 없는 계획용 PC(21·22·23 등)도 같은 보드에 올린다 — 디스코드에서 하던 그대로 */
+  PCB_EXTRA.forEach(e=>{
+    list.push({ key:'x'+e.pc, pc:e.pc, planned:true, clientName:e.account||'', clientLabel:'', lv:'', job:'', staff:[] });
   });
   return list;
 }
@@ -23822,30 +23888,52 @@ async function renderPcBoard(){
   const host = document.getElementById('ch-other'); if(!host) return;
   _pcbInjectCSS();
   await _pcbLoad();
+  if(!Object.keys(PCB_PLAN).length) _pcbSeedPlanFromLive();
   const items = _pcbGather();
   const buckets = {}; PCB_COLS.forEach(c => buckets[c.id] = []);
   items.forEach(it => {
-    const saved = PCB_STATE[it.pc] || {};
+    const saved = PCB_STATE[it.key] || PCB_STATE[it.pc] || {};
     let col = saved.col;
-    if(!col || !buckets[col]) col = _pcbAutoCol(it);
+    if(!col || !buckets[col]) col = it.planned ? 'staffing' : _pcbAutoCol(it);
     // 클라이언트가 빠졌는데 예전 분류가 남아있으면 빈 PC로 되돌린다(실데이터가 항상 우선)
-    if(!it.clientName && col !== 'empty' && col !== 'hold') col = 'empty';
+    if(!it.planned && !it.clientName && col !== 'empty' && col !== 'hold') col = 'empty';
     buckets[col].push({ ...it, note: saved.note || '' });
   });
-  const total = items.length;
+  const planned = _pcbPlanned();
+  const pool = _pcbAllStaff().filter(s => !planned.has(s.id));
+
   const cols = PCB_COLS.map(col => {
     const cards = buckets[col.id].map(it => {
-      const shifts = it.staff.length
-        ? it.staff.map(s => `<span class="pcb-sh"><b>${_pcbEsc(s.name)}</b>${String(s.from).padStart(2,'0')}–${String(s.to).padStart(2,'0')}</span>`).join('')
-        : `<span class="pcb-none">담당자 없음</span>`;
+      const rows = PCB_PLAN[it.key] || [];
+      const slots = PCB_SLOTS.map(sl => {
+        const r = rows.find(x => x.slot === sl.id);
+        const who = r && r.staffId ? _pcbStaffName(r.staffId) : '';
+        return `<div class="pcb-slot${who?' filled':''}" data-key="${it.key}" data-slot="${sl.id}"
+             ondragover="_pcbSlotOver(event)" ondragleave="_pcbSlotLeave(event)"
+             ondrop="_pcbSlotDrop(event,'${it.key}',${sl.id})">
+          <span class="pcb-slabel">${sl.name}</span>
+          ${who
+            ? `<span class="pcb-person" draggable="true"
+                 ondragstart="_pcbPersonDrag(event,'${r.staffId}','${it.key}',${sl.id})" ondragend="_pcbPersonEnd(event)"
+                 >${_pcbEsc(who)}<button class="pcb-x" onclick="_pcbClearSlot('${it.key}',${sl.id})" title="빼기">✕</button></span>`
+            : `<span class="pcb-slotempty">비어 있음</span>`}
+          <span class="pcb-stime">${sl.jkt}</span>
+        </div>`;
+      }).join('');
       const meta = [it.lv?('Lv '+it.lv):'', it.job||''].filter(Boolean).join(' · ');
-      return `<div class="pcb-card" draggable="true" data-pc="${it.pc}"
-          ondragstart="_pcbDragStart(event,${it.pc})" ondragend="_pcbDragEnd(event)">
-        <div class="pcb-top"><span class="pcb-pc">PC ${it.pc}</span>${meta?`<span class="pcb-meta">${_pcbEsc(meta)}</span>`:''}</div>
+      const filled = rows.filter(r=>r.staffId).length;
+      return `<div class="pcb-card${it.planned?' is-planned':''}" draggable="true" data-key="${it.key}"
+          ondragstart="_pcbDragStart(event,'${it.key}')" ondragend="_pcbDragEnd(event)">
+        <div class="pcb-top">
+          <span class="pcb-pc">PC ${it.pc}</span>
+          ${it.planned?'<span class="pcb-plantag">계획</span>':''}
+          <span class="pcb-cover${filled>=3?' ok':''}">${filled}/3</span>
+          ${meta?`<span class="pcb-meta">${_pcbEsc(meta)}</span>`:''}
+        </div>
         <div class="pcb-acc">${it.clientName ? _pcbEsc(it.clientName) : '<i>계정 미배정</i>'}</div>
-        <div class="pcb-shifts">${shifts}</div>
-        <div class="pcb-note" contenteditable="true" data-pc="${it.pc}"
-             onblur="_pcbNote(${it.pc}, this.textContent)"
+        <div class="pcb-slots">${slots}</div>
+        <div class="pcb-note" contenteditable="true"
+             onblur="_pcbNote('${it.key}', this.textContent)"
              data-ph="메모 추가…">${_pcbEsc(it.note)}</div>
       </div>`;
     }).join('');
@@ -23859,21 +23947,92 @@ async function renderPcBoard(){
       <div class="pcb-cards">${cards || '<div class="pcb-empty">여기로 카드를 끌어오세요</div>'}</div>
     </div>`;
   }).join('');
+
   host.innerHTML = `
     <div class="pcb-wrap">
       <div class="pcb-head">
         <div>
-          <div class="pcb-eyebrow">운영 · 계정 배정</div>
+          <div class="pcb-eyebrow">운영 · 배치 플래너</div>
           <h1 class="pcb-h1">계정 보드</h1>
-          <p class="pcb-sub">PC 번호 · 계정 · 담당자는 <b>PC 현황에서 자동으로</b> 불러옵니다 — 여기서는 상태 분류와 메모만 관리합니다. 카드를 끌어 옮기세요.</p>
+          <p class="pcb-sub">사람을 끌어다 시프트 칸에 넣어보세요. <b>여기서 바꿔도 실제 배정은 안 바뀝니다</b> — 마음껏 굴려보고, 정해지면 디스코드로 내보내세요.</p>
         </div>
         <div class="pcb-actions">
-          <span class="pcb-total">${total} PC</span>
+          <button class="pcb-btn ghost" onclick="_pcbAddPlannedPc()">＋ 계획 PC</button>
+          <button class="pcb-btn ghost" onclick="_pcbResetPlan()">↻ 현재 배정 불러오기</button>
           <button class="pcb-btn" onclick="_pcbCopyDiscord()">📋 디스코드 복사</button>
         </div>
       </div>
-      <div class="pcb-board">${cols}</div>
+      <div class="pcb-main">
+        <div class="pcb-board">${cols}</div>
+        <aside class="pcb-pool" ondragover="_pcbOver(event)" ondragleave="_pcbLeave(event)" ondrop="_pcbPoolDrop(event)">
+          <div class="pcb-poolhead">대기 인력 <span class="pcb-cnt">${pool.length}</span></div>
+          <div class="pcb-poolnote">여기서 끌어다 시프트 칸에 놓으세요</div>
+          <div class="pcb-poollist">
+            ${pool.map(s=>`<span class="pcb-person pool" draggable="true"
+               ondragstart="_pcbPersonDrag(event,'${s.id}','','')" ondragend="_pcbPersonEnd(event)">${_pcbEsc(s.name)}</span>`).join('')
+              || '<div class="pcb-empty">전원 배치됨</div>'}
+          </div>
+        </aside>
+      </div>
     </div>`;
+}
+/* ── 인력 드래그 ── */
+function _pcbPersonDrag(e, staffId, fromKey, fromSlot){
+  _pcbDrag = { staffId, fromKey:fromKey||null, fromSlot:fromSlot===''?null:Number(fromSlot) };
+  try{ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain', staffId); }catch(_){}
+  e.stopPropagation();
+  e.currentTarget.classList.add('pcb-dragging');
+}
+function _pcbPersonEnd(e){
+  _pcbDrag = null;
+  document.querySelectorAll('.pcb-dragging').forEach(x=>x.classList.remove('pcb-dragging'));
+  document.querySelectorAll('.pcb-slot.over').forEach(x=>x.classList.remove('over'));
+}
+function _pcbSlotOver(e){ if(!_pcbDrag) return; e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('over'); }
+function _pcbSlotLeave(e){ e.currentTarget.classList.remove('over'); }
+function _pcbSetSlot(key, slot, staffId){
+  if(!PCB_PLAN[key]) PCB_PLAN[key] = [];
+  PCB_PLAN[key] = PCB_PLAN[key].filter(r => r.slot !== slot);
+  if(staffId) PCB_PLAN[key].push({ slot, staffId });
+}
+function _pcbSlotDrop(e, key, slot){
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('over');
+  const d = _pcbDrag; _pcbDrag = null;
+  if(!d || !d.staffId) return;
+  // 같은 사람이 다른 칸에 이미 있으면 그 칸을 비운다(중복 배치 방지)
+  Object.keys(PCB_PLAN).forEach(k => {
+    PCB_PLAN[k] = (PCB_PLAN[k]||[]).filter(r => r.staffId !== d.staffId || (k===key && r.slot===slot));
+  });
+  _pcbSetSlot(key, slot, d.staffId);
+  _pcbSave(); renderPcBoard();
+  toast(`${_pcbStaffName(d.staffId)} → PC ${String(key).replace(/^x/,'')} ${PCB_SLOTS.find(s=>s.id===slot).name}`);
+}
+function _pcbPoolDrop(e){
+  e.preventDefault(); e.currentTarget.classList.remove('over');
+  const d = _pcbDrag; _pcbDrag = null;
+  if(!d || !d.staffId || !d.fromKey) return;
+  _pcbSetSlot(d.fromKey, d.fromSlot, null);
+  _pcbSave(); renderPcBoard();
+  toast(`${_pcbStaffName(d.staffId)} 대기 인력으로`);
+}
+function _pcbClearSlot(key, slot){
+  _pcbSetSlot(key, slot, null); _pcbSave(); renderPcBoard();
+}
+function _pcbResetPlan(){
+  if(!confirm('초안을 지우고 현재 PC 현황의 실제 배정을 다시 불러올까요?')) return;
+  _pcbSeedPlanFromLive(); _pcbSave(); renderPcBoard();
+  toast('현재 배정을 불러왔습니다');
+}
+function _pcbAddPlannedPc(){
+  const pc = prompt('PC 번호를 입력하세요 (아직 PC 현황에 없는 계획용)', '21');
+  if(pc === null) return;
+  const n = String(pc).trim(); if(!n) return;
+  if(PCB_EXTRA.some(x=>String(x.pc)===n)){ toast('이미 있는 계획 PC입니다', true); return; }
+  const account = prompt('계정 이름 (예: 오렌 기사쌤 VIP)', '') || '';
+  PCB_EXTRA.push({ pc:n, account:account.trim() });
+  _pcbSave(); renderPcBoard();
+  toast('계획 PC '+n+' 추가됨');
 }
 function _pcbDragStart(e, pc){
   _pcbDragPc = pc;
@@ -23890,20 +24049,21 @@ function _pcbLeave(e){ e.currentTarget.classList.remove('over'); }
 function _pcbDrop(e, colId){
   e.preventDefault();
   e.currentTarget.classList.remove('over');
-  const pc = _pcbDragPc != null ? _pcbDragPc : parseInt(e.dataTransfer.getData('text/plain'),10);
+  if(_pcbDrag){ _pcbDrag = null; return; }   // 인력 드래그가 칸 밖에 떨어진 경우 — 분류는 건드리지 않음
+  const key = _pcbDragPc != null ? String(_pcbDragPc) : String(e.dataTransfer.getData('text/plain')||'');
   _pcbDragPc = null;
-  if(!isFinite(pc)) return;
-  if(!PCB_STATE[pc]) PCB_STATE[pc] = {};
-  PCB_STATE[pc].col = colId;
+  if(!key) return;
+  if(!PCB_STATE[key]) PCB_STATE[key] = {};
+  PCB_STATE[key].col = colId;
   _pcbSave();
   renderPcBoard();
   const cn = (PCB_COLS.find(c=>c.id===colId)||{}).name || colId;
-  toast(`PC ${pc} → ${cn}`);
+  toast(`PC ${key.replace(/^x/,'')} → ${cn}`);
 }
-function _pcbNote(pc, text){
+function _pcbNote(key, text){
   const t = String(text||'').trim().slice(0, 300);
-  if(!PCB_STATE[pc]) PCB_STATE[pc] = {};
-  if(t) PCB_STATE[pc].note = t; else delete PCB_STATE[pc].note;
+  if(!PCB_STATE[key]) PCB_STATE[key] = {};
+  if(t) PCB_STATE[key].note = t; else delete PCB_STATE[key].note;
   _pcbSave();
 }
 /* 디스코드 복사 — 보스가 쓰던 ANSI 형식 그대로 (점수판과 같은 방식) */
@@ -23913,9 +24073,9 @@ function _pcbCopyDiscord(){
   const items = _pcbGather();
   const buckets = {}; PCB_COLS.forEach(c=>buckets[c.id]=[]);
   items.forEach(it=>{
-    const saved = PCB_STATE[it.pc]||{};
-    let col = saved.col; if(!col || !buckets[col]) col = _pcbAutoCol(it);
-    if(!it.clientName && col!=='empty' && col!=='hold') col='empty';
+    const saved = PCB_STATE[it.key] || PCB_STATE[it.pc] || {};
+    let col = saved.col; if(!col || !buckets[col]) col = it.planned ? 'staffing' : _pcbAutoCol(it);
+    if(!it.planned && !it.clientName && col!=='empty' && col!=='hold') col='empty';
     buckets[col].push({ ...it, note: saved.note||'' });
   });
   const CODE = { empty:'0;30', hold:'1;33', staffing:'0;33', test:'1;36', live:'0;32' };
@@ -23927,9 +24087,21 @@ function _pcbCopyDiscord(){
     out.push(C(col.name.toUpperCase()+'  ('+list.length+')','1;37'));
     out.push(C(bar,'1;37'));
     list.forEach(it=>{
-      out.push(C('PC '+it.pc, '1;'+CODE[col.id].split(';')[1]));
+      out.push(C('PC '+it.pc+(it.planned?'  (계획)':''), '1;'+CODE[col.id].split(';')[1]));
       out.push(C('  Account  : '+(it.clientName||'—'), CODE[col.id]));
-      out.push(C('  Assigned : '+(it.staff.length? it.staff.map(s=>s.name+' '+String(s.from).padStart(2,'0')+'-'+String(s.to).padStart(2,'0')).join(' / ') : '—'), CODE[col.id]));
+      /* [v749] 초안의 시프트 배치를 보스가 쓰던 트리 형태로 — ├─ 1. Kal : SHIFT 1  09:00-17:00 */
+      const rows = (PCB_PLAN[it.key]||[]).slice().sort((a,b)=>a.slot-b.slot).filter(r=>r.staffId);
+      if(rows.length){
+        rows.forEach((r,i)=>{
+          const sl = PCB_SLOTS.find(s=>s.id===r.slot) || {name:'?',time:'',jkt:''};
+          const br = (i===rows.length-1) ? '  └─ ' : '  ├─ ';
+          out.push(C(br+r.slot+'. '+_pcbStaffName(r.staffId).padEnd(8)+' : '+sl.name+'  '+sl.time+'  ('+sl.jkt+')', CODE[col.id]));
+        });
+        const miss = PCB_SLOTS.filter(s=>!rows.some(r=>r.slot===s.id));
+        miss.forEach(s=> out.push(C('  ├─ '+s.id+'. '+'(비어 있음)'.padEnd(10)+' : '+s.name, '0;31')));
+      } else {
+        out.push(C('  Assigned : —', CODE[col.id]));
+      }
       if(it.note) out.push(C('  Note     : '+it.note, CODE[col.id]));
     });
   });
@@ -23978,6 +24150,34 @@ function _pcbInjectCSS(){
     ".pcb-note{font-size:12px;color:var(--tx2,#b5b5b0);border-top:1px dashed var(--br2,#33332f);padding-top:8px;min-height:19px;outline:none;line-height:1.5;white-space:pre-wrap;word-break:break-word}",
     ".pcb-note:empty::before{content:attr(data-ph);color:var(--tx4,#6b6b67);font-style:italic}",
     ".pcb-note:focus{color:var(--tx,#e6e5e2)}",
+    /* [v749] 배치 플래너 */
+    ".pcb-main{display:flex;gap:16px;align-items:flex-start}",
+    ".pcb-main .pcb-board{flex:1;min-width:0}",
+    ".pcb-btn.ghost{background:transparent;color:var(--tx2,#b5b5b0);border:1px solid var(--br2,#33332f);box-shadow:none;font-weight:600}",
+    ".pcb-btn.ghost:hover{background:var(--bg-h,#242427);color:var(--tx,#e6e5e2)}",
+    ".pcb-plantag{font-size:9px;font-weight:700;letter-spacing:.06em;color:#5FA3D9;background:rgba(95,163,217,.15);padding:1px 6px;border-radius:5px}",
+    ".pcb-cover{font:10.5px ui-monospace,Consolas,monospace;font-weight:700;color:#C87B54;background:rgba(200,123,84,.14);padding:1px 6px;border-radius:5px;font-variant-numeric:tabular-nums}",
+    ".pcb-cover.ok{color:#4E9A62;background:rgba(78,154,98,.15)}",
+    ".pcb-card.is-planned{border-style:dashed;border-color:#5FA3D9}",
+    ".pcb-slots{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}",
+    ".pcb-slot{display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:7px;background:var(--bg-h,#242427);border:1px dashed var(--br2,#33332f);min-height:28px;transition:border-color .1s,background .1s}",
+    ".pcb-slot.filled{border-style:solid;background:var(--bg-a,#1e1e21)}",
+    ".pcb-slot.over{border-color:var(--ac,#c9963a);background:color-mix(in srgb,var(--ac,#c9963a) 12%,var(--bg-h,#242427))}",
+    ".pcb-slabel{font:9.5px ui-monospace,Consolas,monospace;font-weight:700;color:var(--tx4,#6b6b67);flex:0 0 52px;letter-spacing:.02em}",
+    ".pcb-slotempty{font-size:11px;color:var(--tx4,#6b6b67);font-style:italic;flex:1}",
+    ".pcb-stime{font:9px ui-monospace,Consolas,monospace;color:var(--tx4,#6b6b67);margin-left:auto;flex:0 0 auto;opacity:.8}",
+    ".pcb-person{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:650;color:var(--tx,#e6e5e2);background:var(--bg-c,#17171a);border:1px solid var(--br2,#33332f);border-radius:6px;padding:2px 7px;cursor:grab;flex:1;min-width:0}",
+    ".pcb-person:active{cursor:grabbing}",
+    ".pcb-person.pcb-dragging{opacity:.4}",
+    ".pcb-x{background:none;border:none;color:var(--tx4,#6b6b67);cursor:pointer;font-size:10px;padding:0 0 0 3px;margin-left:auto;line-height:1}",
+    ".pcb-x:hover{color:#c46a6a}",
+    ".pcb-pool{flex:0 0 190px;position:sticky;top:14px;background:var(--bg-c,#17171a);border:1px solid var(--br,#2a2a28);border-radius:14px;padding:13px;max-height:calc(100vh - 120px);overflow-y:auto}",
+    ".pcb-pool.over{border-color:var(--ac,#c9963a)}",
+    ".pcb-poolhead{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--tx,#e6e5e2);margin-bottom:4px}",
+    ".pcb-poolnote{font-size:10px;color:var(--tx4,#6b6b67);margin-bottom:11px;line-height:1.45}",
+    ".pcb-poollist{display:flex;flex-wrap:wrap;gap:5px}",
+    ".pcb-person.pool{flex:0 0 auto}",
+    "@media(max-width:900px){.pcb-main{flex-direction:column}.pcb-pool{position:static;flex:1 1 auto;width:100%;max-height:none}}",
     "@media(max-width:900px){.pcb-wrap{padding:18px 14px 50px}.pcb-board{flex-direction:column}.pcb-col{width:100%;min-width:0}}"
   ].join("\n");
   document.head.appendChild(s);
