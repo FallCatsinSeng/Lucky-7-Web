@@ -1,0 +1,3367 @@
+{
+ "muhammad": {
+  "rank": "unranked",
+  "system": "player",
+  "warn_pts": 0,
+  "incidents": [],
+  "trust_pts": 0,
+  "trust_earned": [],
+  "protected_until": "2026-08-10"
+ },
+ "1c60702a-9009-4c03-bcb1-d73d7966825d": {
+  "rank": "unranked",
+  "warn_pts": 0,
+  "incidents": [],
+  "trust_pts": 1,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-06-18",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": null
+ },
+ "224049da-0cc9-47cb-bf45-8ea26c8126a8": {
+  "rank": "unranked",
+  "warn_pts": 1.5,
+  "incidents": [
+   {
+    "pts": 0.5,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 0,
+  "trust_earned": [],
+  "protected_until": "2026-07-09"
+ },
+ "248ee18f-aeb5-4071-8f9e-a3f2a368904d": {
+  "rank": "unranked",
+  "warn_pts": 0.5,
+  "incidents": [
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 8,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-31",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-30",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-01",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-01",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-01",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-28",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-28",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-22",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-22",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-22",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-19",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-19",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": null
+ },
+ "38245318-642f-4ed7-90c5-08b1561296a3": {
+  "rank": "unranked",
+  "warn_pts": 2,
+  "incidents": [
+   {
+    "pts": 0.5,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 1,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-07-09"
+ },
+ "3b5eabc9-32ab-4ee8-ae2b-e781b7ce5ba6": {
+  "rank": "unranked",
+  "warn_pts": 98,
+  "incidents": [
+   {
+    "date": "2026-08-05",
+    "type": "Quick warn",
+    "pts": 1
+   },
+   {
+    "date": "2026-08-05",
+    "type": "Quick warn",
+    "pts": 1
+   },
+   {
+    "date": "2026-08-05",
+    "type": "Quick warn",
+    "pts": 50
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-28",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-28",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-20",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-17",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 17,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-20",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-20",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-05-15"
+ },
+ "43b15f62-f3b1-4816-9c9e-d5e793fa8bcb": {
+  "rank": "unranked",
+  "warn_pts": 2.5,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-22",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-22",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 0,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -0.5,
+    "date": "2026-07-24",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-22",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-18",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-06-15",
+  "deaths": [
+   {
+    "date": "2026-08-05",
+    "n": 1,
+    "type": "Death"
+   }
+  ]
+ },
+ "4d369ade-ca07-4299-9448-f27a021cbee4": {
+  "rank": "unranked",
+  "warn_pts": 1.5,
+  "incidents": [
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 0,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-22",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-24",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-07-01",
+  "deaths": [
+   {
+    "date": "2026-08-05",
+    "n": 1,
+    "type": "Death"
+   }
+  ]
+ },
+ "58b17734-c370-47fe-b926-c78eca09984b": {
+  "rank": "unranked",
+  "warn_pts": 10.5,
+  "incidents": [
+   {
+    "pts": 0.5,
+    "date": "2026-07-28",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -0.5,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 0,
+  "trust_earned": [
+   {
+    "pts": -0.5,
+    "date": "2026-07-28",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-28",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-07-02"
+ },
+ "5ca49c4f-5a46-496d-a2b4-73794a467c78": {
+  "rank": "unranked",
+  "warn_pts": 0,
+  "incidents": [
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 11,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-01",
+    "type": "Discord grant (boss 8/1)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-31",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-05-26"
+ },
+ "63ee31bf-9f29-4e2b-bc53-11fbda03e74f": {
+  "rank": "unranked",
+  "warn_pts": 0,
+  "incidents": [],
+  "trust_pts": 1,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-06-22",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": null
+ },
+ "71ec025a-9e6d-40eb-86ca-5421f4f17f2a": {
+  "rank": "unranked",
+  "warn_pts": 13.5,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-27",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-01",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-01",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 3,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-20",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-05-18"
+ },
+ "8b643ce1-649a-463b-a8b4-8a5ccf245afd": {
+  "rank": "unranked",
+  "warn_pts": 3,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 3,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-23",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-13",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-13",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-12",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-12",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-12",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-12",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-12",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-12",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": null
+ },
+ "92b27b49-0a9c-4c3f-84c7-96fdb90579a4": {
+  "rank": "unranked",
+  "warn_pts": 0,
+  "incidents": [
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 0,
+  "trust_earned": [
+   {
+    "pts": -1,
+    "date": "2026-06-17",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-17",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-17",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": null
+ },
+ "a305e889-a642-485a-8dfe-80ab7fd11ddc": {
+  "rank": "unranked",
+  "warn_pts": 4,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-07-31",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-17",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 16,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-31",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-30",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-24",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-06-12",
+  "deaths": [
+   {
+    "date": "2026-08-05",
+    "n": 1,
+    "type": "Death"
+   }
+  ]
+ },
+ "a3acdc5a-8b73-45cb-8e6d-c921de814101": {
+  "rank": "unranked",
+  "deaths": [
+   {
+    "n": 1,
+    "date": "2026-08-05",
+    "type": "Death"
+   },
+   {
+    "n": 1,
+    "date": "2026-08-05",
+    "type": "Death"
+   }
+  ],
+  "warn_pts": 1,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-09",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-09",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-09",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-09",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-09",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-09",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 1,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-08-04",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-11",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-11",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-09",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-09",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-09",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-09",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": null
+ },
+ "a663de8d-7285-41c2-8439-b7f83a40125b": {
+  "rank": "unranked",
+  "warn_pts": 8,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-20",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-20",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-20",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 0,
+  "trust_earned": [],
+  "protected_until": null
+ },
+ "a876f487-149b-4005-827a-8436e791f581": {
+  "rank": "unranked",
+  "warn_pts": 2.5,
+  "incidents": [
+   {
+    "pts": 0.5,
+    "date": "2026-07-28",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -0.5,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 1,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-07-03"
+ },
+ "b5672382-c991-4ba9-9987-b04dec3742ec": {
+  "rank": "unranked",
+  "warn_pts": 4,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 7,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-06-27"
+ },
+ "b6041659-ba36-4b88-af80-d980c982343e": {
+  "rank": "unranked",
+  "warn_pts": 0,
+  "incidents": [],
+  "trust_pts": 1,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": null
+ },
+ "b6b333c7-3236-4b5b-aa46-6d9839dff549": {
+  "rank": "unranked",
+  "warn_pts": 1,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 4,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-08-03",
+  "deaths": [
+   {
+    "date": "2026-08-05",
+    "n": 1,
+    "type": "Death"
+   }
+  ]
+ },
+ "be712846-4345-479a-9415-d5be727ed304": {
+  "rank": "unranked",
+  "warn_pts": 18,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-18",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-18",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 16,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-31",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-31",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-31",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-22",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-22",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-06-08"
+ },
+ "ca416ad0-c7d1-4921-bcbd-4195a05fffd7": {
+  "rank": "unranked",
+  "warn_pts": 1,
+  "incidents": [
+   {
+    "pts": 0.5,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-23",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-18",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-18",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-18",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-18",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 6,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-30",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-17",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-06-08"
+ },
+ "d74c2b3c-d57f-47bb-9acf-52806d473ab0": {
+  "rank": "unranked",
+  "warn_pts": 0,
+  "incidents": [
+   {
+    "pts": 0.5,
+    "date": "2026-07-29",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 2,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-03",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-29",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-06-12"
+ },
+ "d79733a2-6b72-43a6-bfbb-48e51e61c941": {
+  "rank": "unranked",
+  "warn_pts": 12.5,
+  "incidents": [
+   {
+    "pts": 0.5,
+    "date": "2026-08-03",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-08-03",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 0.5,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-22",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 4,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-27",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-22",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-07-02"
+ },
+ "e5da534b-ddda-49f2-afb9-8aec3f3711d6": {
+  "rank": "unranked",
+  "warn_pts": 13,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-05",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-24",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 0,
+  "trust_earned": [],
+  "protected_until": "2026-07-16",
+  "deaths": [
+   {
+    "date": "2026-08-05",
+    "n": 1,
+    "type": "Death"
+   }
+  ]
+ },
+ "ec1752c0-9df6-455f-93fe-b2ab784a74b1": {
+  "rank": "unranked",
+  "warn_pts": 1,
+  "incidents": [
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 3,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-08-04",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-28",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-07-02"
+ },
+ "f948bb7f-6d6a-4ce3-869d-d8ba078a3b83": {
+  "rank": "unranked",
+  "warn_pts": 0.5,
+  "incidents": [
+   {
+    "pts": 0.5,
+    "date": "2026-07-28",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-07-21",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-21",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 1,
+  "trust_earned": [
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-07-24",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-24",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": "2026-06-15"
+ },
+ "ff05bf80-2582-4921-9b07-4f816ba69b30": {
+  "rank": "unranked",
+  "warn_pts": 0,
+  "incidents": [
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick warn"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Warning reduced (good behavior)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick warn"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick warn"
+   }
+  ],
+  "trust_pts": 0,
+  "trust_earned": [
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   },
+   {
+    "pts": -1,
+    "date": "2026-06-10",
+    "type": "Trust reduced (mistake)"
+   },
+   {
+    "pts": 1,
+    "date": "2026-06-10",
+    "type": "Quick grant"
+   }
+  ],
+  "protected_until": null
+ }
+}

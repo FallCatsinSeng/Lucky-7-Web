@@ -11385,7 +11385,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v751';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v752';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23796,11 +23796,44 @@ let _pcbLoaded = false;
    PCB_EXTRA : [ {pc, account, col} ]                — 아직 PCS에 없는 계획용 PC (21·22·23 같은)  */
 let PCB_PLAN = {};
 let PCB_EXTRA = [];
-const PCB_SLOTS = [
-  { id:1, name:'SHIFT 1', time:'09:00–17:00', jkt:'07–15 JKT' },
-  { id:2, name:'SHIFT 2', time:'17:00–01:00', jkt:'15–23 JKT' },
-  { id:3, name:'SHIFT 3', time:'01:00–09:00', jkt:'23–07 JKT' }
-];
+/* [v752] boss 8/13 "쉬프트 123으로 구성할 수도 있고 12시간으로 shift 12로 구성할 수도 있는 거야"
+   — 3교대 8시간이 고정이 아니었다. 클라이언트/계정마다 2교대(12h)로 돌리기도 한다.
+   그래서 시프트 구성을 PC 단위로 고른다(PCB_STATE[key].shift). 기본은 3교대.
+   시간대는 KST 표기 + 인도네시아 직원 기준 JKT(KST-2)를 같이 적는다 — 보스가 디스코드에 쓰던 그대로. */
+const PCB_SHIFTSETS = {
+  '3': { label:'3교대 · 8h', slots:[
+    { id:1, name:'SHIFT 1', time:'09:00–17:00', jkt:'07–15 JKT' },
+    { id:2, name:'SHIFT 2', time:'17:00–01:00', jkt:'15–23 JKT' },
+    { id:3, name:'SHIFT 3', time:'01:00–09:00', jkt:'23–07 JKT' }
+  ]},
+  '2': { label:'2교대 · 12h', slots:[
+    { id:1, name:'SHIFT 1', time:'09:00–21:00', jkt:'07–19 JKT' },
+    { id:2, name:'SHIFT 2', time:'21:00–09:00', jkt:'19–07 JKT' }
+  ]}
+};
+const PCB_SHIFT_DEFAULT = '3';
+function _pcbShiftOf(key){
+  const v = String(((PCB_STATE[key]||{}).shift) || PCB_SHIFT_DEFAULT);
+  return PCB_SHIFTSETS[v] ? v : PCB_SHIFT_DEFAULT;
+}
+function _pcbSlotsFor(key){ return PCB_SHIFTSETS[_pcbShiftOf(key)].slots; }
+/* 하위 호환 — 예전 코드가 참조하던 3교대 목록 */
+const PCB_SLOTS = PCB_SHIFTSETS['3'].slots;
+/* 3교대 ↔ 2교대 전환. 칸 수가 줄면 남는 사람은 조용히 사라지지 않고 대기 인력으로 돌아간다. */
+function _pcbSetShift(key, v){
+  const set = PCB_SHIFTSETS[String(v)]; if(!set) return;
+  const rows = PCB_PLAN[key] || [];
+  const drop = rows.filter(r => r.staffId && !set.slots.some(s=>s.id===r.slot));
+  if(drop.length && !confirm(
+      `${set.label}로 바꾸면 시프트 칸이 ${set.slots.length}개가 됩니다.\n\n`+
+      drop.map(r=>'· '+_pcbStaffName(r.staffId)).join('\n')+
+      `\n\n위 ${drop.length}명은 대기 인력으로 빠집니다. 계속할까요?`)) return;
+  if(!PCB_STATE[key]) PCB_STATE[key] = {};
+  PCB_STATE[key].shift = String(v);
+  PCB_PLAN[key] = rows.filter(r => set.slots.some(s=>s.id===r.slot));
+  _pcbSave(); renderPcBoard();
+  toast(`PC ${String(key).replace(/^x/,'')} → ${set.label}`);
+}
 let _pcbDrag = null;           // { staffId, fromKey, fromSlot } — 인력 드래그
 /* [v750] boss 8/13 "어떻게 쓰는지 전혀 모르겠어" — 드래그만 되던 걸 클릭 2번으로도 되게 바꿨다.
    드래그는 되는 걸 알아야 시도라도 하는데 화면에 아무 단서가 없었다. 이제 사람을 클릭하면 선택되고
@@ -23829,20 +23862,23 @@ function _pcbSave(){
 }
 /* 초안이 비어 있으면 실제 배정에서 한 번 가져와 채운다(빈 화면에서 시작하지 않게).
    시작시각으로 SHIFT 1/2/3을 추정 — 09시경=1, 17시경=2, 01시경=3, 그 외는 가장 가까운 칸. */
-function _pcbSlotOf(start){
+function _pcbSlotOf(start, key){
   const s = ((Number(start)||0)%24+24)%24;
   const d = h => Math.min(Math.abs(s-h), 24-Math.abs(s-h));
-  const c = [{id:1,h:9},{id:2,h:17},{id:3,h:1}].sort((a,b)=>d(a.h)-d(b.h));
+  /* [v752] 2교대 PC면 후보도 2개뿐 — 시프트 구성에 맞춰 가장 가까운 시작시각으로 붙인다 */
+  const base = (key!=null && _pcbShiftOf(key)==='2') ? [{id:1,h:9},{id:2,h:21}] : [{id:1,h:9},{id:2,h:17},{id:3,h:1}];
+  const c = base.sort((a,b)=>d(a.h)-d(b.h));
   return c[0].id;
 }
 function _pcbSeedPlanFromLive(){
   PCB_PLAN = {};
   (typeof PCS!=='undefined'?PCS:[]).forEach(p=>{
-    const rows=[];
+    const rows=[]; const key=String(p.id);
+    const ids=_pcbSlotsFor(key).map(s=>s.id);
     (p.assignments||[]).slice().sort((a,b)=>a.start-b.start).forEach(a=>{
-      const slot=_pcbSlotOf(a.start);
+      const slot=_pcbSlotOf(a.start, key);
       if(!rows.some(r=>r.slot===slot)) rows.push({slot, staffId:a.staff});
-      else rows.push({slot:[1,2,3].find(s=>!rows.some(r=>r.slot===s))||slot, staffId:a.staff});
+      else { const free=ids.find(s=>!rows.some(r=>r.slot===s)); if(free) rows.push({slot:free, staffId:a.staff}); }
     });
     if(rows.length) PCB_PLAN[String(p.id)] = rows;
   });
@@ -23924,7 +23960,9 @@ async function renderPcBoard(){
   const cols = PCB_COLS.map(col => {
     const cards = buckets[col.id].map(it => {
       const rows = PCB_PLAN[it.key] || [];
-      const slots = PCB_SLOTS.map(sl => {
+      const shift = _pcbShiftOf(it.key);
+      const slotDefs = _pcbSlotsFor(it.key);
+      const slots = slotDefs.map(sl => {
         const r = rows.find(x => x.slot === sl.id);
         const who = r && r.staffId ? _pcbStaffName(r.staffId) : '';
         const armed = _pcbSel && !who;                 // 선택 상태에서 빈 칸은 "여기 클릭" 대상
@@ -23932,7 +23970,7 @@ async function renderPcBoard(){
              onclick="_pcbSlotClick(event,'${it.key}',${sl.id})"
              ondragover="_pcbSlotOver(event)" ondragleave="_pcbSlotLeave(event)"
              ondrop="_pcbSlotDrop(event,'${it.key}',${sl.id})">
-          <span class="pcb-slabel">${sl.name}</span>
+          <span class="pcb-slabel">${sl.name}<em class="pcb-shr">${sl.time}</em></span>
           ${who
             ? `<span class="pcb-person" draggable="true"
                  ondragstart="_pcbPersonDrag(event,'${r.staffId}','${it.key}',${sl.id})" ondragend="_pcbPersonEnd(event)"
@@ -23948,8 +23986,12 @@ async function renderPcBoard(){
         <div class="pcb-top">
           <span class="pcb-pc">PC ${it.pc}</span>
           ${it.planned?'<span class="pcb-plantag">계획</span>':''}
-          <span class="pcb-cover${filled>=3?' ok':''}">${filled}/3</span>
+          <span class="pcb-cover${filled>=slotDefs.length?' ok':''}">${filled}/${slotDefs.length}</span>
           ${meta?`<span class="pcb-meta">${_pcbEsc(meta)}</span>`:''}
+          <span class="pcb-shift" title="이 PC의 교대 구성">
+            ${Object.keys(PCB_SHIFTSETS).map(k=>`<button class="pcb-shbtn${shift===k?' on':''}"
+                 onclick="event.stopPropagation();_pcbSetShift('${it.key}','${k}')">${PCB_SHIFTSETS[k].slots.length}교대</button>`).join('')}
+          </span>
         </div>
         <div class="pcb-acc">${it.clientName ? _pcbEsc(it.clientName) : '<i>계정 미배정</i>'}</div>
         <div class="pcb-slots">${slots}</div>
@@ -23976,7 +24018,7 @@ async function renderPcBoard(){
         <div>
           <div class="pcb-eyebrow">운영 · 배치 플래너</div>
           <h1 class="pcb-h1">계정 보드</h1>
-          <p class="pcb-sub"><b>① 아래에서 사람 클릭 → ② PC의 시프트 칸 클릭</b> (끌어다 놓아도 됩니다). 여기서 바꿔도 <b>실제 배정은 안 바뀝니다</b> — 다 짜고 나면 디스코드로 내보내세요.</p>
+          <p class="pcb-sub"><b>① 아래에서 사람 클릭 → ② PC의 시프트 칸 클릭</b> (끌어다 놓아도 됩니다). 카드 우측 상단 <b>3교대 / 2교대</b>로 그 PC의 교대 구성을 바꿉니다. 여기서 바꿔도 <b>실제 배정은 안 바뀝니다</b> — 다 짜고 나면 디스코드로 내보내세요.</p>
         </div>
         <div class="pcb-actions">
           <button class="pcb-btn ghost" onclick="_pcbAddPlannedPc()">＋ 계획 PC</button>
@@ -24052,7 +24094,7 @@ function _pcbSlotClick(e, key, slot){
   _pcbSetSlot(key, slot, id);
   _pcbSel = null;
   _pcbSave(); renderPcBoard();
-  toast(`${_pcbStaffName(id)} → PC ${String(key).replace(/^x/,'')} ${PCB_SLOTS.find(s=>s.id===slot).name}`);
+  toast(`${_pcbStaffName(id)} → PC ${String(key).replace(/^x/,'')} ${(_pcbSlotsFor(key).find(s=>s.id===slot)||{name:''}).name}`);
 }
 /* ── 인력 드래그 ── */
 function _pcbPersonDrag(e, staffId, fromKey, fromSlot){
@@ -24084,7 +24126,7 @@ function _pcbSlotDrop(e, key, slot){
   });
   _pcbSetSlot(key, slot, d.staffId);
   _pcbSave(); renderPcBoard();
-  toast(`${_pcbStaffName(d.staffId)} → PC ${String(key).replace(/^x/,'')} ${PCB_SLOTS.find(s=>s.id===slot).name}`);
+  toast(`${_pcbStaffName(d.staffId)} → PC ${String(key).replace(/^x/,'')} ${(_pcbSlotsFor(key).find(s=>s.id===slot)||{name:''}).name}`);
 }
 function _pcbPoolDrop(e){
   e.preventDefault(); e.currentTarget.classList.remove('over');
@@ -24168,17 +24210,19 @@ function _pcbCopyDiscord(){
     out.push(C(col.name.toUpperCase()+'  ('+list.length+')','1;37'));
     out.push(C(bar,'1;37'));
     list.forEach(it=>{
+      const sdef = _pcbSlotsFor(it.key);
       out.push(C('PC '+it.pc+(it.planned?'  (계획)':''), '1;'+cc.split(';')[1]));
       out.push(C('  Account  : '+(it.clientName||'—'), cc));
+      out.push(C('  Shift    : '+PCB_SHIFTSETS[_pcbShiftOf(it.key)].label, cc));
       /* [v749] 초안의 시프트 배치를 보스가 쓰던 트리 형태로 — ├─ 1. Kal : SHIFT 1  09:00-17:00 */
       const rows = (PCB_PLAN[it.key]||[]).slice().sort((a,b)=>a.slot-b.slot).filter(r=>r.staffId);
       if(rows.length){
         rows.forEach((r,i)=>{
-          const sl = PCB_SLOTS.find(s=>s.id===r.slot) || {name:'?',time:'',jkt:''};
+          const sl = sdef.find(s=>s.id===r.slot) || {name:'?',time:'',jkt:''};
           const br = (i===rows.length-1) ? '  └─ ' : '  ├─ ';
           out.push(C(br+r.slot+'. '+_pcbStaffName(r.staffId).padEnd(8)+' : '+sl.name+'  '+sl.time+'  ('+sl.jkt+')', cc));
         });
-        const miss = PCB_SLOTS.filter(s=>!rows.some(r=>r.slot===s.id));
+        const miss = sdef.filter(s=>!rows.some(r=>r.slot===s.id));
         miss.forEach(s=> out.push(C('  ├─ '+s.id+'. '+'(비어 있음)'.padEnd(10)+' : '+s.name, '0;31')));
       } else {
         out.push(C('  Assigned : —', cc));
@@ -24240,12 +24284,19 @@ function _pcbInjectCSS(){
     ".pcb-plantag{font-size:9px;font-weight:700;letter-spacing:.06em;color:#5FA3D9;background:rgba(95,163,217,.15);padding:1px 6px;border-radius:5px}",
     ".pcb-cover{font:10.5px ui-monospace,Consolas,monospace;font-weight:700;color:#C87B54;background:rgba(200,123,84,.14);padding:1px 6px;border-radius:5px;font-variant-numeric:tabular-nums}",
     ".pcb-cover.ok{color:#4E9A62;background:rgba(78,154,98,.15)}",
+    /* [v752] PC별 교대 구성 토글 — 3교대(8h) / 2교대(12h) */
+    ".pcb-shift{display:inline-flex;margin-left:auto;border:1px solid var(--br2,#33332f);border-radius:6px;overflow:hidden;flex:0 0 auto}",
+    ".pcb-shbtn{font:9.5px ui-monospace,Consolas,monospace;font-weight:700;color:var(--tx4,#6b6b67);background:transparent;border:0;padding:2px 6px;cursor:pointer;letter-spacing:.02em}",
+    ".pcb-shbtn+.pcb-shbtn{border-left:1px solid var(--br2,#33332f)}",
+    ".pcb-shbtn:hover{color:var(--tx2,#b5b5b0);background:var(--bg-h,#242427)}",
+    ".pcb-shbtn.on{color:#0d0d0e;background:var(--ac,#c9963a)}",
+    ".pcb-shr{display:block;font-style:normal;font-size:8.5px;font-weight:600;opacity:.62;letter-spacing:0}",
     ".pcb-card.is-planned{border-style:dashed;border-color:#5FA3D9}",
     ".pcb-slots{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}",
     ".pcb-slot{display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:7px;background:var(--bg-h,#242427);border:1px dashed var(--br2,#33332f);min-height:28px;transition:border-color .1s,background .1s}",
     ".pcb-slot.filled{border-style:solid;background:var(--bg-a,#1e1e21)}",
     ".pcb-slot.over{border-color:var(--ac,#c9963a);background:color-mix(in srgb,var(--ac,#c9963a) 12%,var(--bg-h,#242427))}",
-    ".pcb-slabel{font:9.5px ui-monospace,Consolas,monospace;font-weight:700;color:var(--tx4,#6b6b67);flex:0 0 52px;letter-spacing:.02em}",
+    ".pcb-slabel{font:9.5px ui-monospace,Consolas,monospace;font-weight:700;color:var(--tx4,#6b6b67);flex:0 0 62px;letter-spacing:.02em;line-height:1.35}",
     ".pcb-slotempty{font-size:11px;color:var(--tx4,#6b6b67);font-style:italic;flex:1}",
     ".pcb-stime{font:9px ui-monospace,Consolas,monospace;color:var(--tx4,#6b6b67);margin-left:auto;flex:0 0 auto;opacity:.8}",
     ".pcb-person{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:650;color:var(--tx,#e6e5e2);background:var(--bg-c,#17171a);border:1px solid var(--br2,#33332f);border-radius:6px;padding:2px 7px;cursor:grab;flex:1;min-width:0}",
