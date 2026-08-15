@@ -11385,7 +11385,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v749';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v750';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23791,6 +23791,10 @@ const PCB_SLOTS = [
   { id:3, name:'SHIFT 3', time:'01:00–09:00', jkt:'23–07 JKT' }
 ];
 let _pcbDrag = null;           // { staffId, fromKey, fromSlot } — 인력 드래그
+/* [v750] boss 8/13 "어떻게 쓰는지 전혀 모르겠어" — 드래그만 되던 걸 클릭 2번으로도 되게 바꿨다.
+   드래그는 되는 걸 알아야 시도라도 하는데 화면에 아무 단서가 없었다. 이제 사람을 클릭하면 선택되고
+   (_pcbSel), 빈 시프트 칸이 전부 켜지면서 "여기 클릭" 안내가 뜬다. 드래그도 그대로 둔다. */
+let _pcbSel = null;            // 선택된 staffId
 
 async function _pcbLoad(){
   if(_pcbLoaded || !sb) return;
@@ -23908,15 +23912,17 @@ async function renderPcBoard(){
       const slots = PCB_SLOTS.map(sl => {
         const r = rows.find(x => x.slot === sl.id);
         const who = r && r.staffId ? _pcbStaffName(r.staffId) : '';
-        return `<div class="pcb-slot${who?' filled':''}" data-key="${it.key}" data-slot="${sl.id}"
+        const armed = _pcbSel && !who;                 // 선택 상태에서 빈 칸은 "여기 클릭" 대상
+        return `<div class="pcb-slot${who?' filled':''}${armed?' armed':''}" data-key="${it.key}" data-slot="${sl.id}"
+             onclick="_pcbSlotClick(event,'${it.key}',${sl.id})"
              ondragover="_pcbSlotOver(event)" ondragleave="_pcbSlotLeave(event)"
              ondrop="_pcbSlotDrop(event,'${it.key}',${sl.id})">
           <span class="pcb-slabel">${sl.name}</span>
           ${who
             ? `<span class="pcb-person" draggable="true"
                  ondragstart="_pcbPersonDrag(event,'${r.staffId}','${it.key}',${sl.id})" ondragend="_pcbPersonEnd(event)"
-                 >${_pcbEsc(who)}<button class="pcb-x" onclick="_pcbClearSlot('${it.key}',${sl.id})" title="빼기">✕</button></span>`
-            : `<span class="pcb-slotempty">비어 있음</span>`}
+                 >${_pcbEsc(who)}<button class="pcb-x" onclick="event.stopPropagation();_pcbClearSlot('${it.key}',${sl.id})" title="빼기">✕</button></span>`
+            : `<span class="pcb-slotempty">${armed?'⬇ 여기 클릭':'비어 있음'}</span>`}
           <span class="pcb-stime">${sl.jkt}</span>
         </div>`;
       }).join('');
@@ -23954,7 +23960,7 @@ async function renderPcBoard(){
         <div>
           <div class="pcb-eyebrow">운영 · 배치 플래너</div>
           <h1 class="pcb-h1">계정 보드</h1>
-          <p class="pcb-sub">사람을 끌어다 시프트 칸에 넣어보세요. <b>여기서 바꿔도 실제 배정은 안 바뀝니다</b> — 마음껏 굴려보고, 정해지면 디스코드로 내보내세요.</p>
+          <p class="pcb-sub"><b>① 아래에서 사람 클릭 → ② PC의 시프트 칸 클릭</b> (끌어다 놓아도 됩니다). 여기서 바꿔도 <b>실제 배정은 안 바뀝니다</b> — 다 짜고 나면 디스코드로 내보내세요.</p>
         </div>
         <div class="pcb-actions">
           <button class="pcb-btn ghost" onclick="_pcbAddPlannedPc()">＋ 계획 PC</button>
@@ -23962,19 +23968,40 @@ async function renderPcBoard(){
           <button class="pcb-btn" onclick="_pcbCopyDiscord()">📋 디스코드 복사</button>
         </div>
       </div>
-      <div class="pcb-main">
-        <div class="pcb-board">${cols}</div>
-        <aside class="pcb-pool" ondragover="_pcbOver(event)" ondragleave="_pcbLeave(event)" ondrop="_pcbPoolDrop(event)">
-          <div class="pcb-poolhead">대기 인력 <span class="pcb-cnt">${pool.length}</span></div>
-          <div class="pcb-poolnote">여기서 끌어다 시프트 칸에 놓으세요</div>
-          <div class="pcb-poollist">
-            ${pool.map(s=>`<span class="pcb-person pool" draggable="true"
-               ondragstart="_pcbPersonDrag(event,'${s.id}','','')" ondragend="_pcbPersonEnd(event)">${_pcbEsc(s.name)}</span>`).join('')
-              || '<div class="pcb-empty">전원 배치됨</div>'}
-          </div>
-        </aside>
+      <div class="pcb-pool${_pcbSel?' picking':''}" ondragover="_pcbOver(event)" ondragleave="_pcbLeave(event)" ondrop="_pcbPoolDrop(event)">
+        <div class="pcb-poolbar">
+          <span class="pcb-step">${_pcbSel ? '②' : '①'}</span>
+          <b class="pcb-poolhead">${_pcbSel
+              ? `<span class="pcb-selname">${_pcbEsc(_pcbStaffName(_pcbSel))}</span> 선택됨 — 넣을 <u>시프트 칸을 클릭</u>하세요`
+              : '사람을 클릭하세요'}</b>
+          ${_pcbSel ? `<button class="pcb-btn ghost sm" onclick="_pcbSelect(null)">취소</button>` : `<span class="pcb-poolnote">대기 인력 ${pool.length}명 · 클릭하거나 끌어다 놓으면 됩니다</span>`}
+        </div>
+        <div class="pcb-poollist">
+          ${pool.map(s=>`<span class="pcb-person pool${_pcbSel===s.id?' sel':''}" draggable="true"
+             onclick="_pcbSelect('${s.id}')"
+             ondragstart="_pcbPersonDrag(event,'${s.id}','','')" ondragend="_pcbPersonEnd(event)">${_pcbEsc(s.name)}</span>`).join('')
+            || '<div class="pcb-empty">전원 배치됨</div>'}
+        </div>
       </div>
+      <div class="pcb-board">${cols}</div>
     </div>`;
+}
+/* 클릭 배치 — 사람 선택 → 칸 클릭 */
+function _pcbSelect(id){
+  _pcbSel = (_pcbSel === id) ? null : id;
+  renderPcBoard();
+}
+function _pcbSlotClick(e, key, slot){
+  if(!_pcbSel) return;                       // 선택 안 했으면 아무 일도 안 일어남
+  e.preventDefault(); e.stopPropagation();
+  const id = _pcbSel;
+  Object.keys(PCB_PLAN).forEach(k => {       // 중복 배치 방지 — 다른 칸에 있으면 비운다
+    PCB_PLAN[k] = (PCB_PLAN[k]||[]).filter(r => r.staffId !== id || (k===key && r.slot===slot));
+  });
+  _pcbSetSlot(key, slot, id);
+  _pcbSel = null;
+  _pcbSave(); renderPcBoard();
+  toast(`${_pcbStaffName(id)} → PC ${String(key).replace(/^x/,'')} ${PCB_SLOTS.find(s=>s.id===slot).name}`);
 }
 /* ── 인력 드래그 ── */
 function _pcbPersonDrag(e, staffId, fromKey, fromSlot){
@@ -24151,8 +24178,6 @@ function _pcbInjectCSS(){
     ".pcb-note:empty::before{content:attr(data-ph);color:var(--tx4,#6b6b67);font-style:italic}",
     ".pcb-note:focus{color:var(--tx,#e6e5e2)}",
     /* [v749] 배치 플래너 */
-    ".pcb-main{display:flex;gap:16px;align-items:flex-start}",
-    ".pcb-main .pcb-board{flex:1;min-width:0}",
     ".pcb-btn.ghost{background:transparent;color:var(--tx2,#b5b5b0);border:1px solid var(--br2,#33332f);box-shadow:none;font-weight:600}",
     ".pcb-btn.ghost:hover{background:var(--bg-h,#242427);color:var(--tx,#e6e5e2)}",
     ".pcb-plantag{font-size:9px;font-weight:700;letter-spacing:.06em;color:#5FA3D9;background:rgba(95,163,217,.15);padding:1px 6px;border-radius:5px}",
@@ -24171,13 +24196,27 @@ function _pcbInjectCSS(){
     ".pcb-person.pcb-dragging{opacity:.4}",
     ".pcb-x{background:none;border:none;color:var(--tx4,#6b6b67);cursor:pointer;font-size:10px;padding:0 0 0 3px;margin-left:auto;line-height:1}",
     ".pcb-x:hover{color:#c46a6a}",
-    ".pcb-pool{flex:0 0 190px;position:sticky;top:14px;background:var(--bg-c,#17171a);border:1px solid var(--br,#2a2a28);border-radius:14px;padding:13px;max-height:calc(100vh - 120px);overflow-y:auto}",
+    /* [v750] 인력 풀을 위쪽 전체폭으로 — 오른쪽 좁은 레일은 눈에 안 띄어서 존재 자체를 몰랐다 */
+    ".pcb-pool{background:var(--bg-c,#17171a);border:1px solid var(--br,#2a2a28);border-radius:14px;padding:12px 14px;margin-bottom:16px;position:sticky;top:0;z-index:5}",
     ".pcb-pool.over{border-color:var(--ac,#c9963a)}",
-    ".pcb-poolhead{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--tx,#e6e5e2);margin-bottom:4px}",
-    ".pcb-poolnote{font-size:10px;color:var(--tx4,#6b6b67);margin-bottom:11px;line-height:1.45}",
-    ".pcb-poollist{display:flex;flex-wrap:wrap;gap:5px}",
-    ".pcb-person.pool{flex:0 0 auto}",
-    "@media(max-width:900px){.pcb-main{flex-direction:column}.pcb-pool{position:static;flex:1 1 auto;width:100%;max-height:none}}",
+    ".pcb-pool.picking{border-color:var(--ac,#c9963a);box-shadow:0 0 0 1px var(--ac,#c9963a) inset,0 6px 20px rgba(0,0,0,.3)}",
+    ".pcb-poolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}",
+    ".pcb-step{width:20px;height:20px;border-radius:50%;background:var(--ac,#c9963a);color:#1a1408;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}",
+    ".pcb-poolhead{font-size:13px;font-weight:650;color:var(--tx,#e6e5e2)}",
+    ".pcb-poolhead u{text-decoration-color:var(--ac,#c9963a);text-underline-offset:2px}",
+    ".pcb-selname{color:var(--ac,#c9963a);font-weight:800}",
+    ".pcb-poolnote{font-size:11px;color:var(--tx4,#6b6b67);margin-left:auto}",
+    ".pcb-btn.sm{padding:4px 11px;font-size:11.5px;margin-left:auto}",
+    ".pcb-poollist{display:flex;flex-wrap:wrap;gap:6px}",
+    ".pcb-person.pool{flex:0 0 auto;cursor:pointer;padding:5px 11px;font-size:12.5px}",
+    ".pcb-person.pool:hover{border-color:var(--ac,#c9963a);color:var(--ac,#c9963a)}",
+    ".pcb-person.pool.sel{background:var(--ac,#c9963a);color:#1a1408;border-color:var(--ac,#c9963a);font-weight:800}",
+    /* 선택 상태에서 빈 칸을 켜서 어디를 눌러야 하는지 보이게 */
+    ".pcb-slot.armed{border-color:var(--ac,#c9963a);border-style:solid;background:color-mix(in srgb,var(--ac,#c9963a) 10%,var(--bg-h,#242427));cursor:pointer;animation:pcbPulse 1.6s ease-in-out infinite}",
+    ".pcb-slot.armed .pcb-slotempty{color:var(--ac,#c9963a);font-style:normal;font-weight:700}",
+    "@keyframes pcbPulse{0%,100%{opacity:1}50%{opacity:.72}}",
+    "@media(prefers-reduced-motion:reduce){.pcb-slot.armed{animation:none}}",
+    "@media(max-width:900px){.pcb-pool{position:static}}",
     "@media(max-width:900px){.pcb-wrap{padding:18px 14px 50px}.pcb-board{flex-direction:column}.pcb-col{width:100%;min-width:0}}"
   ].join("\n");
   document.head.appendChild(s);
