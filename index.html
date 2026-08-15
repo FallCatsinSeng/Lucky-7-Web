@@ -11385,7 +11385,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v753';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v754';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23954,7 +23954,7 @@ async function renderPcBoard(){
     if(!col || !buckets[col]) col = it.planned ? 'staffing' : _pcbAutoCol(it);
     // 클라이언트가 빠졌는데 예전 분류가 남아있으면 빈 PC로 되돌린다(실데이터가 항상 우선)
     if(!it.planned && !it.clientName && col !== 'empty' && col !== 'hold') col = 'empty';
-    buckets[col].push({ ...it, note: saved.note || '' });
+    buckets[col].push({ ...it, note: saved.note || '', label: saved.label || '' });
   });
   const planned = _pcbPlanned();
   const pool = _pcbAllStaff().filter(s => !planned.has(s.id));
@@ -23986,8 +23986,8 @@ async function renderPcBoard(){
       return `<div class="pcb-card${it.planned?' is-planned':''}" draggable="true" data-key="${it.key}"
           ondragstart="_pcbDragStart(event,'${it.key}')" ondragend="_pcbDragEnd(event)">
         <div class="pcb-top">
-          <span class="pcb-pc">PC ${it.pc}</span>
-          ${it.planned?'<span class="pcb-plantag">계획</span>':''}
+          <span class="pcb-pc${it.planned?' editable':''}"${it.planned?` onclick="event.stopPropagation();_pcbRenamePc('${it.key}')" title="클릭하면 PC 번호를 바꿉니다"`:''}>PC ${it.pc}</span>
+          ${it.planned?`<span class="pcb-plantag">계획</span><button class="pcb-pcdel" onclick="event.stopPropagation();_pcbDelPc('${it.key}')" title="이 계획 PC 삭제">✕</button>`:''}
           <span class="pcb-cover${filled>=slotDefs.length?' ok':''}">${filled}/${slotDefs.length}</span>
           ${meta?`<span class="pcb-meta">${_pcbEsc(meta)}</span>`:''}
           <span class="pcb-shift" title="이 PC의 교대 구성">
@@ -23995,7 +23995,16 @@ async function renderPcBoard(){
                  onclick="event.stopPropagation();_pcbSetShift('${it.key}','${k}')">${PCB_SHIFTSETS[k].slots.length}교대</button>`).join('')}
           </span>
         </div>
-        <div class="pcb-acc">${it.clientName ? _pcbEsc(it.clientName) : '<i>계정 미배정</i>'}</div>
+        <div class="pcb-accwrap">
+          <div class="pcb-acc" contenteditable="true" spellcheck="false" draggable="false"
+               onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+               ondragstart="event.preventDefault();event.stopPropagation()"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+               onblur="_pcbAccEdit('${it.key}', this.textContent)"
+               data-ph="계정 이름 입력…">${_pcbEsc(it.label || it.clientName)}</div>
+          ${(!it.planned && it.label) ? `<button class="pcb-revert" onclick="event.stopPropagation();_pcbAccEdit('${it.key}','')"
+               title="실제 클라이언트 이름(${_pcbEsc(it.clientName||'없음')})으로 되돌리기">↺</button>` : ''}
+        </div>
         <div class="pcb-slots">${slots}</div>
         <div class="pcb-note" contenteditable="true"
              onblur="_pcbNote('${it.key}', this.textContent)"
@@ -24182,6 +24191,42 @@ function _pcbDrop(e, colId){
   const cn = (PCB_COLS.find(c=>c.id===colId)||{}).name || colId;
   toast(`PC ${key.replace(/^x/,'')} → ${cn}`);
 }
+/* ── [v754] 카드 내용 수정 (boss 8/15 "계정 보드에 적혀있는 클라이언트 이름도 수정 가능하게") ──
+   계획 PC는 만들 때 한 번 입력받고 끝이었고, 실제 PC는 클라이언트 데이터를 그대로 읽어와 손댈 수 없었다.
+   실제 PC의 클라이언트 정보를 여기서 진짜로 고치면 안 되므로(클라이언트 원장이 흔들린다) 보드 전용
+   덮어쓰기 이름(PCB_STATE[key].label)만 저장하고, ↺ 로 실데이터로 되돌린다. */
+function _pcbAccEdit(key, text){
+  const t = String(text||'').trim().slice(0,60);
+  const ex = PCB_EXTRA.find(e => 'x'+e.pc === key);
+  if(ex){ ex.account = t; }                       // 계획 PC — 이름이 곧 실체라 그대로 저장
+  else {
+    if(!PCB_STATE[key]) PCB_STATE[key] = {};
+    if(t) PCB_STATE[key].label = t; else delete PCB_STATE[key].label;   // 비우면 실제 클라이언트 이름으로 복귀
+  }
+  _pcbSave(); renderPcBoard();
+}
+/* 계획 PC 번호 변경 — PCB_PLAN/PCB_STATE 가 'x21' 같은 키로 묶여 있어 같이 옮겨야 배치가 안 날아간다 */
+function _pcbRenamePc(key){
+  const ex = PCB_EXTRA.find(e => 'x'+e.pc === key); if(!ex) return;
+  const v = prompt('PC 번호', ex.pc); if(v===null) return;
+  const n = String(v).trim(); if(!n || n===String(ex.pc)) return;
+  if(PCB_EXTRA.some(e => String(e.pc)===n)){ toast('이미 있는 계획 PC 번호입니다', true); return; }
+  const nk = 'x'+n;
+  if(PCB_PLAN[key]){ PCB_PLAN[nk] = PCB_PLAN[key]; delete PCB_PLAN[key]; }
+  if(PCB_STATE[key]){ PCB_STATE[nk] = PCB_STATE[key]; delete PCB_STATE[key]; }
+  ex.pc = n;
+  _pcbSave(); renderPcBoard();
+  toast('PC 번호 변경됨 → PC '+n);
+}
+function _pcbDelPc(key){
+  const ex = PCB_EXTRA.find(e => 'x'+e.pc === key); if(!ex) return;
+  const n = (PCB_PLAN[key]||[]).filter(r=>r.staffId).length;
+  if(!confirm(`계획 PC ${ex.pc}${ex.account?(' ('+ex.account+')'):''} 를 지울까요?`+(n?`\n\n배치해둔 ${n}명은 대기 인력으로 돌아갑니다.`:''))) return;
+  PCB_EXTRA = PCB_EXTRA.filter(e => 'x'+e.pc !== key);
+  delete PCB_PLAN[key]; delete PCB_STATE[key];
+  _pcbSave(); renderPcBoard();
+  toast('계획 PC '+ex.pc+' 삭제됨');
+}
 function _pcbNote(key, text){
   const t = String(text||'').trim().slice(0, 300);
   if(!PCB_STATE[key]) PCB_STATE[key] = {};
@@ -24198,7 +24243,7 @@ function _pcbCopyDiscord(){
     const saved = PCB_STATE[it.key] || PCB_STATE[it.pc] || {};
     let col = saved.col; if(!col || !buckets[col]) col = it.planned ? 'staffing' : _pcbAutoCol(it);
     if(!it.planned && !it.clientName && col!=='empty' && col!=='hold') col='empty';
-    buckets[col].push({ ...it, note: saved.note||'' });
+    buckets[col].push({ ...it, note: saved.note||'', label: saved.label||'' });   /* [v754] 보드에서 고친 이름이 내보내기에도 나가야 한다 */
   });
   /* [v751] 보스가 만든 단계는 여기 없으므로 기본색으로 떨어뜨린다 — 없으면 .split()에서 터졌다 */
   const CODE = { inquiry:'0;35', empty:'0;30', hold:'1;33', staffing:'0;33', test:'1;36', live:'0;32' };
@@ -24214,7 +24259,7 @@ function _pcbCopyDiscord(){
     list.forEach(it=>{
       const sdef = _pcbSlotsFor(it.key);
       out.push(C('PC '+it.pc+(it.planned?'  (계획)':''), '1;'+cc.split(';')[1]));
-      out.push(C('  Account  : '+(it.clientName||'—'), cc));
+      out.push(C('  Account  : '+(it.label||it.clientName||'—'), cc));
       out.push(C('  Shift    : '+PCB_SHIFTSETS[_pcbShiftOf(it.key)].label, cc));
       /* [v749] 초안의 시프트 배치를 보스가 쓰던 트리 형태로 — ├─ 1. Kal : SHIFT 1  09:00-17:00 */
       const rows = (PCB_PLAN[it.key]||[]).slice().sort((a,b)=>a.slot-b.slot).filter(r=>r.staffId);
@@ -24271,7 +24316,18 @@ function _pcbInjectCSS(){
     ".pcb-top{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}",
     ".pcb-pc{font:700 12px ui-monospace,Consolas,monospace;color:var(--ac,#c9963a);letter-spacing:.02em}",
     ".pcb-meta{font-size:10.5px;color:var(--tx4,#6b6b67);margin-left:auto}",
-    ".pcb-acc{font-size:14px;font-weight:650;color:var(--tx,#e6e5e2);line-height:1.35;margin-bottom:8px}",
+    /* [v754] 계정 이름은 클릭해서 바로 고친다 — 카드가 draggable이라 커서가 안 잡히지 않게 cursor:text 를 명시 */
+    ".pcb-accwrap{display:flex;align-items:flex-start;gap:5px;margin-bottom:8px}",
+    ".pcb-acc{flex:1;min-width:0;font-size:14px;font-weight:650;color:var(--tx,#e6e5e2);line-height:1.35;outline:none;cursor:text;border-radius:5px;padding:1px 4px;margin-left:-4px;border:1px solid transparent;word-break:break-word}",
+    ".pcb-acc:hover{border-color:var(--br2,#33332f)}",
+    ".pcb-acc:focus{border-color:var(--ac,#c9963a);background:var(--bg-h,#242427)}",
+    ".pcb-acc:empty::before{content:attr(data-ph);color:var(--tx4,#6b6b67);font-weight:500;font-style:italic}",
+    ".pcb-revert{flex:0 0 auto;font-size:11px;line-height:1;color:var(--tx4,#6b6b67);background:transparent;border:1px solid var(--br2,#33332f);border-radius:5px;padding:3px 5px;cursor:pointer}",
+    ".pcb-revert:hover{color:var(--ac,#c9963a);border-color:var(--ac,#c9963a)}",
+    ".pcb-pc.editable{cursor:pointer;border-bottom:1px dashed transparent}",
+    ".pcb-pc.editable:hover{border-bottom-color:var(--ac,#c9963a)}",
+    ".pcb-pcdel{font-size:10px;line-height:1;color:var(--tx4,#6b6b67);background:transparent;border:0;padding:2px 3px;cursor:pointer;border-radius:4px}",
+    ".pcb-pcdel:hover{color:#E5484D;background:rgba(229,72,77,.12)}",
     ".pcb-acc i{color:var(--tx4,#6b6b67);font-weight:400;font-style:italic;font-size:13px}",
     ".pcb-shifts{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}",
     ".pcb-sh{font:10.5px ui-monospace,Consolas,monospace;background:var(--bg-h,#242427);border:1px solid var(--br,#2a2a28);border-radius:6px;padding:2px 7px;color:var(--tx3,#8a8a86);font-variant-numeric:tabular-nums}",
