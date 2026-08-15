@@ -11385,7 +11385,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v750';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v751';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -23763,13 +23763,24 @@ function _csInjectCSS(){
    저장은 새 테이블을 만들지 않고 기존 trust_state KV(id='pc_board')를 그대로 쓴다
    ('webhook' 행이 이미 같은 방식이라 스키마 변경이 필요 없다).
    ═══════════════════════════════════════════════════════════════════════════════════════════ */
-const PCB_COLS = [
-  { id:'empty',   name:'빈 PC',        desc:'클라이언트 미배정',      c:'#6E7A6C' },
-  { id:'hold',    name:'보류 · STAND BY', desc:'진행 멈춤',          c:'#C87B54' },
-  { id:'staffing',name:'인원 배정 중',   desc:'계정 있음 · 시프트 미완', c:'#C9963A' },
+/* [v751] boss 8/13 "새 클라이언트 오셨을 때 쓰는데 그게 좀 애매해 — 전화만 줄 때도 있고 기다려야 할
+   때도 있고". 새 계정이 들어오는 경로가 제각각이라 내가 정한 고정 5칸이 현실과 안 맞았다. 칸 이름과
+   구성을 보스가 직접 바꿀 수 있게 한다(아래 기본값은 출발점일 뿐, PCB_COLS_CUSTOM이 있으면 그게 이긴다).
+   id는 저장된 카드 분류의 키라서 한 번 정해지면 안 바꾼다 — 이름만 바뀐다. */
+const PCB_COLS_DEFAULT = [
+  { id:'inquiry', name:'문의 · 미확정',   desc:'연락만 옴 · 확정 전',     c:'#8A7CA8' },
+  { id:'hold',    name:'대기 · STAND BY', desc:'확정 · 시작 대기',       c:'#C87B54' },
+  { id:'staffing',name:'인원 모으는 중',  desc:'사람 채우는 중',         c:'#C9963A' },
   { id:'test',    name:'테스트 예정',    desc:'배정 완료 · 테스트 대기', c:'#5FA3D9' },
-  { id:'live',    name:'운영 중',       desc:'정상 가동',            c:'#4E9A62' }
+  { id:'live',    name:'운영 중',       desc:'정상 가동',            c:'#4E9A62' },
+  { id:'empty',   name:'빈 PC',        desc:'계정 미배정',           c:'#6E7A6C' }
 ];
+let PCB_COLS_CUSTOM = null;
+const PCB_PALETTE = ['#8A7CA8','#C87B54','#C9963A','#5FA3D9','#4E9A62','#6E7A6C','#B5677D','#4F9A93'];
+Object.defineProperty(window, 'PCB_COLS', {
+  get(){ return (Array.isArray(PCB_COLS_CUSTOM) && PCB_COLS_CUSTOM.length) ? PCB_COLS_CUSTOM : PCB_COLS_DEFAULT; },
+  configurable: true
+});
 let PCB_STATE = {};            // { [pcId]: { col, note } } — 사용자가 지정한 것만
 let _pcbDragPc = null;
 let _pcbLoaded = false;
@@ -23802,8 +23813,8 @@ async function _pcbLoad(){
     const { data } = await sb.from('trust_state').select('data').eq('id','pc_board').maybeSingle();
     const d = (data && data.data && typeof data.data==='object') ? data.data : {};
     /* v747은 { [pcId]:{col,note} } 를 통째로 저장했다. 그 형태도 그대로 읽히게 둔다(마이그레이션 불필요) */
-    if(d.__v2){ PCB_STATE = d.state||{}; PCB_PLAN = d.plan||{}; PCB_EXTRA = Array.isArray(d.extra)?d.extra:[]; }
-    else { PCB_STATE = d; PCB_PLAN = {}; PCB_EXTRA = []; }
+    if(d.__v2){ PCB_STATE = d.state||{}; PCB_PLAN = d.plan||{}; PCB_EXTRA = Array.isArray(d.extra)?d.extra:[]; PCB_COLS_CUSTOM = Array.isArray(d.cols)?d.cols:null; }
+    else { PCB_STATE = d; PCB_PLAN = {}; PCB_EXTRA = []; PCB_COLS_CUSTOM = null; }
   }catch(e){ console.warn('pc_board load failed:', e && e.message); }
   _pcbLoaded = true;
 }
@@ -23812,7 +23823,7 @@ function _pcbSave(){
   if(!sb) return;
   clearTimeout(_pcbSaveTimer);
   _pcbSaveTimer = setTimeout(async () => {
-    try{ await _dbUpsert('trust_state','pc_board', { __v2:true, state:PCB_STATE, plan:PCB_PLAN, extra:PCB_EXTRA }); }
+    try{ await _dbUpsert('trust_state','pc_board', { __v2:true, state:PCB_STATE, plan:PCB_PLAN, extra:PCB_EXTRA, cols:PCB_COLS_CUSTOM }); }
     catch(e){ toast('보드 저장 실패: ' + (e && e.message), true); }
   }, 500);
 }
@@ -23857,8 +23868,12 @@ function _pcbPlanned(){
 }
 /* 저장된 분류가 없으면 실제 배정 상태로 자동 판정한다 — 처음 열었을 때도 보드가 이미 채워져 있게 */
 function _pcbAutoCol(info){
-  if(!info.clientName) return 'empty';
-  return info.staff.length ? 'live' : 'staffing';
+  /* [v751] 단계는 이제 보스가 바꿀 수 있다 — 기본 id가 지워졌을 수 있으므로 없으면 첫 칸으로 보낸다 */
+  const has = id => PCB_COLS.some(c=>c.id===id);
+  const first = (PCB_COLS[0]||{}).id;
+  if(!info.clientName) return has('empty') ? 'empty' : first;
+  if(info.staff.length) return has('live') ? 'live' : first;
+  return has('staffing') ? 'staffing' : first;
 }
 function _pcbGather(){
   const nameOf = id => (typeof TRUST_NAME_BY_ID!=='undefined' && TRUST_NAME_BY_ID[id]) || '';
@@ -23946,9 +23961,10 @@ async function renderPcBoard(){
     return `<div class="pcb-col" data-col="${col.id}" ondragover="_pcbOver(event)" ondragleave="_pcbLeave(event)" ondrop="_pcbDrop(event,'${col.id}')">
       <div class="pcb-colhead" style="--c:${col.c}">
         <span class="pcb-dot"></span>
-        <span class="pcb-cname">${col.name}</span>
+        <span class="pcb-cname" onclick="_pcbRenameCol('${col.id}')" title="클릭하면 이름을 바꿉니다">${_pcbEsc(col.name)}</span>
         <span class="pcb-cnt">${buckets[col.id].length}</span>
-        <span class="pcb-cdesc">${col.desc}</span>
+        ${buckets[col.id].length===0 ? `<button class="pcb-coldel" onclick="_pcbDelCol('${col.id}')" title="이 단계 삭제">✕</button>` : ''}
+        <span class="pcb-cdesc">${_pcbEsc(col.desc||'')}</span>
       </div>
       <div class="pcb-cards">${cards || '<div class="pcb-empty">여기로 카드를 끌어오세요</div>'}</div>
     </div>`;
@@ -23964,6 +23980,7 @@ async function renderPcBoard(){
         </div>
         <div class="pcb-actions">
           <button class="pcb-btn ghost" onclick="_pcbAddPlannedPc()">＋ 계획 PC</button>
+          <button class="pcb-btn ghost" onclick="_pcbAddCol()">＋ 단계</button>
           <button class="pcb-btn ghost" onclick="_pcbResetPlan()">↻ 현재 배정 불러오기</button>
           <button class="pcb-btn" onclick="_pcbCopyDiscord()">📋 디스코드 복사</button>
         </div>
@@ -23985,6 +24002,40 @@ async function renderPcBoard(){
       </div>
       <div class="pcb-board">${cols}</div>
     </div>`;
+}
+/* ── [v751] 단계(컬럼) 편집 — 클라이언트가 들어오는 경로가 매번 달라서 고정 칸으로는 안 맞는다 ── */
+function _pcbEnsureCustomCols(){
+  if(!Array.isArray(PCB_COLS_CUSTOM) || !PCB_COLS_CUSTOM.length){
+    PCB_COLS_CUSTOM = PCB_COLS_DEFAULT.map(c => ({ ...c }));
+  }
+}
+function _pcbRenameCol(id){
+  _pcbEnsureCustomCols();
+  const col = PCB_COLS_CUSTOM.find(c=>c.id===id); if(!col) return;
+  const name = prompt('단계 이름', col.name); if(name===null) return;
+  const t = String(name).trim(); if(!t) return;
+  col.name = t.slice(0,20);
+  const desc = prompt('설명 (비워도 됩니다)', col.desc||'');
+  if(desc!==null) col.desc = String(desc).trim().slice(0,30);
+  _pcbSave(); renderPcBoard();
+}
+function _pcbAddCol(){
+  _pcbEnsureCustomCols();
+  const name = prompt('새 단계 이름 (예: 계정 준비 중)', ''); if(name===null) return;
+  const t = String(name).trim(); if(!t) return;
+  const id = 'c'+Date.now().toString(36);
+  const c = PCB_PALETTE[PCB_COLS_CUSTOM.length % PCB_PALETTE.length];
+  PCB_COLS_CUSTOM.push({ id, name:t.slice(0,20), desc:'', c });
+  _pcbSave(); renderPcBoard();
+  toast('단계 추가됨 — 이름을 클릭하면 다시 바꿀 수 있습니다');
+}
+function _pcbDelCol(id){
+  _pcbEnsureCustomCols();
+  if(PCB_COLS_CUSTOM.length<=2){ toast('단계는 최소 2개는 있어야 합니다', true); return; }
+  const col = PCB_COLS_CUSTOM.find(c=>c.id===id); if(!col) return;
+  if(!confirm(`"${col.name}" 단계를 지울까요?\n\n카드가 없는 단계만 지울 수 있습니다.`)) return;
+  PCB_COLS_CUSTOM = PCB_COLS_CUSTOM.filter(c=>c.id!==id);
+  _pcbSave(); renderPcBoard();
 }
 /* 클릭 배치 — 사람 선택 → 칸 클릭 */
 function _pcbSelect(id){
@@ -24105,31 +24156,34 @@ function _pcbCopyDiscord(){
     if(!it.planned && !it.clientName && col!=='empty' && col!=='hold') col='empty';
     buckets[col].push({ ...it, note: saved.note||'' });
   });
-  const CODE = { empty:'0;30', hold:'1;33', staffing:'0;33', test:'1;36', live:'0;32' };
+  /* [v751] 보스가 만든 단계는 여기 없으므로 기본색으로 떨어뜨린다 — 없으면 .split()에서 터졌다 */
+  const CODE = { inquiry:'0;35', empty:'0;30', hold:'1;33', staffing:'0;33', test:'1;36', live:'0;32' };
+  const codeOf = id => CODE[id] || '0;37';
   const bar = '━'.repeat(50);
   const out = [];
   PCB_COLS.forEach(col=>{
     const list = buckets[col.id]; if(!list.length) return;
+    const cc = codeOf(col.id);
     out.push(C(bar,'1;37'));
     out.push(C(col.name.toUpperCase()+'  ('+list.length+')','1;37'));
     out.push(C(bar,'1;37'));
     list.forEach(it=>{
-      out.push(C('PC '+it.pc+(it.planned?'  (계획)':''), '1;'+CODE[col.id].split(';')[1]));
-      out.push(C('  Account  : '+(it.clientName||'—'), CODE[col.id]));
+      out.push(C('PC '+it.pc+(it.planned?'  (계획)':''), '1;'+cc.split(';')[1]));
+      out.push(C('  Account  : '+(it.clientName||'—'), cc));
       /* [v749] 초안의 시프트 배치를 보스가 쓰던 트리 형태로 — ├─ 1. Kal : SHIFT 1  09:00-17:00 */
       const rows = (PCB_PLAN[it.key]||[]).slice().sort((a,b)=>a.slot-b.slot).filter(r=>r.staffId);
       if(rows.length){
         rows.forEach((r,i)=>{
           const sl = PCB_SLOTS.find(s=>s.id===r.slot) || {name:'?',time:'',jkt:''};
           const br = (i===rows.length-1) ? '  └─ ' : '  ├─ ';
-          out.push(C(br+r.slot+'. '+_pcbStaffName(r.staffId).padEnd(8)+' : '+sl.name+'  '+sl.time+'  ('+sl.jkt+')', CODE[col.id]));
+          out.push(C(br+r.slot+'. '+_pcbStaffName(r.staffId).padEnd(8)+' : '+sl.name+'  '+sl.time+'  ('+sl.jkt+')', cc));
         });
         const miss = PCB_SLOTS.filter(s=>!rows.some(r=>r.slot===s.id));
         miss.forEach(s=> out.push(C('  ├─ '+s.id+'. '+'(비어 있음)'.padEnd(10)+' : '+s.name, '0;31')));
       } else {
-        out.push(C('  Assigned : —', CODE[col.id]));
+        out.push(C('  Assigned : —', cc));
       }
-      if(it.note) out.push(C('  Note     : '+it.note, CODE[col.id]));
+      if(it.note) out.push(C('  Note     : '+it.note, cc));
     });
   });
   const text = '```ansi\n' + out.join('\n') + '\n```';
@@ -24156,7 +24210,10 @@ function _pcbInjectCSS(){
     ".pcb-col.over{border-color:var(--ac,#c9963a);background:color-mix(in srgb,var(--ac,#c9963a) 7%,var(--bg-c,#17171a))}",
     ".pcb-colhead{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:2px 4px 11px;border-bottom:1px solid var(--br,#2a2a28);margin-bottom:11px}",
     ".pcb-dot{width:8px;height:8px;border-radius:50%;background:var(--c);flex:0 0 auto}",
-    ".pcb-cname{font-size:13px;font-weight:700;color:var(--tx,#e6e5e2)}",
+    ".pcb-cname{font-size:13px;font-weight:700;color:var(--tx,#e6e5e2);cursor:pointer;border-bottom:1px dashed transparent}",
+    ".pcb-cname:hover{border-bottom-color:var(--tx4,#6b6b67)}",
+    ".pcb-coldel{background:none;border:none;color:var(--tx4,#6b6b67);cursor:pointer;font-size:10px;padding:0 2px;line-height:1;margin-left:auto}",
+    ".pcb-coldel:hover{color:#c46a6a}",
     ".pcb-cnt{font-size:11px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent);padding:1px 7px;border-radius:999px;font-variant-numeric:tabular-nums}",
     ".pcb-cdesc{flex:1 1 100%;font-size:10.5px;color:var(--tx4,#6b6b67);letter-spacing:.01em}",
     ".pcb-cards{display:flex;flex-direction:column;gap:9px;min-height:70px}",
