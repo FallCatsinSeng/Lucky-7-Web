@@ -11385,7 +11385,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v756';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v757';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -29871,7 +29871,10 @@ const ROLE_PERMS = {
   'op-recruit':     { manager:true, settlement:false, hr:true, staff:false, leader:false },
   'op-onboarding':  { manager:true, settlement:false, hr:true, staff:false, leader:false },
   'op-hr':          { manager:true, settlement:false, hr:true, staff:false, leader:false },
-  'op-trust':       { manager:true, settlement:false, hr:true, staff:false, leader:false },
+  /* [v757] boss 8/5 결정("카이지랑 브루스한테도 점수판 열어서 직원들 점수 줄 수 있게")을 개인 오버라이드가
+     아니라 직책 권한으로 옮긴다. 오버라이드는 _applyPermPayload에서 사용자 단위로 통째 교체돼서, 나중에
+     브루스에게 기준 EXP를 열어주는 순간 op-trust 오버라이드가 같이 날아갔다(브루스가 8/15 "점수판 못 들어감"). */
+  'op-trust':       { manager:true, settlement:false, hr:true, staff:false, leader:true },
   'op-settlement':  { manager:true, settlement:true, hr:false, staff:false, leader:false },
   'op-paystub':     { manager:true, settlement:true, hr:true, staff:true, leader:true },
   // [v647] Standard EXP: team leaders may VIEW it (they need the per-map targets), nobody below may edit.
@@ -29908,7 +29911,10 @@ function _applyPermPayload(d){
   if(!d) return;
   if(d.role_perms) Object.keys(d.role_perms).forEach(k => { ROLE_PERMS[k] = d.role_perms[k]; });
   if(d.capability_perms) Object.keys(d.capability_perms).forEach(k => { CAPABILITY_PERMS[k] = d.capability_perms[k]; });
-  if(d.user_overrides && typeof USER_OVERRIDES !== 'undefined') Object.keys(d.user_overrides).forEach(k => { USER_OVERRIDES[k] = d.user_overrides[k]; });
+  /* [v757] 사용자 단위로 통째 대입하면 코드에 선언해둔 오버라이드가 조용히 사라진다 — 권한 화면에서 그 사람에게
+     다른 페이지 하나만 열어줘도 저장 payload가 그 사람 항목을 통째로 덮어썼다(브루스 점수판 접근이 이렇게 증발).
+     페이지 단위로 병합한다: 저장값이 있으면 저장값이 이기고(명시적 회수 존중), 언급 없는 항목은 코드값이 남는다. */
+  if(d.user_overrides && typeof USER_OVERRIDES !== 'undefined') Object.keys(d.user_overrides).forEach(k => { USER_OVERRIDES[k] = Object.assign({}, USER_OVERRIDES[k], d.user_overrides[k]); });
   if(Array.isArray(d.player_leaders) && typeof PLAYER_LEADERS !== 'undefined'){ PLAYER_LEADERS.clear(); d.player_leaders.forEach(x => PLAYER_LEADERS.add(x)); }
 }
 async function savePermState(){
