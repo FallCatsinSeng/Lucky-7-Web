@@ -7789,7 +7789,8 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 .tl-toggle button{font-size:var(--t-micro);padding:5px var(--s3);border:none;background:none;color:var(--tx2);border-radius:var(--r-sm);font-weight:600;letter-spacing:var(--tr-caps);text-transform:uppercase}
 .tl-toggle button.on{background:var(--bg-c);color:var(--tx);box-shadow:var(--e1)}
 
-.toast{position:fixed;bottom:var(--s6);left:50%;transform:translateX(-50%) translateY(40px);opacity:0;pointer-events:none;background:var(--bg-c);border:1px solid var(--br2);border-radius:var(--r-md);padding:var(--s3) var(--s5);font-size:var(--t-cap);box-shadow:var(--e3);transition:transform var(--d-slow) var(--ease-spring),opacity var(--d) var(--ease);z-index:300}
+.toast{position:fixed;bottom:var(--s6);left:50%;transform:translateX(-50%) translateY(40px);opacity:0;pointer-events:none;background:var(--bg-c);border:1px solid var(--br2);border-radius:var(--r-md);padding:var(--s3) var(--s5);font-size:var(--t-cap);box-shadow:var(--e3);transition:transform var(--d-slow) var(--ease-spring),opacity var(--d) var(--ease);z-index:5000}
+.toast{pointer-events:none}.toast.on{pointer-events:auto}
 .toast.on{transform:translateX(-50%) translateY(0);opacity:1}
 .toast.err{border-color:var(--re);color:var(--re)}
 
@@ -11385,7 +11386,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v758';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v759';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19102,7 +19103,27 @@ function _srGo(name){
   if(name==='checkout') _srSyncCheckout();   // [v301] seed the editable final-stretch window from where the updates left off
   _srCloseDD();
 }
-function _srToast(m){ if(typeof toast==='function'){ try{ toast(m); }catch(e){} } }
+/* [v759] boss 8/18 "Submit 눌렀는데 아무것도 안 떠". 메시지는 나가고 있었다 — 볼 수 없는 자리에 떴을 뿐이다.
+   .toast 는 z-index 300, 확인 시트는 #sr-scrim 4000 / #sr-sheet 4001. 둘 다 화면 하단이라 시트가 열려 있는
+   동안의 모든 안내(저장 실패, 서버 연결 불가, 구버전 게이트, 체인 게이트, v758 에러 문구까지)가 통째로
+   시트 뒤에 가려졌다. 그래서 부스터에겐 "눌러도 아무 반응 없음"으로만 보였다.
+   시트가 열려 있으면 메시지를 시트 안에 직접 박는다 — z-index 싸움을 하지 않는 쪽이 확실하다. */
+function _srSheetMsg(m){
+  try{
+    var sh=document.getElementById('sr-sheet');
+    if(!sh || sh.style.display==='none') return false;
+    var box=document.getElementById('sr-sheet-msg');
+    if(!box){
+      box=document.createElement('div'); box.id='sr-sheet-msg'; box.className='sr-warn';
+      var rc=document.getElementById('sr-recap');
+      if(rc && rc.parentNode) rc.parentNode.insertBefore(box, rc.nextSibling); else sh.appendChild(box);
+    }
+    box.textContent=String(m==null?'':m); box.style.display='';
+    return true;
+  }catch(_){ return false; }
+}
+function _srSheetMsgClear(){ try{ var b=document.getElementById('sr-sheet-msg'); if(b){ b.textContent=''; b.style.display='none'; } }catch(_){ } }
+function _srToast(m){ _srSheetMsg(m); if(typeof toast==='function'){ try{ toast(m); }catch(e){} } }
 function _srToggleDD(id){ var dd=document.getElementById(id); if(!dd) return; var open=dd.classList.contains('open'); _srCloseDD(); if(!open) dd.classList.add('open'); }
 function _srCloseDD(){ var l=document.querySelectorAll('#sr-app .sr-dd.open'); for(var i=0;i<l.length;i++) l[i].classList.remove('open'); }
 
@@ -19490,8 +19511,9 @@ function _srReview(which){
   _srOnOk=(function(end,scr){ return function(){ return _srFinishSubmit(end?'checkout':'update', scr); }; })(ending, which);
   document.getElementById('sr-scrim').style.display='';
   document.getElementById('sr-sheet').style.display='';
+  _srSheetMsgClear();   /* [v759] 지난 시도의 에러가 남아 헷갈리지 않게 */
 }
-function _srCloseReview(){ var a=document.getElementById('sr-scrim'),b=document.getElementById('sr-sheet'); if(a)a.style.display='none'; if(b)b.style.display='none'; _srOnOk=null; }
+function _srCloseReview(){ var a=document.getElementById('sr-scrim'),b=document.getElementById('sr-sheet'); if(a)a.style.display='none'; if(b)b.style.display='none'; _srOnOk=null; _srSheetMsgClear(); }
 async function _srConfirm(){
   /* [v758] \uc81c\ucd9c \uc911 \uc7a0\uae08\uc774\uba74 \uc608\uc804\uc5d4 \uc18c\ub9ac \uc5c6\uc774 \ubb34\uc2dc\ud588\ub2e4 \u2014 \ubc84\ud2bc\uc774 \uc8fd\uc740 \uac83\ucc98\ub7fc \ubcf4\uc778\ub2e4 */
   if(_srBusy){ _srToast('\u23f3 Already submitting \u2014 wait a moment'); return; }
