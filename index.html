@@ -11386,7 +11386,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v759';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v760';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19973,7 +19973,21 @@ async function _srSubmitReport(kind,screen){
           adena:Math.round(aA), prevAdena:Math.round(aB), dead:(calc.isDeath?1:0), note:(k===N?nt2:(_ign?'휴식/공백 (자동 채움)':'')),
           ignored:_ign, atsManual:(_isAtsMap?_atsManual:undefined) }));
       });
-      if(!newRecs.length){ _srToast("This hour is already reported — nothing new to submit"); return false; }   // [v561] an hourly update whose hour is already covered
+      /* [v760] boss 8/18, John: 같은 시간대를 계속 재제출하다 여기 걸렸다. v561 가드 자체는 맞다 —
+         중복을 막는다. 문제는 (1) 이 문구가 실패처럼 읽히고 (2) 걸린 뒤에도 창이 그 시간대에 그대로 머물러,
+         부스터가 다음 시간으로 넘어갈 방법을 모른다는 것. 이미 보고된 시간은 건너뛰고 다음 빈 시간으로
+         창을 옮겨준 뒤, "이미 저장됐다"는 사실을 분명히 알린다. (_doneHrs 는 KST 시각, 창은 WIB = KST-2) */
+      if(!newRecs.length){
+        var _adv=_srWinStart, _guard=0;
+        while(_doneHrs[((_adv+2)%24+24)%24] && _adv<_srShiftEndH && _guard++<24) _adv++;
+        if(_adv!==_srWinStart && _adv<_srShiftEndH){
+          _srWinStart=_adv; _srWinEnd=Math.min(_adv+1,_srShiftEndH); _srRenderWin();
+          _srToast('✓ That hour was already saved. Moved you to '+_srKST(_srWinStart)+'–'+_srKST(_srWinEnd)+' KST — enter that hour instead.');
+        } else {
+          _srToast('✓ This hour is already saved — nothing to resubmit. Wait for the next hour.');
+        }
+        return false;
+      }
       // [v599] CLOUD-ANCHOR CONFIRM — the '이전' value this batch chains from must match the booster's LAST
       // SAVED row on the server. A wrong previous value passes the v589 internal-chain gate (the batch is
       // self-consistent) but silently drops the EXP gained in between (real case: Sid 7/9 typed 46.05 while
