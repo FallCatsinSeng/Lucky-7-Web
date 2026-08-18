@@ -11385,7 +11385,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v757';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v758';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -19493,11 +19493,22 @@ function _srReview(which){
 }
 function _srCloseReview(){ var a=document.getElementById('sr-scrim'),b=document.getElementById('sr-sheet'); if(a)a.style.display='none'; if(b)b.style.display='none'; _srOnOk=null; }
 async function _srConfirm(){
-  if(_srBusy) return;
+  /* [v758] \uc81c\ucd9c \uc911 \uc7a0\uae08\uc774\uba74 \uc608\uc804\uc5d4 \uc18c\ub9ac \uc5c6\uc774 \ubb34\uc2dc\ud588\ub2e4 \u2014 \ubc84\ud2bc\uc774 \uc8fd\uc740 \uac83\ucc98\ub7fc \ubcf4\uc778\ub2e4 */
+  if(_srBusy){ _srToast('\u23f3 Already submitting \u2014 wait a moment'); return; }
   var cb=document.getElementById('sr-confirm'); var old=cb?cb.textContent:'';
   if(cb){ cb.disabled=true; cb.textContent='Submitting\u2026'; }
   var f=_srOnOk; var ok=false;
-  try{ ok = f ? await f() : false; }catch(e){ ok=false; }
+  /* [v758] boss 8/18, John: "submit \ub204\ub974\uba74 \uc544\ubb34 \ubc18\uc751\ub3c4 \uc5c6\uc74c". \uc5ec\uae30\uc11c \uc608\uc678\ub97c \ud1b5\uc9f8\ub85c \uc0bc\ud0a4\uace0 ok=false \ub85c\ub9cc
+     \ub450\uc5b4\uc11c, \ubc84\ud2bc\uc774 \uc6d0\ub798 \ubb38\uad6c\ub85c \ub3cc\uc544\uac08 \ubfd0 \uc544\ubb34 \uac83\ub3c4 \uc548 \ub72c\ub2e4 \u2014 \ubd80\uc2a4\ud130\ub294 \uc800\uc7a5\uc774 \uc548 \ub41c \uc904 \uc54c\uace0 \uac19\uc740 \uc2dc\uac04\ub300\ub97c
+     \uacc4\uc18d \uc7ac\uc81c\ucd9c\ud558\uace0(\uc911\ubcf5 \ubc1c\uc0dd), \uc6b0\ub9ac\ub294 \uc6d0\uc778\uc744 \ubcfc \ubc29\ubc95\uc774 \uc5c6\ub2e4. \uc2e4\ud328\ub97c \ubcf4\uc774\uac8c \ub9cc\ub4e0\ub2e4. */
+  try{ ok = f ? await f() : false; }
+  catch(e){
+    ok=false;
+    try{ console.error('[submit] failed', e); }catch(_){ }
+    var _em=(e && (e.message || e.name)) ? String(e.message || e.name) : 'unknown error';
+    _srToast('\u26a0 Submit failed: ' + _em + ' \u2014 screenshot this and send it to your leader');
+  }
+  if(!f) _srToast('\u26a0 Nothing to submit \u2014 go back and re-open the report');
   if(ok){ _srCloseReview(); }
   else if(cb){ cb.disabled=false; cb.textContent=old; }
 }
