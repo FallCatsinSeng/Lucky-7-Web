@@ -11386,7 +11386,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v761';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v762';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -32999,17 +32999,66 @@ function _dcCopyFallback(text){
     toast('PC 현황 Discord 복사 완료');
   }catch(e){ toast('복사 실패 — 브라우저 권한을 확인하세요', true); }
 }
+/* [v762] boss 8/18: "너무 길어서 메모장으로 전송이 되어버려". 디스코드 한 메시지 한도는 2000자인데
+   현재 PC 현황 출력은 4,000자가 넘는다 — 붙여넣으면 디스코드가 통째로 .txt 첨부로 바꿔버린다.
+   점수판이 쓰던 _tsSplitForDiscord 를 그대로 재사용해 PC 그룹 경계(구분선)에서만 끊고, 조각마다
+   코드펜스를 닫아준다. 조각이 2개 이상이면 하나씩 복사할 수 있는 작은 창을 띄운다. */
+function _dcCopyText(text){
+  return new Promise(function(res){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ res(true); }).catch(function(){ _dcCopyFallback(text); res(true); });
+    } else { _dcCopyFallback(text); res(true); }
+  });
+}
+function _dcCloseParts(){ var o=document.getElementById('dc-parts-ov'); if(o) o.remove(); }
+function _dcCopyPart(i){
+  var parts = window.__dcParts || [];
+  if(!parts[i]) return;
+  _dcCopyText(parts[i]).then(function(){
+    var b=document.getElementById('dc-part-'+i);
+    if(b){ b.classList.add('done'); b.textContent = (i+1)+' / '+parts.length+'  ✓ 복사됨'; }
+    toast((i+1)+'/'+parts.length+' 복사됨 — 디스코드에 붙여넣고 다음 조각을 누르세요');
+  });
+}
+function _dcShowParts(parts){
+  _dcCloseParts();
+  window.__dcParts = parts;
+  if(!document.getElementById('dc-parts-css')){
+    var st=document.createElement('style'); st.id='dc-parts-css';
+    st.textContent=[
+      "#dc-parts-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5200;display:flex;align-items:center;justify-content:center}",
+      "#dc-parts-box{background:#191919;border:1px solid var(--br2,#33332f);border-radius:16px;padding:20px 22px;width:min(420px,92vw);box-shadow:0 24px 60px rgba(0,0,0,.6)}",
+      "#dc-parts-box h4{margin:0 0 6px;font-size:16px;font-weight:750;color:var(--tx,#e6e5e2)}",
+      "#dc-parts-box p{margin:0 0 14px;font-size:12.5px;line-height:1.6;color:var(--tx3,#8a8a86)}",
+      ".dc-part-btn{display:block;width:100%;margin-bottom:8px;padding:11px 14px;border-radius:10px;border:1px solid var(--br2,#33332f);background:var(--bg-h,#242427);color:var(--tx,#e6e5e2);font:inherit;font-size:13px;font-weight:650;cursor:pointer;text-align:left}",
+      ".dc-part-btn:hover{border-color:#5865F2}",
+      ".dc-part-btn.done{background:rgba(78,154,98,.14);border-color:#4E9A62;color:#7dc48f}",
+      "#dc-parts-close{width:100%;margin-top:6px;padding:9px;border-radius:10px;border:0;background:#5865F2;color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer}"
+    ].join('');
+    document.head.appendChild(st);
+  }
+  var ov=document.createElement('div'); ov.id='dc-parts-ov';
+  ov.innerHTML='<div id="dc-parts-box">'
+    + '<h4>📋 '+parts.length+'개로 나눠 복사</h4>'
+    + '<p>디스코드는 한 메시지에 <b>2,000자</b>까지만 됩니다. 이 표는 '+ (window.__dcFullLen||0) +'자라 그냥 붙여넣으면 파일로 올라갑니다.<br>'
+    + '아래 버튼을 <b>위에서부터 하나씩</b> 눌러 복사 → 디스코드에 붙여넣기를 반복하세요.</p>'
+    + parts.map(function(p,i){ return '<button class="dc-part-btn" id="dc-part-'+i+'" onclick="_dcCopyPart('+i+')">'+(i+1)+' / '+parts.length+'  복사  <span style="opacity:.55;font-weight:400">('+p.length+'자)</span></button>'; }).join('')
+    + '<button id="dc-parts-close" onclick="_dcCloseParts()">닫기</button>'
+    + '</div>';
+  ov.addEventListener('click', function(e){ if(e.target===ov) _dcCloseParts(); });
+  document.body.appendChild(ov);
+  _dcCopyPart(0);   // 첫 조각은 바로 클립보드에 — 흔한 경우를 한 번 덜 누르게
+}
 function copyPCScheduleDiscord(){
   var body = buildPCScheduleDiscordText();
   if(!body || !body.trim()){ toast('복사할 PC 현황이 없어요', true); return; }
   var text = '```text\n' + body + '\n```';
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(function(){
-      toast('PC 현황 Discord 복사 완료');
-    }).catch(function(){ _dcCopyFallback(text); });
-  }else{
-    _dcCopyFallback(text);
+  window.__dcFullLen = text.length;
+  if(text.length > 1900 && typeof _tsSplitForDiscord === 'function'){
+    var parts = _tsSplitForDiscord(text, 1900);
+    if(parts.length > 1){ _dcShowParts(parts); return; }
   }
+  _dcCopyText(text).then(function(){ toast('PC 현황 Discord 복사 완료'); });
 }
 
 
