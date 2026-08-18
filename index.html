@@ -10868,6 +10868,8 @@ body:has(#kb-race) #sb-right{display:none!important}
           <div class="pcs-head-actions">
             <span class="pcs-admin-badge">⚙️ 컨트롤 모드 · 배정 가능</span>
             <button class="btn btn-add btn-sm" onclick="copyPCScheduleDiscord()" title="현재 PC 현황을 Discord 코드블럭으로 복사">📋 Discord 복사</button>
+            <button class="btn btn-add btn-sm" onclick="sendPCScheduleDiscord()" title="현재 PC 현황을 웹훅으로 디스코드 채널에 바로 게시">📨 Discord 게시</button>
+            <button class="btn btn-sm" onclick="setPCScheduleWebhook()" title="PC 현황 디스코드 웹훅 URL 설정">⚙</button>
             <button class="btn btn-sm" onclick="resetAll()" title="데모 데이터로 초기화">↻ Reset demo</button>
             <button class="btn btn-add btn-sm" onclick="addPC()">+ Add PC</button>
           </div>
@@ -24098,6 +24100,8 @@ async function renderPcBoard(){
           <button class="pcb-btn ghost" onclick="_pcbAddCol()">＋ 단계</button>
           <button class="pcb-btn ghost" onclick="_pcbResetPlan()">↻ 현재 배정 불러오기</button>
           <button class="pcb-btn" onclick="_pcbCopyDiscord()">📋 디스코드 복사</button>
+          <button class="pcb-btn" onclick="_pcbSendDiscord()" title="보드를 웹훅으로 디스코드 채널에 바로 게시">📨 디스코드 게시</button>
+          <button class="pcb-btn ghost" onclick="_pcbSetWebhook()" title="디스코드 웹훅 URL 설정">⚙</button>
         </div>
       </div>
       <div class="pcb-pool${_pcbSel?' picking':''}" ondragover="_pcbOver(event)" ondragleave="_pcbLeave(event)" ondrop="_pcbPoolDrop(event)">
@@ -24302,8 +24306,9 @@ function _pcbNote(key, text){
   if(t) PCB_STATE[key].note = t; else delete PCB_STATE[key].note;
   _pcbSave();
 }
-/* 디스코드 복사 — 보스가 쓰던 ANSI 형식 그대로 (점수판과 같은 방식) */
-function _pcbCopyDiscord(){
+/* 디스코드 복사 — 보스가 쓰던 ANSI 형식 그대로 (점수판과 같은 방식)
+   [v756] 텍스트 생성부를 _pcbBoardText()로 분리 — 복사 버튼과 웹훅 게시 버튼이 같은 본문을 쓴다 */
+function _pcbBoardText(){
   const ESC = String.fromCharCode(27);
   const C = (s,code) => code ? (ESC+'['+code+'m'+s+ESC+'[0m') : String(s);
   const items = _pcbGather();
@@ -24354,10 +24359,49 @@ function _pcbCopyDiscord(){
       if(it.note) out.push(C('  Note     : '+it.note, cc));
     });
   });
-  const text = '```ansi\n' + out.join('\n') + '\n```';
+  return '```ansi\n' + out.join('\n') + '\n```';
+}
+function _pcbCopyDiscord(){
+  const text = _pcbBoardText();
   const done = () => toast('📋 계정 보드 복사됨 — 디스코드에 붙여넣으세요');
   if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(()=>{});
   else { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); done();}catch(_){ } ta.remove(); }
+}
+/* [v756] 보드 웹훅 게시 — 점수판(tsSendDiscord)과 같은 패턴. 채널은 따로 쓰라고 URL도 따로 저장한다
+   (trust_state id='pcb_webhook'). 분할은 _tsSplitForDiscord 재사용 — ```ansi 펜스를 알아서 이어준다. */
+let _pcbWebhook = null, _pcbWebhookLoaded = false;
+async function _pcbLoadWebhook(){
+  if(_pcbWebhookLoaded || !sb) return;
+  try{
+    const { data } = await sb.from('trust_state').select('data').eq('id','pcb_webhook').maybeSingle();
+    _pcbWebhook = (data && data.data && data.data.url) || null;
+  }catch(_){ }
+  _pcbWebhookLoaded = true;
+}
+async function _pcbSetWebhook(){
+  await _pcbLoadWebhook();
+  const url = prompt('디스코드 웹훅 URL을 붙여넣으세요\n(디스코드 채널 → 설정 → 연동 → 웹훅 → URL 복사)\n비우고 확인하면 웹훅 해제됩니다.', _pcbWebhook || '');
+  if(url === null) return;
+  const v = url.trim();
+  if(v && !/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//.test(v)){ toast('디스코드 웹훅 URL이 아닙니다', true); return; }
+  _pcbWebhook = v || null;
+  try{ await _dbUpsert('trust_state', 'pcb_webhook', { url: _pcbWebhook }); toast(_pcbWebhook ? '✅ 웹훅 저장됨 — 이제 버튼 한 번으로 게시됩니다' : '웹훅 해제됨'); }
+  catch(e){ toast('저장 실패: ' + (e && e.message), true); }
+}
+async function _pcbSendDiscord(){
+  await _pcbLoadWebhook();
+  if(!_pcbWebhook){ toast('웹훅이 아직 없습니다 — ⚙ 버튼으로 URL을 등록하세요', true); return; }
+  const text = _pcbBoardText();
+  try{
+    const parts = text.length <= 1900 ? [text] : _tsSplitForDiscord(text, 1900);
+    let allOk = true;
+    for(let i=0; i<parts.length; i++){
+      const r = await fetch(_pcbWebhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content: parts[i] }) });
+      if(!r.ok) allOk = false;
+      if(i < parts.length - 1) await new Promise(function(res){ setTimeout(res, 350); });   // 순서 보장 + rate limit 여유
+    }
+    toast(allOk ? '📨 디스코드에 게시됨' : '전송 실패 — 웹훅 URL을 확인하세요', !allOk);
+  }catch(_){ toast('전송 실패 — 네트워크를 확인하세요', true); }
 }
 function _pcbInjectCSS(){
   if(document.getElementById('pcb-css')) return;
@@ -33074,6 +33118,59 @@ function copyPCScheduleDiscord(){
     }
   }
   _dcCopyText(text).then(function(){ toast('PC 현황 Discord 복사 완료'); });
+}
+
+/* [v763] PC 현황 웹훅 게시 — 복사 버튼과 같은 본문을 버튼 한 번으로 채널에 쏜다.
+   URL은 trust_state id='pcs_webhook' (점수판·공지 웹훅과 같은 패턴, 채널은 따로). */
+var _pcsWebhook = null, _pcsWebhookLoaded = false;
+function _pcsLoadWebhook(){
+  if(_pcsWebhookLoaded || !sb) return Promise.resolve();
+  return sb.from('trust_state').select('data').eq('id','pcs_webhook').maybeSingle()
+    .then(function(res){ _pcsWebhook = (res.data && res.data.data && res.data.data.url) || null; _pcsWebhookLoaded = true; })
+    .catch(function(){ _pcsWebhookLoaded = true; });
+}
+function setPCScheduleWebhook(){
+  _pcsLoadWebhook().then(function(){
+    var url = prompt('디스코드 웹훅 URL을 붙여넣으세요\n(디스코드 채널 → 설정 → 연동 → 웹훅 → URL 복사)\n비우고 확인하면 웹훅 해제됩니다.', _pcsWebhook || '');
+    if(url === null) return;
+    var v = url.trim();
+    if(v && !/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//.test(v)){ toast('디스코드 웹훅 URL이 아닙니다', true); return; }
+    _pcsWebhook = v || null;
+    _dbUpsert('trust_state', 'pcs_webhook', { url: _pcsWebhook })
+      .then(function(){ toast(_pcsWebhook ? '✅ 웹훅 저장됨 — 이제 버튼 한 번으로 게시됩니다' : '웹훅 해제됨'); })
+      .catch(function(e){ toast('저장 실패: ' + (e && e.message), true); });
+  });
+}
+function sendPCScheduleDiscord(){
+  var body = buildPCScheduleDiscordText();
+  if(!body || !body.trim()){ toast('게시할 PC 현황이 없어요', true); return; }
+  _pcsLoadWebhook().then(function(){
+    if(!_pcsWebhook){ toast('웹훅이 아직 없습니다 — ⚙ 버튼으로 URL을 등록하세요', true); return; }
+    var text = '```text\n' + body + '\n```';
+    var parts = [text];
+    if(text.length > 1900 && typeof _tsSplitForDiscord === 'function'){
+      parts = _tsSplitForDiscord(text, 1900);
+      /* 복사 버튼과 동일 — 2번째 조각부터 컬럼 헤더 2줄을 다시 붙인다 */
+      if(parts.length > 1){
+        var _bl = body.split('\n');
+        var _hd = _bl.slice(0, 2).join('\n');
+        parts = parts.map(function(p, i){
+          if(i === 0) return p;
+          return p.replace(/^(```[^\n]*\n)/, '$1' + _hd + '\n');
+        });
+      }
+    }
+    var allOk = true, chain = Promise.resolve();
+    parts.forEach(function(p, i){
+      chain = chain.then(function(){
+        return fetch(_pcsWebhook, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ content: p }) })
+          .then(function(r){ if(!r.ok) allOk = false; })
+          .then(function(){ if(i < parts.length - 1) return new Promise(function(res){ setTimeout(res, 350); }); });
+      });
+    });
+    chain.then(function(){ toast(allOk ? '📨 디스코드에 게시됨' : '전송 실패 — 웹훅 URL을 확인하세요', !allOk); })
+         .catch(function(){ toast('전송 실패 — 네트워크를 확인하세요', true); });
+  });
 }
 
 
