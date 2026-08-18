@@ -11386,7 +11386,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v760';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v761';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -34336,11 +34336,29 @@ function togglePCOff(pcId){
   }
   render();
 }
+/* [v761] 기준 EXP 타일이 "내용이 있는가" — 번호 재사용 시 옛 기준이 새 PC에 묻어오는 걸 막는 판단 기준.
+   전부 비어 있으면 붙잡아 둘 이유가 없다(그 번호를 다시 써도 잃을 게 없다). */
+function _pcExpTileHasData(r){
+  if(!r) return false;
+  const s = v => String(v==null?'':v).trim();
+  return !!(s(r.clientId) || s(r.lv) || s(r.map) || (Number(r.target)||0) > 0);
+}
 function addPC(){
-  // [v154] collision-free id (max+1, not length+1 — length+1 duplicates after a delete)
-  const _mp = PCS.length ? Math.max(...PCS.map(p => p.id)) : 0;
-  const _me = (typeof STANDARD_EXP!=='undefined' && STANDARD_EXP.length) ? Math.max(...STANDARD_EXP.map(r=>Number(r.pc)||0)) : 0;
-  const n = Math.max(_mp, _me) + 1;
+  /* [v154] collision-free id (max+1, not length+1 — length+1 duplicates after a delete)
+     [v761] Dencho 8/18: "PC 20이 나와야 하는데 26으로 튐". 원인은 여기서 STANDARD_EXP의 최댓값까지
+     같이 보는데, reconcilePcExp(v486)가 삭제된 PC의 EXP 타일을 지우지 않고 _orphan 으로만 표시해
+     남겨두기 때문이다. PC 현황은 1~19인데 EXP에 20~25 유령 타일이 남아 max가 25 → 26이 됐다.
+     EXP 최댓값을 보는 이유 자체는 타당하다(옛 기준이 남은 번호를 새 PC가 물려받으면 안 된다).
+     그래서 '내용이 있는' 타일만 장애물로 취급하고, 빈 유령 타일은 무시한다.
+     또 max+1 대신 비어 있는 가장 작은 번호를 쓴다 — 삭제로 생긴 구멍이 영원히 남지 않게. */
+  const used = new Set();
+  PCS.forEach(p => used.add(Number(p.id)||0));
+  try{
+    if(typeof STANDARD_EXP!=='undefined' && Array.isArray(STANDARD_EXP)){
+      STANDARD_EXP.forEach(r => { if(_pcExpTileHasData(r)) used.add(Number(r.pc)||0); });
+    }
+  }catch(_){}
+  let n = 1; while(used.has(n)) n++;
   PCS.push({id:n, status:'online', game:'lineage', clients:[], leader:null, assignments:[]});
   try{ logAction('create', 'added PC', 'PC-'+pad2(n)); }catch(_){}
   // [v199] auto-create a matching blank Standard EXP tile (content left blank for manual fill)
