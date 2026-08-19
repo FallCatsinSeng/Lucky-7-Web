@@ -7675,55 +7675,52 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 .tl-head{display:grid;grid-template-columns:160px 1fr;border-bottom:1px solid var(--br);background:var(--bg-sb)}
 .tl-hours{display:grid;grid-template-columns:repeat(24,1fr);position:relative}
 .tl[data-span="48"] .tl-hours{grid-template-columns:repeat(48,1fr)}
-.tl-hr{font-size:10px;color:var(--tx2);text-align:center;padding:8px 0 10px;font-variant-numeric:tabular-nums;font-weight:500;border-left:1px solid rgba(0,0,0,.04)}
+.tl-hr{font-size:9.5px;color:var(--tx2);text-align:center;padding:5px 0 6px;font-variant-numeric:tabular-nums;font-weight:500;border-left:1px solid rgba(0,0,0,.04)}
 [data-theme=dark] .tl-hr{border-left-color:rgba(255,255,255,.05)}
 .tl-hr.noon{border-left:1px solid var(--br2);color:var(--tx);font-weight:700}
 .tl-hr.day-bdy{border-left:2px solid var(--ac);color:var(--ac);font-weight:800}
-.tl-row{display:grid;grid-template-columns:160px 1fr;border-bottom:1px solid var(--br2);min-height:56px}
+/* [v767] 컴팩트 타임라인: 행 56 -> 34px. 38행이면 이것만으로 약 840px 가 줄어든다 */
+.tl-row{display:grid;grid-template-columns:132px 1fr;border-bottom:1px solid var(--br2);min-height:34px}
 .tl-row:last-child{border-bottom:none}
 .tl-row:hover{background:var(--bg-sb)}
-.tl-person{padding:10px var(--s4);border-right:1px solid var(--br);display:flex;align-items:center;gap:10px;background:var(--bg-c)}
+.tl-person{padding:3px 9px;border-right:1px solid var(--br);display:flex;align-items:center;gap:10px;background:var(--bg-c)}
 .tl-row:hover .tl-person{background:var(--bg-sb)}
 .tl-person-id{font-size:9px;color:var(--tx3);letter-spacing:.04em;font-variant-numeric:tabular-nums;font-weight:500}
 .tl-person .nm{font-size:var(--t-cap);font-weight:600;line-height:1.2;color:var(--tx)}
 .tl-person .sub{font-size:9px;color:var(--tx3);letter-spacing:.04em;margin-top:2px}
 /* PC 라벨 카드 — 시인성 강화 */
 .tl-pc-card{
-  display:flex;align-items:center;gap:10px;width:100%;
+  display:flex;align-items:center;gap:7px;width:100%;
 }
 .tl-pc-num{
-  width:38px;height:38px;border-radius:7px;
+  width:24px;height:24px;border-radius:5px;
   display:flex;align-items:center;justify-content:center;
-  font-size:16px;font-weight:800;color:#fff;
-  letter-spacing:-1px;
+  font-size:11px;font-weight:800;color:#fff;
+  letter-spacing:-.3px;
   font-variant-numeric:tabular-nums;
   flex-shrink:0;
-  box-shadow:0 1px 3px rgba(0,0,0,.15);
+  box-shadow:0 1px 2px rgba(0,0,0,.15);
 }
-.tl-pc-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.tl-pc-game{
-  font-size:12.5px;font-weight:700;
-  letter-spacing:-.01em;line-height:1.2;
-}
+.tl-pc-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
 .tl-pc-leader{
-  font-size:10.5px;color:var(--tx2);font-weight:500;
-  line-height:1.3;
+  font-size:9px;color:var(--tx2);font-weight:500;
+  line-height:1.25;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .tl-pc-meta{
-  font-size:9.5px;color:var(--tx3);font-weight:500;
-  letter-spacing:.02em;font-variant-numeric:tabular-nums;
-  margin-top:1px;
+  font-size:10px;color:var(--tx2);font-weight:700;
+  letter-spacing:.01em;font-variant-numeric:tabular-nums;
+  line-height:1.25;
 }
 .tl-track{position:relative;display:grid;grid-template-columns:repeat(24,1fr);background:var(--bg-c)}
 .tl[data-span="48"] .tl-track{grid-template-columns:repeat(48,1fr)}
 .tl-row:hover .tl-track{background:var(--bg-sb)}
-.tl-track .gl{border-left:1px solid rgba(0,0,0,.035);min-height:56px}
+.tl-track .gl{border-left:1px solid rgba(0,0,0,.035);min-height:34px}
 [data-theme=dark] .tl-track .gl{border-left-color:rgba(255,255,255,.04)}
 .tl-track .gl.noon{border-left:1px solid var(--br2)}
 .tl-track .gl.day-bdy{border-left:2px solid var(--ac)}
 
-.tl-bar{position:absolute;top:50%;transform:translateY(-50%);height:36px;border-radius:7px;border:1px solid;display:flex;flex-direction:row;align-items:center;gap:9px;padding:4px 13px 4px 15px;color:#fff;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:grab;user-select:none;transition:transform var(--d-fast) var(--ease),box-shadow var(--d-fast) var(--ease)}
+.tl-bar{position:absolute;top:50%;transform:translateY(-50%);height:24px;border-radius:5px;border:1px solid;display:flex;flex-direction:row;align-items:center;gap:6px;padding:2px 8px 2px 11px;color:#fff;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:grab;user-select:none;transition:transform var(--d-fast) var(--ease),box-shadow var(--d-fast) var(--ease)}
 .tl-bar:hover{transform:translateY(-50%) scale(1.012);box-shadow:0 4px 10px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.14);z-index:3}
 .tl-bar:active{cursor:grabbing}
 .tl-bar.dragging{opacity:.9;z-index:10;box-shadow:0 12px 28px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.14);transition:none}
@@ -7757,8 +7754,9 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 .tl-break-h-l{left:0}
 .tl-break-h-r{right:0}
 .readonly-mode .tl-break-h{cursor:default;pointer-events:none}
-.tl-bar .b-time{position:relative;z-index:6;font-size:12.5px;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.tl-bar .b-sub{position:relative;z-index:6;font-size:12.5px;opacity:.66;font-weight:600;margin-top:0;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;pointer-events:none}
+/* [v767] 막대가 24px 로 얇아졌으니 글자도 맞춘다. 이름(b-sub)이 주인공이라 시각보다 진하게 */
+.tl-bar .b-time{position:relative;z-index:6;font-size:10px;font-weight:600;opacity:.72;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.tl-bar .b-sub{position:relative;z-index:6;font-size:11px;opacity:1;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0;pointer-events:none}
 /* ── [v277] client schedule (days + time range) ── */
 .slot-sched{display:flex;align-items:center;gap:3px;flex-wrap:nowrap;font-size:9.5px;color:var(--tx3);padding-left:24px;margin-top:0;font-variant-numeric:tabular-nums;line-height:1.35;overflow:hidden;white-space:nowrap}
 .slot-sched .cs-days{display:inline-flex;align-items:center;gap:2px}
@@ -7791,11 +7789,11 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 .tl-sect-hint{font-size:10px;color:var(--tx3);font-weight:500;padding-left:8px;text-transform:none;letter-spacing:0}
 .tl-cl-row .tl-person{background:color-mix(in srgb,var(--ac) 6%,var(--bg-c))}
 .tl-cl-rowoff{opacity:.55}
-.tl-client-card{display:flex;align-items:center;gap:9px;width:100%;min-width:0}
-.tl-cl-av{width:26px;height:26px;border-radius:7px;background:var(--ac);color:#1a1206;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0}
+.tl-client-card{display:flex;align-items:center;gap:7px;width:100%;min-width:0}
+.tl-cl-av{width:20px;height:20px;border-radius:5px;background:var(--ac);color:#1a1206;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
 .tl-cl-info{min-width:0}
-.tl-cl-nm{font-size:12px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tl-cl-meta{font-size:10px;color:var(--tx3);white-space:nowrap;display:flex;align-items:center;gap:3px}
+.tl-cl-nm{font-size:10.5px;line-height:1.25;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-cl-meta{font-size:9px;line-height:1.25;color:var(--tx3);white-space:nowrap;display:flex;align-items:center;gap:3px}
 .tl-cl-days{display:inline-flex;align-items:center;gap:2px}
 .tl-cl-off{color:var(--re);font-weight:700}
 .tl-bar.client{background:color-mix(in srgb,var(--ac) 22%,var(--bg-c));border-color:color-mix(in srgb,var(--ac) 50%,transparent);cursor:grab}
@@ -11419,7 +11417,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v766';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v767';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -34080,12 +34078,13 @@ function buildPCRows(){
     }[p.game] || { name:p.game, color:'#9a9a9a', bg:'rgba(154,154,154,.14)' };
     return {
       id:p.id,
+      /* [v767] 행마다 3줄이던 왼쪽 라벨을 1~2줄로. 게임 이름은 번호 배지 색이 이미 말해주고,
+         '리더 미지정'은 정보가 없으면서 모든 행에 한 줄씩 먹었다 — 리더가 있을 때만 보여준다. */
       label:`<div class="tl-pc-card">
-        <div class="tl-pc-num" style="background:${gameInfo.color}">${pad2(p.id)}</div>
+        <div class="tl-pc-num" style="background:${gameInfo.color}" title="${gameInfo.name}">${pad2(p.id)}</div>
         <div class="tl-pc-info">
-          <div class="tl-pc-game" style="color:${gameInfo.color}">${gameInfo.name}</div>
-          <div class="tl-pc-leader">${leader?`👑 ${(leader.full_name||leader.name).split(' ').slice(0,2).join(' ')}`:'<span style="color:var(--tx4)">리더 미지정</span>'}</div>
-          <div class="tl-pc-meta">${totalH}h · ${p.assignments.length} shifts</div>
+          <div class="tl-pc-meta">${totalH}h · ${p.assignments.length}</div>
+          ${leader?`<div class="tl-pc-leader">👑 ${(leader.full_name||leader.name).split(' ').slice(0,2).join(' ')}</div>`:''}
         </div>
       </div>`,
       bars,
