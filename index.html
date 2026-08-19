@@ -7759,6 +7759,10 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 .tl-bar .b-sub{position:relative;z-index:6;font-size:11px;opacity:1;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0;pointer-events:none}
 .tl-bar.tl-bar-narrow .b-time{display:none}
 .tl-bar.tl-bar-narrow{padding-left:9px;padding-right:5px}
+/* [v770] 야간 시프트가 두 조각으로 갈릴 때 짧은 쪽은 37px 정도라 어떤 글자도 안 들어간다 —
+   잘린 글자 대신 색 막대만 두고 내용은 hover 툴팁으로 (원래부터 있던 문제) */
+.tl-bar.tl-bar-stub .b-time,.tl-bar.tl-bar-stub .b-sub{display:none}
+.tl-bar.tl-bar-stub{padding:0 4px}
 /* ── [v277] client schedule (days + time range) ── */
 .slot-sched{display:flex;align-items:center;gap:3px;flex-wrap:nowrap;font-size:9.5px;color:var(--tx3);padding-left:24px;margin-top:0;font-variant-numeric:tabular-nums;line-height:1.35;overflow:hidden;white-space:nowrap}
 .slot-sched .cs-days{display:inline-flex;align-items:center;gap:2px}
@@ -11419,7 +11423,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v769';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v770';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -34003,7 +34007,7 @@ function barHTML(pcId, idx, a, p, seg, isWrapped, subLabel, isLastPiece, laneInf
   const g   = shiftGame(a, p);
   /* [v767] 짧은 시프트는 "9 AM – 12 PM  Bob · 3h" 를 다 못 담아 이름이 잘렸다. 좁은 막대에선
      시각을 숨기고 이름만 남긴다 — 시각은 위 눈금으로 읽으면 되지만 누구인지는 대체할 게 없다. */
-  const cls = `tl-bar ${g}${isWrapped?' wrapped':''}${Number(w) < 13 ? ' tl-bar-narrow' : ''}`;
+  const cls = `tl-bar ${g}${isWrapped?' wrapped':''}${Number(w) < 6 ? " tl-bar-stub" : (Number(w) < 13 ? " tl-bar-narrow" : "")}`;
   // [v196] stack overlapping shifts into vertical lanes so none get hidden
   const laneCount = laneInfo ? laneInfo.laneCount : 1;
   const lane = laneInfo ? laneInfo.lane : 0;
@@ -34027,7 +34031,7 @@ function barHTML(pcId, idx, a, p, seg, isWrapped, subLabel, isLastPiece, laneInf
     const _bt = `휴식 ${pad2(_h1)}:${pad2(_m1)} – ${pad2(_h2)}:${pad2(_m2)} · ${brkLen}h`;
     brkHtml = `<div class="tl-break" title="${_bt}" style="left:${brkLeft}%;width:${brkWidth}%" onmousedown="brkMouseDown(event, ${pcId}, ${idx}, 'move')"><div class="tl-break-h tl-break-h-l" onmousedown="brkMouseDown(event, ${pcId}, ${idx}, 'left')"></div><div class="tl-break-h tl-break-h-r" onmousedown="brkMouseDown(event, ${pcId}, ${idx}, 'right')"></div></div>`;
   }
-  return `<div class="${cls}" data-pc="${pcId}" data-idx="${idx}" data-piece-disp="${seg.dispStart}" data-piece-len="${seg.len}"
+  return `<div class="${cls}" title="${fmtAmPm(_tzH(a.start))} – ${fmtAmPm(_tzH(fullEnd))} · ${String(subLabel).replace(/"/g,String.fromCharCode(39))}" data-pc="${pcId}" data-idx="${idx}" data-piece-disp="${seg.dispStart}" data-piece-len="${seg.len}"
               style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px;${laneStyle}" ${moveHandler}>
     <span class="tl-bar-edge"></span>
     <div class="b-time">${fmtAmPm(_tzH(a.start))} – ${fmtAmPm(_tzH(fullEnd))}</div>
@@ -34164,7 +34168,7 @@ function clientTimelineSectionHTML(){
         const isLast = si === segs.length-1;
         const resizeH = isLast ? `<div class="bar-resize" onmousedown="clientBarMouseDown(event,'${c.id}','resize')"></div>` : '';
         const wrapG = wrapped ? `<span class="tl-bar-wrapg" title="Overnight booking — one ${hrs}h shift from ${fmtAmPm(_tzH(c.startH))} to ${fmtAmPm(_tzH(c.endH))}. It crosses the ${fmtAmPm(_tzH(tlAnchor))} start line, so it's drawn in two pieces (this is the ${isLast?'tail':'start'}).">${isLast?'\u21A9\uFE0E':'\u21AA\uFE0E'}</span>` : '';
-        return `<div class="tl-bar client${wrapped?' wrapped':''}${offToday?' tl-bar-dim':''}${Number(w) < 13 ? " tl-bar-narrow" : ""}" data-cid="${c.id}" style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px" onmousedown="clientBarMouseDown(event,'${c.id}','move')">
+        return `<div class="tl-bar client${wrapped?' wrapped':''}${offToday?' tl-bar-dim':''}${Number(w) < 6 ? " tl-bar-stub" : (Number(w) < 13 ? " tl-bar-narrow" : "")}" data-cid="${c.id}" style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px" onmousedown="clientBarMouseDown(event,'${c.id}','move')">
           <span class="tl-bar-edge"></span>
           ${wrapG}
           <div class="b-time">${fmtAmPm(_tzH(c.startH))} – ${fmtAmPm(_tzH(c.endH))}</div>
