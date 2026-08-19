@@ -7077,7 +7077,9 @@ button:active,.btn:active{transform:scale(.97)}
 .tip-pill{display:inline-flex;align-items:center;gap:5px;background:var(--ac-bg);color:var(--ac-strong);font-size:var(--t-micro);font-weight:600;padding:3px 8px;border-radius:var(--r-full);letter-spacing:.04em}
 
 /* ═══ PC GRID ═══ */
-.pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+/* [v771] boss: "첫 줄 두 줄 셋째 줄 구분감이 더 있으면 좋겠다". 세로 간격을 가로보다 크게 줘서
+   같은 줄은 붙어 보이고 다른 줄은 떨어져 보이게 한다 — 선을 긋는 것보다 조용하고 확실하다. */
+.pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));column-gap:8px;row-gap:20px}
 /* PC 보기 모드 — 빈 카드/시간 텍스트/OFF 스탬프 */
 .pc-empty-view{padding:9px 10px;text-align:center;font-size:11px;color:var(--tx4);font-style:italic}
 .slot-time-view{font-size:10px;color:var(--tx3);font-weight:600;font-variant-numeric:tabular-nums}
@@ -7095,7 +7097,8 @@ button:active,.btn:active{transform:scale(.97)}
 .pc.g-mix.selected{border-color:#b074ec;box-shadow:0 0 0 4px rgba(176,116,236,.18),var(--e2)}
 .pc.g-empty.selected{border-color:var(--ac);box-shadow:var(--glow-ac),var(--e2)}
 .pc[data-st="offline"]{opacity:.55}
-.pc-head{display:flex;align-items:center;gap:6px;justify-content:space-between;margin-bottom:0}
+/* [v771] 카드 머리에 얇은 밑줄을 둬서 헤더와 슬롯 더미를 분리 — 카드 경계가 또렷해진다 */
+.pc-head{display:flex;align-items:center;gap:6px;justify-content:space-between;margin-bottom:2px;padding-bottom:4px;border-bottom:1px solid var(--br)}
 /* [v765] nowrap 없이는 좁은 카드에서 "PC-" / "01" 로 두 줄이 된다 — 게임 구분은 카드 테두리 색이
    이미 하고 있어서 헤더에 점을 또 두지 않는다(상태 점과 헷갈린다). */
 .pc-num{font-size:var(--t-cap);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;flex-shrink:0}
@@ -7156,20 +7159,37 @@ button:active,.btn:active{transform:scale(.97)}
 .slot.staff.filled .slot-nm{flex:1 1 auto;min-width:34px}
 .slot.staff.filled .slot-game{margin-left:0;width:15px;height:15px;font-size:8px}
 .slot.staff.filled .slot-unx{margin-left:0}
+/* [v771] boss: "칸에 들어가는 직원이 구분감이 없다 — 이름은 보이는데 시인성이 약하다".
+   슬롯끼리 배경·테두리가 거의 같아 여러 명이 한 덩어리로 뭉쳐 보였다. 직급 색 띠를 굵히고,
+   슬롯 배경을 한 단계 띄우고, hover 때 직급 색이 번지게 해서 한 명 = 한 덩어리로 읽히게 한다. */
 .slot.staff.filled::before{
-  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
   background:var(--rank-color,var(--ac));
 }
-.slot.staff.filled{border-color:rgba(168,122,30,.28);padding-left:11px}
+.slot.staff.filled{
+  border-color:color-mix(in srgb,var(--rank-color,var(--ac)) 26%,transparent);
+  background:color-mix(in srgb,var(--rank-color,var(--ac)) 7%,var(--bg-h));
+  padding-left:12px;
+}
+.slot.staff.filled:hover{
+  border-color:color-mix(in srgb,var(--rank-color,var(--ac)) 55%,transparent);
+  background:color-mix(in srgb,var(--rank-color,var(--ac)) 14%,var(--bg-h));
+}
 .slot.client.filled{border-color:rgba(168,122,30,.28)}
 .slot.client.filled.c-off{border-color:var(--re-bg);background:linear-gradient(90deg,var(--bg-c),var(--re-bg) 200%);opacity:.7}
 .slot.client.filled.c-off .slot-nm{text-decoration:line-through;opacity:.7}
 /* [v765] "직원 추가 (7 남음)" 같은 빈칸 줄이 카드마다 두 개씩 자리를 먹었다 — 얇게 눕히고
-   hover 때만 또렷해지게. 드래그 앤 드롭 타겟은 그대로다. */
-.slot:not(.filled){min-height:16px;padding:1px 7px;opacity:.4;transition:opacity var(--d-fast) var(--ease)}
-.pc:hover .slot:not(.filled){opacity:.85}
-.slot-empty{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--tx3);width:100%;white-space:nowrap;overflow:hidden}
-.slot-empty .ic{font-size:9px;opacity:.7}
+   hover 때만 또렷해지게. 드래그 앤 드롭 타겟은 그대로다.
+   [v771] boss: "저 글자는 전혀 보이지가 않아 — 없어도 돼". 9px 회색 한글은 실제로 못 읽는다.
+   기호(＋ / ★)와 남은 칸 수만큼의 점으로 바꿨다 — 몇 자리 비었는지가 한눈에 보이고,
+   정확한 숫자는 hover 툴팁에 있다. */
+.slot:not(.filled){min-height:15px;padding:0 7px;opacity:.32;transition:opacity var(--d-fast) var(--ease)}
+.pc:hover .slot:not(.filled){opacity:.75}
+.slot-empty{display:flex;align-items:center;gap:6px;width:100%;white-space:nowrap;overflow:hidden;color:var(--tx4)}
+.slot-empty .ic{font-size:9px;opacity:.9;flex-shrink:0}
+.slot-empty .dots{font-size:11px;letter-spacing:3px;line-height:1;opacity:.55}
+.slot-empty.cl{color:var(--ac)}
+.slot-empty.cl .dots{opacity:.5}
 .slot-r1{display:flex;align-items:center;gap:6px}
 .slot.filled.pc-draggable{cursor:grab}
 .slot.filled.pc-draggable:active{cursor:grabbing}
@@ -11423,7 +11443,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v770';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v771';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -33330,7 +33350,9 @@ async function renderPCHubTimeline(silent){
 
 
 // [v691] PC 현황 카드 열 개수 (boss 8/4: 자동/4/5/6 조절) — localStorage 'pc_cols'
-function _pcCols(){ try{ return localStorage.getItem('pc_cols')||'auto'; }catch(_){ return 'auto'; } }
+/* [v771] boss 8/18 "기본값을 4개로" — 자동은 화면 폭에 따라 6~7열까지 벌어져 카드가 너무 좁아진다.
+   4열이 이름·시간이 안 잘리는 최소 폭이라 이걸 기본으로 둔다(사용자가 고른 값은 그대로 유지). */
+function _pcCols(){ try{ return localStorage.getItem('pc_cols')||'4'; }catch(_){ return '4'; } }
 function _pcApplyCols(){
   var g=document.getElementById('pc-grid'); if(!g) return;
   var v=_pcCols();
@@ -33380,14 +33402,14 @@ function pcCardHTML(p){
     : ((!leader && canEdit)
       ? `<div class="leader-row empty" ${dragLeader}>
            <span class="crown">👑</span>
-           <span class="nm" style="color:var(--tx3)">+ Leader 드래그</span>
+           <span class="nm" style="color:var(--tx4)">리더</span>
          </div>`
       : '');
 
   const slotsHTML = p.assignments.map((a, idx) => staffSlotHTML(p, a, idx)).join('');
   const emptyDrop = (canEdit && p.assignments.length < MAX_SLOTS)
     ? `<div class="slot staff" ondragover="dragOverSlot(event,${p.id},'staff')" ondragleave="dragLeaveSlot(event)" ondrop="dropOnPC(event,${p.id},'staff',-1)">
-         <div class="slot-empty"><span class="ic">＋</span>${p.assignments.length===0?'직원 칸을 드래그':'직원 추가 ('+(MAX_SLOTS-p.assignments.length)+' 남음)'}</div>
+         <div class="slot-empty" title="직원 ${MAX_SLOTS-p.assignments.length}칸 남음 — 드래그해서 배정"><span class="ic">＋</span><span class="dots">${"·".repeat(Math.min(8,MAX_SLOTS-p.assignments.length))}</span></div>
        </div>` : '';
 
   // 다중 클라이언트 슬롯 — 직원 슬롯과 동일 패턴 (각 카드 + 빈 드롭존)
@@ -33400,7 +33422,7 @@ function pcCardHTML(p){
   }).join('');
   const clientEmptyDrop = (canEdit && clients.length < MAX_CLIENTS_PER_PC)
     ? `<div class="slot client" ondragover="dragOverSlot(event,${p.id},'client')" ondragleave="dragLeaveSlot(event)" ondrop="dropOnPC(event,${p.id},'client')">
-         <div class="slot-empty"><span class="ic">★</span>${clients.length===0?'클라이언트 드래그':'클라이언트 추가 ('+(MAX_CLIENTS_PER_PC-clients.length)+' 남음)'}</div>
+         <div class="slot-empty cl" title="클라이언트 ${MAX_CLIENTS_PER_PC-clients.length}칸 남음 — 드래그해서 연결"><span class="ic">★</span><span class="dots">${"·".repeat(Math.min(4,MAX_CLIENTS_PER_PC-clients.length))}</span></div>
        </div>` : '';
 
   const isPcOff = p.status === 'offline';
