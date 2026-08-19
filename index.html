@@ -11460,7 +11460,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v773';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v774';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -20396,6 +20396,18 @@ function _srInjectCSS(){
 "#sr-app .sr-train-tog.on{background:rgba(86,130,232,.16);color:#7aa2f7;border-color:rgba(86,130,232,.4);}",
 "#sr-app .sr-resign-tog{background:var(--bg-i,#1c1c1b);color:var(--tx2,#989792);border:1px solid var(--br,#2c2c2b);font-size:10px;font-weight:800;letter-spacing:.04em;padding:4px 10px;border-radius:7px;cursor:pointer;margin-right:8px;transition:all .14s ease;}",
 "#sr-app .sr-resign-tog:hover{border-color:rgba(217,102,92,.5);color:#d9665c;}",
+".sr-health{margin:12px 0 4px;border:1px solid var(--br2,#33332f);border-radius:12px;padding:12px 14px;background:var(--bg-c,#161616)}",
+".sr-health.ok{color:#4E9A62;font-size:12px;border-color:rgba(78,154,98,.3);background:rgba(78,154,98,.07)}",
+".sr-health-hd{font:800 10px ui-monospace,Consolas,monospace;letter-spacing:.1em;color:var(--ac,#c9963a);margin-bottom:10px}",
+".sr-health-hd small{font-weight:600;letter-spacing:.02em;color:var(--tx4,#6b6b67);margin-left:8px;text-transform:none}",
+".sr-health-grp{margin-bottom:11px}",
+".sr-health-grp:last-child{margin-bottom:0}",
+".sr-health-t{font-size:11.5px;font-weight:700;color:var(--tx2,#b5b5b0);margin-bottom:6px}",
+".sr-health-row{display:flex;align-items:baseline;gap:9px;padding:3px 0;font-size:11.5px;border-top:1px solid var(--br,#2a2a28)}",
+".sr-health-row b{color:var(--tx,#e6e5e2);min-width:74px}",
+".sr-health-row .n{color:#E5484D;font-weight:700;font-variant-numeric:tabular-nums;min-width:64px}",
+".sr-health-row .w{color:var(--tx4,#6b6b67);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+".sr-health-fix{margin-top:6px;font-size:10.5px;color:var(--tx3,#8a8a86);font-style:italic}",
 "#sr-app .sr-resigned-sec{margin-top:14px;padding:11px 13px;border:1px dashed var(--br2,#33332f);border-radius:11px;background:var(--bg-c,#161616);}",
 "#sr-app .sr-resigned-hd{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3,#6c6b66);margin-bottom:8px;}",
 "#sr-app .sr-resigned-list{display:flex;flex-wrap:wrap;gap:7px;}",
@@ -22264,6 +22276,10 @@ function _srRecCardHTML(data){
     +'<button class="'+(_period==='month'?'on':'')+'" onclick="_srRecPeriodBy(\'month\')">이번 달</button>'
     +'<button class="'+(_period==='all'?'on':'')+'" onclick="_srRecPeriodBy(\'all\')">전체</button>'
     +'</div>';
+  /* [v774] boss 8/19: "레이스 안 들어간 직원이나 기록 안 잡히는 직원 있으면 확인해서 어드민이나
+     매니저한테 띄워줘야 돼". 8/18에 Shuri 217건·Mike 137건이 몇 주째 레이스 밖이었던 걸 사람 손으로
+     발견했다 — 같은 일이 조용히 반복되지 않게 화면이 먼저 말하게 한다. 영어로 쓴다(리더가 읽는다). */
+  var healthSec = (typeof _canEditNav==='function' && _canEditNav()) ? _srHealthHTML(daily, sessions) : '';
   var _hidK=_hiddenKeys(); var resignedSec='';
   if(typeof _canEditNav==='function' && _canEditNav() && _hidK.length){
     var _rchips=_hidK.map(function(k){ var nm=(universe[k]&&universe[k].name)||k; return '<span class="sr-resigned-chip">'+esc(nm)+'<button title="'+(_uiLang()==='ko'?'복구':'Restore')+'" onclick="_srSetHidden(&#39;'+esc(k)+'&#39;,false)">↩</button></span>'; }).join('');
@@ -22277,9 +22293,73 @@ function _srRecCardHTML(data){
   return '<div class="sr-card sr-rec-card">'
     +'<div class="sr-head"><h2>기록 · 통계</h2><span class="sr-badge sr-badge-lock">대표 · 매니저</span><span class="sr-badge">실시간</span></div>'
     +'<div class="sr-rec-sub">'+(_uiLang()==='ko'?'전 직원·클라이언트 기록 — 시프트 그룹(12H 주/야 · 10H 주/야 · 8H S1·2·3) 또는 클라별. 항목을 누르면 상세가 펼쳐집니다.':'All staff · client log — shift group (12H Day/Night · 10H Day/Night · 8H S1·2·3) or by client. Tap an item to expand.')+'</div>'
+    +healthSec
     +modetab
     +body
     +'</div>';
+}
+/* ── [v774] STAFF HEALTH CHECK — 레이스/채점에서 새는 사람을 화면이 먼저 알려준다 ──────────────
+   세 가지만 본다. 전부 "일은 하는데 시스템에 안 잡히는" 상태다:
+     1) 최근 근무 시간에 기준(target)이 없어 채점이 안 되는 사람 — 클라 카드에 맵 기준이 없음
+     2) 리포트를 내는데 아직 레이스 밖인 사람 — 첫 근무 + 7일이 안 지남(자동 편입 대기)
+     3) PC 번호 없이 들어오는 리포트 — 교육 계정, 실 배정이 안 된 상태
+   문구는 영어. 이 화면을 보는 사람이 리더/매니저다. */
+function _srHealthHTML(daily, sessions){
+  try{
+    daily = daily||[]; sessions = sessions||[];
+    var today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+    var from  = _rcPlusDays(today, -7);
+    var rows = sessions.filter(function(s){
+      return s && String(s.date||'')>=from && s.tag!=='checkin' && !s.brk && !s.ignored;
+    });
+    /* 1) 채점 안 되는 시간 */
+    var un = {};
+    rows.forEach(function(s){
+      if(Number(s.target) > 0) return;
+      var k=_rcNorm(s.name); if(!k) return;
+      var u = un[k] = un[k] || { name:s.name, hrs:0, where:{} };
+      u.hrs++;
+      var w=(s.client||'?')+' — '+(s.map||'?'); u.where[w]=(u.where[w]||0)+1;
+    });
+    /* 2) 아직 레이스 밖 (자동 편입 대기) */
+    var pend = (window.__KB_AUTO_PENDING||[]).slice();
+    /* 3) PC 번호 없음 */
+    var nopc = {};
+    rows.forEach(function(s){
+      var p=String(s.pc==null?'':s.pc).trim();
+      if(p!=='' && p!=='?') return;
+      var k=_rcNorm(s.name); if(!k) return;
+      nopc[k] = (nopc[k]||0) + 1;
+    });
+    var unK = Object.keys(un).sort(function(a,b){ return un[b].hrs-un[a].hrs; });
+    var pcK = Object.keys(nopc).sort(function(a,b){ return nopc[b]-nopc[a]; });
+    if(!unK.length && !pend.length && !pcK.length){
+      return '<div class="sr-health ok"><b>✔ Staff health OK</b> — everyone reporting in the last 7 days is in the race and being scored.</div>';
+    }
+    var esc2=_srEsc, out='';
+    if(unK.length){
+      out += '<div class="sr-health-grp"><div class="sr-health-t">⚠ Working but NOT being scored — no standard on the client card</div>'
+        + unK.map(function(k){ var u=un[k];
+            var w=Object.keys(u.where).sort(function(a,b){return u.where[b]-u.where[a];}).slice(0,3)
+                   .map(function(x){ return esc2(x)+' ×'+u.where[x]; }).join(' · ');
+            return '<div class="sr-health-row"><b>'+esc2(u.name)+'</b><span class="n">'+u.hrs+'h</span><span class="w">'+w+'</span></div>';
+          }).join('')
+        + '<div class="sr-health-fix">Fix: add the map standard to that client card (기준 EXP), or move the booster to the correct PC.</div></div>';
+    }
+    if(pend.length){
+      out += '<div class="sr-health-grp"><div class="sr-health-t">⏳ Not in the race yet — joins automatically 7 days after the first shift</div>'
+        + pend.sort(function(a,b){ return a.due<b.due?-1:1; }).map(function(p){
+            return '<div class="sr-health-row"><b>'+esc2(p.key.toUpperCase())+'</b><span class="n">joins '+p.due+'</span><span class="w">first shift '+p.first+'</span></div>';
+          }).join('')
+        + '<div class="sr-health-fix">No action needed — but make sure they are on a real client PC before that date, or they will join with nothing to score.</div></div>';
+    }
+    if(pcK.length){
+      out += '<div class="sr-health-grp"><div class="sr-health-t">🖥 Reporting with NO PC number — still on a training account</div>'
+        + pcK.map(function(k){ return '<div class="sr-health-row"><b>'+esc2(k.toUpperCase())+'</b><span class="n">'+nopc[k]+'h</span><span class="w">no PC assigned</span></div>'; }).join('')
+        + '<div class="sr-health-fix">Fix: assign them to a real client PC in PC 현황.</div></div>';
+    }
+    return '<div class="sr-health"><div class="sr-health-hd">STAFF HEALTH CHECK <small>last 7 days · admin &amp; manager only</small></div>'+out+'</div>';
+  }catch(e){ return ''; }
 }
 /* ════════════════ 가동 시계 보드 (PC 현황 동기화 · 읽기전용 · 재생+EXP 오버레이) ════════════════ */
 var _CKR=[80,63,46], _CKSW=9, _CKCX=110, _CKCY=110, _CKPAL=['#5fa3d9','#5bb39a','#e0954a','#a98fd6','#d97064','#d9b34a','#6fcf97','#c2a04a'];
@@ -23276,6 +23356,42 @@ var _RC_ROSTER = { claws:'d12',prod:'d12',jeff:'d12',bruce:'d12',kyros:'d12', ac
 // [v593] per-player RACE START DATE (boss 7/9): race counts from 7/1 for everyone EXCEPT BOB/SAN/DITT who
 // join 7/6 — their earlier records stay in Records & Stats but are fully out of the race (no points, no cuts,
 // no hours, no period %). KAIJI is excluded entirely via hidden_staff, HANA/ERICSON/EL/SIL from 7/1 as-is.
+/* [v774] boss 8/19 "일주일 지나면 자동으로 레이스에 편입이 되어야 하니까".
+   지금까지 레이스 명단은 EMBEDDED_PLAYERS 하드코딩이라, 신입이 들어와도 누가 손으로 넣기 전에는
+   영원히 레이스 밖이었다(8/18에 Shuri 217건·Mike 137건이 그렇게 방치된 걸 발견했다).
+   이제 리포트를 내는 사람은 첫 근무일 + 7일이 지나면 자동으로 명단에 오른다.
+   제외 대상은 그대로 존중한다: hidden_staff(퇴사·리더), 교육 전용 계정, 이미 명단에 있는 사람. */
+function _rcPlusDays(d, n){
+  var t = Date.parse(String(d)+'T00:00:00Z'); if(isNaN(t)) return d;
+  return new Date(t + n*86400000).toISOString().slice(0,10);
+}
+function _rcAutoRoster(reports, roster){
+  try{
+    var base = Array.isArray(roster) ? roster.slice() : [];
+    if(!Array.isArray(reports) || !reports.length) return base;
+    var have = {}; base.forEach(function(p){ have[_rcNorm(p.name)] = true; });
+    var first = {};
+    reports.forEach(function(r){
+      var k = _rcNorm(r && r.booster); if(!k) return;
+      var d = String((r && r.date) || '').slice(0,10); if(d.length < 10) return;
+      if(!first[k] || d < first[k]) first[k] = d;
+    });
+    var today = new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+    window.__KB_AUTO_PENDING = [];   // 아직 보호기간인 사람 — 알림판에서 쓴다
+    Object.keys(first).forEach(function(k){
+      if(have[k]) return;
+      try{ if(typeof _isHiddenKey==='function' && _isHiddenKey(k)) return; }catch(_){}
+      try{ if(typeof _isTrainingKey==='function' && _isTrainingKey(k,k)) return; }catch(_){}
+      var due = _rcPlusDays(first[k], 7);
+      if(due > today){ window.__KB_AUTO_PENDING.push({ key:k, first:first[k], due:due }); return; }
+      if(!_RC_JOIN_DATE[k]) _RC_JOIN_DATE[k] = due;   // 명시 지정이 있으면 그쪽이 이긴다
+      base.push({ name:k.toUpperCase(), emoji:'🎯', level:30, eph:0, prog:0, yExp:0, yRank:99,
+                  shift:'', warn:0, tp:0, protect:null, slot:'', autoJoined:true,
+                  todayHours:0, todayAvgPct:0, todayPay:0, todayBase:0, todayDelta:0, todayNote:'No record yet' });
+    });
+    return base;
+  }catch(_){ return roster; }
+}
 var _RC_JOIN_DATE = { bob:'2026-07-06', san:'2026-07-06', ditt:'2026-07-06', sil:'2026-07-04', el:'2026-07-04',
   /* [v764] boss 8/18 "레이스 시작일? 그냥 오늘부터 시작하면 돼" — 이 넷은 로스터에 없어서 그동안 레이스
      밖에 있었다. 오늘부터 참가하고, 그 전 근무일(Shuri 7/30~, Mike 7/31~, Reef 8/4~, John 8/6~)은
@@ -37785,7 +37901,7 @@ function resolvePlayers(embedded){
 }
 // 실제 사용할 명단 (embedded ↔ live 캐시)
 var _kbSrc = (typeof _rcBuildKbPlayers==='function' && window.__KB_REPORTS && window.__KB_REPORTS.length)
-  ? _rcBuildKbPlayers(window.__KB_REPORTS, window.__KB_CLIENTS, window.__KB_SETTINGS, EMBEDDED_PLAYERS)   /* [v524] real reports + 5-Juta race */
+  ? _rcBuildKbPlayers(window.__KB_REPORTS, window.__KB_CLIENTS, window.__KB_SETTINGS, _rcAutoRoster(window.__KB_REPORTS, EMBEDDED_PLAYERS))   /* [v524] real reports + 5-Juta race · [v774] 7일 지난 신입 자동 편입 */
   : EMBEDDED_PLAYERS;                                                                                   /* fallback: demo when data not loaded */
 const PLAYERS = resolvePlayers(_kbSrc);
 // [v591] REAL month spend for the MONTHLY BONUS card. CONFIG.monthSpentBeforeToday was a demo constant (0),
