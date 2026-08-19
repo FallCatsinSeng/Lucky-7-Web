@@ -11460,7 +11460,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v774';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v775';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -20408,6 +20408,7 @@ function _srInjectCSS(){
 ".sr-health-row .n{color:#E5484D;font-weight:700;font-variant-numeric:tabular-nums;min-width:64px}",
 ".sr-health-row .w{color:var(--tx4,#6b6b67);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
 ".sr-health-fix{margin-top:6px;font-size:10.5px;color:var(--tx3,#8a8a86);font-style:italic}",
+".sr-health-note{margin-top:9px;padding-top:8px;border-top:1px solid var(--br,#2a2a28);font-size:10.5px;color:var(--tx4,#6b6b67)}",
 "#sr-app .sr-resigned-sec{margin-top:14px;padding:11px 13px;border:1px dashed var(--br2,#33332f);border-radius:11px;background:var(--bg-c,#161616);}",
 "#sr-app .sr-resigned-hd{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3,#6c6b66);margin-bottom:8px;}",
 "#sr-app .sr-resigned-list{display:flex;flex-wrap:wrap;gap:7px;}",
@@ -22312,27 +22313,35 @@ function _srHealthHTML(daily, sessions){
     var rows = sessions.filter(function(s){
       return s && String(s.date||'')>=from && s.tag!=='checkin' && !s.brk && !s.ignored;
     });
-    /* 1) 채점 안 되는 시간 */
-    var un = {};
+    /* [v775] boss: "아직 트레이닝이잖아". 교육 계정은 기준이 없는 게 정상이다 — 그걸 경고로 띄우면
+       진짜 문제(실 클라이언트인데 기준이 없는 EL·Gali)가 소음에 묻힌다. 교육은 따로, 조용히 센다. */
+    var isTrainClient = function(nm){ return /training|훈련|연습/i.test(String(nm||'')); };
+    /* 1) 진짜 문제 — 실제 클라이언트인데 기준이 없어 채점이 안 되는 시간 */
+    var un = {}, train = {};
     rows.forEach(function(s){
       if(Number(s.target) > 0) return;
       var k=_rcNorm(s.name); if(!k) return;
+      if(isTrainClient(s.client)){ train[k] = (train[k]||0) + 1; return; }   // 교육 — 정상
       var u = un[k] = un[k] || { name:s.name, hrs:0, where:{} };
       u.hrs++;
       var w=(s.client||'?')+' — '+(s.map||'?'); u.where[w]=(u.where[w]||0)+1;
     });
     /* 2) 아직 레이스 밖 (자동 편입 대기) */
     var pend = (window.__KB_AUTO_PENDING||[]).slice();
-    /* 3) PC 번호 없음 */
-    var nopc = {};
-    rows.forEach(function(s){
-      var p=String(s.pc==null?'':s.pc).trim();
-      if(p!=='' && p!=='?') return;
-      var k=_rcNorm(s.name); if(!k) return;
-      nopc[k] = (nopc[k]||0) + 1;
+    /* 3) 교육 기간이 이미 지났는데 아직 교육 계정인 사람 — 이건 진짜 신호다.
+          그대로 두면 자동 편입일에 채점할 게 없는 채로 레이스에 올라온다. */
+    var firstOf = {};
+    sessions.forEach(function(s){
+      var k=_rcNorm(s && s.name), d=String((s&&s.date)||'').slice(0,10);
+      if(!k || d.length<10) return;
+      if(!firstOf[k] || d<firstOf[k]) firstOf[k]=d;
     });
+    var stuck = Object.keys(train).filter(function(k){
+      return firstOf[k] && _rcPlusDays(firstOf[k], 7) <= today;
+    }).sort(function(a,b){ return train[b]-train[a]; });
     var unK = Object.keys(un).sort(function(a,b){ return un[b].hrs-un[a].hrs; });
-    var pcK = Object.keys(nopc).sort(function(a,b){ return nopc[b]-nopc[a]; });
+    var trainN = Object.keys(train).length;
+    var pcK = stuck;
     if(!unK.length && !pend.length && !pcK.length){
       return '<div class="sr-health ok"><b>✔ Staff health OK</b> — everyone reporting in the last 7 days is in the race and being scored.</div>';
     }
@@ -22354,11 +22363,16 @@ function _srHealthHTML(daily, sessions){
         + '<div class="sr-health-fix">No action needed — but make sure they are on a real client PC before that date, or they will join with nothing to score.</div></div>';
     }
     if(pcK.length){
-      out += '<div class="sr-health-grp"><div class="sr-health-t">🖥 Reporting with NO PC number — still on a training account</div>'
-        + pcK.map(function(k){ return '<div class="sr-health-row"><b>'+esc2(k.toUpperCase())+'</b><span class="n">'+nopc[k]+'h</span><span class="w">no PC assigned</span></div>'; }).join('')
-        + '<div class="sr-health-fix">Fix: assign them to a real client PC in PC 현황.</div></div>';
+      out += '<div class="sr-health-grp"><div class="sr-health-t">🎓 Past the 7-day training period but still on a training account</div>'
+        + pcK.map(function(k){
+            return '<div class="sr-health-row"><b>'+esc2(k.toUpperCase())+'</b><span class="n">'+train[k]+'h</span>'
+                 + '<span class="w">first shift '+esc2(firstOf[k])+' · race join '+esc2(_rcPlusDays(firstOf[k],7))+'</span></div>';
+          }).join('')
+        + '<div class="sr-health-fix">Training itself is fine. But they are already in (or about to enter) the race, and a training account has nothing to score — move them to a real client PC.</div></div>';
     }
-    return '<div class="sr-health"><div class="sr-health-hd">STAFF HEALTH CHECK <small>last 7 days · admin &amp; manager only</small></div>'+out+'</div>';
+    /* 교육 중인 인원은 경고가 아니라 그냥 현황 — 한 줄로 조용히 */
+    var note = trainN ? '<div class="sr-health-note">🎓 '+trainN+' booster'+(trainN>1?'s':'')+' on training accounts — not scored, and that is expected.</div>' : '';
+    return '<div class="sr-health"><div class="sr-health-hd">STAFF HEALTH CHECK <small>last 7 days · admin &amp; manager only</small></div>'+out+note+'</div>';
   }catch(e){ return ''; }
 }
 /* ════════════════ 가동 시계 보드 (PC 현황 동기화 · 읽기전용 · 재생+EXP 오버레이) ════════════════ */
