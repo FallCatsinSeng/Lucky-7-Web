@@ -7757,6 +7757,8 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 /* [v767] 막대가 24px 로 얇아졌으니 글자도 맞춘다. 이름(b-sub)이 주인공이라 시각보다 진하게 */
 .tl-bar .b-time{position:relative;z-index:6;font-size:10px;font-weight:600;opacity:.72;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .tl-bar .b-sub{position:relative;z-index:6;font-size:11px;opacity:1;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0;pointer-events:none}
+.tl-bar.tl-bar-narrow .b-time{display:none}
+.tl-bar.tl-bar-narrow{padding-left:9px;padding-right:5px}
 /* ── [v277] client schedule (days + time range) ── */
 .slot-sched{display:flex;align-items:center;gap:3px;flex-wrap:nowrap;font-size:9.5px;color:var(--tx3);padding-left:24px;margin-top:0;font-variant-numeric:tabular-nums;line-height:1.35;overflow:hidden;white-space:nowrap}
 .slot-sched .cs-days{display:inline-flex;align-items:center;gap:2px}
@@ -11417,7 +11419,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v767';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v768';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -33997,11 +33999,15 @@ function barHTML(pcId, idx, a, p, seg, isWrapped, subLabel, isLastPiece, laneInf
   const left = (seg.dispStart/tlSpan*100).toFixed(3);
   const w   = (seg.len/tlSpan*100).toFixed(3);
   const g   = shiftGame(a, p);
-  const cls = `tl-bar ${g}${isWrapped?' wrapped':''}`;
+  /* [v767] 짧은 시프트는 "9 AM – 12 PM  Bob · 3h" 를 다 못 담아 이름이 잘렸다. 좁은 막대에선
+     시각을 숨기고 이름만 남긴다 — 시각은 위 눈금으로 읽으면 되지만 누구인지는 대체할 게 없다. */
+  const cls = `tl-bar ${g}${isWrapped?' wrapped':''}${Number(w) < 13 ? ' tl-bar-narrow' : ''}`;
   // [v196] stack overlapping shifts into vertical lanes so none get hidden
   const laneCount = laneInfo ? laneInfo.laneCount : 1;
   const lane = laneInfo ? laneInfo.lane : 0;
-  const laneStyle = laneCount > 1 ? `top:${6 + lane*40}px;transform:none;height:34px;` : '';
+  /* [v767] 막대가 24px 로 얇아졌으니 겹친 시프트(lane)의 간격도 같이 줄인다 — 40px 그대로면
+     lane 이 있는 행만 예전 높이(56px)로 남아 줄이 들쭉날쭉해진다. */
+  const laneStyle = laneCount > 1 ? `top:${3 + lane*26}px;transform:none;height:22px;` : '';
   const moveHandler = `onmousedown="barMouseDown(event, ${pcId}, ${idx}, 'move')"`;
   // 리사이즈 핸들은 마지막 조각에만 (전체 길이 늘이는 의미는 끝부분에서만 직관적)
   const resizeH = isLastPiece ? `<div class="bar-resize" onmousedown="barMouseDown(event, ${pcId}, ${idx}, 'resize')"></div>` : '';
