@@ -7151,6 +7151,16 @@ button:active,.btn:active{transform:scale(.97)}
 .slot{background:var(--bg-sb);border:1px dashed var(--br2);border-radius:var(--r-sm);padding:4px 7px;transition:all var(--d-fast) var(--ease);min-height:24px;display:flex;align-items:center}
 .slot.filled{background:var(--bg-h);border-style:solid;flex-direction:row;align-items:center;padding:4px 7px;gap:6px;position:relative;overflow:hidden;min-height:28px}
 .slot.client.filled{flex-direction:column;align-items:stretch;gap:2px}
+/* [v772] 평소엔 SHIFT 1/2/3 칩만, 클릭하면 시각 입력칸으로 (.time-edit) */
+.slot-shift{
+  font:700 9px ui-monospace,Consolas,monospace;letter-spacing:.03em;white-space:nowrap;
+  color:var(--tx3);background:color-mix(in srgb,var(--tx3) 12%,transparent);
+  border:1px solid transparent;border-radius:4px;padding:2px 5px;margin-left:auto;flex-shrink:0;cursor:pointer;
+  transition:all var(--d-fast) var(--ease);
+}
+.slot-shift:hover{color:var(--ac-strong);background:var(--ac-bg);border-color:var(--ac-bord)}
+.slot.time-edit .slot-shift{display:none}
+.slot:not(.time-edit) .slot-time{display:none}
 .slot-time{display:inline-flex;align-items:center;gap:0;flex-shrink:0;font-variant-numeric:tabular-nums;margin-left:auto}
 .slot-time i{font-style:normal;color:var(--tx4);font-size:8px;margin:0}
 .slot-time.view{font-size:10.5px;font-weight:600;color:var(--tx2)}
@@ -11443,7 +11453,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v771';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v772';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -33487,8 +33497,13 @@ function staffSlotHTML(p, a, idx){
   return `<div class="slot staff filled pc-draggable" style="--rank-color:${rc}" ${dragAttr}>
     <span class="slot-av" style="${avatarBg(dispName, initials(dispName), rc)}">${initials(dispName)}</span>
     <span class="slot-nm">${dispName}</span>
-    ${canEdit
-      ? `<span class="slot-time" draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
+    ${(()=>{ const st=_pcShiftTag(_tzH(a.start), a.len);
+             const rng=pad2(_tzH(a.start))+'–'+pad2(_tzH(endH));
+             const tip=st.full+' · 실제 '+rng+' ('+a.len+'h)'+(canEdit?' · 클릭하면 시각 수정':'');
+      return canEdit
+      ? `<span class="slot-shift" draggable="false" title="${tip}"
+              onmousedown="event.stopPropagation()" onclick="event.stopPropagation();_pcToggleTimeEdit(this)">${st.t}</span>
+         <span class="slot-time" draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
            <input class="t-edit" type="number" min="0" max="23" value="${_tzH(a.start)}" title="시작" onchange="setAssignStart(${p.id},${idx},_tzBackVal(this.value))">
            <i>→</i>
            <input class="t-edit" type="number" min="0" max="23" value="${_tzH(endH)}" title="종료" onchange="setAssignEnd(${p.id},${idx},this.value)">
@@ -33496,9 +33511,10 @@ function staffSlotHTML(p, a, idx){
          <span class="slot-h">${a.len}h</span>
          <span class="slot-game ${g}" draggable="false" onclick="event.stopPropagation();toggleShiftGame(${p.id},${idx})" title="이 시프트의 게임 · 클릭 → ${gOther}">${gLbl}</span>
          <span class="slot-unx" draggable="false" onclick="event.stopPropagation();unassignStaff(${p.id},${idx})">✕</span>`
-      : `<span class="slot-time view">${pad2(_tzH(a.start))}<i>→</i>${pad2(_tzH(endH))}</span>
+      : `<span class="slot-shift" title="${tip}">${st.t}</span>
          <span class="slot-h">${a.len}h</span>
-         <span class="slot-game ${g} slot-game-view">${gLbl}</span>`}
+         <span class="slot-game ${g} slot-game-view">${gLbl}</span>`;
+    })()}
   </div>`;
 }
 
@@ -34468,9 +34484,28 @@ function setAssignStart(pcId, idx, v){
   PCS.find(x=>x.id===pcId).assignments[idx].start = n;
   render();
 }
+/* [v772] boss 8/18: "시간으로 표현하지 말고 그냥 SHIFT 1 2 3 으로 적어놓으면 더 보기 편할듯.
+   근무시간은 지금처럼 적혀있는게 좋을듯". 표시 시각(_tzH 적용 후)의 시작 시각으로 어느 교대인지
+   판정한다. 실제 배정은 11시 시작 8시간처럼 정각에 안 맞는 경우가 많아 '가장 가까운' 기준을 쓴다.
+   12시간 근무는 1/2/3 체계 밖이라 DAY/NIGHT 로 부른다. */
+function _pcShiftTag(dispStart, len){
+  const s = ((Number(dispStart)||0) % 24 + 24) % 24;
+  const L = Number(len) || 0;
+  const dist = (a,b) => { const d = Math.abs(a-b); return Math.min(d, 24-d); };
+  if(L >= 11) return dist(s,9) <= dist(s,21) ? { t:'DAY', full:'주간 12시간' } : { t:'NIGHT', full:'야간 12시간' };
+  const cand = [{n:1,h:9},{n:2,h:17},{n:3,h:1}].sort((a,b)=>dist(s,a.h)-dist(s,b.h))[0];
+  return { t:'SHIFT '+cand.n, full:'SHIFT '+cand.n+' 기준 '+pad2(cand.h)+':00 시작' };
+}
 /* [v765] 컴팩트 카드: 시작 + 길이(+12h) 대신 시작 → 종료 두 칸으로 받는다. 화면에 뜨는 숫자가
    하나 줄고("21:00 +12h  21–09" → "21→09"), 근무시간을 머릿속으로 더할 필요도 없어진다.
    데이터는 그대로 start+len 이라 여기서 역산한다. */
+/* [v772] 시프트 이름을 눌렀을 때만 시각 입력칸이 나온다 — 평소엔 SHIFT 1/2/3 만 보이고,
+   고쳐야 할 때만 숫자가 나오게. 다시 누르면 접힌다. re-render 없이 DOM 만 토글한다. */
+function _pcToggleTimeEdit(el){
+  const slot = el.closest('.slot'); if(!slot) return;
+  const on = slot.classList.toggle('time-edit');
+  if(on){ const i = slot.querySelector('.t-edit'); if(i){ i.focus(); i.select(); } }
+}
 function setAssignEnd(pcId, idx, v){
   const p = PCS.find(x=>x.id===pcId); if(!p) return;
   const a = p.assignments[idx]; if(!a) return;
