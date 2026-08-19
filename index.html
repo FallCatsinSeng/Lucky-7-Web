@@ -7077,7 +7077,7 @@ button:active,.btn:active{transform:scale(.97)}
 .tip-pill{display:inline-flex;align-items:center;gap:5px;background:var(--ac-bg);color:var(--ac-strong);font-size:var(--t-micro);font-weight:600;padding:3px 8px;border-radius:var(--r-full);letter-spacing:.04em}
 
 /* ═══ PC GRID ═══ */
-.pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:var(--s3)}
+.pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
 /* PC 보기 모드 — 빈 카드/시간 텍스트/OFF 스탬프 */
 .pc-empty-view{padding:9px 10px;text-align:center;font-size:11px;color:var(--tx4);font-style:italic}
 .slot-time-view{font-size:10px;color:var(--tx3);font-weight:600;font-variant-numeric:tabular-nums}
@@ -7096,14 +7096,14 @@ button:active,.btn:active{transform:scale(.97)}
 .pc.g-empty.selected{border-color:var(--ac);box-shadow:var(--glow-ac),var(--e2)}
 .pc[data-st="offline"]{opacity:.55}
 .pc-head{display:flex;align-items:center;gap:6px;justify-content:space-between;margin-bottom:0}
-.pc-num{font-size:var(--t-cap);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em}
-/* [v765] 게임 구분을 푸터 태그(LINEAGE) 대신 헤더의 작은 점으로 — 한 줄을 통째로 아꼈다 */
-.pc-game-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.pc-game-dot.g-lineage{background:var(--g-lineage)}
-.pc-game-dot.g-maple{background:var(--g-maple)}
-.pc-game-dot.g-mix{background:#b074ec}
-.pc-game-dot.g-empty{background:var(--br2)}
-.pc-hours{font-size:9.5px;font-weight:700;color:var(--tx2);font-variant-numeric:tabular-nums}
+/* [v765] nowrap 없이는 좁은 카드에서 "PC-" / "01" 로 두 줄이 된다 — 게임 구분은 카드 테두리 색이
+   이미 하고 있어서 헤더에 점을 또 두지 않는다(상태 점과 헷갈린다). */
+.pc-num{font-size:var(--t-cap);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;flex-shrink:0}
+.pc-hours{font-size:9.5px;font-weight:700;color:var(--tx2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc-head-r{min-width:0}
+/* 삭제 버튼은 평소엔 숨겨 헤더 폭을 이름/시간에 양보 */
+.pc-head-r > button[title*="삭제"]{opacity:0;transition:opacity var(--d-fast) var(--ease)}
+.pc:hover .pc-head-r > button[title*="삭제"]{opacity:1}
 .pc.g-lineage .pc-num{color:var(--g-lineage)}
 .pc.g-maple .pc-num{color:var(--g-maple)}
 .pc.g-mix .pc-num{color:#b074ec}
@@ -7148,10 +7148,14 @@ button:active,.btn:active{transform:scale(.97)}
 .slot{background:var(--bg-sb);border:1px dashed var(--br2);border-radius:var(--r-sm);padding:4px 7px;transition:all var(--d-fast) var(--ease);min-height:24px;display:flex;align-items:center}
 .slot.filled{background:var(--bg-h);border-style:solid;flex-direction:row;align-items:center;padding:4px 7px;gap:6px;position:relative;overflow:hidden;min-height:28px}
 .slot.client.filled{flex-direction:column;align-items:stretch;gap:2px}
-.slot-time{display:inline-flex;align-items:center;gap:1px;flex-shrink:0;font-variant-numeric:tabular-nums}
-.slot-time i{font-style:normal;color:var(--tx4);font-size:9px;margin:0 1px}
+.slot-time{display:inline-flex;align-items:center;gap:0;flex-shrink:0;font-variant-numeric:tabular-nums;margin-left:auto}
+.slot-time i{font-style:normal;color:var(--tx4);font-size:8px;margin:0}
 .slot-time.view{font-size:10.5px;font-weight:600;color:var(--tx2)}
-.slot-h{font-size:9.5px;font-weight:700;color:var(--tx3);font-variant-numeric:tabular-nums;flex-shrink:0;min-width:22px;text-align:right}
+.slot-h{font-size:9px;font-weight:700;color:var(--tx3);font-variant-numeric:tabular-nums;flex-shrink:0;text-align:right}
+/* [v765] 이름이 잘리지 않는 게 우선 — 이름은 늘어나고 나머지는 필요한 만큼만 */
+.slot.staff.filled .slot-nm{flex:1 1 auto;min-width:34px}
+.slot.staff.filled .slot-game{margin-left:0;width:15px;height:15px;font-size:8px}
+.slot.staff.filled .slot-unx{margin-left:0}
 .slot.staff.filled::before{
   content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
   background:var(--rank-color,var(--ac));
@@ -11415,7 +11419,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v765';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v766';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -33403,7 +33407,6 @@ function pcCardHTML(p){
   return `<div class="pc ${gc} ${sel}${isPcOff?' pc-off':''}" data-st="${p.status}" data-id="${p.id}" onclick="selectPC(${p.id})">
     <div class="pc-head">
       <span class="pc-num">PC-${pad2(p.id)}</span>
-      <span class="pc-game-dot g-${dispG}" title="${gameLabel(dispG)}"></span>
       <div class="pc-head-r">
         ${/* [v765] 푸터에 있던 게임 태그와 'Nh scheduled' 를 헤더로 올려 카드에서 한 줄을 통째로 뺐다 */''}
         <span class="pc-hours">${isPcOff?'OFF':(p.assignments.reduce((s,a)=>s+a.len,0)||0)+'h'}</span>
