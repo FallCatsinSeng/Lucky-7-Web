@@ -7079,11 +7079,11 @@ button:active,.btn:active{transform:scale(.97)}
 /* ═══ PC GRID ═══ */
 .pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:var(--s3)}
 /* PC 보기 모드 — 빈 카드/시간 텍스트/OFF 스탬프 */
-.pc-empty-view{padding:20px 12px;text-align:center;font-size:11px;color:var(--tx4);font-style:italic}
+.pc-empty-view{padding:9px 10px;text-align:center;font-size:11px;color:var(--tx4);font-style:italic}
 .slot-time-view{font-size:10px;color:var(--tx3);font-weight:600;font-variant-numeric:tabular-nums}
 .slot-game-view{cursor:default !important}
 .pc-off-stamp-mini{font-size:9px;font-weight:800;color:var(--re);background:var(--re-bg);padding:2px 7px;border-radius:5px}
-.pc{position:relative;background:var(--bg-c);border:1px solid var(--br);border-radius:var(--r-lg);padding:var(--s3);cursor:pointer;transition:all var(--d) var(--ease);display:flex;flex-direction:column;gap:5px}
+.pc{position:relative;background:var(--bg-c);border:1px solid var(--br);border-radius:11px;padding:9px 10px;cursor:pointer;transition:all var(--d) var(--ease);display:flex;flex-direction:column;gap:3px}
 .pc:hover{transform:translateY(-2px);border-color:var(--br2);box-shadow:var(--e2)}
 .pc.selected{border-color:var(--ac);box-shadow:var(--glow-ac),var(--e2)}
 .pc.g-lineage{border-color:rgba(74,143,217,.30)}
@@ -7095,8 +7095,15 @@ button:active,.btn:active{transform:scale(.97)}
 .pc.g-mix.selected{border-color:#b074ec;box-shadow:0 0 0 4px rgba(176,116,236,.18),var(--e2)}
 .pc.g-empty.selected{border-color:var(--ac);box-shadow:var(--glow-ac),var(--e2)}
 .pc[data-st="offline"]{opacity:.55}
-.pc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1px}
-.pc-num{font-size:var(--t-cap);font-weight:600;font-variant-numeric:tabular-nums}
+.pc-head{display:flex;align-items:center;gap:6px;justify-content:space-between;margin-bottom:0}
+.pc-num{font-size:var(--t-cap);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+/* [v765] 게임 구분을 푸터 태그(LINEAGE) 대신 헤더의 작은 점으로 — 한 줄을 통째로 아꼈다 */
+.pc-game-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.pc-game-dot.g-lineage{background:var(--g-lineage)}
+.pc-game-dot.g-maple{background:var(--g-maple)}
+.pc-game-dot.g-mix{background:#b074ec}
+.pc-game-dot.g-empty{background:var(--br2)}
+.pc-hours{font-size:9.5px;font-weight:700;color:var(--tx2);font-variant-numeric:tabular-nums}
 .pc.g-lineage .pc-num{color:var(--g-lineage)}
 .pc.g-maple .pc-num{color:var(--g-maple)}
 .pc.g-mix .pc-num{color:#b074ec}
@@ -7111,12 +7118,18 @@ button:active,.btn:active{transform:scale(.97)}
 /* ── 👑 Leader slot — between PC header and staff slots ── */
 .leader-row{
   display:flex;align-items:center;gap:6px;
-  padding:5px 8px;
+  padding:2px 7px;
   background:transparent;border:1px dashed var(--br2);
   border-radius:var(--r-sm);font-size:var(--t-micro);
   transition:all var(--d-fast) var(--ease);
-  min-height:28px;
+  min-height:20px;
 }
+/* [v765] 비어있는 리더 줄은 거의 모든 카드에 있으면서 아무 정보도 없다 — 아주 얇게 눕히고
+   글자는 hover 때만 보여준다(드롭 타겟은 그대로 살아있다). */
+.leader-row.empty{padding:1px 7px;min-height:14px;opacity:.45}
+.leader-row.empty .nm{font-size:9px;opacity:0;transition:opacity var(--d-fast) var(--ease)}
+.pc:hover .leader-row.empty{opacity:.8}
+.pc:hover .leader-row.empty .nm{opacity:1}
 .leader-row.filled{background:var(--bg-h);border-style:solid;border-color:var(--br2)}
 .leader-row .crown{font-size:11px;color:var(--ac)}
 .leader-row.empty{color:var(--tx3)}
@@ -7127,8 +7140,18 @@ button:active,.btn:active{transform:scale(.97)}
 .leader-row .unx:hover{color:var(--re);background:var(--re-bg)}
 .pc.drop-leader .leader-row{border-color:var(--ac);background:var(--ac-bg);color:var(--ac-strong)}
 
-.slot{background:var(--bg-sb);border:1px dashed var(--br2);border-radius:var(--r-sm);padding:5px 7px;transition:all var(--d-fast) var(--ease);min-height:30px;display:flex;align-items:center}
-.slot.filled{background:var(--bg-h);border-style:solid;flex-direction:column;align-items:stretch;padding:6px 8px;gap:3px;position:relative;overflow:hidden}
+/* ═══ [v765] 컴팩트 PC 카드 ═══
+   보스 8/18: "카드가 밑으로 쭉쭉 내려야 전체 상황이 파악됨 · 숫자가 너무 많음 · 세로를 줄이고
+   시인성을 올려라". 직원/클라이언트 슬롯이 각각 2단(이름줄+시간줄)이라 카드 하나가 400px 가까이
+   됐다. 슬롯을 1단으로 합치고, 푸터 줄(게임 태그 + 'Nh scheduled')은 헤더로 올려 통째로 제거.
+   숫자는 "21:00 +12h / 21–09 / 12h scheduled" 3중 표기를 "21→09 · 12h" 하나로 정리했다. */
+.slot{background:var(--bg-sb);border:1px dashed var(--br2);border-radius:var(--r-sm);padding:4px 7px;transition:all var(--d-fast) var(--ease);min-height:24px;display:flex;align-items:center}
+.slot.filled{background:var(--bg-h);border-style:solid;flex-direction:row;align-items:center;padding:4px 7px;gap:6px;position:relative;overflow:hidden;min-height:28px}
+.slot.client.filled{flex-direction:column;align-items:stretch;gap:2px}
+.slot-time{display:inline-flex;align-items:center;gap:1px;flex-shrink:0;font-variant-numeric:tabular-nums}
+.slot-time i{font-style:normal;color:var(--tx4);font-size:9px;margin:0 1px}
+.slot-time.view{font-size:10.5px;font-weight:600;color:var(--tx2)}
+.slot-h{font-size:9.5px;font-weight:700;color:var(--tx3);font-variant-numeric:tabular-nums;flex-shrink:0;min-width:22px;text-align:right}
 .slot.staff.filled::before{
   content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
   background:var(--rank-color,var(--ac));
@@ -7137,15 +7160,19 @@ button:active,.btn:active{transform:scale(.97)}
 .slot.client.filled{border-color:rgba(168,122,30,.28)}
 .slot.client.filled.c-off{border-color:var(--re-bg);background:linear-gradient(90deg,var(--bg-c),var(--re-bg) 200%);opacity:.7}
 .slot.client.filled.c-off .slot-nm{text-decoration:line-through;opacity:.7}
-.slot-empty{display:flex;align-items:center;gap:6px;font-size:var(--t-micro);color:var(--tx3);width:100%}
-.slot-empty .ic{font-size:11px;opacity:.7}
+/* [v765] "직원 추가 (7 남음)" 같은 빈칸 줄이 카드마다 두 개씩 자리를 먹었다 — 얇게 눕히고
+   hover 때만 또렷해지게. 드래그 앤 드롭 타겟은 그대로다. */
+.slot:not(.filled){min-height:16px;padding:1px 7px;opacity:.4;transition:opacity var(--d-fast) var(--ease)}
+.pc:hover .slot:not(.filled){opacity:.85}
+.slot-empty{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--tx3);width:100%;white-space:nowrap;overflow:hidden}
+.slot-empty .ic{font-size:9px;opacity:.7}
 .slot-r1{display:flex;align-items:center;gap:6px}
 .slot.filled.pc-draggable{cursor:grab}
 .slot.filled.pc-draggable:active{cursor:grabbing}
 .slot.filled.pc-draggable .slot-r2,.slot.filled.pc-draggable .slot-r2 *{cursor:auto}
 .slot.filled.pc-draggable.dragging{opacity:.4}
-.slot-av{width:18px;height:18px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0}
-.slot-nm{font-size:var(--t-cap);font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx)}
+.slot-av{width:16px;height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#fff;flex-shrink:0}
+.slot-nm{font-size:11.5px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx)}
 .slot.client .slot-nm{color:var(--ac);font-weight:600}
 .slot-pos{font-size:8px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:3px;flex-shrink:0}
 .slot-game{
@@ -7176,7 +7203,7 @@ button:active,.btn:active{transform:scale(.97)}
 .slot:hover .slot-unx{opacity:1}
 .slot-unx:hover{color:var(--re);background:var(--re-bg)}
 .slot-r2{display:flex;align-items:center;gap:3px;font-size:var(--t-micro);color:var(--tx3);font-variant-numeric:tabular-nums;padding-left:24px}
-.t-edit{border:none;background:transparent;font-family:inherit;font-size:var(--t-micro);font-weight:600;color:var(--tx);font-variant-numeric:tabular-nums;width:22px;text-align:center;padding:1px;border-radius:3px;-moz-appearance:textfield}
+.t-edit{border:none;background:transparent;font-family:inherit;font-size:10.5px;font-weight:700;color:var(--tx2);font-variant-numeric:tabular-nums;width:19px;text-align:center;padding:1px 0;border-radius:3px;-moz-appearance:textfield}
 .t-edit::-webkit-inner-spin-button,.t-edit::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .t-edit:hover{background:var(--bg-a)}
 .t-edit:focus{outline:none;background:var(--bg-a);box-shadow:inset 0 0 0 1px var(--ac)}
@@ -7185,9 +7212,9 @@ button:active,.btn:active{transform:scale(.97)}
 .pc.drop-client .slot.client:not(.filled){border-color:var(--ac);background:var(--ac-bg);color:var(--ac-strong)}
 body.dragging-staff .slot.client,body.dragging-client .slot.staff{opacity:.3}
 body.dragging-client .leader-row{opacity:.3}
-.slot-staff-group{display:flex;flex-direction:column;gap:4px}
-.slot-client-group{display:flex;flex-direction:column;gap:4px}
-.slot-divider{height:1px;background:var(--br);margin:1px 0}
+.slot-staff-group{display:flex;flex-direction:column;gap:3px}
+.slot-client-group{display:flex;flex-direction:column;gap:3px}
+.slot-divider{height:1px;background:var(--br);margin:2px 0}
 
 /* ── Game switcher — 명시적 드롭다운 ── */
 .pc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:5px;font-size:var(--t-micro);color:var(--tx3)}
@@ -7729,7 +7756,7 @@ body.drag-auto-scroll.scroll-down .as-arrow.down{
 .tl-bar .b-time{position:relative;z-index:6;font-size:12.5px;font-weight:700;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .tl-bar .b-sub{position:relative;z-index:6;font-size:12.5px;opacity:.66;font-weight:600;margin-top:0;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;pointer-events:none}
 /* ── [v277] client schedule (days + time range) ── */
-.slot-sched{display:flex;align-items:center;gap:3px;flex-wrap:wrap;font-size:var(--t-micro);color:var(--tx3);padding-left:24px;margin-top:2px;font-variant-numeric:tabular-nums;line-height:1.5}
+.slot-sched{display:flex;align-items:center;gap:3px;flex-wrap:nowrap;font-size:9.5px;color:var(--tx3);padding-left:24px;margin-top:0;font-variant-numeric:tabular-nums;line-height:1.35;overflow:hidden;white-space:nowrap}
 .slot-sched .cs-days{display:inline-flex;align-items:center;gap:2px}
 .slot-sched .cdl-tok,.c-chip-sched .cdl-tok,.tl-cl-days .cdl-tok{color:var(--ac-strong);font-weight:700}
 .slot-sched .cs-sep,.slot-sched .cdl-dot,.c-chip-sched .cs-sep,.c-chip-sched .cdl-dot,.tl-cl-days .cdl-dot{color:var(--br2);font-style:normal;margin:0 1px}
@@ -11388,7 +11415,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v764';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v765';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -33359,7 +33386,7 @@ function pcCardHTML(p){
   const clientSlotsHTML = clients.map(c => {
     const offBadge = c.active === false ? `<span class="slot-pos" style="background:var(--re-bg);color:var(--re)" title="본인 플레이 중 — OFF">OFF</span>` : '';
     return `<div class="slot client filled pc-draggable${c.active===false?' c-off':''}" ${canEdit?`ondragover="dragOverSlot(event,${p.id},'client')" ondragleave="dragLeaveSlot(event)" ondrop="dropOnPC(event,${p.id},'client',-1,'${c.id}')" draggable="true" ondragstart="dragStartPcClient(event,${p.id},'${c.id}')" ondragend="dragEnd(event)" title="드래그 → 다른 PC 클라이언트에 놓으면 서로 교체, 빈 칸이면 이동"`:''}>
-       <div class="slot-r1"><span class="slot-av" style="background:var(--ac);color:#fff">★</span><span class="slot-nm">${_pcFriendlyClientName(c.name)}${c.label?` <span style="opacity:.65;font-weight:500">· ${c.label}</span>`:''}</span>${offBadge}${canEdit?`<span class="slot-unx" draggable="false" onclick="event.stopPropagation();unassignClient(${p.id},'${c.id}')">✕</span>`:''}</div>
+       <div class="slot-r1 cl-r1"><span class="slot-av" style="background:var(--ac);color:#fff">★</span><span class="slot-nm">${_pcFriendlyClientName(c.name)}${c.label?` <span style="opacity:.65;font-weight:500">· ${c.label}</span>`:''}</span>${offBadge}${canEdit?`<span class="slot-unx" draggable="false" onclick="event.stopPropagation();unassignClient(${p.id},'${c.id}')">✕</span>`:''}</div>
        <div class="slot-sched">${clientSchedHTML(c)}</div>
      </div>`;
   }).join('');
@@ -33376,7 +33403,10 @@ function pcCardHTML(p){
   return `<div class="pc ${gc} ${sel}${isPcOff?' pc-off':''}" data-st="${p.status}" data-id="${p.id}" onclick="selectPC(${p.id})">
     <div class="pc-head">
       <span class="pc-num">PC-${pad2(p.id)}</span>
+      <span class="pc-game-dot g-${dispG}" title="${gameLabel(dispG)}"></span>
       <div class="pc-head-r">
+        ${/* [v765] 푸터에 있던 게임 태그와 'Nh scheduled' 를 헤더로 올려 카드에서 한 줄을 통째로 뺐다 */''}
+        <span class="pc-hours">${isPcOff?'OFF':(p.assignments.reduce((s,a)=>s+a.len,0)||0)+'h'}</span>
         ${canEdit?`<button class="pc-off-toggle ${isPcOff?'on':''}" onclick="event.stopPropagation();togglePCOff(${p.id})" title="${isPcOff?'OFF 해제 (가동 복귀)':'PC OFF 설정 (배정 차단)'}">${isPcOff?'🚫 OFF':'OFF'}</button>`:(isPcOff?`<span class="pc-off-stamp-mini">🚫 OFF</span>`:'')}
         <span class="pc-shifts-info">${p.assignments.length}/${MAX_SLOTS}</span>
         <span class="pc-stat-dot"></span>
@@ -33388,10 +33418,6 @@ function pcCardHTML(p){
     ${(hasStaff&&hasClient)?`<div class="slot-divider"></div>`:''}
     ${hasClient?`<div class="slot-client-group">${clientSlotsHTML}${clientEmptyDrop}</div>`:''}
     ${isBlank?`<div class="pc-empty-view">대기 중 · 미배정</div>`:''}
-    <div class="pc-foot">
-      <span class="game-tag game-tag-${dispG}" title="시프트·클라이언트에서 자동 도출 — 시프트 슬롯의 L/M 토글로 변경">${gameLabel(dispG)}</span>
-      <span>${isPcOff?'<span style="color:var(--re);font-weight:700">OFF</span>':p.assignments.reduce((s,a)=>s+a.len,0)+'h scheduled'}</span>
-    </div>
   </div>`;
 }
 
@@ -33426,23 +33452,24 @@ function staffSlotHTML(p, a, idx){
   // [v636] 카드 전체가 드래그 핸들 (이름 줄만이던 v632는 너무 얇아 못 잡았음). 시간 입력줄(slot-r2)은
   // draggable=false + mousedown 전파 차단으로 편집 그대로 유지.
   const dragAttr = canEdit ? `ondragover="dragOverSlot(event,${p.id},'staff')" ondragleave="dragLeaveSlot(event)" ondrop="dropOnPC(event,${p.id},'staff',${idx})" draggable="true" ondragstart="dragStartPcStaff(event,${p.id},${idx})" ondragend="dragEnd(event)" title="드래그 → 다른 PC 직원 칸에 놓으면 서로 교체, 빈 칸이면 이동"` : '';
+  /* [v765] 한 줄로 합침 — 이름줄 + 시간줄 2단이던 걸 1단으로. 카드가 세로로 길어 스크롤해야
+     전체가 안 보인다는 지적. 시각은 시작→종료 두 칸만 두고 "+Nh"와 별도 range 표기는 없앴다
+     (근무시간은 오른쪽 h 배지 하나로 충분). */
   return `<div class="slot staff filled pc-draggable" style="--rank-color:${rc}" ${dragAttr}>
-    <div class="slot-r1">
-      <span class="slot-av" style="${avatarBg(dispName, initials(dispName), rc)}">${initials(dispName)}</span>
-      <span class="slot-nm">${dispName}</span>
-      <span class="slot-pos" style="background:${rc}33;color:${rc}">${rankShort(s.position)}</span>
-      ${canEdit?`<span class="slot-unx" draggable="false" onclick="event.stopPropagation();unassignStaff(${p.id},${idx})">✕</span>`:''}
-    </div>
-    <div class="slot-r2" draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
-      ${canEdit
-        ? `<input class="t-edit" type="number" min="0" max="23" value="${_tzH(a.start)}" onchange="setAssignStart(${p.id},${idx},_tzBackVal(this.value))">:00
-           + <input class="t-edit" type="number" min="1" max="24" value="${a.len}" onchange="setAssignLen(${p.id},${idx},this.value)">h
-           <span class="slot-game ${g}" onclick="event.stopPropagation();toggleShiftGame(${p.id},${idx})" title="이 시프트의 게임 · 클릭 → ${gOther}">${gLbl}</span>
-           <span class="range">${pad2(_tzH(a.start))}–${pad2(_tzH(endH))}</span>`
-        : `<span class="slot-time-view">${pad2(_tzH(a.start))}:00 · ${a.len}h</span>
-           <span class="slot-game ${g} slot-game-view">${gLbl}</span>
-           <span class="range">${pad2(_tzH(a.start))}–${pad2(_tzH(endH))}</span>`}
-    </div>
+    <span class="slot-av" style="${avatarBg(dispName, initials(dispName), rc)}">${initials(dispName)}</span>
+    <span class="slot-nm">${dispName}</span>
+    ${canEdit
+      ? `<span class="slot-time" draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()">
+           <input class="t-edit" type="number" min="0" max="23" value="${_tzH(a.start)}" title="시작" onchange="setAssignStart(${p.id},${idx},_tzBackVal(this.value))">
+           <i>→</i>
+           <input class="t-edit" type="number" min="0" max="23" value="${_tzH(endH)}" title="종료" onchange="setAssignEnd(${p.id},${idx},this.value)">
+         </span>
+         <span class="slot-h">${a.len}h</span>
+         <span class="slot-game ${g}" draggable="false" onclick="event.stopPropagation();toggleShiftGame(${p.id},${idx})" title="이 시프트의 게임 · 클릭 → ${gOther}">${gLbl}</span>
+         <span class="slot-unx" draggable="false" onclick="event.stopPropagation();unassignStaff(${p.id},${idx})">✕</span>`
+      : `<span class="slot-time view">${pad2(_tzH(a.start))}<i>→</i>${pad2(_tzH(endH))}</span>
+         <span class="slot-h">${a.len}h</span>
+         <span class="slot-game ${g} slot-game-view">${gLbl}</span>`}
   </div>`;
 }
 
@@ -34404,6 +34431,17 @@ function setAssignStart(pcId, idx, v){
   const n = parseInt(v); if(isNaN(n)||n<0||n>23) return;
   PCS.find(x=>x.id===pcId).assignments[idx].start = n;
   render();
+}
+/* [v765] 컴팩트 카드: 시작 + 길이(+12h) 대신 시작 → 종료 두 칸으로 받는다. 화면에 뜨는 숫자가
+   하나 줄고("21:00 +12h  21–09" → "21→09"), 근무시간을 머릿속으로 더할 필요도 없어진다.
+   데이터는 그대로 start+len 이라 여기서 역산한다. */
+function setAssignEnd(pcId, idx, v){
+  const p = PCS.find(x=>x.id===pcId); if(!p) return;
+  const a = p.assignments[idx]; if(!a) return;
+  const e = _tzBackVal(v); if(isNaN(e)) return;
+  let len = ((Math.round(e) - Math.round(a.start)) % 24 + 24) % 24;
+  if(len === 0) len = 24;
+  setAssignLen(pcId, idx, len);
 }
 function setAssignLen(pcId, idx, v){
   const n = parseInt(v); if(isNaN(n)||n<1||n>24) return;
