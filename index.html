@@ -16494,8 +16494,7 @@ const MTC_ZONES = [
   { key:'passive', label:'🧭 패시브',  x:30,   y:140, w:230, h:410, hue:MTC_C.lilac, empty:'계속 신경 쓸 영역' },
   { key:'active',  label:'⚡ 액티브',  x:270,  y:140, w:420, h:410, hue:MTC_C.amber, empty:'지금 실행하는 행동' },
   { key:'done',    label:'✅ 완료',    x:700,  y:140, w:230, h:410, hue:MTC_C.sage,  empty:'끝낸 것들' },
-  { key:'po',      label:'💭 PO',      x:700,  y:560, w:230, h:250, hue:MTC_C.teal,  empty:'개인 의견·제안' },
-  { key:'trash',   label:'🗑 휴지통',  x:700,  y:820, w:230, h:150, hue:MTC_C.stone, empty:'끌어다 놓으면 삭제' },
+  { key:'po',      label:'💭 PO',      x:700,  y:560, w:230, h:410, hue:MTC_C.teal,  empty:'개인 의견·제안' },
   { key:'inbox',   label:'📥 인박스', x:30,   y:560, w:660, h:410, hue:MTC_C.slate, empty:'떠오른 건 전부 여기 — 빈 곳 더블클릭으로 추가' }
 ];
 // [v786] 직접 만든 박스 — 이름·색 자유. 카드를 넣어도 종류는 그대로, 위치로만 묶임.
@@ -17131,6 +17130,13 @@ function mtCanvasHTML(ctx){
   .mtc-member:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.45), inset 0 0 22px color-mix(in srgb,var(--rc) 12%,transparent)}
   .mtc-member.mtc-over{border-color:var(--rc);transform:translateY(-3px) scale(1.025);
     box-shadow:0 0 0 3px color-mix(in srgb,var(--rc) 38%,transparent), 0 12px 32px color-mix(in srgb,var(--rc) 30%,transparent)}
+  /* 보드 밖으로 끌고 나갔을 때 — 놓으면 버려진다는 신호 */
+  .mtc-member.mtc-toss,.mtc-note.mtc-toss{opacity:.45;filter:grayscale(.65);border-style:dashed!important;
+    box-shadow:0 0 0 1px rgba(192,127,116,.5), 0 10px 26px rgba(0,0,0,.45)!important}
+  .mtc-member.mtc-toss::before{content:'놓으면 보드에서 내림';position:absolute;left:0;right:0;bottom:-19px;text-align:center;
+    font:9px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:#c8867c;letter-spacing:.04em}
+  .mtc-note.mtc-toss::before{content:'놓으면 버림';position:absolute;left:0;right:0;bottom:-17px;text-align:center;
+    font:9px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:#c8867c;letter-spacing:.04em}
   .mtc-member-hd{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
   /* 크게 늘리면 이름이 좌상단으로 붙고 아래가 카드를 받는 공간이 된다 */
   .mtc-member-big{align-items:flex-start;padding:11px 13px}
@@ -17191,7 +17197,7 @@ function mtCanvasHTML(ctx){
   <div id="mtc-vp">
     <div class="mtc-quick">
       <input id="mtc-quick-in" placeholder="+ 입력 후 Enter → 인박스에 붙이기" onkeydown="if(event.key==='Enter')mtcQuickAdd(this)">
-      <span class="mtc-quick-hint">더블클릭 = 새 카드 · 우클릭 = 메뉴(연결·삭제)</span>
+      <span class="mtc-quick-hint">더블클릭 = 새 카드 · 밖으로 던지면 버림 · 우클릭 = 메뉴</span>
     </div>
     <div class="mtc-toolbar">
       ${(ctx.isManager && !personalMode) ? `<button onclick="mtcOpenMemberPicker()" title="보드에 올릴 멤버 고르기">👥 멤버 ${members.length}</button>` : ''}
@@ -17853,6 +17859,14 @@ function _mtcBoxMoveStart(e, el, key, vp){
   }
 
   let targets = null, elW = 0, elH = 0, rafId = 0, lastEv = null, easeX = 0, easeY = 0;
+  // [v794] 인원 카드를 보드 밖으로 던지면 보드에서 내려간다 (계정은 그대로)
+  const isMemberBox = String(key).startsWith('m:');
+  let outside = false, vhist = [];
+  const _outsideVp = ev => {
+    const r = _mtcVpRect || vp?.getBoundingClientRect(); if(!r) return false;
+    const m = 26;   // 가장자리에서 이만큼 벗어나면 "던짐"으로 간주
+    return ev.clientX < r.left - m || ev.clientX > r.right + m || ev.clientY < r.top - m || ev.clientY > r.bottom + m;
+  };
   const paint = () => {
     rafId = 0;
     const ev = lastEv; if(!ev) return;
@@ -17881,16 +17895,31 @@ function _mtcBoxMoveStart(e, el, key, vp){
     if(!window._mtcMoved){
       window._mtcMoved = true;
       elW = el.offsetWidth; elH = el.offsetHeight;
+      _mtcVpRect = vp?.getBoundingClientRect() || _mtcVpRect;
       targets = _mtcBuildTargets(el);
       carried.forEach(c => { targets = targets.filter(t => !(t.x1===c.x0 && t.y1===c.y0)); });  // 같이 움직이는 카드는 제외
+    }
+    if(isMemberBox){
+      vhist.push({ x:ev.clientX, y:ev.clientY, t:performance.now() });
+      if(vhist.length > 6) vhist.shift();
+      const now = _outsideVp(ev);
+      if(now !== outside){ outside = now; el.classList.toggle('mtc-toss', outside); }
     }
     lastEv = ev;
     if(!rafId) rafId = requestAnimationFrame(paint);
   };
-  const up = () => {
+  const up = ev => {
     window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+    if(rafId){ cancelAnimationFrame(rafId); rafId = 0; }
     window._mtcDragging = false;
     _mtcClearGuides();
+    // 보드 밖으로 던졌으면 — 날아가는 애니메이션 후 보드에서 내림
+    if(isMemberBox && outside && window._mtcMoved){
+      _mtcTossOut(el, key.slice(2), vhist);
+      setTimeout(()=>{ window._mtcMoved = false; }, 60);
+      return;
+    }
+    el.classList.remove('mtc-toss');
     if(window._mtcMoved){
       const rdx = nx - ox, rdy = ny - oy;
       carried.forEach(c => {
@@ -17903,6 +17932,53 @@ function _mtcBoxMoveStart(e, el, key, vp){
     setTimeout(()=>{ window._mtcMoved = false; }, 60);
   };
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+}
+
+// [v794] 던진 방향·속도를 그대로 살려 날려보내는 공통 애니메이션
+function _mtcTossFly(el, vhist, dist){
+  let vx = 0, vy = 0;
+  if(vhist && vhist.length >= 2){
+    const a = vhist[0], b = vhist[vhist.length-1];
+    const dt = Math.max(16, b.t - a.t);
+    vx = (b.x - a.x) / dt; vy = (b.y - a.y) / dt;     // px/ms
+  }
+  if(Math.hypot(vx, vy) < 0.05){ vx = 0.5; vy = -0.2; }   // 거의 멈춘 채 놨으면 기본 방향
+  const k = (dist||620) / Math.max(0.25, Math.hypot(vx, vy));
+  const spin = Math.max(-30, Math.min(30, vx * 12));
+  el.style.transition = 'transform .46s cubic-bezier(.22,.62,.3,1), opacity .46s ease';
+  el.style.transform = `translate3d(${Math.round(vx*k)}px, ${Math.round(vy*k)}px, 0) rotate(${spin.toFixed(1)}deg) scale(.7)`;
+  el.style.opacity = '0';
+  el.style.pointerEvents = 'none';
+}
+// 카드를 밖으로 던짐 → 휴지통으로 (14일 복원 가능)
+function _mtcTossCard(note, kind, id, vhist){
+  const found = _mtcFind(kind, id); if(!found.item) return;
+  const label = (found.item.title || found.item.text || '').slice(0, 18) || '(빈 카드)';
+  const uid = _mtcUid(found.item);
+  _mtcTossFly(note, vhist, 560);
+  mtcClosePop(true);
+  setTimeout(() => {
+    // 애니메이션 중에 재렌더가 끼어들면 배열이 새로 만들어지므로, 지우는 시점에 다시 찾는다
+    const { arr, item } = _mtcFind(kind, id);
+    if(!item) return;                     // 이미 사라졌으면 중복 삭제하지 않음
+    MT_LINKS = MT_LINKS.filter(l => l.a !== uid && l.b !== uid);
+    _mtToTrash(kind, item);
+    arr.splice(arr.indexOf(item), 1);
+    saveMTSystem(); renderMTSystem();
+    toast(`"${label}" 버림 — 우클릭 → 휴지통에서 복원`);
+  }, 400);
+}
+// 인원 카드를 밖으로 던짐 → 보드에서 내림 (계정은 그대로)
+function _mtcTossOut(el, name, vhist){
+  _mtcTossFly(el, vhist, 620);
+  setTimeout(() => {
+    const cur = mtcMembers();
+    const i = cur.findIndex(n => _mtSameOwner(n, name));
+    if(i >= 0){ cur.splice(i, 1); MT_CMEMBERS = cur; }
+    delete MT_CLAYOUT['m:' + name];
+    saveMTSystem(); renderMTSystem();
+    toast(`${name} 보드에서 내림 — 👥 멤버에서 다시 올릴 수 있어요`);
+  }, 430);
 }
 
 // 존/인원 카드 크기 조절 — 우하단 핸들 드래그. 다른 상자와 크기·모서리가 맞으면 자석처럼 붙는다.
@@ -18002,6 +18078,13 @@ function _mtcNoteDown(e, note, vp){
   // 프레임당 한 번, transform으로만 움직인다 — left/top을 매 프레임 쓰면 레이아웃이 다시 계산되어 끊긴다
   let targets = null, hits = null, noteW = 0, noteH = 0, rafId = 0, lastEv = null;
   let hasLinks = false, lastKey = '', prevHit = null, easeX = 0, easeY = 0;
+  // [v794] 카드를 보드 밖으로 던지면 삭제 (휴지통 경유 — 복원 가능)
+  let outside = false, vhist = [];
+  const _outsideVp = ev => {
+    const r = _mtcVpRect || vp.getBoundingClientRect();
+    const m = 26;
+    return ev.clientX < r.left - m || ev.clientX > r.right + m || ev.clientY < r.top - m || ev.clientY > r.bottom + m;
+  };
   const paint = () => {
     rafId = 0;
     const ev = lastEv; if(!ev) return;
@@ -18041,6 +18124,10 @@ function _mtcNoteDown(e, note, vp){
       _mtcVpRect = vp.getBoundingClientRect();
       hasLinks = MT_LINKS.some(l => l.a === note.dataset.uid || l.b === note.dataset.uid);
     }
+    vhist.push({ x:ev.clientX, y:ev.clientY, t:performance.now() });
+    if(vhist.length > 6) vhist.shift();
+    const now = _outsideVp(ev);
+    if(now !== outside){ outside = now; note.classList.toggle('mtc-toss', outside); }
     lastEv = ev;
     if(!rafId) rafId = requestAnimationFrame(paint);
   };
@@ -18062,6 +18149,10 @@ function _mtcNoteDown(e, note, vp){
       return;
     }
     setTimeout(()=>{ window._mtcMoved = false; }, 60);
+
+    // 보드 밖으로 던졌으면 — 날아가 사라지고 휴지통으로 (복원 가능)
+    if(outside){ _mtcTossCard(note, kind, id, vhist); return; }
+    note.classList.remove('mtc-toss');
 
     const pos = { x: Math.round(nx), y: Math.round(ny) };
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);   // 좌표 기반 판정
