@@ -17602,9 +17602,14 @@ function mtCanvasHTML(ctx){
     box-shadow:0 8px 26px rgba(0,0,0,.42)}
   .mtc-toolbar button{height:26px;border-radius:6px;background:transparent;border:none;
     color:rgba(235,235,245,.58);cursor:pointer;font:11px 'Malgun Gothic',ui-monospace,Consolas,sans-serif;font-weight:600;
-    letter-spacing:.02em;padding:0 11px;display:inline-flex;align-items:center;gap:5px;
+    letter-spacing:.02em;padding:0 10px;display:inline-flex;align-items:center;gap:5px;
     transition:color .14s,background .14s}
   .mtc-toolbar button i{font-style:normal}
+  /* 아이콘 — 평소엔 채도를 빼서 글자와 같은 톤, 켜지거나 손을 얹으면 살아난다 */
+  .mtc-toolbar button em{font-style:normal;font-size:11px;line-height:1;opacity:.6;
+    filter:grayscale(.75);transition:opacity .14s,filter .14s}
+  .mtc-toolbar button:hover em{opacity:1;filter:none}
+  .mtc-toolbar button.on em{opacity:1;filter:none}
   .mtc-toolbar button b{font-size:9.5px;font-weight:700;color:rgba(235,235,245,.36);background:none;padding:0}
   .mtc-toolbar button:hover{color:rgba(255,255,255,.96);background:rgba(255,255,255,.055)}
   .mtc-toolbar button:hover b{color:rgba(255,255,255,.6)}
@@ -17615,7 +17620,7 @@ function mtCanvasHTML(ctx){
   .mtc-toolbar .mtc-tb-pen.on,.mtc-toolbar .mtc-tb-link.on,.mtc-toolbar .mtc-tb-snap.on{
     background:none;position:relative}
   .mtc-toolbar .mtc-tb-pen.on::after,.mtc-toolbar .mtc-tb-link.on::after,.mtc-toolbar .mtc-tb-snap.on::after{
-    content:'';position:absolute;left:11px;right:11px;bottom:3px;height:1.5px;border-radius:1px}
+    content:'';position:absolute;left:10px;right:10px;bottom:3px;height:1.5px;border-radius:1px}
   .mtc-toolbar .mtc-tb-pen.on{color:#e2c48f} .mtc-toolbar .mtc-tb-pen.on::after{background:${MTC_C.amber}}
   .mtc-toolbar .mtc-tb-link.on{color:#9fd6cd} .mtc-toolbar .mtc-tb-link.on::after{background:${MTC_C.teal}}
   .mtc-toolbar .mtc-tb-snap.on{color:#a9c6de} .mtc-toolbar .mtc-tb-snap.on::after{background:${MTC_C.slate}}
@@ -17679,10 +17684,10 @@ function mtCanvasHTML(ctx){
       <span class="mtc-quick-hint">더블클릭 새 카드<span>·</span>던지면 버림<span>·</span>우클릭 메뉴</span>
     </div>
     <div class="mtc-toolbar">
-      ${(ctx.isManager && !personalMode) ? `<button onclick="mtcOpenMemberPicker()" title="보드에 올릴 멤버 고르기"><i>멤버</i><b>${members.length}</b></button><span class="mtc-tb-sep"></span>` : ''}
-      <button class="mtc-tb-pen ${mtcPenOn?'on':''}" onclick="mtcTogglePen()" title="손으로 그리면 인식 — 네모=박스(영역 안이면 카드) · 두 카드를 잇는 선=연결 · 곧은 선=구분선"><i>펜</i></button>
-      <button class="mtc-tb-link ${window._mtcLinkMode?'on':''}" onclick="mtcToggleLinkMode()" title="카드를 탁, 탁 누르면 선으로 연결"><i>연결</i></button>
-      <button class="mtc-tb-snap ${mtcSnapOn?'on':''}" onclick="mtcToggleSnap()" title="가까이 가면 딱 붙는 자석 정렬"><i>자석</i></button>
+      ${(ctx.isManager && !personalMode) ? `<button onclick="mtcOpenMemberPicker()" title="보드에 올릴 멤버 고르기"><em>👥</em><i>멤버</i><b>${members.length}</b></button><span class="mtc-tb-sep"></span>` : ''}
+      <button class="mtc-tb-pen ${mtcPenOn?'on':''}" onclick="mtcTogglePen()" title="손으로 그리면 인식 — 네모=박스(영역 안이면 카드) · 두 카드를 잇는 선=연결 · 곧은 선=구분선"><em>✏</em><i>펜</i></button>
+      <button class="mtc-tb-link ${window._mtcLinkMode?'on':''}" onclick="mtcToggleLinkMode()" title="카드를 탁, 탁 누르면 선으로 연결"><em>🔗</em><i>연결</i></button>
+      <button class="mtc-tb-snap ${mtcSnapOn?'on':''}" onclick="mtcToggleSnap()" title="가까이 가면 딱 붙는 자석 정렬"><em>🧲</em><i>자석</i></button>
       <span class="mtc-tb-sep"></span>
       <span class="mtc-tb-zoomgrp">
         <button class="mtc-tb-zoom" onclick="mtcZoomBy(1/1.15)" title="축소">−</button>
@@ -17690,9 +17695,9 @@ function mtCanvasHTML(ctx){
         <button class="mtc-tb-zoom" onclick="mtcZoomBy(1.15)" title="확대">＋</button>
       </span>
       <span class="mtc-tb-sep"></span>
-      <button onclick="mtcOpenCleanup()" title="카드 여러 장 골라서 정리"><i>정리</i></button>
-      <button onclick="mtcOpenSnapshots()" title="보드 저장 / 불러오기"><i>저장</i></button>
-      <button onclick="mtcResetLayout()" title="영역 배치·크기와 카드 위치를 기본값으로"><i>배치</i></button>
+      <button onclick="mtcOpenCleanup()" title="카드 여러 장 골라서 정리"><em>🧹</em><i>정리</i></button>
+      <button onclick="mtcOpenSnapshots()" title="보드 저장 / 불러오기"><em>💾</em><i>저장</i></button>
+      <button onclick="mtcResetLayout()" title="영역 배치·크기와 카드 위치를 기본값으로"><em>⟲</em><i>배치</i></button>
       <span class="mtc-tb-sep"></span>
       <span class="mt-view-seg mtc-tb-view">
         <button onclick="mtSetBoardView('kanban')" title="칸반 뷰">▦ 칸반</button>
