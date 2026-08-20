@@ -16735,9 +16735,9 @@ function _mtcNotePos(item, idx, area){
   if(item.pos) return item.pos;
   // pos 없는 항목은 소속 영역 안에 가지런히 쌓기 (저장 안 함 — 옮기는 순간 저장됨)
   const rowH = 30, colW = MTC_CARD_W + 14;
-  const rows = Math.max(1, Math.floor((area.h - 44 - MTC_PAD) / rowH));
+  const rows = Math.max(1, Math.floor((area.h - MTC_TOP - MTC_PAD) / rowH));
   const col = Math.floor(idx / rows), row = idx % rows;
-  return { x: area.x + MTC_PAD + col * colW, y: area.y + 42 + row * rowH };
+  return { x: area.x + MTC_PAD + col * colW, y: area.y + MTC_TOP + row * rowH };
 }
 // [v793] 기본 카드 폭 — 한 화면에 더 많이 담기게 컴팩트하게
 const MTC_CARD_W = 196, MTC_SUB_W = 168;
@@ -16871,7 +16871,8 @@ function mtCanvasHTML(ctx){
     const mp = _mtcLayout()['m:'+nm] || { x: 30+i*180, y: 22, w:170, h:76 };
     const mw = mp.w || 170, mh = mp.h || 76;
     // [v792] 카드를 키우면 이름이 좌상단으로 붙고, 아래가 업무 카드를 받는 공간이 된다
-    const big = mh >= 132 || mw >= 300;
+    // [v795] 기본(170x76)에서 조금만 키워도 바로 전환되게 문턱을 낮춤
+    const big = mh >= 96 || mw >= 226;
     const mfs = big ? Math.max(10, Math.min(14, 11 * Math.pow(mw/240, 0.28)))
                     : Math.max(9, Math.min(16, 10.5 * Math.pow(mw/170, 0.4)));
     const held = allItems.filter(it => it.pos && it.pos.x+80>=mp.x && it.pos.x+80<=mp.x+mw && it.pos.y+14>=mp.y && it.pos.y+14<=mp.y+mh).length;
@@ -16885,7 +16886,7 @@ function mtCanvasHTML(ctx){
         </div>
         ${big?`<span class="mtc-member-cnt">${held}</span>`:''}
       </div>
-      ${big && !held ? `<span class="mtc-member-drop">카드를 여기에 놓으면 ${_mtcEsc(nm)} 담당</span>` : ''}
+      ${big && !held ? `<span class="mtc-member-drop">여기에 놓으면 ${_mtcEsc(nm)} 담당</span>` : ''}
       <div class="mtc-resize mtc-mrz" data-mresize="${_mtcEsc(nm)}" title="드래그로 크기 조절"></div>
     </div>`;
   }).join('');
@@ -17139,14 +17140,16 @@ function mtCanvasHTML(ctx){
     font:9px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:#c8867c;letter-spacing:.04em}
   .mtc-member-hd{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
   /* 크게 늘리면 이름이 좌상단으로 붙고 아래가 카드를 받는 공간이 된다 */
-  .mtc-member-big{align-items:flex-start;padding:11px 13px}
-  .mtc-member-big .mtc-member-hd{flex:none;width:100%;align-items:flex-start;
-    padding-bottom:9px;border-bottom:1px solid color-mix(in srgb,var(--rc) 18%,rgba(255,255,255,.05))}
-  .mtc-member-big .mtc-member-av{width:2.2em;height:2.2em;font-size:.9em}
+  .mtc-member-big{align-items:flex-start;padding:8px 10px}
+  .mtc-member-big .mtc-member-hd{flex:none;width:100%;align-items:center;gap:7px;
+    padding-bottom:7px;border-bottom:1px solid color-mix(in srgb,var(--rc) 18%,rgba(255,255,255,.05))}
+  .mtc-member-big .mtc-member-av{width:1.9em;height:1.9em;font-size:.85em}
+  .mtc-member-big .mtc-member-rl{margin-top:2px}
   .mtc-member-cnt{margin-left:auto;font-size:.78em;font-family:ui-monospace,monospace;font-weight:800;
     color:color-mix(in srgb,var(--rc) 70%,#fff);background:rgba(255,255,255,.07);border-radius:5px;padding:1px 7px}
-  .mtc-member-drop{position:absolute;left:0;right:0;top:58%;transform:translateY(-50%);text-align:center;pointer-events:none;
-    font:10px ui-monospace,'Malgun Gothic',monospace;color:color-mix(in srgb,var(--rc) 34%,rgba(235,235,245,.22));padding:0 12px}
+  .mtc-member-drop{position:absolute;left:0;right:0;top:62%;transform:translateY(-50%);text-align:center;pointer-events:none;
+    font:9.5px ui-monospace,'Malgun Gothic',monospace;color:color-mix(in srgb,var(--rc) 36%,rgba(235,235,245,.22));padding:0 10px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mtc-member-av{width:2.85em;height:2.85em;border-radius:50%;font-size:1em;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none;box-shadow:0 0 0 2px color-mix(in srgb,var(--rc) 45%,transparent)}
   .mtc-member-nm{font-size:1em;font-family:ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;color:var(--tx1)}
   .mtc-member-rl{display:inline-block;font-size:.67em;font-family:ui-monospace,monospace;font-weight:800;letter-spacing:.11em;color:color-mix(in srgb,var(--rc) 75%,#fff);
@@ -17611,13 +17614,16 @@ function _mtcBuildTargets(selfEl){
   return targets;
 }
 const MTC_GAP = 18;   // 카드끼리 붙을 때 사이 간격
-const MTC_PAD = 26;   // 영역 안쪽 여백 — 테두리에 딱 붙지 않게 넉넉히
+const MTC_PAD = 12;   // 영역 안쪽 여백 — 위·왼쪽이 같은 간격으로 보이게
+const MTC_HEAD = 33;  // 영역 헤더 높이 (라벨 줄)
+const MTC_TOP  = MTC_HEAD + MTC_PAD;   // 헤더 아래로도 같은 여백
 // 축별 스냅 후보 — 모서리를 맞출 땐 딱 맞추고, 옆에 붙일 땐 간격을 둔다
 function _mtcCandidates(t, axis){
   const a1 = axis==='x' ? t.x1 : t.y1, a2 = axis==='x' ? t.x2 : t.y2, ac = axis==='x' ? t.cx : t.cy;
   if(t.box){
-    // 영역: 안쪽 여백에 맞춰 정렬 (테두리에 딱 붙지 않게)
-    return [ {edge:'lead', at:a1+MTC_PAD}, {edge:'center', at:ac}, {edge:'trail', at:a2-MTC_PAD} ];
+    // 영역: 안쪽 여백에 맞춰 정렬. 위쪽은 헤더 아래를 기준으로 (좌·상 간격이 같아 보이게)
+    const lead = axis==='y' ? a1+MTC_TOP : a1+MTC_PAD;
+    return [ {edge:'lead', at:lead}, {edge:'center', at:ac}, {edge:'trail', at:a2-MTC_PAD} ];
   }
   return [
     {edge:'lead',   at:a1},              // 왼쪽/위 정렬
@@ -17771,9 +17777,9 @@ function mtcTidyZone(key){
   inZone.sort((a,b)=> a.y-b.y || a.x-b.x);
   const colW = Math.max(...inZone.map(c=>c.w)) + 14;
   const cols = Math.max(1, Math.floor((z.w - MTC_PAD*2 + 14) / colW));
-  let cx = z.x + MTC_PAD, cy = z.y + 42, col = 0;
+  let cx = z.x + MTC_PAD, cy = z.y + MTC_TOP, col = 0;
   inZone.forEach(c => {
-    if(cy + c.h > z.y + z.h - MTC_PAD && col < cols-1){ col++; cx = z.x + MTC_PAD + col*colW; cy = z.y + 42; }
+    if(cy + c.h > z.y + z.h - MTC_PAD && col < cols-1){ col++; cx = z.x + MTC_PAD + col*colW; cy = z.y + MTC_TOP; }
     const { item } = _mtcFind(c.kind, c.id);
     if(item) item.pos = { x: Math.round(cx), y: Math.round(cy) };
     cy += c.h + 6;
@@ -17913,8 +17919,8 @@ function _mtcBoxMoveStart(e, el, key, vp){
     if(rafId){ cancelAnimationFrame(rafId); rafId = 0; }
     window._mtcDragging = false;
     _mtcClearGuides();
-    // 보드 밖으로 던졌으면 — 날아가는 애니메이션 후 보드에서 내림
-    if(isMemberBox && outside && window._mtcMoved){
+    // 보드 밖으로 뺐거나 홱 뿌리쳤으면 — 빨려 나가듯 사라지고 보드에서 내림
+    if(isMemberBox && window._mtcMoved && (outside || _mtcFlingCheck(vhist, vp))){
       _mtcTossOut(el, key.slice(2), vhist);
       setTimeout(()=>{ window._mtcMoved = false; }, 60);
       return;
@@ -17934,21 +17940,51 @@ function _mtcBoxMoveStart(e, el, key, vp){
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
 }
 
+// [v795] 홱 뿌리치듯 빠르게 던지면, 보드 안에서 손을 떼도 그대로 밖으로 빠져나간다.
+// 속도만 보면 빠른 이동까지 지워지므로 "이 속도면 곧 화면 밖"인지까지 확인한다.
+const MTC_FLING_V = 1.25;    // px/ms (약 1250px/s) 이상이어야 뿌리친 것으로 인정
+function _mtcFlingCheck(vhist, vp){
+  if(!vhist || vhist.length < 2) return false;
+  const b = vhist[vhist.length-1];
+  let a = vhist[0];
+  for(let i = vhist.length-1; i >= 0; i--){ if(b.t - vhist[i].t >= 45){ a = vhist[i]; break; } }
+  const dt = Math.max(16, b.t - a.t);
+  const vx = (b.x - a.x)/dt, vy = (b.y - a.y)/dt;
+  if(Math.hypot(vx, vy) < MTC_FLING_V) return false;
+  const r = _mtcVpRect || vp?.getBoundingClientRect(); if(!r) return false;
+  const px = b.x + vx*230, py = b.y + vy*230;      // 이 속도면 0.23초 뒤 어디쯤인지
+  return px < r.left || px > r.right || py < r.top || py > r.bottom;
+}
+
 // [v794] 던진 방향·속도를 그대로 살려 날려보내는 공통 애니메이션
 function _mtcTossFly(el, vhist, dist){
   let vx = 0, vy = 0;
   if(vhist && vhist.length >= 2){
-    const a = vhist[0], b = vhist[vhist.length-1];
+    const b = vhist[vhist.length-1];
+    let a = vhist[0];
+    for(let i = vhist.length-1; i >= 0; i--){ if(b.t - vhist[i].t >= 45){ a = vhist[i]; break; } }
     const dt = Math.max(16, b.t - a.t);
     vx = (b.x - a.x) / dt; vy = (b.y - a.y) / dt;     // px/ms
   }
-  if(Math.hypot(vx, vy) < 0.05){ vx = 0.5; vy = -0.2; }   // 거의 멈춘 채 놨으면 기본 방향
-  const k = (dist||620) / Math.max(0.25, Math.hypot(vx, vy));
-  const spin = Math.max(-30, Math.min(30, vx * 12));
-  el.style.transition = 'transform .46s cubic-bezier(.22,.62,.3,1), opacity .46s ease';
-  el.style.transform = `translate3d(${Math.round(vx*k)}px, ${Math.round(vy*k)}px, 0) rotate(${spin.toFixed(1)}deg) scale(.7)`;
-  el.style.opacity = '0';
+  const sp = Math.hypot(vx, vy);
+  if(sp < 0.05){ vx = 0.5; vy = -0.2; }               // 거의 멈춘 채 놨으면 기본 방향
+  // 세게 던질수록 더 멀리
+  const k = ((dist||620) + Math.min(520, sp*260)) / Math.max(0.25, Math.hypot(vx, vy));
+  const tx = Math.round(vx*k), ty = Math.round(vy*k);
+  const spin = Math.max(-34, Math.min(34, vx * 14));
   el.style.pointerEvents = 'none';
+  // 살짝 머금었다가 가속하며 빨려 들어가듯 사라진다 (뒤로 갈수록 빨라지는 ease-in + 축소 + 블러)
+  if(el.animate){
+    el.animate([
+      { transform:'translate3d(0,0,0) scale(1)', opacity:1, filter:'blur(0px)', offset:0 },
+      { transform:`translate3d(${Math.round(tx*0.07)}px,${Math.round(ty*0.07)}px,0) scale(1.05)`, opacity:1, filter:'blur(0px)', offset:0.16 },
+      { transform:`translate3d(${tx}px,${ty}px,0) rotate(${spin.toFixed(1)}deg) scale(.1)`, opacity:0, filter:'blur(3px)', offset:1 }
+    ], { duration: 430, easing:'cubic-bezier(.5,0,.82,.28)', fill:'forwards' });
+  } else {
+    el.style.transition = 'transform .43s cubic-bezier(.5,0,.82,.28), opacity .43s ease-in';
+    el.style.transform = `translate3d(${tx}px,${ty}px,0) rotate(${spin.toFixed(1)}deg) scale(.1)`;
+    el.style.opacity = '0';
+  }
 }
 // 카드를 밖으로 던짐 → 휴지통으로 (14일 복원 가능)
 function _mtcTossCard(note, kind, id, vhist){
@@ -18150,8 +18186,8 @@ function _mtcNoteDown(e, note, vp){
     }
     setTimeout(()=>{ window._mtcMoved = false; }, 60);
 
-    // 보드 밖으로 던졌으면 — 날아가 사라지고 휴지통으로 (복원 가능)
-    if(outside){ _mtcTossCard(note, kind, id, vhist); return; }
+    // 보드 밖으로 뺐거나, 안에서라도 홱 뿌리쳤으면 — 빨려 나가듯 사라지고 휴지통으로
+    if(outside || _mtcFlingCheck(vhist, vp)){ _mtcTossCard(note, kind, id, vhist); return; }
     note.classList.remove('mtc-toss');
 
     const pos = { x: Math.round(nx), y: Math.round(ny) };
@@ -18182,10 +18218,10 @@ function _mtcAssign(kind, id, name, pos){
   if(pos){
     const mp = _mtcLayout()['m:'+name];
     const mw = mp?.w || 200, mh = mp?.h || 88;
-    if(mp && (mh >= 132 || mw >= 300)){
+    if(mp && (mh >= 96 || mw >= 226)){
       const cw = (item.size && item.size.w) || (item.sub ? MTC_SUB_W : MTC_CARD_W);
-      pos = { x: Math.round(Math.max(mp.x+10, Math.min(mp.x+mw-cw-10, pos.x))),
-              y: Math.round(Math.max(mp.y+56, Math.min(mp.y+mh-38, pos.y))) };
+      pos = { x: Math.round(Math.max(mp.x+10, Math.min(Math.max(mp.x+10, mp.x+mw-cw-10), pos.x))),
+              y: Math.round(Math.max(mp.y+48, Math.min(Math.max(mp.y+48, mp.y+mh-32), pos.y))) };
     }
     item.pos = pos;
   }
@@ -18209,7 +18245,7 @@ function _mtcDropZone(kind, id, zone, pri, pos){
       const cw = (item.size && item.size.w) || (item.sub ? MTC_SUB_W : MTC_CARD_W);
       const ch = (item.size && item.size.h) || 30;
       p = { x: Math.round(Math.max(z.x+MTC_PAD, Math.min(z.x+z.w-cw-MTC_PAD, p.x))),
-            y: Math.round(Math.max(z.y+38,      Math.min(z.y+z.h-ch-MTC_PAD, p.y))) };
+            y: Math.round(Math.max(z.y+MTC_TOP, Math.min(z.y+z.h-ch-MTC_PAD, p.y))) };
     }
   }
   const rm = () => { const i = arr.indexOf(item); if(i>=0) arr.splice(i,1); };
