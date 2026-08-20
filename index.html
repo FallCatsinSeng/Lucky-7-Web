@@ -15764,6 +15764,9 @@ let MT_PASSIVE = [];    // 책임 영역 (컨테이너, 영구적)
 let MT_ACTIVE = [];     // 행동 ([v670] passive_id는 선택 — null이면 독립 행동. 책임에 안 묶여도 됨)
 let MT_TRASH = [];      // [v670] 휴지통 — 삭제된 항목 보관 {kind:'inbox'|'active'|'passive', item, deleted_at, by} · 14일 후 자동 소멸
 let mtViewMode = 'responsibility'; // 'responsibility'(책임뷰) | 'action'(행동뷰)
+// [v776] 보드 뷰 — 'kanban'(기존 4컬럼) | 'canvas'(캔버스: 자유 배치 + 존 드롭). 선택은 기기별로 기억.
+let mtBoardView = (()=>{ try{ return localStorage.getItem('lucky7_mt_boardview')||'kanban'; }catch(_){ return 'kanban'; } })();
+function mtSetBoardView(v){ mtBoardView = v; try{ localStorage.setItem('lucky7_mt_boardview', v); }catch(_){} renderMTSystem(); }
 let mtRoleTab = 'admin';   // 'admin' | 'op' | 'player'
 let mtMember = null;        // 선택된 멤버 이름 (null이면 자동)
 let mtMode = 'manage';      // 'personal'(내 보드만) | 'manage'(팀 점검)
@@ -15839,7 +15842,7 @@ async function pollMTSystem(){
     if(sig === _mtSig) return;                        // no remote change
     const ae = document.activeElement;
     const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
-    if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId) return;  // mid-edit / mid-drag
+    if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId || window._mtcDragging || window._mtcPanning) return;  // mid-edit / mid-drag [v776 canvas too]
     MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[];
     _mtSig = sig; saveMTLocal();
     renderMTSystem();
@@ -16345,6 +16348,11 @@ async function renderMTSystem(mode){
     </div>`;
   }
 
+  // [v776] 캔버스 뷰 — 칸반 대신 자유 배치 캔버스 렌더
+  if(mtBoardView === 'canvas'){
+    bodyHTML = mtCanvasHTML({ tabMembers, viewingMember, me, personalMode, isManager, today });
+  }
+
   // 역할 탭 (관리자만 전환 가능)
   const ROLE_TAB_META = {
     admin:  { label:'ADMIN',  icon:'👑', color:'#b074ec' },
@@ -16394,6 +16402,10 @@ async function renderMTSystem(mode){
       </div>
       <div class="mt-head-r">
         ${wipGauge}
+        <div class="mt-view-seg">
+          <button class="${mtBoardView==='kanban'?'on':''}" onclick="mtSetBoardView('kanban')" title="4컬럼 칸반 뷰">▦ 칸반</button>
+          <button class="${mtBoardView==='canvas'?'on':''}" onclick="mtSetBoardView('canvas')" title="캔버스 뷰 — 자유 배치 + 드래그 분류">🗺 캔버스</button>
+        </div>
         <button class="mt-help-btn" onclick="openMTGuide()" title="책임 보드 사용법">📖 사용법</button>
       </div>
     </div>
@@ -16408,6 +16420,490 @@ async function renderMTSystem(mode){
     const nk = otherView.querySelector('.mt-kanban');
     if(nk) nk.scrollLeft = _prevScrollL;   // [v146] keep horizontal scroll after a move
   }
+
+  if(mtBoardView === 'canvas') mtCanvasInit();   // [v776] 캔버스 인터랙션 바인딩
+}
+
+// ═══════════════════════════════════════════════════
+// [v776] MT 캔버스 뷰 — "그림판" 하이브리드 보드
+// 존 안 = 칸반(자동 정렬) · 존 밖 = 자유 배치 아이디어 공간
+// 드래그: 존에 놓으면 분류 · 인원 존에 놓으면 담당 지정 · 빈 공간 = 아이디어(pos 저장)
+// 카드 클릭 → 우측 상세 패널 (메모/우선순위/담당/마감/하위항목/코멘트)
+// ═══════════════════════════════════════════════════
+let mtcView = { x: 20, y: 20, s: 0, fitted:false };   // s=0 → init에서 화면 맞춤 계산
+window._mtcDragging = false; window._mtcPanning = false;
+let _mtcPanelKey = null;   // {kind,id} — 재렌더 후 패널 유지
+
+const MTC_ZONES = [
+  { key:'inbox',   label:'📥 인박스',        x:40,   y:240, w:380, h:880, hue:'#5fa3d9', hint:'떠오른 건 일단 여기' },
+  { key:'passive', label:'📦 책임 (Passive)', x:450,  y:240, w:380, h:880, hue:'#b074ec', hint:'계속 신경 쓸 영역' },
+  { key:'active',  label:'⚡ 액티브',         x:860,  y:240, w:450, h:880, hue:'#c2a04a', hint:'지금 실행하는 행동' },
+  { key:'done',    label:'✅ 완료',           x:1340, y:240, w:380, h:880, hue:'#3aa05a', hint:'끝낸 행동' },
+  { key:'trash',   label:'🗑 휴지통',         x:1750, y:240, w:280, h:230, hue:'#8a8a8a', hint:'놓으면 삭제 · 클릭해 복원' }
+];
+const MTC_SURFACE = { w: 2700, h: 1400 };
+
+function _mtcDays(created, today){
+  if(!created) return 0;
+  const c = new Date(String(created).slice(0,10) + 'T00:00:00');
+  return Math.max(0, Math.round((today - c) / 86400000));
+}
+function _mtcEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// 캔버스 카드 HTML — kind: 'inbox' | 'active' | 'passive'
+function _mtcCard(kind, item, today, free){
+  const title = _mtcEsc(item.title || item.text || '(제목 없음)');
+  const days = _mtcDays(item.created_at, today);
+  const dayBadge = (kind!=='passive' && !(kind==='active' && item.status==='done') && days>=1)
+    ? `<span class="mtc-day ${days>=7?'mtc-day-old':''}">D${days}</span>` : '';
+  const pm = MT_PRI[item.priority] || null;
+  const pri = (kind==='active' && pm) ? `<span class="mtc-pri" style="background:${pm.color}">${pm.num}</span>` : '';
+  const st = kind==='active' ? ({todo:'○',doing:'◐',done:'●'}[item.status]||'○') : '';
+  const stC = kind==='active' ? ({todo:'var(--tx3)',doing:'var(--ac)',done:'var(--gr)'}[item.status]||'var(--tx3)') : '';
+  const owner = item.owner ? `<span class="mtc-av" style="${avatarBg(item.owner, item.owner.slice(0,2).toUpperCase())}" title="${_mtcEsc(item.owner)}">${_mtcEsc(item.owner.slice(0,2).toUpperCase())}</span>` : '';
+  const memoDot = (item.memo||'').trim() ? `<span class="mtc-memoic" title="메모 있음">≡</span>` : '';
+  const steps = item.steps||[]; const stepB = steps.length?`<span class="mtc-steps">☑${steps.filter(s=>s.done).length}/${steps.length}</span>`:'';
+  const style = free && item.pos ? ` style="left:${item.pos.x}px;top:${item.pos.y}px"` : '';
+  return `<div class="mtc-card mtc-k-${kind} ${free?'mtc-free':''} ${kind==='active'&&item.status==='done'?'mtc-done':''}" data-kind="${kind}" data-id="${item.id}"${style}>
+    ${st?`<span class="mtc-st" style="color:${stC}">${st}</span>`:''}${pri}
+    <span class="mtc-title">${title}</span>
+    ${memoDot}${stepB}${dayBadge}${owner}
+  </div>`;
+}
+
+function mtCanvasHTML(ctx){
+  const { tabMembers, viewingMember, me, personalMode, today } = ctx;
+  const members = personalMode ? [{name:me, short:me.slice(0,2).toUpperCase()}] : tabMembers;
+  window._mtcCtx = { members: members.map(m=>m.name), me, viewingMember, personalMode, today };
+
+  // viewingMember/me는 멤버 목록에 없어도 항상 포함 — 카드가 조용히 사라지는 일 방지
+  const names = members.map(m=>m.name).concat([viewingMember, me].filter(Boolean));
+  const inScope = o => personalMode ? _mtSameOwner(o, me) : (!o || names.some(n=>_mtSameOwner(n,o)));
+
+  const inboxAll  = MT_INBOX.filter(i => inScope(i.owner));
+  const inboxDock = inboxAll.filter(i => !i.pos);
+  const inboxFree = inboxAll.filter(i => i.pos);
+  const passives  = MT_PASSIVE.filter(p => inScope(p.owner) && p.status==='active');
+  const actAll    = MT_ACTIVE.filter(a => inScope(a.owner));
+  const actOpen   = actAll.filter(a => a.status!=='done');
+  const actDone   = actAll.filter(a => a.status==='done');
+  const so = { doing:0, todo:1 }; const po = { P1:0, P2:1, P3:2 };
+  actOpen.sort((a,b)=> (so[a.status]??1)-(so[b.status]??1) || (po[a.priority]??3)-(po[b.priority]??3));
+
+  const zoneCards = {
+    inbox:   inboxDock.map(i=>_mtcCard('inbox',i,today,false)).join('') || '<div class="mtc-empty">비어 있음</div>',
+    passive: passives.map(p=>_mtcCard('passive',p,today,false)).join('') || '<div class="mtc-empty">책임 영역 없음</div>',
+    active:  actOpen.map(a=>_mtcCard('active',a,today,false)).join('') || '<div class="mtc-empty">진행 중 없음</div>',
+    done:    actDone.map(a=>_mtcCard('active',a,today,false)).join('') || '<div class="mtc-empty">아직 없음</div>',
+    trash:   `<div class="mtc-trash-n">${MT_TRASH.length}개 보관 중</div><div class="mtc-trash-hint">클릭하면 복원 목록</div>`
+  };
+  const counts = { inbox: inboxAll.length, passive: passives.length, active: actOpen.length, done: actDone.length, trash: MT_TRASH.length };
+
+  const zonesHTML = MTC_ZONES.map(z => `
+    <div class="mtc-zone" data-zone="${z.key}" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;--zc:${z.hue}" ${z.key==='trash'?'onclick="if(!window._mtcMoved)mtcOpenTrash()"':''}>
+      <div class="mtc-zone-head"><span>${z.label}</span><span class="mtc-zone-cnt">${counts[z.key]??''}</span></div>
+      <div class="mtc-zone-body" data-zonebody="${z.key}">${zoneCards[z.key]}</div>
+      <div class="mtc-zone-hint">${z.hint}</div>
+    </div>`).join('');
+
+  // Work split — 인원 존 (카드를 끌어다 놓으면 담당 지정)
+  const memberZones = members.map((m,i) => {
+    const nm = m.name;
+    const doing = MT_ACTIVE.filter(a=>_mtSameOwner(a.owner,nm)&&a.status==='doing').length;
+    const todo  = MT_ACTIVE.filter(a=>_mtSameOwner(a.owner,nm)&&a.status==='todo').length;
+    return `<div class="mtc-member" data-member="${_mtcEsc(nm)}" style="left:${40+i*280}px;top:40px">
+      <span class="mtc-member-av" style="${avatarBg(nm, (m.short||nm.slice(0,2)).toUpperCase())}">${_mtcEsc((m.short||nm.slice(0,2)).toUpperCase())}</span>
+      <div class="mtc-member-i">
+        <div class="mtc-member-nm">${_mtcEsc(nm)}${nm===me?' (나)':''}</div>
+        <div class="mtc-member-st">◐ ${doing} · ○ ${todo}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const freeCards = inboxFree.map(i=>_mtcCard('inbox',i,today,true)).join('');
+
+  return `<style id="mtcSkin">
+  .mt-view-seg{display:inline-flex;gap:0;border:1px solid var(--br,#262625);border-radius:8px;overflow:hidden;margin-right:6px}
+  .mt-view-seg button{background:rgba(255,255,255,.015);border:none;color:var(--tx3);font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;padding:5px 11px;cursor:pointer}
+  .mt-view-seg button.on{background:rgba(194,160,74,.12);color:var(--ac-strong,#d4b566)}
+  #mtc-vp{position:relative;height:calc(100vh - 210px);min-height:420px;border:1px solid var(--br,#262625);border-radius:10px;overflow:hidden;background:
+    radial-gradient(circle,rgba(255,255,255,.045) 1px,transparent 1px) 0 0/26px 26px,var(--bg-c,#161615);cursor:grab;touch-action:none;user-select:none}
+  #mtc-vp.mtc-grabbing{cursor:grabbing}
+  #mtc-surface{position:absolute;left:0;top:0;width:${MTC_SURFACE.w}px;height:${MTC_SURFACE.h}px;transform-origin:0 0}
+  .mtc-zone{position:absolute;border-radius:10px;background:color-mix(in srgb,var(--zc) 4%,rgba(255,255,255,.01));border:1px solid color-mix(in srgb,var(--zc) 26%,var(--br,#262625));border-top:2.5px solid color-mix(in srgb,var(--zc) 70%,transparent);display:flex;flex-direction:column;overflow:hidden}
+  .mtc-zone.mtc-over{background:color-mix(in srgb,var(--zc) 14%,rgba(255,255,255,.02));border-color:var(--zc);box-shadow:0 0 0 2px color-mix(in srgb,var(--zc) 45%,transparent)}
+  .mtc-zone-head{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;font:12px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;letter-spacing:.04em;color:color-mix(in srgb,var(--zc) 78%,#fff);background:color-mix(in srgb,var(--zc) 12%,transparent);border-bottom:1px solid color-mix(in srgb,var(--zc) 25%,transparent);flex:none}
+  .mtc-zone-cnt{font-size:10px;background:rgba(255,255,255,.08);border-radius:6px;padding:0 6px;min-width:17px;text-align:center}
+  .mtc-zone-body{flex:1;overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:3px}
+  .mtc-zone-body::-webkit-scrollbar{width:5px}.mtc-zone-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
+  .mtc-zone-hint{flex:none;padding:4px 10px 6px;font:9.5px ui-monospace,monospace;color:rgba(235,235,245,.28)}
+  .mtc-card{display:flex;align-items:center;gap:5px;padding:5px 7px;border-radius:7px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);cursor:grab;font:11.5px/1.4 ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace;color:var(--tx1,#ebebeb)}
+  .mtc-card:hover{background:rgba(255,255,255,.065);border-color:rgba(255,255,255,.14)}
+  .mtc-card.mtc-dragsrc{opacity:.25}
+  .mtc-card.mtc-done .mtc-title{text-decoration:line-through;opacity:.5}
+  .mtc-title{flex:1;min-width:0;overflow-wrap:break-word;word-break:keep-all}
+  .mtc-st{flex:none;font-size:11px}
+  .mtc-pri{flex:none;width:15px;height:15px;border-radius:4px;color:#fff;font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+  .mtc-av{flex:none;width:17px;height:17px;border-radius:50%;font-size:8px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff}
+  .mtc-day{flex:none;font-size:8.5px;color:rgba(235,235,245,.4);background:rgba(255,255,255,.05);border-radius:4px;padding:0 4px}
+  .mtc-day-old{color:#e0a0a0;background:rgba(196,106,106,.14)}
+  .mtc-steps{flex:none;font-size:8.5px;color:rgba(235,235,245,.45)}
+  .mtc-memoic{flex:none;font-size:9px;color:rgba(235,235,245,.4)}
+  .mtc-card.mtc-free{position:absolute;width:220px;box-shadow:0 3px 14px rgba(0,0,0,.4);background:color-mix(in srgb,#5fa3d9 7%,rgba(30,30,30,.94));border-color:color-mix(in srgb,#5fa3d9 32%,transparent);z-index:5}
+  .mtc-member{position:absolute;width:260px;height:150px;border-radius:10px;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.16);display:flex;align-items:center;gap:10px;padding:0 14px}
+  .mtc-member.mtc-over{border:1.5px solid var(--ac,#c2a04a);background:rgba(194,160,74,.1);box-shadow:0 0 0 2px rgba(194,160,74,.3)}
+  .mtc-member-av{width:34px;height:34px;border-radius:50%;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none}
+  .mtc-member-nm{font:12px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;color:var(--tx1)}
+  .mtc-member-st{font:10px ui-monospace,monospace;color:var(--tx3);margin-top:2px}
+  .mtc-wslabel{position:absolute;left:42px;top:14px;font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.1em;color:rgba(235,235,245,.35)}
+  .mtc-freehint{position:absolute;left:1750px;top:510px;width:600px;height:560px;border:1.5px dashed rgba(255,255,255,.1);border-radius:12px;display:flex;align-items:center;justify-content:center;font:11px ui-monospace,monospace;color:rgba(235,235,245,.22);text-align:center;pointer-events:none}
+  .mtc-empty{font:10px ui-monospace,monospace;color:rgba(235,235,245,.25);padding:8px 4px}
+  .mtc-trash-n{font:11px ui-monospace,monospace;color:var(--tx2);padding:8px 4px 2px}
+  .mtc-trash-hint{font:9.5px ui-monospace,monospace;color:rgba(235,235,245,.3)}
+  .mtc-toolbar{position:absolute;right:12px;top:12px;z-index:20;display:flex;gap:5px}
+  .mtc-toolbar button{width:28px;height:28px;border-radius:7px;background:rgba(20,20,20,.85);border:1px solid var(--br,#262625);color:var(--tx2);cursor:pointer;font-size:13px}
+  .mtc-toolbar button:hover{border-color:var(--ac)}
+  .mtc-quick{position:absolute;left:12px;top:12px;z-index:20;display:flex;gap:6px;align-items:center}
+  .mtc-quick input{width:250px;background:rgba(20,20,20,.88);border:1px solid var(--br,#262625);border-radius:8px;color:var(--tx1);font:11.5px ui-monospace,Consolas,'Malgun Gothic',monospace;padding:7px 10px;outline:none}
+  .mtc-quick input:focus{border-color:#5fa3d9}
+  .mtc-quick-hint{font:9.5px ui-monospace,monospace;color:rgba(235,235,245,.3)}
+  #mtc-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:.9;transform:scale(.95);width:230px}
+  .mtcp-row{display:flex;gap:6px;align-items:center;margin:8px 0}
+  .mtcp-lbl{font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.06em;color:var(--tx3);width:52px;flex:none}
+  .mtcp-in{flex:1;background:rgba(255,255,255,.03);border:1px solid var(--br);border-radius:7px;color:var(--tx1);font:12px 'Malgun Gothic',sans-serif;padding:7px 9px;outline:none}
+  .mtcp-in:focus{border-color:var(--ac)}
+  textarea.mtcp-in{resize:vertical;min-height:70px;font-family:ui-monospace,Consolas,'Malgun Gothic',monospace}
+  .mtcp-seg{display:inline-flex;border:1px solid var(--br);border-radius:7px;overflow:hidden}
+  .mtcp-seg button{background:transparent;border:none;color:var(--tx3);font:10.5px ui-monospace,monospace;font-weight:700;padding:5px 10px;cursor:pointer}
+  .mtcp-seg button.on{background:rgba(194,160,74,.15);color:var(--ac-strong,#d4b566)}
+  .mtcp-acts{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+  .mtcp-btn{background:rgba(255,255,255,.04);border:1px solid var(--br);border-radius:7px;color:var(--tx2);font:11px ui-monospace,monospace;font-weight:700;padding:7px 11px;cursor:pointer}
+  .mtcp-btn:hover{border-color:var(--ac)}
+  .mtcp-btn.danger:hover{border-color:var(--re);color:var(--re)}
+  </style>
+  <div id="mtc-vp">
+    <div class="mtc-quick">
+      <input id="mtc-quick-in" placeholder="+ 아이디어 입력 후 Enter → 인박스" onkeydown="if(event.key==='Enter')mtcQuickAdd(this)">
+      <span class="mtc-quick-hint">드래그: 존=분류 · 인원=담당 · 빈 곳=자유 배치</span>
+    </div>
+    <div class="mtc-toolbar">
+      <button onclick="mtcZoom(1.18)" title="확대">+</button>
+      <button onclick="mtcZoom(0.85)" title="축소">−</button>
+      <button onclick="mtcFit()" title="화면 맞춤">⌂</button>
+    </div>
+    <div id="mtc-surface">
+      <div class="mtc-wslabel">WORK SPLIT — 카드를 사람 위에 놓으면 담당 지정</div>
+      ${memberZones}
+      ${zonesHTML}
+      <div class="mtc-freehint">✏ 자유 구상 공간<br>카드를 빈 곳에 놓으면 아이디어로 떠 있어요</div>
+      ${freeCards}
+    </div>
+  </div>`;
+}
+
+// ─── 캔버스 인터랙션 ───
+function _mtcApply(){
+  const sf = document.getElementById('mtc-surface');
+  if(sf) sf.style.transform = `translate(${mtcView.x}px,${mtcView.y}px) scale(${mtcView.s})`;
+}
+function mtcFit(){
+  const vp = document.getElementById('mtc-vp'); if(!vp) return;
+  const r = vp.getBoundingClientRect();
+  mtcView.s = Math.min(1, Math.max(0.3, (r.width - 40) / 2150));
+  mtcView.x = 14; mtcView.y = 14; mtcView.fitted = true;
+  _mtcApply();
+}
+function mtcZoom(f){
+  const vp = document.getElementById('mtc-vp'); if(!vp) return;
+  const r = vp.getBoundingClientRect();
+  const cx = r.width/2, cy = r.height/2;
+  const ns = Math.min(2.2, Math.max(0.25, mtcView.s * f));
+  mtcView.x = cx - (cx - mtcView.x) * (ns/mtcView.s);
+  mtcView.y = cy - (cy - mtcView.y) * (ns/mtcView.s);
+  mtcView.s = ns; _mtcApply();
+}
+function mtcQuickAdd(inp){
+  const text = (inp.value||'').trim(); if(!text) return;
+  const ctx = window._mtcCtx || {};
+  MT_INBOX.push({ id:Date.now(), text, created_at:isoDate(new Date()), owner: ctx.viewingMember || currentUser?.name || 'MT' });
+  inp.value = '';
+  saveMTSystem(); renderMTSystem();
+  setTimeout(()=>{ document.getElementById('mtc-quick-in')?.focus(); }, 50);
+}
+
+function mtCanvasInit(){
+  const vp = document.getElementById('mtc-vp'); if(!vp) return;
+  if(!mtcView.fitted || !mtcView.s) mtcFit(); else _mtcApply();
+
+  // 줌 (휠)
+  vp.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = vp.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const ns = Math.min(2.2, Math.max(0.25, mtcView.s * (e.deltaY < 0 ? 1.1 : 0.9)));
+    mtcView.x = mx - (mx - mtcView.x) * (ns/mtcView.s);
+    mtcView.y = my - (my - mtcView.y) * (ns/mtcView.s);
+    mtcView.s = ns; _mtcApply();
+  }, { passive:false });
+
+  vp.addEventListener('pointerdown', e => {
+    if(e.button !== 0) return;
+    const card = e.target.closest('.mtc-card');
+    if(card){ _mtcCardDown(e, card, vp); return; }
+    // 빈 공간(서피스 자체 / 뷰포트) → 팬
+    if(e.target.id === 'mtc-surface' || e.target === vp || e.target.classList.contains('mtc-zone-hint')){
+      _mtcPanStart(e, vp);
+    }
+  });
+}
+
+function _mtcPanStart(e, vp){
+  window._mtcPanning = true;
+  vp.classList.add('mtc-grabbing');
+  const sx = e.clientX - mtcView.x, sy = e.clientY - mtcView.y;
+  const mv = ev => { mtcView.x = ev.clientX - sx; mtcView.y = ev.clientY - sy; _mtcApply(); };
+  const up = () => {
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+    vp.classList.remove('mtc-grabbing');
+    setTimeout(()=>{ window._mtcPanning = false; }, 30);
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+}
+
+function _mtcCardDown(e, card, vp){
+  e.preventDefault();
+  const kind = card.dataset.kind, id = Number(card.dataset.id);
+  const startX = e.clientX, startY = e.clientY;
+  let moved = false, ghost = null;
+  window._mtcMoved = false;
+
+  const highlight = (cx, cy) => {
+    document.querySelectorAll('.mtc-zone.mtc-over,.mtc-member.mtc-over').forEach(el=>el.classList.remove('mtc-over'));
+    const el = document.elementFromPoint(cx, cy);
+    const hit = el && el.closest('[data-zone],[data-member]');
+    if(hit) hit.classList.add('mtc-over');
+    return hit;
+  };
+
+  const mv = ev => {
+    if(!moved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 5) return;
+    if(!moved){
+      moved = true; window._mtcDragging = true; window._mtcMoved = true;
+      ghost = card.cloneNode(true); ghost.id = 'mtc-ghost'; ghost.classList.remove('mtc-free');
+      ghost.style.left = ''; ghost.style.top = '';
+      document.body.appendChild(ghost);
+      card.classList.add('mtc-dragsrc');
+    }
+    ghost.style.transform = `translate(${ev.clientX+8}px,${ev.clientY+6}px) scale(.95)`;
+    ghost.style.left = '0'; ghost.style.top = '0';
+    highlight(ev.clientX, ev.clientY);
+  };
+  const up = ev => {
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+    document.querySelectorAll('.mtc-zone.mtc-over,.mtc-member.mtc-over').forEach(el=>el.classList.remove('mtc-over'));
+    if(ghost) ghost.remove();
+    card.classList.remove('mtc-dragsrc');
+    window._mtcDragging = false;
+    if(!moved){ mtcOpenDetail(kind, id); return; }
+    setTimeout(()=>{ window._mtcMoved = false; }, 60);
+
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const memberEl = el && el.closest('[data-member]');
+    const zoneEl = el && el.closest('[data-zone]');
+    const inVp = el && el.closest('#mtc-vp');
+
+    if(memberEl){ _mtcAssign(kind, id, memberEl.dataset.member); return; }
+    if(zoneEl){ _mtcDropZone(kind, id, zoneEl.dataset.zone); return; }
+    if(inVp){
+      // 빈 캔버스 → 자유 배치
+      const r = document.getElementById('mtc-vp').getBoundingClientRect();
+      const sx = (ev.clientX - r.left - mtcView.x) / mtcView.s;
+      const sy = (ev.clientY - r.top  - mtcView.y) / mtcView.s;
+      _mtcDropFree(kind, id, Math.round(sx-110), Math.round(sy-14));
+    }
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+}
+
+function _mtcFind(kind, id){
+  const arr = kind==='inbox' ? MT_INBOX : kind==='active' ? MT_ACTIVE : MT_PASSIVE;
+  return { arr, item: arr.find(x => x.id === id) };
+}
+
+function _mtcAssign(kind, id, name){
+  const { item } = _mtcFind(kind, id); if(!item) return;
+  if(_mtSameOwner(item.owner, name)) return;
+  item.owner = name;
+  saveMTSystem(); renderMTSystem();
+  toast(`"${(item.title||item.text||'').slice(0,24)}" → ${name} 담당`);
+}
+
+function _mtcDropZone(kind, id, zone){
+  const { arr, item } = _mtcFind(kind, id); if(!item) return;
+  const label = (item.title||item.text||'').slice(0,24);
+  const now = isoDate(new Date());
+  const rm = () => { const i = arr.indexOf(item); if(i>=0) arr.splice(i,1); };
+
+  if(zone === 'trash'){
+    _mtcClosePanelIf(kind, id);
+    _mtToTrash(kind, item); rm();
+    saveMTSystem(); renderMTSystem(); toast(`🗑 "${label}" 휴지통으로 (복원 가능)`); return;
+  }
+  if(zone === 'inbox'){
+    if(kind === 'inbox'){ if(item.pos){ delete item.pos; saveMTSystem(); renderMTSystem(); } return; }
+    rm(); MT_INBOX.push({ id:Date.now(), text:item.title||'', owner:item.owner, created_at:item.created_at||now, memo:item.memo||'' });
+    saveMTSystem(); renderMTSystem(); toast(`📥 "${label}" 인박스로 되돌림`); return;
+  }
+  if(zone === 'active' || zone === 'done'){
+    const st = zone === 'done' ? 'done' : 'todo';
+    if(kind === 'active'){
+      if(item.status !== st){ item.status = st; saveMTSystem(); renderMTSystem(); toast(st==='done'?`✅ "${label}" 완료!`:`⚡ "${label}" 다시 액티브로`); }
+      return;
+    }
+    rm();
+    const newId = Math.max(100, ...MT_ACTIVE.map(a=>a.id), Date.now()%100000) + 1;
+    MT_ACTIVE.push({ id:newId, title:item.title||item.text||'', passive_id:null, owner:item.owner, priority:item.priority||'P2', status:st, due:null, steps:item.steps||[], comments:item.comments||[], created_at:item.created_at||now, memo:item.memo||'' });
+    saveMTSystem(); renderMTSystem(); toast(`⚡ "${label}" 행동으로`); return;
+  }
+  if(zone === 'passive'){
+    if(kind === 'passive') return;
+    rm();
+    const newId = Math.max(0, ...MT_PASSIVE.map(p=>p.id)) + 1;
+    MT_PASSIVE.push({ id:newId, title:item.title||item.text||'', category:'Operation', priority:item.priority||'P2', owner:item.owner, status:'active', sop:[], created_at:item.created_at||now, memo:item.memo||'' });
+    saveMTSystem(); renderMTSystem(); toast(`📦 "${label}" 책임 영역으로`); return;
+  }
+}
+
+function _mtcDropFree(kind, id, x, y){
+  const { arr, item } = _mtcFind(kind, id); if(!item) return;
+  const label = (item.title||item.text||'').slice(0,24);
+  x = Math.max(0, Math.min(MTC_SURFACE.w-240, x));
+  y = Math.max(0, Math.min(MTC_SURFACE.h-40, y));
+  if(kind === 'inbox'){
+    item.pos = { x, y };
+    saveMTSystem(); renderMTSystem(); return;
+  }
+  // 액티브/책임을 빈 공간에 → 아이디어(인박스)로 전환해 자유 배치
+  const i = arr.indexOf(item); if(i>=0) arr.splice(i,1);
+  MT_INBOX.push({ id:Date.now(), text:item.title||'', owner:item.owner, created_at:item.created_at||isoDate(new Date()), memo:item.memo||'', pos:{x,y} });
+  saveMTSystem(); renderMTSystem(); toast(`✏ "${label}" 아이디어로 전환 (자유 배치)`);
+}
+
+// ─── 상세 패널 ───
+function _mtcClosePanelIf(kind, id){
+  if(_mtcPanelKey && _mtcPanelKey.kind===kind && _mtcPanelKey.id===id){ _mtcPanelKey=null; try{ closeTaskDetail(); }catch(_){} }
+}
+function mtcOpenDetail(kind, id){
+  const { item } = _mtcFind(kind, id); if(!item) return;
+  _mtcPanelKey = { kind, id };
+  const ctx = window._mtcCtx || { members:[] };
+  let panel = document.getElementById('task-detail-panel');
+  if(!panel){ panel=document.createElement('div'); panel.id='task-detail-panel'; panel.className='ap-side-panel'; document.body.appendChild(panel); }
+
+  const kindMeta = { inbox:{ic:'📥',t:'아이디어 (인박스)',c:'#5fa3d9'}, active:{ic:'⚡',t:'행동 (액티브)',c:'#c2a04a'}, passive:{ic:'📦',t:'책임 영역',c:'#b074ec'} }[kind];
+  const days = _mtcDays(item.created_at, (()=>{const t=new Date();t.setHours(0,0,0,0);return t;})());
+  const ownerSel = `<select class="mtcp-in" onchange="mtcSetField('${kind}',${id},'owner',this.value)">
+    <option value="">(미지정)</option>
+    ${ctx.members.map(n=>`<option value="${_mtcEsc(n)}"${_mtSameOwner(item.owner,n)?' selected':''}>${_mtcEsc(n)}</option>`).join('')}
+  </select>`;
+
+  let extra = '';
+  if(kind === 'active'){
+    const stSeg = ['todo','doing','done'].map(s=>`<button class="${item.status===s?'on':''}" onclick="mtcSetField('active',${id},'status','${s}')">${{todo:'○ 대기',doing:'◐ 진행',done:'● 완료'}[s]}</button>`).join('');
+    const priSeg = ['P1','P2','P3'].map(p=>`<button class="${item.priority===p?'on':''}" onclick="mtcSetField('active',${id},'priority','${p}')">${MT_PRI[p].icon} ${MT_PRI[p].label}</button>`).join('');
+    const steps = item.steps||[];
+    extra = `
+      <div class="mtcp-row"><span class="mtcp-lbl">상태</span><span class="mtcp-seg">${stSeg}</span></div>
+      <div class="mtcp-row"><span class="mtcp-lbl">우선순위</span><span class="mtcp-seg">${priSeg}</span></div>
+      <div class="mtcp-row"><span class="mtcp-lbl">마감</span><input type="date" class="mtcp-in" value="${item.due||''}" onchange="mtcSetField('active',${id},'due',this.value||null)"></div>
+      <div class="mtcp-row" style="align-items:flex-start"><span class="mtcp-lbl">하위 항목</span>
+        <div style="flex:1">
+          ${steps.map((s,i)=>`<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+            <input type="checkbox" ${s.done?'checked':''} onchange="mtcToggleStep(${id},${i})">
+            <span style="flex:1;font:11.5px ui-monospace,monospace;${s.done?'text-decoration:line-through;opacity:.5':''}">${_mtcEsc(s.text)}</span>
+            <button class="mtcp-btn" style="padding:1px 6px" onclick="mtcDelStep(${id},${i})">✕</button>
+          </div>`).join('')}
+          <input class="mtcp-in" placeholder="+ 하위 항목 (Enter)" onkeydown="if(event.key==='Enter'){mtcAddStep(${id},this)}">
+        </div>
+      </div>`;
+  } else if(kind === 'inbox'){
+    extra = `<div class="mtcp-acts">
+      <button class="mtcp-btn" onclick="_mtcDropZone('inbox',${id},'active')">⚡ 액티브로</button>
+      <button class="mtcp-btn" onclick="_mtcDropZone('inbox',${id},'passive')">📦 책임으로</button>
+      ${item.pos?`<button class="mtcp-btn" onclick="_mtcDropZone('inbox',${id},'inbox')">📥 인박스로 도킹</button>`:''}
+    </div>`;
+  }
+
+  panel.innerHTML = `<div class="ap-panel-inner">
+    <div class="ap-panel-head">
+      <div class="ap-panel-head-l"><div>
+        <div class="ap-panel-name">${kindMeta.ic} <span style="color:${kindMeta.c}">${kindMeta.t}</span></div>
+        <div class="ap-panel-meta">${item.created_at||''}${days>=1?` · D+${days}`:''}${item.owner?` · ${_mtcEsc(item.owner)}`:''}</div>
+      </div></div>
+      <button class="ap-panel-close" onclick="_mtcPanelKey=null;closeTaskDetail()">✕</button>
+    </div>
+    <div class="ap-panel-body">
+      <div class="mtcp-row"><span class="mtcp-lbl">제목</span><input class="mtcp-in" value="${_mtcEsc(item.title||item.text||'')}" onchange="mtcSetField('${kind}',${id},'${kind==='inbox'?'text':'title'}',this.value)"></div>
+      <div class="mtcp-row"><span class="mtcp-lbl">담당</span>${ownerSel}</div>
+      <div class="mtcp-row" style="align-items:flex-start"><span class="mtcp-lbl">메모</span><textarea class="mtcp-in" placeholder="세부 내용, 배경, 링크..." onchange="mtcSetField('${kind}',${id},'memo',this.value)">${_mtcEsc(item.memo||'')}</textarea></div>
+      ${extra}
+      <div class="mtcp-acts">
+        <button class="mtcp-btn danger" onclick="_mtcDropZone('${kind}',${id},'trash')">🗑 휴지통으로</button>
+      </div>
+    </div>
+  </div>`;
+  requestAnimationFrame(()=>panel.classList.add('open'));
+  setTimeout(()=>panel.classList.add('open'), 60);   // 백그라운드 탭에서 rAF 지연 대비
+}
+function mtcSetField(kind, id, field, val){
+  const { item } = _mtcFind(kind, id); if(!item) return;
+  item[field] = val;
+  saveMTSystem(); renderMTSystem();
+  mtcOpenDetail(kind, id);
+}
+function mtcAddStep(id, inp){
+  const { item } = _mtcFind('active', id); if(!item) return;
+  const t = (inp.value||'').trim(); if(!t) return;
+  (item.steps = item.steps||[]).push({ text:t, done:false });
+  saveMTSystem(); renderMTSystem(); mtcOpenDetail('active', id);
+}
+function mtcToggleStep(id, i){
+  const { item } = _mtcFind('active', id); if(!item||!item.steps||!item.steps[i]) return;
+  item.steps[i].done = !item.steps[i].done;
+  saveMTSystem(); renderMTSystem(); mtcOpenDetail('active', id);
+}
+function mtcDelStep(id, i){
+  const { item } = _mtcFind('active', id); if(!item||!item.steps) return;
+  item.steps.splice(i,1);
+  saveMTSystem(); renderMTSystem(); mtcOpenDetail('active', id);
+}
+function mtcOpenTrash(){
+  let panel = document.getElementById('task-detail-panel');
+  if(!panel){ panel=document.createElement('div'); panel.id='task-detail-panel'; panel.className='ap-side-panel'; document.body.appendChild(panel); }
+  const kindIc = { inbox:'📥', active:'⚡', passive:'📦' };
+  const rows = MT_TRASH.length ? MT_TRASH.map(t=>{
+    const days = Math.max(0, Math.round((Date.now()-(t.deleted_at||Date.now()))/86400000));
+    return `<div style="display:flex;gap:7px;align-items:center;padding:6px 2px;border-bottom:1px solid rgba(255,255,255,.06)">
+      <span>${kindIc[t.kind]||'·'}</span>
+      <span style="flex:1;font:11.5px ui-monospace,monospace">${_mtcEsc((t.item&&(t.item.title||t.item.text))||'(제목 없음)')}</span>
+      <span style="font:9px ui-monospace,monospace;color:var(--tx3)">${days}d</span>
+      <button class="mtcp-btn" style="padding:2px 8px" onclick="mtRestoreTrash(${t.id});mtcOpenTrash()">↩ 복원</button>
+      <button class="mtcp-btn danger" style="padding:2px 8px" onclick="mtPurgeTrash(${t.id});mtcOpenTrash()">✕</button>
+    </div>`;
+  }).join('') : '<div style="font:11px ui-monospace,monospace;color:var(--tx3);padding:14px 0">비어 있음</div>';
+  panel.innerHTML = `<div class="ap-panel-inner">
+    <div class="ap-panel-head">
+      <div class="ap-panel-head-l"><div>
+        <div class="ap-panel-name">🗑 휴지통</div>
+        <div class="ap-panel-meta">${MT_TRASH.length}개 · 14일 후 자동 소멸</div>
+      </div></div>
+      <button class="ap-panel-close" onclick="closeTaskDetail()">✕</button>
+    </div>
+    <div class="ap-panel-body">${rows}
+      ${MT_TRASH.length?`<div class="mtcp-acts"><button class="mtcp-btn danger" onclick="mtEmptyTrash();mtcOpenTrash()">전체 비우기</button></div>`:''}
+    </div>
+  </div>`;
+  requestAnimationFrame(()=>panel.classList.add('open'));
 }
 
 // 책임 보드 사용법 가이드 패널
