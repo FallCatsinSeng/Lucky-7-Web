@@ -16593,9 +16593,28 @@ function mtcPenCancel(){
   document.getElementById('mtc-penbar')?.remove();
 }
 // 획 하나를 무엇으로 볼지 판정 (그리는 즉시 미리 알려주기 위해)
+// 좌표가 어느 영역 안인지 (겹치면 나중에 그려진 쪽 = 직접 만든 박스가 우선)
+function _mtcZoneAtSurface(x, y){
+  let hit = null;
+  document.querySelectorAll('.mtc-zone').forEach(el => {
+    const ex = parseFloat(el.style.left)||0, ey = parseFloat(el.style.top)||0;
+    const ew = el.offsetWidth || parseFloat(el.style.width) || 0;
+    const eh = el.offsetHeight || parseFloat(el.style.height) || 0;
+    if(x>=ex && x<=ex+ew && y>=ey && y<=ey+eh) hit = el.dataset.zone;
+  });
+  return hit;
+}
 function _mtcClassifyStroke(pts){
   const s = _mtcStrokeInfo(pts);
-  if(s.closed) return { kind:'box', info:s, label:'박스' };
+  if(s.closed){
+    // [v804] 영역 안에 네모를 그리면 박스가 아니라 그 영역의 업무 카드가 된다
+    const z = _mtcZoneAtSurface((s.minX+s.maxX)/2, (s.minY+s.maxY)/2);
+    if(z){
+      const ZL = { inbox:'인박스 카드', passive:'패시브 카드', active:'액티브 카드', done:'완료 카드', po:'PO 카드' };
+      return { kind:'card', info:s, zone:z, label: ZL[z] || '카드' };
+    }
+    return { kind:'box', info:s, label:'박스' };
+  }
   const A = _mtcElAtSurface(pts[0].x, pts[0].y);
   const B = _mtcElAtSurface(pts[pts.length-1].x, pts[pts.length-1].y);
   if(A && B && A.ref !== B.ref) return { kind:'link', info:s, A, B, label:'연결선' };
@@ -16603,13 +16622,33 @@ function _mtcClassifyStroke(pts){
   return { kind:null, info:s, label:'?' };
 }
 // 확정 — 모아둔 획을 한꺼번에 실제 요소로
+// [v804] 영역 안에 그린 네모 → 그 영역에 맞는 업무 카드
+function _mtcCreateCardIn(zone, x, y, w, h){
+  const ctx = window._mtcCtx || {};
+  const owner = ctx.viewingMember || currentUser?.name || 'MT';
+  const now = isoDate(new Date());
+  const id = Date.now() + Math.floor(Math.random()*900);
+  const size = { w: Math.max(140, Math.min(520, Math.round(w))), h: Math.max(24, Math.min(300, Math.round(h))) };
+  const pos = { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) };
+  const base = { id, owner, created_at: now, pos, size };
+  if(zone === 'passive'){ MT_PASSIVE.push({ ...base, title:'', category:'Operation', priority:'P2', status:'active', sop:[] }); return { kind:'passive', id }; }
+  if(zone === 'active'){ MT_ACTIVE.push({ ...base, title:'', passive_id:null, priority:_mtcPriFromY(pos.y), status:'todo', due:null, steps:[], comments:[] }); return { kind:'active', id }; }
+  if(zone === 'done'){ MT_ACTIVE.push({ ...base, title:'', passive_id:null, priority:'P2', status:'done', due:null, steps:[], comments:[] }); return { kind:'active', id }; }
+  MT_INBOX.push({ ...base, text:'' });                       // 인박스·PO·직접 만든 박스
+  return { kind:'inbox', id };
+}
 function mtcPenCommit(){
   const strokes = _mtcInk.filter(s => s.kind);
   if(!strokes.length){ toast('만들 수 있는 획이 없어요', true); mtcPenCancel(); return; }
-  let box=0, link=0, div=0;
+  let box=0, link=0, div=0, card=0, firstCard = null;
   strokes.forEach(s => {
     const i = s.info;
-    if(s.kind === 'box'){ mtcAddZone(i.minX, i.minY, i.w, i.h, true); box++; }
+    if(s.kind === 'card'){
+      const made = _mtcCreateCardIn(s.zone, i.minX, i.minY, i.w, i.h);
+      if(!firstCard) firstCard = made;
+      card++;
+    }
+    else if(s.kind === 'box'){ mtcAddZone(i.minX, i.minY, i.w, i.h, true); box++; }
     else if(s.kind === 'link'){
       if(!_mtcHasLink(s.A.ref, s.B.ref)){ MT_LINKS.push({ a:s.A.ref, b:s.B.ref }); link++; }
     }
@@ -16622,11 +16661,13 @@ function mtcPenCommit(){
   // 잉크가 결과물로 바뀌는 느낌 — 획을 먼저 흩어 없앤다
   _mtcInk.forEach(s => { [s.path, s.tag].forEach(n => { if(n){ n.style.transition='opacity .25s'; n.style.opacity='0'; } }); });
   const skipped = _mtcInk.length - strokes.length;
-  setTimeout(() => {
+  setTimeout(async () => {
     mtcPenCancel();
-    saveMTSystem(); renderMTSystem();
-    const parts = [box&&`박스 ${box}`, link&&`연결 ${link}`, div&&`구분선 ${div}`].filter(Boolean).join(' · ');
+    saveMTSystem(); await renderMTSystem();
+    const parts = [card&&`카드 ${card}`, box&&`박스 ${box}`, link&&`연결 ${link}`, div&&`구분선 ${div}`].filter(Boolean).join(' · ');
     toast(`✏ ${parts}${skipped?` (인식 안 된 획 ${skipped}개는 버림)`:''}`);
+    // 카드를 딱 하나 그렸으면 바로 글을 쓸 수 있게 커서를 넣어준다
+    if(card === 1 && firstCard) setTimeout(()=>_mtcEditNote(firstCard.id), 60);
   }, 220);
 }
 function _mtcPenBar(){
@@ -16658,7 +16699,9 @@ function _mtcStrokeInfo(pts){
   const gap = Math.hypot(b.x-a.x, b.y-a.y);
   const diag = Math.hypot(w, h) || 1;
   return { minX, minY, maxX, maxY, w, h, len, gap, diag,
-           closed: gap < diag*0.34 && len > diag*1.6 && w > 46 && h > 34,   // 한 바퀴 돈 모양
+           // 한 바퀴 돈 모양. 카드는 원래 납작하게 그리므로 높이 기준을 낮게 둔다
+           // (곧게 그은 선은 gap이 diag에 가까워 여기에 걸리지 않는다)
+           closed: gap < diag*0.34 && len > diag*1.6 && w > 40 && h > 16,
            straight: len > 40 && gap / (len||1) > 0.78 };                    // 곧게 그은 선
 }
 function _mtcElAtSurface(x, y){
@@ -17524,6 +17567,7 @@ function mtCanvasHTML(ctx){
   .mtc-ink-path{fill:none;stroke:${MTC_C.amber};stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;
     opacity:.92;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
   /* 인식 결과에 따라 잉크 색이 바뀐다 — 확정 전에 무엇이 될지 보인다 */
+  .mtc-ink-card{stroke:${MTC_C.slate}}
   .mtc-ink-box{stroke:${MTC_C.lilac}}
   .mtc-ink-link{stroke:${MTC_C.teal}}
   .mtc-ink-div{stroke:rgba(255,255,255,.55)}
