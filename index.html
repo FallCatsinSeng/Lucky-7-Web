@@ -17119,6 +17119,14 @@ function mtCanvasHTML(ctx){
     display:flex;align-items:center;justify-content:center;line-height:1}
   .mtc-zone.mtc-linkhot{border-color:#6ba59d!important;
     box-shadow:inset 0 2px 0 0 var(--zc), 0 0 0 2px rgba(107,165,157,.45), 0 10px 30px rgba(0,0,0,.42)!important}
+  /* 이미 이어져 있는 상대 위에 포개면 — 끊긴다는 신호 (붉은 톤 + 가위) */
+  .mtc-note.mtc-unlinkhot{border-color:#c07f74!important;
+    box-shadow:0 0 0 2px rgba(192,127,116,.5), 0 6px 20px rgba(0,0,0,.5)!important;z-index:8}
+  .mtc-note.mtc-unlinkhot::after{content:'✂';position:absolute;right:-9px;top:-11px;font-size:10px;color:#e0a79f;
+    background:rgba(24,24,23,.96);border:1px solid #c07f74;border-radius:50%;width:19px;height:19px;
+    display:flex;align-items:center;justify-content:center;line-height:1}
+  .mtc-zone.mtc-unlinkhot{border-color:#c07f74!important;
+    box-shadow:inset 0 2px 0 0 var(--zc), 0 0 0 2px rgba(192,127,116,.45), 0 10px 30px rgba(0,0,0,.42)!important}
   .mtc-note.mtc-linking-src,.mtc-zone.mtc-linking-src{opacity:.62}
   .mtc-trail{will-change:transform,opacity}
   .mtc-tossmark{position:absolute;border-radius:7px;pointer-events:none;z-index:2;
@@ -17943,9 +17951,9 @@ function _mtcBoxMoveStart(e, el, key, vp){
         if(cx>=zx && cx<=zx+z.offsetWidth && cy>=zy && cy<=zy+z.offsetHeight) over = z;
       });
       if(over !== zoneLinkTarget){
-        zoneLinkTarget?.classList.remove('mtc-linkhot');
+        zoneLinkTarget?.classList.remove('mtc-linkhot', 'mtc-unlinkhot');
         zoneLinkTarget = over;
-        over?.classList.add('mtc-linkhot');
+        if(over) over.classList.add(_mtcHasLink('zone:'+over.dataset.zone, 'zone:'+key) ? 'mtc-unlinkhot' : 'mtc-linkhot');
         el.classList.toggle('mtc-linking-src', !!over);
       }
     }
@@ -17987,16 +17995,16 @@ function _mtcBoxMoveStart(e, el, key, vp){
     // 박스를 다른 박스에 포갰으면 — 연결만 하고 원래 자리로 되돌린다 (박스는 겹쳐 두지 않음)
     if(isZone && zoneLinkTarget && window._mtcMoved){
       const a = 'zone:' + zoneLinkTarget.dataset.zone, b = 'zone:' + key;
-      zoneLinkTarget.classList.remove('mtc-linkhot');
-      const dup = _mtcHasLink(a, b);
-      if(!dup) MT_LINKS.push({ a, b });
+      zoneLinkTarget.classList.remove('mtc-linkhot', 'mtc-unlinkhot');
+      const idx = MT_LINKS.findIndex(l => (l.a===a&&l.b===b)||(l.a===b&&l.b===a));
+      if(idx >= 0) MT_LINKS.splice(idx, 1); else MT_LINKS.push({ a, b });   // 다시 포개면 끊김
       el.style.left = ox+'px'; el.style.top = oy+'px';
       saveMTSystem(); renderMTSystem();
-      toast(dup ? '이미 이어져 있어요' : '🔗 박스끼리 연결됨');
+      toast(idx >= 0 ? '✂ 박스 연결 끊김' : '🔗 박스끼리 연결됨');
       setTimeout(()=>{ window._mtcMoved = false; }, 60);
       return;
     }
-    zoneLinkTarget?.classList.remove('mtc-linkhot');
+    zoneLinkTarget?.classList.remove('mtc-linkhot', 'mtc-unlinkhot');
     if(window._mtcMoved){
       const rdx = nx - ox, rdy = ny - oy;
       carried.forEach(c => {
@@ -18253,9 +18261,10 @@ function _mtcNoteDown(e, note, vp){
     // 다른 카드 위에 포갰는지 — 포개면 놓는 순간 선으로 이어진다
     const over = _mtcCardHitAt(vx + noteW/2, vy + noteH/2, cardHits);
     if(over !== linkTarget){
-      linkTarget?.el.classList.remove('mtc-linkhot');
+      linkTarget?.el.classList.remove('mtc-linkhot', 'mtc-unlinkhot');
       linkTarget = over;
-      if(over) over.el.classList.add('mtc-linkhot');
+      // 이미 이어져 있으면 "끊김" 신호로 다르게 보여준다
+      if(over) over.el.classList.add(_mtcHasLink(note.dataset.uid, over.uid) ? 'mtc-unlinkhot' : 'mtc-linkhot');
       note.classList.toggle('mtc-linking-src', !!over);
     }
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);
@@ -18302,7 +18311,7 @@ function _mtcNoteDown(e, note, vp){
     setTimeout(()=>{ window._mtcMoved = false; }, 60);
 
     note.classList.remove('mtc-linking-src');
-    linkTarget?.el.classList.remove('mtc-linkhot');
+    linkTarget?.el.classList.remove('mtc-linkhot', 'mtc-unlinkhot');
 
     // 보드 밖으로 뺐거나, 안에서라도 홱 뿌리쳤으면 — 빨려 나가듯 사라지고 휴지통으로
     if(outside || _mtcFlingCheck(vhist, vp)){ _mtcTossCard(note, kind, id, vhist); return; }
@@ -18320,20 +18329,42 @@ function _mtcNoteDown(e, note, vp){
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
 }
 
-// [v798] 카드를 다른 카드 위에 포개어 놓으면 자동 연결 — 겹친 채 두지 않고 바로 아래로 비켜 놓는다
+// [v799] 다른 카드와 겹치지 않는 가장 가까운 빈자리 찾기
+function _mtcFreeSpot(px, py, w, h, selfUid){
+  const occ = [];
+  document.querySelectorAll('.mtc-note').forEach(el => {
+    if(el.dataset.uid === selfUid) return;
+    const x = parseFloat(el.style.left)||0, y = parseFloat(el.style.top)||0;
+    occ.push({ x, y, w: el.offsetWidth || MTC_CARD_W, h: el.offsetHeight || 26 });
+  });
+  const clash = (x, y) => occ.some(o => x < o.x+o.w+4 && x+w+4 > o.x && y < o.y+o.h+4 && y+h+4 > o.y);
+  const fit = (x, y) => x >= 0 && y >= 0 && x + w <= MTC_SURFACE.w - 12 && y + h <= MTC_SURFACE.h - 12;
+  if(fit(px,py) && !clash(px,py)) return { x:px, y:py };
+  // 가까운 곳부터 점점 넓혀가며 탐색 (아래 → 오른쪽 → 위 → 왼쪽)
+  const stepY = (h || 26) + 8, stepX = (w || MTC_CARD_W) + 12;
+  for(let r = 1; r <= 14; r++){
+    for(const [dx, dy] of [[0,r],[r,0],[0,-r],[-r,0],[r,r],[-r,r],[r,-r],[-r,-r]]){
+      const x = Math.round(px + dx*stepX), y = Math.round(py + dy*stepY);
+      if(fit(x,y) && !clash(x,y)) return { x, y };
+    }
+  }
+  return { x:px, y:py };
+}
+// [v798] 카드를 다른 카드 위에 포개어 놓으면 연결 — 다시 포개면 연결이 끊긴다
 function _mtcLinkByOverlap(kind, id, uid, target, w, h){
   const { item } = _mtcFind(kind, id); if(!item) return;
-  const already = _mtcHasLink(uid, target.uid);
-  if(!already) MT_LINKS.push({ a: target.uid, b: uid });
-  // 대상 카드 바로 아래(자리가 없으면 오른쪽)에 붙여 놓기 — 높이를 못 재도 겹치지 않게 최소값 보장
-  const th = Math.max(target.h || 0, h || 0, 26), tw = Math.max(target.w || 0, MTC_CARD_W);
-  let nx = target.x, ny = target.y + th + 8;
-  if(ny + h > MTC_SURFACE.h - 20){ nx = target.x + tw + MTC_GAP; ny = target.y; }
-  item.pos = { x: Math.max(0, Math.round(nx)), y: Math.max(0, Math.round(ny)) };
+  const idx = MT_LINKS.findIndex(l => (l.a===uid&&l.b===target.uid) || (l.a===target.uid&&l.b===uid));
+  const unlink = idx >= 0;
+  if(unlink) MT_LINKS.splice(idx, 1);          // 이미 이어져 있으면 끊기 (토글)
+  else MT_LINKS.push({ a: target.uid, b: uid });
+  // 대상 아래를 첫 후보로, 다른 카드와 겹치지 않는 빈자리로 자연스럽게 비켜 놓기
+  const th = Math.max(target.h || 0, h || 0, 26);
+  const spot = _mtcFreeSpot(target.x, target.y + th + 8, w || MTC_CARD_W, h || 26, uid);
+  item.pos = spot;
   saveMTSystem(); renderMTSystem();
   const el = document.querySelector(`.mtc-note[data-uid="${uid}"]`);
   if(el){ el.classList.add('mtc-flash'); setTimeout(()=>el.classList.remove('mtc-flash'), 620); }
-  toast(already ? '이미 이어져 있어요' : '🔗 포개서 연결됨');
+  toast(unlink ? '✂ 연결 끊김' : '🔗 포개서 연결됨');
 }
 
 // [v785] 액티브 영역 안 y좌표 → 우선순위 (위 1 / 가운데 2 / 아래 3)
