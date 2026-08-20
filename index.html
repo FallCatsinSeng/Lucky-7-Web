@@ -17205,9 +17205,17 @@ function mtCanvasHTML(ctx){
   }).join('');
 
   return `<style id="mtcSkin">
-  .mt-view-seg{display:inline-flex;gap:0;border:1px solid var(--br,#262625);border-radius:8px;overflow:hidden;margin-right:6px}
-  .mt-view-seg button{background:rgba(255,255,255,.015);border:none;color:var(--tx3);font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;padding:5px 11px;cursor:pointer}
-  .mt-view-seg button.on{background:rgba(194,160,74,.12);color:var(--ac-strong,#d4b566)}
+  /* 칸반 ↔ 캔버스 전환 — 양쪽 화면에서 같은 모양 */
+  .mt-view-seg{display:inline-flex;gap:1px;border-radius:8px;overflow:hidden;margin-right:6px;
+    background:rgba(255,255,255,.05);padding:1px}
+  .mt-view-seg button{background:transparent;border:none!important;color:rgba(235,235,245,.62);
+    font:11px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;padding:5px 11px;cursor:pointer;border-radius:7px;
+    transition:background .13s,color .13s}
+  .mt-view-seg button:hover{color:#fff;background:rgba(255,255,255,.06)}
+  .mt-view-seg button.on{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.09));
+    color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .mtc-toolbar .mt-view-seg{margin-right:0}
+  .mtc-toolbar .mt-view-seg button{height:25px;padding:0 10px}
   /* 캔버스 모드 — 컨테이너 max-width/패딩 전부 해제해서 화면 끝까지 */
   #ch-other.mtc-full{max-width:none!important;margin:0!important;padding:0!important;width:100%!important}
   body:has(#ch-other.mtc-full) main{padding:0!important;max-width:none!important}
@@ -17589,11 +17597,27 @@ function mtCanvasHTML(ctx){
   .mtcs-nm{font:11.5px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:var(--tx1);word-break:keep-all}
   .mtcs-meta{font:9.5px ui-monospace,monospace;color:var(--tx3);margin-top:2px}
   .mtc-wslabel{position:absolute;left:42px;top:8px;font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.1em;color:rgba(235,235,245,.3);pointer-events:none}
-  .mtc-toolbar{position:absolute;right:12px;top:12px;z-index:20;display:flex;gap:5px}
-  .mtc-toolbar button{height:28px;border-radius:7px;background:rgba(20,20,20,.85);border:1px solid var(--br,#262625);color:var(--tx3);cursor:pointer;font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;padding:0 10px}
-  .mtc-toolbar button:hover{border-color:var(--ac)}
+  /* [v807] 툴바 — 한 덩어리 판 위에 그룹을 나누고, 글자를 또렷하게 */
+  .mtc-toolbar{position:absolute;right:12px;top:12px;z-index:20;display:flex;align-items:center;gap:3px;
+    background:linear-gradient(180deg,rgba(34,34,33,.96),rgba(24,24,23,.96));
+    border:1px solid rgba(255,255,255,.09);border-radius:11px;padding:4px;
+    box-shadow:0 6px 22px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05)}
+  .mtc-toolbar button{height:27px;border-radius:7px;background:transparent;border:1px solid transparent;
+    color:rgba(235,235,245,.72);cursor:pointer;font:11px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;
+    padding:0 10px;display:inline-flex;align-items:center;gap:5px;transition:background .13s,color .13s,border-color .13s}
+  .mtc-toolbar button i{font-style:normal;letter-spacing:.03em}
+  .mtc-toolbar button b{font-size:9.5px;font-weight:800;background:rgba(255,255,255,.1);border-radius:5px;padding:1px 5px;color:rgba(235,235,245,.9)}
+  .mtc-toolbar button:hover{background:rgba(255,255,255,.08);color:#fff}
+  .mtc-toolbar button:active{background:rgba(255,255,255,.13)}
+  .mtc-tb-sep{width:1px;height:17px;background:rgba(255,255,255,.1);margin:0 3px;flex:none}
+  .mtc-tb-zoomgrp{display:inline-flex;gap:1px;background:rgba(255,255,255,.045);border-radius:8px;padding:1px}
+  .mtc-toolbar .mtc-tb-zoom{width:26px;padding:0;justify-content:center;font-size:12.5px;color:rgba(235,235,245,.6)}
+  /* 켜져 있는 도구 — 색 채우기 대신 은은한 배경 + 또렷한 글자 */
+  .mtc-toolbar .mtc-tb-pen.on{background:color-mix(in srgb,${MTC_C.amber} 20%,transparent);color:#e8cf9e;border-color:color-mix(in srgb,${MTC_C.amber} 45%,transparent)}
+  .mtc-toolbar .mtc-tb-link.on{background:color-mix(in srgb,${MTC_C.teal} 20%,transparent);color:#a8ded6;border-color:color-mix(in srgb,${MTC_C.teal} 45%,transparent)}
+  .mtc-toolbar .mtc-tb-snap.on{background:color-mix(in srgb,${MTC_C.slate} 20%,transparent);color:#b3cee5;border-color:color-mix(in srgb,${MTC_C.slate} 45%,transparent)}
+  .mtc-tb-view{margin-left:1px}
   .mtc-toolbar .mtc-tb-role.on{border-color:var(--ac,#c2a04a);color:var(--ac-strong,#d4b566);background:rgba(194,160,74,.12)}
-  .mtc-toolbar .mtc-tb-kanban{color:var(--tx2)}
   .mtc-toolbar .mtc-tb-snap.on{border-color:#7fc4ff;color:#a8d8ff;background:rgba(127,196,255,.13)}
   .mtc-toolbar .mtc-tb-pen.on{border-color:${MTC_C.amber};color:#d8bd88;background:color-mix(in srgb,${MTC_C.amber} 15%,transparent)}
   /* [v802] 펜 — 잉크 획 */
@@ -17621,10 +17645,19 @@ function mtCanvasHTML(ctx){
   .mtc-penbar-ok:hover{background:color-mix(in srgb,${MTC_C.amber} 34%,transparent)}
   .mtc-penbar-ok:disabled{opacity:.35;cursor:default;background:rgba(255,255,255,.03);border-color:var(--br)!important;color:var(--tx3)}
   .mtc-toolbar .mtc-tb-zoom{width:28px;padding:0;font-size:13px;color:var(--tx2)}
-  .mtc-quick{position:absolute;left:12px;top:12px;z-index:20;display:flex;gap:6px;align-items:center}
-  .mtc-quick input{width:250px;background:rgba(20,20,20,.88);border:1px solid var(--br,#262625);border-radius:8px;color:var(--tx1);font:11.5px ui-monospace,Consolas,'Malgun Gothic',monospace;padding:7px 10px;outline:none}
-  .mtc-quick input:focus{border-color:#5fa3d9}
-  .mtc-quick-hint{font:9.5px ui-monospace,monospace;color:rgba(235,235,245,.3)}
+  /* 입력 바 — 툴바와 같은 판, 힌트는 키워드만 또렷하게 */
+  .mtc-quick{position:absolute;left:12px;top:12px;z-index:20;display:flex;gap:10px;align-items:center;
+    background:linear-gradient(180deg,rgba(34,34,33,.96),rgba(24,24,23,.96));
+    border:1px solid rgba(255,255,255,.09);border-radius:11px;padding:4px 12px 4px 4px;
+    box-shadow:0 6px 22px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05)}
+  .mtc-quick input{width:270px;background:rgba(255,255,255,.055);border:1px solid transparent;border-radius:8px;
+    color:#fff;font:11.5px ui-monospace,Consolas,'Malgun Gothic',monospace;padding:7px 11px;outline:none;
+    transition:background .13s,border-color .13s}
+  .mtc-quick input::placeholder{color:rgba(235,235,245,.42)}
+  .mtc-quick input:focus{background:rgba(255,255,255,.09);border-color:color-mix(in srgb,${MTC_C.slate} 70%,transparent)}
+  .mtc-quick-hint{font:10px ui-monospace,'Malgun Gothic',monospace;color:rgba(235,235,245,.34);white-space:nowrap}
+  .mtc-quick-hint b{font-weight:800;color:rgba(235,235,245,.72)}
+  .mtc-quick-hint span{opacity:.4;margin:0 5px}
   .mtcp-row{display:flex;gap:6px;align-items:center;margin:8px 0}
   .mtcp-lbl{font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.06em;color:var(--tx3);width:52px;flex:none}
   .mtcp-in{flex:1;background:rgba(255,255,255,.03);border:1px solid var(--br);border-radius:7px;color:var(--tx1);font:12px 'Malgun Gothic',sans-serif;padding:7px 9px;outline:none}
@@ -17641,20 +17674,28 @@ function mtCanvasHTML(ctx){
   <div id="mtc-vp">
     <div class="mtc-quick">
       <input id="mtc-quick-in" placeholder="+ 입력 후 Enter → 인박스에 붙이기" onkeydown="if(event.key==='Enter')mtcQuickAdd(this)">
-      <span class="mtc-quick-hint">더블클릭 = 새 카드 · 밖으로 던지면 버림 · 우클릭 = 메뉴</span>
+      <span class="mtc-quick-hint"><b>더블클릭</b> 새 카드<span>·</span><b>밖으로 던지면</b> 버림<span>·</span><b>우클릭</b> 메뉴</span>
     </div>
     <div class="mtc-toolbar">
-      ${(ctx.isManager && !personalMode) ? `<button onclick="mtcOpenMemberPicker()" title="보드에 올릴 멤버 고르기">👥 멤버 ${members.length}</button>` : ''}
-      <button class="mtc-tb-pen ${mtcPenOn?'on':''}" onclick="mtcTogglePen()" title="손으로 그리면 인식 — 네모=박스 · 두 카드를 잇는 선=연결 · 곧은 선=구분선">✏ 펜</button>
-      <button class="mtc-tb-link ${window._mtcLinkMode?'on':''}" onclick="mtcToggleLinkMode()" title="카드를 탁, 탁 누르면 선으로 연결">🔗 연결</button>
-      <button class="mtc-tb-snap ${mtcSnapOn?'on':''}" onclick="mtcToggleSnap()" title="가까이 가면 딱 붙는 자석 정렬">⊞ 정렬</button>
-      <button class="mtc-tb-zoom" onclick="mtcZoomBy(1/1.15)" title="축소">−</button>
-      <button class="mtc-tb-zoom" onclick="mtcZoomReset()" title="100%로 되돌리기">⌂</button>
-      <button class="mtc-tb-zoom" onclick="mtcZoomBy(1.15)" title="확대">＋</button>
-      <button onclick="mtcOpenCleanup()" title="카드 여러 장 골라서 정리">🧹 정리</button>
-      <button onclick="mtcOpenSnapshots()" title="보드 저장 / 불러오기">💾 저장</button>
-      <button onclick="mtcResetLayout()" title="영역 배치/크기 초기화">⟲ 배치</button>
-      <button class="mtc-tb-kanban" onclick="mtSetBoardView('kanban')" title="칸반 뷰로 돌아가기">▦ 칸반</button>
+      ${(ctx.isManager && !personalMode) ? `<button onclick="mtcOpenMemberPicker()" title="보드에 올릴 멤버 고르기"><i>멤버</i><b>${members.length}</b></button><span class="mtc-tb-sep"></span>` : ''}
+      <button class="mtc-tb-pen ${mtcPenOn?'on':''}" onclick="mtcTogglePen()" title="손으로 그리면 인식 — 네모=박스(영역 안이면 카드) · 두 카드를 잇는 선=연결 · 곧은 선=구분선"><i>펜</i></button>
+      <button class="mtc-tb-link ${window._mtcLinkMode?'on':''}" onclick="mtcToggleLinkMode()" title="카드를 탁, 탁 누르면 선으로 연결"><i>연결</i></button>
+      <button class="mtc-tb-snap ${mtcSnapOn?'on':''}" onclick="mtcToggleSnap()" title="가까이 가면 딱 붙는 자석 정렬"><i>자석</i></button>
+      <span class="mtc-tb-sep"></span>
+      <span class="mtc-tb-zoomgrp">
+        <button class="mtc-tb-zoom" onclick="mtcZoomBy(1/1.15)" title="축소">−</button>
+        <button class="mtc-tb-zoom" onclick="mtcZoomReset()" title="100%로 되돌리기">⌂</button>
+        <button class="mtc-tb-zoom" onclick="mtcZoomBy(1.15)" title="확대">＋</button>
+      </span>
+      <span class="mtc-tb-sep"></span>
+      <button onclick="mtcOpenCleanup()" title="카드 여러 장 골라서 정리"><i>정리</i></button>
+      <button onclick="mtcOpenSnapshots()" title="보드 저장 / 불러오기"><i>저장</i></button>
+      <button onclick="mtcResetLayout()" title="영역 배치·크기와 카드 위치를 기본값으로"><i>배치</i></button>
+      <span class="mtc-tb-sep"></span>
+      <span class="mt-view-seg mtc-tb-view">
+        <button onclick="mtSetBoardView('kanban')" title="칸반 뷰">▦ 칸반</button>
+        <button class="on" title="지금 캔버스 뷰">🗺 캔버스</button>
+      </span>
     </div>
     ${personalMode ? `<div class="mtc-personal-tag">🔒 내 보드 — 나만 봅니다</div>` : ''}
     <div id="mtc-surface">
