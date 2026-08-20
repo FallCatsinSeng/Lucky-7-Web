@@ -14482,9 +14482,10 @@ let _teamCache = null, _teamFetching = false;
 async function _fetchTeamMembers(){
   if(sb){
     try{
-      const { data } = await sb.from('user_profiles').select('id, name, email, role');
+      const { data } = await sb.from('user_profiles').select('id, name, email, role, resigned_at');
       if(data && data.length){
-        return data.map(p => ({
+        // [v821] 퇴사 처리된 계정은 앱 전체 팀 목록에서 제외 (기록·로그인은 그대로)
+        return data.filter(p => !p.resigned_at).map(p => ({
           id: p.id,
           name: p.name || (p.email||'').split('@')[0],
           short: (p.name || p.email || '??').slice(0,2).toUpperCase(),
@@ -18757,7 +18758,7 @@ async function mtcOpenMemberPicker(){
   panel.innerHTML = `<div class="ap-panel-inner">
     <div class="ap-panel-head">
       <div class="ap-panel-head-l"><div>
-        <div class="ap-panel-name">👥 보드 멤버</div>
+        <div class="ap-panel-name">👥 보드 멤버 ${_mtcIsAdmin()?`<button class="mtcp-btn" style="margin-left:8px;padding:3px 9px;font-size:10px" onclick="mtcOpenResignPanel()">🚪 퇴사 관리</button>`:''}</div>
         <div class="ap-panel-meta">현재 ${cur.length}명 · 계정은 그대로, 보드 표시만 바뀝니다</div>
       </div></div>
       <button class="ap-panel-close" onclick="closeTaskDetail()">✕</button>
@@ -18769,6 +18770,56 @@ async function mtcOpenMemberPicker(){
   </div>`;
   requestAnimationFrame(()=>panel.classList.add('open'));
   setTimeout(()=>panel.classList.add('open'), 60);
+}
+// ═══ [v821] 퇴사 관리 — 계정을 지우지 않고 resigned_at만 찍는다 (기록·로그인 보존) ═══
+async function mtcOpenResignPanel(){
+  if(!_mtcIsAdmin()){ toast('어드민만 쓸 수 있어요', true); return; }
+  let rows = [];
+  try{
+    const { data, error } = await sb.from('user_profiles').select('id, name, role, resigned_at').order('name');
+    if(error) throw error;
+    rows = data || [];
+  }catch(e){ toast('목록을 불러오지 못했습니다: '+(e.message||e), true); return; }
+  let panel = document.getElementById('task-detail-panel');
+  if(!panel){ panel=document.createElement('div'); panel.id='task-detail-panel'; panel.className='ap-side-panel'; document.body.appendChild(panel); }
+  const active = rows.filter(r=>!r.resigned_at), gone = rows.filter(r=>r.resigned_at);
+  const row = r => `<div class="mtcs-row">
+    <div class="mtcs-i">
+      <div class="mtcs-nm">${_mtcEsc(r.name)} <em style="font-style:normal;opacity:.5;font-size:9px">${_mtcEsc((r.role||'').toUpperCase())}</em></div>
+      ${r.resigned_at?`<div class="mtcs-meta">퇴사 ${String(r.resigned_at).slice(0,10)}</div>`:''}
+    </div>
+    ${r.resigned_at
+      ? `<button class="mtcp-btn" onclick="mtcSetResigned('${r.id}','${_mtcEsc(r.name).replace(/'/g,"\\'")}',false)">↩ 복직</button>`
+      : `<button class="mtcp-btn danger" onclick="mtcSetResigned('${r.id}','${_mtcEsc(r.name).replace(/'/g,"\\'")}',true)">🚪 퇴사</button>`}
+  </div>`;
+  panel.innerHTML = `<div class="ap-panel-inner">
+    <div class="ap-panel-head">
+      <div class="ap-panel-head-l"><div>
+        <div class="ap-panel-name">🚪 퇴사 관리</div>
+        <div class="ap-panel-meta">재직 ${active.length} · 퇴사 ${gone.length} — 계정·기록은 남고 목록에서만 빠집니다</div>
+      </div></div>
+      <button class="ap-panel-close" onclick="closeTaskDetail()">✕</button>
+    </div>
+    <div class="ap-panel-body">
+      <div class="mtcm-h">재직</div>${active.map(row).join('')}
+      ${gone.length?`<div class="mtcm-h">퇴사</div>${gone.map(row).join('')}`:''}
+    </div>
+  </div>`;
+  requestAnimationFrame(()=>panel.classList.add('open'));
+  setTimeout(()=>panel.classList.add('open'), 60);
+}
+async function mtcSetResigned(id, name, out){
+  if(!_mtcIsAdmin()) return;
+  if(out && !confirm(`${name}님을 퇴사 처리합니다.\n\n· 팀 목록·보드·스케줄 배정 대상에서 빠집니다\n· 계정과 출석·정산 기록은 그대로 남습니다`)) return;
+  try{
+    const { error } = await sb.from('user_profiles').update({ resigned_at: out ? new Date().toISOString() : null }).eq('id', id);
+    if(error) throw error;
+  }catch(e){ toast('처리 실패: '+(e.message||e), true); return; }
+  _teamCache = null;                    // 팀 캐시 비우고 다시 불러온다
+  await loadTeamMembers();
+  renderMTSystem();
+  toast(out ? `🚪 ${name} 퇴사 처리됨` : `↩ ${name} 복직 처리됨`);
+  mtcOpenResignPanel();
 }
 function mtcToggleMember(name){
   const cur = mtcMembers();
