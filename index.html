@@ -15763,6 +15763,7 @@ let MT_INBOX = [];      // 정리 안 된 입력
 let MT_PASSIVE = [];    // 책임 영역 (컨테이너, 영구적)
 let MT_ACTIVE = [];     // 행동 ([v670] passive_id는 선택 — null이면 독립 행동. 책임에 안 묶여도 됨)
 let MT_TRASH = [];      // [v670] 휴지통 — 삭제된 항목 보관 {kind:'inbox'|'active'|'passive', item, deleted_at, by} · 14일 후 자동 소멸
+let MT_CLAYOUT = {};    // [v780] 캔버스 존 배치 {zoneKey|'m:이름': {x,y,w,h}} — 팀 공유 (mt_state에 저장)
 let mtViewMode = 'responsibility'; // 'responsibility'(책임뷰) | 'action'(행동뷰)
 // [v776] 보드 뷰 — 'kanban'(기존 4컬럼) | 'canvas'(캔버스: 자유 배치 + 존 드롭). 선택은 기기별로 기억.
 let mtBoardView = (()=>{ try{ return localStorage.getItem('lucky7_mt_boardview')||'kanban'; }catch(_){ return 'kanban'; } })();
@@ -15797,11 +15798,12 @@ function saveMTLocal(){
     sessionStorage.setItem('lucky7_mt_passive', JSON.stringify(MT_PASSIVE));
     sessionStorage.setItem('lucky7_mt_active', JSON.stringify(MT_ACTIVE));
     sessionStorage.setItem('lucky7_mt_trash', JSON.stringify(MT_TRASH));   // [v670]
+    sessionStorage.setItem('lucky7_mt_clayout', JSON.stringify(MT_CLAYOUT)); // [v780]
   }catch(_){}
 }
 function saveMTSystem(){
   saveMTLocal();
-  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH });
+  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT });
   if(sb) saveMTToCloud();   // [v145] shared across the team
 }
 let _mtSynced = false, _mtSig = '', _mtSaving = false, _mtPollTimer = null;
@@ -15809,7 +15811,7 @@ async function saveMTToCloud(){
   if(!sb) return;
   _mtSaving = true;
   try{
-    const { error } = await _dbUpsert('mt_state', 'default', { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH });
+    const { error } = await _dbUpsert('mt_state', 'default', { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT });
     if(error){ console.warn('mt_state save:', error.message); toast('Board save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('mt_state save:', e && e.message); }
   finally{ setTimeout(() => { _mtSaving = false; }, 400); }
@@ -15824,6 +15826,7 @@ async function syncMTFromCloud(){
       MT_PASSIVE = Array.isArray(d.passive) ? d.passive : [];
       MT_ACTIVE  = Array.isArray(d.active)  ? d.active  : [];
       MT_TRASH   = Array.isArray(d.trash)   ? d.trash   : [];   // [v670]
+      MT_CLAYOUT = (d.clayout && typeof d.clayout === 'object') ? d.clayout : {};   // [v780]
       _mtPurgeOldTrash();                                        // [v670] 14일 지난 항목 자동 소멸
       saveMTLocal();
     } else if(error){ console.warn('mt_state load:', error.message); }
@@ -15838,12 +15841,12 @@ async function pollMTSystem(){
     const { data, error } = await sb.from('mt_state').select('data').eq('id','default').maybeSingle();
     if(error || !data || !data.data) return;
     const d = data.data;
-    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[] });
+    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{} });
     if(sig === _mtSig) return;                        // no remote change
     const ae = document.activeElement;
     const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
     if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId || window._mtcDragging || window._mtcPanning) return;  // mid-edit / mid-drag [v776 canvas too]
-    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[];
+    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{};
     _mtSig = sig; saveMTLocal();
     renderMTSystem();
   }catch(_){}
@@ -15854,17 +15857,19 @@ function loadMTSystem(){
     const rp = sessionStorage.getItem('lucky7_mt_passive');
     const ra = sessionStorage.getItem('lucky7_mt_active');
     const rt = sessionStorage.getItem('lucky7_mt_trash');   // [v670]
+    const rl = sessionStorage.getItem('lucky7_mt_clayout'); // [v780]
     if(rp){
       MT_INBOX = ri ? JSON.parse(ri) : [];
       MT_PASSIVE = JSON.parse(rp);
       MT_ACTIVE = ra ? JSON.parse(ra) : [];
       MT_TRASH = rt ? JSON.parse(rt) : [];
+      MT_CLAYOUT = rl ? JSON.parse(rl) : {};
       return;
     }
   }catch(_){}
   _seedMTSystem();
 }
-function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; try{ saveMTLocal(); }catch(_){} }
+function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; try{ saveMTLocal(); }catch(_){} }
 // [v670] 휴지통 유틸 — 삭제는 전부 휴지통 경유 (복원 가능), 14일 지나면 자동 소멸
 function _mtPurgeOldTrash(){ try{ const cut=Date.now()-14*86400000; MT_TRASH=MT_TRASH.filter(t=>(t.deleted_at||0)>cut); }catch(_){ MT_TRASH=[]; } }
 function _mtToTrash(kind, item){ MT_TRASH.unshift({ id:Date.now()+Math.floor(Math.random()*999), kind, item, deleted_at:Date.now(), by:(currentUser?.name||'?') }); if(MT_TRASH.length>200) MT_TRASH.length=200; }
@@ -16439,30 +16444,26 @@ let mtcView = { x: 20, y: 20, s: 0, fitted:false };   // s=0 → init에서 화�
 window._mtcDragging = false; window._mtcPanning = false;
 let _mtcPanelKey = null;   // {kind,id} — 재렌더 후 패널 유지
 
-// 기본 배치 — 위: 직원 카드 / 가운데: 책임 · 액티브 · 완료 / 맨 밑: 인박스 크게 (아이디어를 위로 올려보내는 흐름)
-// 모든 존은 빈 곳 아무데나 잡고 드래그로 이동, 우하단 핸들로 크기 조절.
+// [v780] 진짜 그림판 모델 — 모든 항목이 보드 위 "포스트잇". 존은 상자가 아니라 보드에 칠해진 반투명 영역.
+// · 노트를 영역에 놓으면 분류가 바뀜 / 영역 밖에 놓으면 상태 그대로 그 자리에 고정
+// · 빈 보드 더블클릭 = 그 자리에 새 노트 · 영역을 옮기면 안의 노트들이 같이 따라감
+// · 배치(MT_CLAYOUT)는 팀 전체 공유
 const MTC_ZONES = [
-  { key:'passive', label:'📦 책임',   x:30,   y:170, w:390, h:430, hue:'#b074ec', hint:'계속 신경 쓸 영역' },
-  { key:'active',  label:'⚡ 액티브',  x:450,  y:170, w:450, h:430, hue:'#c2a04a', hint:'우선순위 슬롯에 바로 놓기' },
-  { key:'done',    label:'✅ 완료',    x:930,  y:170, w:390, h:430, hue:'#3aa05a', hint:'끝낸 행동' },
-  { key:'trash',   label:'🗑',        x:1350, y:170, w:180, h:130, hue:'#8a8a8a', hint:'놓으면 삭제' },
-  { key:'inbox',   label:'📥 인박스', x:30,   y:630, w:1500, h:560, hue:'#5fa3d9', hint:'떠오른 건 전부 여기 → 위로 올려보내기' }
+  { key:'passive', label:'📦 책임',   x:40,   y:180, w:480, h:460, hue:'#b074ec' },
+  { key:'active',  label:'⚡ 액티브',  x:560,  y:180, w:560, h:460, hue:'#c2a04a' },
+  { key:'done',    label:'✅ 완료',    x:1160, y:180, w:440, h:460, hue:'#3aa05a' },
+  { key:'trash',   label:'🗑 휴지통',  x:1640, y:180, w:200, h:150, hue:'#8a8a8a' },
+  { key:'inbox',   label:'📥 인박스', x:40,   y:690, w:1560, h:560, hue:'#5fa3d9' }
 ];
-const MTC_SURFACE = { w: 2600, h: 1300 };
+const MTC_SURFACE = { w: 2800, h: 1500 };
 
-// 존/인원 배치 저장 (기기별 — localStorage)
-let _mtcLayoutCache = null;
-function _mtcLayout(){
-  if(_mtcLayoutCache) return _mtcLayoutCache;
-  try{ _mtcLayoutCache = JSON.parse(localStorage.getItem('lucky7_mtc_layout2')||'{}'); }catch(_){ _mtcLayoutCache = {}; }
-  return _mtcLayoutCache;
-}
+function _mtcLayout(){ return MT_CLAYOUT || {}; }
 function _mtcRect(z){ const l = _mtcLayout()[z.key]; return l ? { ...z, ...l } : z; }
 function _mtcSetRect(key, r){
-  const l = _mtcLayout(); l[key] = { ...(l[key]||{}), ...r };
-  try{ localStorage.setItem('lucky7_mtc_layout2', JSON.stringify(l)); }catch(_){}
+  MT_CLAYOUT[key] = { ...(MT_CLAYOUT[key]||{}), ...r };
+  saveMTSystem();
 }
-function mtcResetLayout(){ _mtcLayoutCache = {}; try{ localStorage.removeItem('lucky7_mtc_layout2'); }catch(_){} renderMTSystem(); toast('⟲ 배치 초기화됨'); }
+function mtcResetLayout(){ MT_CLAYOUT = {}; saveMTSystem(); renderMTSystem(); toast('⟲ 배치 초기화됨 (팀 공유)'); }
 
 function _mtcDays(created, today){
   if(!created) return 0;
@@ -16471,25 +16472,36 @@ function _mtcDays(created, today){
 }
 function _mtcEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// 캔버스 카드 HTML — kind: 'inbox' | 'active' | 'passive'
-function _mtcCard(kind, item, today, free){
-  const title = _mtcEsc(item.title || item.text || '(제목 없음)');
+// [v780] 포스트잇 노트 — 모든 항목이 보드 위 절대좌표로 붙음
+function _mtcNotePos(item, idx, area){
+  if(item.pos) return item.pos;
+  // pos 없는 항목은 소속 영역 안에 격자로 자동 배치 (저장 안 함 — 옮기는 순간 저장됨)
+  const cols = Math.max(1, Math.floor((area.w - 28) / 172));
+  return { x: area.x + 14 + (idx % cols) * 172, y: area.y + 44 + Math.floor(idx / cols) * 122 };
+}
+function _mtcNote(kind, item, today, pos){
+  const raw = item.title || item.text || '';
+  const text = raw.trim() ? _mtcEsc(raw) : '<span style="opacity:.35">···</span>';
   const days = _mtcDays(item.created_at, today);
-  const dayBadge = (kind!=='passive' && !(kind==='active' && item.status==='done') && days>=1)
-    ? `<span class="mtc-day ${days>=7?'mtc-day-old':''}">D${days}</span>` : '';
-  const pm = MT_PRI[item.priority] || null;
-  const pri = (kind==='active' && pm) ? `<span class="mtc-pri" style="background:${pm.color}">${pm.num}</span>` : '';
-  const st = kind==='active' ? ({todo:'○',doing:'◐',done:'●'}[item.status]||'○') : '';
-  const stC = kind==='active' ? ({todo:'var(--tx3)',doing:'var(--ac)',done:'var(--gr)'}[item.status]||'var(--tx3)') : '';
-  const owner = item.owner ? `<span class="mtc-av" style="${avatarBg(item.owner, item.owner.slice(0,2).toUpperCase())}" title="${_mtcEsc(item.owner)}">${_mtcEsc(item.owner.slice(0,2).toUpperCase())}</span>` : '';
-  const memoDot = (item.memo||'').trim() ? `<span class="mtc-memoic" title="메모 있음">≡</span>` : '';
-  const steps = item.steps||[]; const stepB = steps.length?`<span class="mtc-steps">☑${steps.filter(s=>s.done).length}/${steps.length}</span>`:'';
-  const style = free && item.pos ? ` style="left:${item.pos.x}px;top:${item.pos.y}px"` : '';
-  return `<div class="mtc-card mtc-k-${kind} ${free?'mtc-free':''} ${kind==='active'&&item.status==='done'?'mtc-done':''}" data-kind="${kind}" data-id="${item.id}"${style}>
-    ${st?`<span class="mtc-st" style="color:${stC}">${st}</span>`:''}${pri}
-    <span class="mtc-title">${title}</span>
-    ${memoDot}${stepB}${dayBadge}${owner}
+  const isDone = kind==='active' && item.status==='done';
+  const pm = MT_PRI[item.priority] || MT_PRI.P2;
+  const rot = ((Number(item.id) % 9) - 4) * 0.65;   // id 기반 살짝 기울임 — 손으로 붙인 느낌
+  const st = kind==='active' ? `<button class="mtcn-st" onclick="event.stopPropagation();mtCycleActive(${item.id})" title="대기→진행→완료">${({todo:'○',doing:'◐',done:'●'})[item.status]||'○'}</button>` : '';
+  const pri = (kind==='active' && !isDone) ? `<button class="mtcn-pri" style="background:${pm.color}" onclick="event.stopPropagation();mtcCyclePri(${item.id})" title="우선순위 클릭 전환">${pm.num}</button>` : '';
+  const owner = item.owner ? `<span class="mtcn-av" style="${avatarBg(item.owner, item.owner.slice(0,2).toUpperCase())}" title="${_mtcEsc(item.owner)}">${_mtcEsc(item.owner.slice(0,2).toUpperCase())}</span>` : '';
+  const memoDot = (item.memo||'').trim() ? `<span class="mtcn-memo" title="메모 있음">≡</span>` : '';
+  const steps = item.steps||[]; const stepB = steps.length?`<span class="mtcn-steps">☑${steps.filter(s=>s.done).length}/${steps.length}</span>`:'';
+  const dayB = (!isDone && days>=1) ? `<span class="mtcn-day ${days>=7?'old':''}">D${days}</span>` : '';
+  return `<div class="mtc-note mtcn-${isDone?'done':kind}" data-kind="${kind}" data-id="${item.id}"
+      style="left:${pos.x}px;top:${pos.y}px;--rot:${rot}deg">
+    <div class="mtcn-text">${text}</div>
+    <div class="mtcn-foot">${st}${pri}${memoDot}${stepB}<span class="mtcn-sp"></span>${dayB}${owner}</div>
   </div>`;
+}
+function mtcCyclePri(id){
+  const a = MT_ACTIVE.find(x=>x.id===id); if(!a) return;
+  a.priority = { P1:'P2', P2:'P3', P3:'P1' }[a.priority] || 'P1';
+  saveMTSystem(); renderMTSystem();
 }
 
 function mtCanvasHTML(ctx){
@@ -16501,47 +16513,47 @@ function mtCanvasHTML(ctx){
   const names = members.map(m=>m.name).concat([viewingMember, me].filter(Boolean));
   const inScope = o => personalMode ? _mtSameOwner(o, me) : (!o || names.some(n=>_mtSameOwner(n,o)));
 
-  const inboxAll  = MT_INBOX.filter(i => inScope(i.owner));
-  const inboxDock = inboxAll.filter(i => !i.pos);
-  const inboxFree = inboxAll.filter(i => i.pos);
   const passives  = MT_PASSIVE.filter(p => inScope(p.owner) && p.status==='active');
   const actAll    = MT_ACTIVE.filter(a => inScope(a.owner));
-  const actOpen   = actAll.filter(a => a.status!=='done');
-  const actDone   = actAll.filter(a => a.status==='done');
-  const so = { doing:0, todo:1 }; const po = { P1:0, P2:1, P3:2 };
-  actOpen.sort((a,b)=> (so[a.status]??1)-(so[b.status]??1) || (po[a.priority]??3)-(po[b.priority]??3));
 
-  // 액티브 존 = P1/P2/P3 우선순위 슬롯 — 슬롯에 놓으면 우선순위까지 한 번에
-  const priSlots = ['P1','P2','P3'].map(p => {
-    const cards = actOpen.filter(a => (a.priority||'P2') === p).map(a=>_mtcCard('active',a,today,false)).join('');
-    return `<div class="mtc-prislot" data-prislot="${p}">
-      <div class="mtc-prislot-h" style="color:${MT_PRI[p].color}">${MT_PRI[p].icon} ${MT_PRI[p].num} · ${MT_PRI[p].label}</div>
-      ${cards || '<div class="mtc-empty">여기에 놓기</div>'}
-    </div>`;
-  }).join('');
-  const zoneCards = {
-    inbox:   inboxDock.map(i=>_mtcCard('inbox',i,today,false)).join('') || '<div class="mtc-empty">비어 있음</div>',
-    passive: passives.map(p=>_mtcCard('passive',p,today,false)).join('') || '<div class="mtc-empty">책임 영역 없음</div>',
-    active:  priSlots,
-    done:    actDone.map(a=>_mtcCard('active',a,today,false)).join('') || '<div class="mtc-empty">아직 없음</div>',
-    trash:   `<div class="mtc-trash-n">${MT_TRASH.length}개 보관 중</div><div class="mtc-trash-hint">클릭하면 복원 목록</div>`
+  // 영역 사각형 (배치 반영)
+  const rects = {}; MTC_ZONES.forEach(zd => { rects[zd.key] = _mtcRect(zd); });
+
+  // 모든 항목 → 포스트잇. pos 없으면 소속 영역 안에 자동 격자.
+  const notes = [];
+  const addNotes = (kind, arr, areaKey) => {
+    let idx = 0;
+    arr.forEach(item => {
+      const pos = _mtcNotePos(item, item.pos ? 0 : idx++, rects[areaKey]);
+      notes.push(_mtcNote(kind, item, today, pos));
+    });
   };
-  const counts = { inbox: inboxAll.length, passive: passives.length, active: actOpen.length, done: actDone.length, trash: MT_TRASH.length };
+  addNotes('inbox',   MT_INBOX.filter(i => inScope(i.owner)), 'inbox');
+  addNotes('passive', passives, 'passive');
+  addNotes('active',  actAll.filter(a => a.status!=='done'), 'active');
+  addNotes('active',  actAll.filter(a => a.status==='done'), 'done');
 
-  const zonesHTML = MTC_ZONES.map(zd => { const z = _mtcRect(zd); return `
+  const counts = {
+    inbox: MT_INBOX.filter(i=>inScope(i.owner)).length,
+    passive: passives.length,
+    active: actAll.filter(a=>a.status!=='done').length,
+    done: actAll.filter(a=>a.status==='done').length,
+    trash: MT_TRASH.length
+  };
+
+  // 영역 — 보드에 칠해진 반투명 구역 (상자 아님). 아무데나 잡고 드래그 이동.
+  const zonesHTML = MTC_ZONES.map(zd => { const z = rects[zd.key]; return `
     <div class="mtc-zone" data-zone="${z.key}" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;--zc:${z.hue}" ${z.key==='trash'?'onclick="if(!window._mtcMoved)mtcOpenTrash()"':''}>
-      <div class="mtc-zone-head" title="드래그로 이동"><span>${z.label}</span><span class="mtc-zone-cnt">${counts[z.key]??''}</span></div>
-      <div class="mtc-zone-body" data-zonebody="${z.key}">${zoneCards[z.key]}</div>
-      <div class="mtc-zone-hint">${z.hint}</div>
+      <span class="mtc-zone-lb">${z.label} <b>${counts[z.key]??''}</b></span>
       <div class="mtc-resize" data-resize="${z.key}" title="드래그로 크기 조절"></div>
     </div>`; }).join('');
 
-  // Work split — 인원 존 (카드를 끌어다 놓으면 담당 지정)
+  // Work split — 인원 카드 (노트를 사람 위에 놓으면 담당 지정)
   const memberZones = members.map((m,i) => {
     const nm = m.name;
     const doing = MT_ACTIVE.filter(a=>_mtSameOwner(a.owner,nm)&&a.status==='doing').length;
     const todo  = MT_ACTIVE.filter(a=>_mtSameOwner(a.owner,nm)&&a.status==='todo').length;
-    const mp = _mtcLayout()['m:'+nm] || { x: 30+i*260, y: 26 };
+    const mp = _mtcLayout()['m:'+nm] || { x: 40+i*230, y: 30 };
     return `<div class="mtc-member" data-member="${_mtcEsc(nm)}" style="left:${mp.x}px;top:${mp.y}px">
       <span class="mtc-member-av" style="${avatarBg(nm, (m.short||nm.slice(0,2)).toUpperCase())}">${_mtcEsc((m.short||nm.slice(0,2)).toUpperCase())}</span>
       <div class="mtc-member-i">
@@ -16551,52 +16563,49 @@ function mtCanvasHTML(ctx){
     </div>`;
   }).join('');
 
-  const freeCards = inboxFree.map(i=>_mtcCard('inbox',i,today,true)).join('');
-
   return `<style id="mtcSkin">
   .mt-view-seg{display:inline-flex;gap:0;border:1px solid var(--br,#262625);border-radius:8px;overflow:hidden;margin-right:6px}
   .mt-view-seg button{background:rgba(255,255,255,.015);border:none;color:var(--tx3);font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;padding:5px 11px;cursor:pointer}
   .mt-view-seg button.on{background:rgba(194,160,74,.12);color:var(--ac-strong,#d4b566)}
   #mtc-vp{position:relative;height:calc(100vh - 62px);min-height:420px;border:none;border-radius:0;overflow:hidden;background:
-    radial-gradient(circle,rgba(255,255,255,.045) 1px,transparent 1px) 0 0/26px 26px,var(--bg-c,#161615);cursor:grab;touch-action:none;user-select:none}
+    radial-gradient(circle,rgba(255,255,255,.04) 1px,transparent 1px) 0 0/28px 28px,var(--bg-c,#161615);cursor:grab;touch-action:none;user-select:none}
   #mtc-vp.mtc-grabbing{cursor:grabbing}
   #mtc-surface{position:absolute;left:0;top:0;width:${MTC_SURFACE.w}px;height:${MTC_SURFACE.h}px;transform-origin:0 0}
-  .mtc-zone{position:absolute;border-radius:10px;background:color-mix(in srgb,var(--zc) 4%,rgba(255,255,255,.01));border:1px solid color-mix(in srgb,var(--zc) 26%,var(--br,#262625));border-top:2.5px solid color-mix(in srgb,var(--zc) 70%,transparent);display:flex;flex-direction:column;overflow:hidden}
-  .mtc-zone.mtc-over{background:color-mix(in srgb,var(--zc) 14%,rgba(255,255,255,.02));border-color:var(--zc);box-shadow:0 0 0 2px color-mix(in srgb,var(--zc) 45%,transparent)}
-  .mtc-zone-head{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;font:12px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;letter-spacing:.04em;color:color-mix(in srgb,var(--zc) 78%,#fff);background:color-mix(in srgb,var(--zc) 12%,transparent);border-bottom:1px solid color-mix(in srgb,var(--zc) 25%,transparent);flex:none;cursor:move}
-  .mtc-resize{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,color-mix(in srgb,var(--zc) 55%,transparent) 50%);border-radius:0 0 9px 0;opacity:.55}
+  /* 영역 — 보드에 칠해진 반투명 구역. 라벨은 좌상단에 흐릿하게. */
+  .mtc-zone{position:absolute;border-radius:16px;background:color-mix(in srgb,var(--zc) 5%,transparent);border:1.5px dashed color-mix(in srgb,var(--zc) 30%,transparent);cursor:move}
+  .mtc-zone.mtc-over{background:color-mix(in srgb,var(--zc) 13%,transparent);border-color:var(--zc);border-style:solid}
+  .mtc-zone-lb{position:absolute;left:14px;top:10px;font:12.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;letter-spacing:.05em;color:color-mix(in srgb,var(--zc) 80%,#fff);opacity:.75;pointer-events:none}
+  .mtc-zone-lb b{font-size:10px;background:color-mix(in srgb,var(--zc) 25%,transparent);border-radius:6px;padding:1px 6px;margin-left:4px}
+  .mtc-resize{position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,color-mix(in srgb,var(--zc) 55%,transparent) 50%);border-radius:0 0 14px 0;opacity:.5}
   .mtc-resize:hover{opacity:1}
-  .mtc-member{cursor:move}
-  .mtc-zone-cnt{font-size:10px;background:rgba(255,255,255,.08);border-radius:6px;padding:0 6px;min-width:17px;text-align:center}
-  .mtc-zone-body{flex:1;overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:3px}
-  .mtc-zone-body::-webkit-scrollbar{width:5px}.mtc-zone-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
-  .mtc-zone-hint{flex:none;padding:4px 10px 6px;font:9.5px ui-monospace,monospace;color:rgba(235,235,245,.28)}
-  .mtc-card{display:flex;align-items:center;gap:5px;padding:5px 7px;border-radius:7px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);cursor:grab;font:11.5px/1.4 ui-monospace,'Cascadia Code',Consolas,'Malgun Gothic',monospace;color:var(--tx1,#ebebeb)}
-  .mtc-card:hover{background:rgba(255,255,255,.065);border-color:rgba(255,255,255,.14)}
-  .mtc-card.mtc-dragsrc{opacity:.25}
-  .mtc-card.mtc-done .mtc-title{text-decoration:line-through;opacity:.5}
-  .mtc-title{flex:1;min-width:0;overflow-wrap:break-word;word-break:keep-all}
-  .mtc-st{flex:none;font-size:11px}
-  .mtc-pri{flex:none;width:15px;height:15px;border-radius:4px;color:#fff;font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
-  .mtc-av{flex:none;width:17px;height:17px;border-radius:50%;font-size:8px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff}
-  .mtc-day{flex:none;font-size:8.5px;color:rgba(235,235,245,.4);background:rgba(255,255,255,.05);border-radius:4px;padding:0 4px}
-  .mtc-day-old{color:#e0a0a0;background:rgba(196,106,106,.14)}
-  .mtc-steps{flex:none;font-size:8.5px;color:rgba(235,235,245,.45)}
-  .mtc-memoic{flex:none;font-size:9px;color:rgba(235,235,245,.4)}
-  .mtc-card.mtc-free{position:absolute;width:220px;box-shadow:0 3px 14px rgba(0,0,0,.4);background:color-mix(in srgb,#5fa3d9 7%,rgba(30,30,30,.94));border-color:color-mix(in srgb,#5fa3d9 32%,transparent);z-index:5}
-  .mtc-member{position:absolute;width:240px;height:120px;border-radius:10px;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.16);display:flex;align-items:center;gap:10px;padding:0 14px}
-  .mtc-prislot{border:1px dashed rgba(255,255,255,.09);border-radius:8px;padding:3px 4px 5px;margin-bottom:6px;display:flex;flex-direction:column;gap:3px;min-height:52px}
-  .mtc-prislot.mtc-over{border-color:var(--ac,#c2a04a);background:rgba(194,160,74,.08)}
-  .mtc-prislot-h{font:9.5px ui-monospace,monospace;font-weight:800;letter-spacing:.06em;padding:2px 3px}
-  .mtc-member.mtc-over{border:1.5px solid var(--ac,#c2a04a);background:rgba(194,160,74,.1);box-shadow:0 0 0 2px rgba(194,160,74,.3)}
+  /* 포스트잇 노트 */
+  .mtc-note{position:absolute;width:158px;min-height:92px;padding:10px 10px 7px;border-radius:3px;cursor:grab;z-index:5;
+    transform:rotate(var(--rot,0deg));display:flex;flex-direction:column;gap:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.3);
+    font:12.5px/1.5 'Malgun Gothic','Segoe UI',sans-serif;transition:box-shadow .12s,transform .12s}
+  .mtc-note:hover{box-shadow:0 8px 22px rgba(0,0,0,.55);transform:rotate(var(--rot,0deg)) translateY(-2px);z-index:6}
+  .mtc-note.mtc-lifting{z-index:999;transform:rotate(0deg) scale(1.04);box-shadow:0 16px 40px rgba(0,0,0,.65);transition:none;cursor:grabbing}
+  .mtcn-inbox{background:#efdc7c;color:#3a3416}
+  .mtcn-passive{background:#cfaef0;color:#2e2140}
+  .mtcn-active{background:#f2b95e;color:#3d2c10}
+  .mtcn-done{background:#9fcbaa;color:#25352a}
+  .mtcn-done .mtcn-text{text-decoration:line-through;opacity:.55}
+  .mtcn-text{flex:1;overflow-wrap:break-word;word-break:keep-all;font-weight:600;max-height:130px;overflow:hidden}
+  .mtcn-foot{display:flex;align-items:center;gap:4px;flex:none}
+  .mtcn-sp{flex:1}
+  .mtcn-st{background:rgba(0,0,0,.14);border:none;border-radius:5px;width:20px;height:20px;font-size:11px;cursor:pointer;color:inherit;display:inline-flex;align-items:center;justify-content:center}
+  .mtcn-pri{border:none;border-radius:5px;width:20px;height:20px;font-size:10px;font-weight:800;cursor:pointer;color:#fff;display:inline-flex;align-items:center;justify-content:center}
+  .mtcn-av{width:20px;height:20px;border-radius:50%;font-size:8.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.2)}
+  .mtcn-day{font:9px ui-monospace,monospace;font-weight:700;background:rgba(0,0,0,.12);border-radius:4px;padding:1px 4px;opacity:.8}
+  .mtcn-day.old{background:rgba(180,40,40,.25);color:#7a1f1f}
+  .mtcn-memo,.mtcn-steps{font:9.5px ui-monospace,monospace;opacity:.65}
+  /* 인원 카드 */
+  .mtc-member{position:absolute;width:210px;height:96px;border-radius:12px;background:rgba(255,255,255,.025);border:1px dashed rgba(255,255,255,.18);display:flex;align-items:center;gap:10px;padding:0 14px;cursor:move;z-index:4}
+  .mtc-member.mtc-over{border:1.5px solid var(--ac,#c2a04a);background:rgba(194,160,74,.12);box-shadow:0 0 0 3px rgba(194,160,74,.25)}
   .mtc-member-av{width:34px;height:34px;border-radius:50%;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none}
   .mtc-member-nm{font:12px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;color:var(--tx1)}
   .mtc-member-st{font:10px ui-monospace,monospace;color:var(--tx3);margin-top:2px}
-  .mtc-wslabel{position:absolute;left:42px;top:14px;font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.1em;color:rgba(235,235,245,.35)}
-  .mtc-freehint{position:absolute;left:1540px;top:410px;width:640px;height:520px;border:1.5px dashed rgba(255,255,255,.1);border-radius:12px;display:flex;align-items:center;justify-content:center;font:11px ui-monospace,monospace;color:rgba(235,235,245,.22);text-align:center;pointer-events:none}
-  .mtc-empty{font:10px ui-monospace,monospace;color:rgba(235,235,245,.25);padding:8px 4px}
-  .mtc-trash-n{font:11px ui-monospace,monospace;color:var(--tx2);padding:8px 4px 2px}
-  .mtc-trash-hint{font:9.5px ui-monospace,monospace;color:rgba(235,235,245,.3)}
+  .mtc-wslabel{position:absolute;left:42px;top:8px;font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.1em;color:rgba(235,235,245,.3);pointer-events:none}
   .mtc-toolbar{position:absolute;right:12px;top:12px;z-index:20;display:flex;gap:5px}
   .mtc-toolbar button{height:28px;border-radius:7px;background:rgba(20,20,20,.85);border:1px solid var(--br,#262625);color:var(--tx3);cursor:pointer;font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;padding:0 10px}
   .mtc-toolbar button:hover{border-color:var(--ac)}
@@ -16606,7 +16615,6 @@ function mtCanvasHTML(ctx){
   .mtc-quick input{width:250px;background:rgba(20,20,20,.88);border:1px solid var(--br,#262625);border-radius:8px;color:var(--tx1);font:11.5px ui-monospace,Consolas,'Malgun Gothic',monospace;padding:7px 10px;outline:none}
   .mtc-quick input:focus{border-color:#5fa3d9}
   .mtc-quick-hint{font:9.5px ui-monospace,monospace;color:rgba(235,235,245,.3)}
-  #mtc-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:.9;transform:scale(.95);width:230px}
   .mtcp-row{display:flex;gap:6px;align-items:center;margin:8px 0}
   .mtcp-lbl{font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.06em;color:var(--tx3);width:52px;flex:none}
   .mtcp-in{flex:1;background:rgba(255,255,255,.03);border:1px solid var(--br);border-radius:7px;color:var(--tx1);font:12px 'Malgun Gothic',sans-serif;padding:7px 9px;outline:none}
@@ -16622,8 +16630,8 @@ function mtCanvasHTML(ctx){
   </style>
   <div id="mtc-vp">
     <div class="mtc-quick">
-      <input id="mtc-quick-in" placeholder="+ 아이디어 입력 후 Enter → 인박스" onkeydown="if(event.key==='Enter')mtcQuickAdd(this)">
-      <span class="mtc-quick-hint">드래그: 존=분류 · 인원=담당 · 빈 곳=자유 배치</span>
+      <input id="mtc-quick-in" placeholder="+ 입력 후 Enter → 인박스에 붙이기" onkeydown="if(event.key==='Enter')mtcQuickAdd(this)">
+      <span class="mtc-quick-hint">빈 보드 더블클릭 = 그 자리에 새 노트 · 노트를 영역에 놓으면 분류 · 밖에 놓으면 그 자리 고정</span>
     </div>
     <div class="mtc-toolbar">
       ${(ctx.isManager && !personalMode) ? ['admin','op','player'].map(rr=>{
@@ -16634,10 +16642,10 @@ function mtCanvasHTML(ctx){
       <button class="mtc-tb-kanban" onclick="mtSetBoardView('kanban')" title="칸반 뷰로 돌아가기">▦ 칸반</button>
     </div>
     <div id="mtc-surface">
-      <div class="mtc-wslabel">WORK SPLIT — 카드를 사람 위에 놓으면 담당 지정 · 빈 곳에 놓으면 자유 배치</div>
-      ${memberZones}
+      <div class="mtc-wslabel">WORK SPLIT — 노트를 사람 위에 놓으면 담당 지정</div>
       ${zonesHTML}
-      ${freeCards}
+      ${memberZones}
+      ${notes.join('')}
     </div>
   </div>`;
 }
@@ -16670,54 +16678,132 @@ function mtCanvasInit(){
   mtcView.s = 1;   // 줌 없음 — 전체 화면이 그대로 캔버스
   if(!mtcView.fitted) mtcFit(); else { _mtcClampPan(vp); _mtcApply(); }
 
-  // 휠 = 캔버스 이동 (줌 아님) — 단, 스크롤 가능한 존 내부에선 존 스크롤 우선
+  // 휠 = 보드 이동
   vp.addEventListener('wheel', e => {
-    const zb = e.target.closest('.mtc-zone-body');
-    if(zb && zb.scrollHeight > zb.clientHeight) return;   // 존 안 카드 목록 스크롤
     e.preventDefault();
-    mtcView.x -= e.deltaX;
-    mtcView.y -= e.deltaY;
+    mtcView.x -= e.deltaX; mtcView.y -= e.deltaY;
     _mtcClampPan(vp); _mtcApply();
   }, { passive:false });
 
   vp.addEventListener('pointerdown', e => {
     if(e.button !== 0) return;
-    const card = e.target.closest('.mtc-card');
-    if(card){ _mtcCardDown(e, card, vp); return; }
+    if(e.target.closest('input,button,textarea,select')) return;
+    const note = e.target.closest('.mtc-note');
+    if(note){ _mtcNoteDown(e, note, vp); return; }
     const rz = e.target.closest('.mtc-resize');
     if(rz){ _mtcResizeStart(e, rz.closest('.mtc-zone'), rz.dataset.resize); return; }
-    // 존은 빈 곳 아무데나 잡고 드래그 (카드/입력/버튼 제외)
-    const zoneEl = e.target.closest('.mtc-zone');
-    if(zoneEl && !e.target.closest('input,button,textarea,select')){
-      _mtcBoxMoveStart(e, zoneEl, zoneEl.dataset.zone); return;
-    }
     const memberEl = e.target.closest('.mtc-member');
-    if(memberEl){ _mtcBoxMoveStart(e, memberEl, 'm:'+memberEl.dataset.member); return; }
-    // 빈 공간(서피스 자체 / 뷰포트) → 팬
-    if(e.target.id === 'mtc-surface' || e.target === vp || e.target.classList.contains('mtc-zone-hint')){
-      _mtcPanStart(e, vp);
-    }
+    if(memberEl){ _mtcBoxMoveStart(e, memberEl, 'm:'+memberEl.dataset.member, vp); return; }
+    const zoneEl = e.target.closest('.mtc-zone');
+    if(zoneEl){ _mtcBoxMoveStart(e, zoneEl, zoneEl.dataset.zone, vp); return; }
+    _mtcPanStart(e, vp);   // 빈 보드 → 이동
+  });
+
+  // 더블클릭 — 노트 위면 인라인 편집, 빈 보드면 그 자리에 새 노트 (그림판처럼)
+  vp.addEventListener('dblclick', e => {
+    if(e.target.closest('input,button,textarea')) return;
+    const note = e.target.closest('.mtc-note');
+    if(note){ _mtcEditNote(Number(note.dataset.id)); return; }
+    if(e.target.closest('.mtc-member')) return;
+    const p = _mtcToSurface(e.clientX, e.clientY, vp);
+    mtcNewNoteAt(Math.round(p.x-79), Math.round(p.y-46));
   });
 }
 
-// 존/인원 박스 이동 — 헤더(존) 또는 몸통(인원) 드래그
-function _mtcBoxMoveStart(e, el, key){
+// 화면 좌표 → 보드 좌표
+function _mtcToSurface(cx, cy, vp){
+  const r = (vp||document.getElementById('mtc-vp')).getBoundingClientRect();
+  return { x: (cx - r.left - mtcView.x) / mtcView.s, y: (cy - r.top - mtcView.y) / mtcView.s };
+}
+// 그 자리에 빈 노트를 만들고 바로 편집
+function mtcNewNoteAt(x, y){
+  const ctx = window._mtcCtx || {};
+  const id = Date.now();
+  x = Math.max(0, Math.min(MTC_SURFACE.w-170, x));
+  y = Math.max(0, Math.min(MTC_SURFACE.h-100, y));
+  MT_INBOX.push({ id, text:'', created_at:isoDate(new Date()), owner: ctx.viewingMember || currentUser?.name || 'MT', pos:{x,y} });
+  saveMTSystem(); renderMTSystem();
+  setTimeout(()=>_mtcEditNote(id), 60);
+}
+// 노트 위에서 바로 텍스트 편집 (더블클릭 / 새 노트)
+function _mtcEditNote(id){
+  const el = document.querySelector(`.mtc-note[data-id="${id}"]`); if(!el) return;
+  const kind = el.dataset.kind;
+  const { item } = _mtcFind(kind, id); if(!item) return;
+  const tx = el.querySelector('.mtcn-text'); if(!tx) return;
+  tx.setAttribute('contenteditable','true');
+  tx.style.outline = 'none';
+  if(!(item.title||item.text||'').trim()) tx.textContent = '';
+  tx.focus();
+  const sel = window.getSelection(); const rg = document.createRange();
+  rg.selectNodeContents(tx); rg.collapse(false); sel.removeAllRanges(); sel.addRange(rg);
+  // 타이핑하는 동안 모델에 바로 반영 — blur가 안 걸려도 글이 사라지지 않게
+  const sync = () => {
+    const cur = _mtcFind(kind, id).item; if(!cur) return;
+    const v = (tx.textContent||'').trim();
+    if(kind === 'inbox') cur.text = v; else cur.title = v;
+  };
+  const commit = () => {
+    tx.removeEventListener('blur', commit); tx.removeEventListener('keydown', key); tx.removeEventListener('input', sync);
+    sync();
+    const cur = _mtcFind(kind, id).item;
+    if(cur && !(cur.title||cur.text||'').trim() && kind === 'inbox'){
+      MT_INBOX = MT_INBOX.filter(i=>i.id!==id);   // 빈 채로 나가면 노트 취소
+    }
+    saveMTSystem(); renderMTSystem();
+  };
+  const key = ev => {
+    if(ev.key === 'Enter' && !ev.shiftKey){ ev.preventDefault(); commit(); }
+    else if(ev.key === 'Escape'){ ev.preventDefault(); commit(); }
+    ev.stopPropagation();
+  };
+  tx.addEventListener('input', sync); tx.addEventListener('blur', commit); tx.addEventListener('keydown', key);
+}
+
+// 영역/인원 박스 이동 — 영역을 옮기면 그 안의 노트들도 같이 따라감
+function _mtcBoxMoveStart(e, el, key, vp){
   e.preventDefault();
   window._mtcDragging = true; window._mtcMoved = false;
   const startX = e.clientX, startY = e.clientY;
   const ox = parseFloat(el.style.left)||0, oy = parseFloat(el.style.top)||0;
+  const isZone = el.classList.contains('mtc-zone');
   let nx = ox, ny = oy;
+
+  // 영역 안에 있는 노트들 — 같이 끌고 감
+  let carried = [];
+  if(isZone){
+    const zr = { x: ox, y: oy, w: el.offsetWidth, h: el.offsetHeight };
+    document.querySelectorAll('.mtc-note').forEach(n => {
+      const nx0 = parseFloat(n.style.left)||0, ny0 = parseFloat(n.style.top)||0;
+      const cx = nx0 + n.offsetWidth/2, cy = ny0 + n.offsetHeight/2;
+      if(cx>=zr.x && cx<=zr.x+zr.w && cy>=zr.y && cy<=zr.y+zr.h){
+        carried.push({ el:n, id:Number(n.dataset.id), kind:n.dataset.kind, x0:nx0, y0:ny0 });
+      }
+    });
+  }
+
   const mv = ev => {
     if(!window._mtcMoved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 4) return;
     window._mtcMoved = true;
-    nx = Math.max(0, Math.min(MTC_SURFACE.w - el.offsetWidth,  ox + (ev.clientX - startX)));
-    ny = Math.max(0, Math.min(MTC_SURFACE.h - el.offsetHeight, oy + (ev.clientY - startY)));
+    const dx = (ev.clientX - startX)/mtcView.s, dy = (ev.clientY - startY)/mtcView.s;
+    nx = Math.max(0, Math.min(MTC_SURFACE.w - el.offsetWidth,  ox + dx));
+    ny = Math.max(0, Math.min(MTC_SURFACE.h - el.offsetHeight, oy + dy));
     el.style.left = nx + 'px'; el.style.top = ny + 'px';
+    const rdx = nx - ox, rdy = ny - oy;
+    carried.forEach(c => { c.el.style.left = (c.x0+rdx)+'px'; c.el.style.top = (c.y0+rdy)+'px'; });
   };
   const up = () => {
     window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
     window._mtcDragging = false;
-    if(window._mtcMoved) _mtcSetRect(key, { x: Math.round(nx), y: Math.round(ny) });
+    if(window._mtcMoved){
+      const rdx = nx - ox, rdy = ny - oy;
+      carried.forEach(c => {
+        const { item } = _mtcFind(c.kind, c.id);
+        if(item) item.pos = { x: Math.round(c.x0+rdx), y: Math.round(c.y0+rdy) };
+      });
+      _mtcSetRect(key, { x: Math.round(nx), y: Math.round(ny) });   // saveMTSystem 포함
+      renderMTSystem();
+    } else if(key === 'trash'){ mtcOpenTrash(); }
     setTimeout(()=>{ window._mtcMoved = false; }, 60);
   };
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
@@ -16732,8 +16818,8 @@ function _mtcResizeStart(e, el, key){
   let nw = ow, nh = oh;
   const mv = ev => {
     window._mtcMoved = true;
-    nw = Math.max(200, Math.min(1400, ow + (ev.clientX - startX)));
-    nh = Math.max(130, Math.min(1100, oh + (ev.clientY - startY)));
+    nw = Math.max(180, Math.min(2200, ow + (ev.clientX - startX)/mtcView.s));
+    nh = Math.max(120, Math.min(1300, oh + (ev.clientY - startY)/mtcView.s));
     el.style.width = nw + 'px'; el.style.height = nh + 'px';
   };
   const up = () => {
@@ -16758,59 +16844,48 @@ function _mtcPanStart(e, vp){
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
 }
 
-function _mtcCardDown(e, card, vp){
+// 노트 드래그 — 노트 자체가 커서를 따라 움직임 (고스트 없음).
+// 놓은 자리가 곧 노트의 자리: 영역 안이면 분류가 바뀌고, 밖이면 상태 그대로 그 자리 고정.
+function _mtcNoteDown(e, note, vp){
   e.preventDefault();
-  const kind = card.dataset.kind, id = Number(card.dataset.id);
+  const kind = note.dataset.kind, id = Number(note.dataset.id);
   const startX = e.clientX, startY = e.clientY;
-  let moved = false, ghost = null;
+  const ox = parseFloat(note.style.left)||0, oy = parseFloat(note.style.top)||0;
+  let moved = false, nx = ox, ny = oy;
   window._mtcMoved = false;
 
   const highlight = (cx, cy) => {
-    document.querySelectorAll('.mtc-zone.mtc-over,.mtc-member.mtc-over,.mtc-prislot.mtc-over').forEach(el=>el.classList.remove('mtc-over'));
-    const el = document.elementFromPoint(cx, cy);
-    const hit = el && el.closest('[data-prislot],[data-member],[data-zone]');
+    document.querySelectorAll('.mtc-zone.mtc-over,.mtc-member.mtc-over').forEach(el=>el.classList.remove('mtc-over'));
+    const under = document.elementsFromPoint(cx, cy).filter(el => el !== note && !note.contains(el));
+    const hit = under.find(el => el.matches?.('[data-member]')) || under.find(el => el.matches?.('[data-zone]'));
     if(hit) hit.classList.add('mtc-over');
     return hit;
   };
 
   const mv = ev => {
-    if(!moved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 5) return;
-    if(!moved){
-      moved = true; window._mtcDragging = true; window._mtcMoved = true;
-      ghost = card.cloneNode(true); ghost.id = 'mtc-ghost'; ghost.classList.remove('mtc-free');
-      ghost.style.left = ''; ghost.style.top = '';
-      document.body.appendChild(ghost);
-      card.classList.add('mtc-dragsrc');
-    }
-    ghost.style.transform = `translate(${ev.clientX+8}px,${ev.clientY+6}px) scale(.95)`;
-    ghost.style.left = '0'; ghost.style.top = '0';
+    if(!moved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 4) return;
+    if(!moved){ moved = true; window._mtcDragging = true; window._mtcMoved = true; note.classList.add('mtc-lifting'); }
+    nx = Math.max(0, Math.min(MTC_SURFACE.w-170, ox + (ev.clientX-startX)/mtcView.s));
+    ny = Math.max(0, Math.min(MTC_SURFACE.h-100, oy + (ev.clientY-startY)/mtcView.s));
+    note.style.left = nx+'px'; note.style.top = ny+'px';
     highlight(ev.clientX, ev.clientY);
   };
   const up = ev => {
     window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
     document.querySelectorAll('.mtc-zone.mtc-over,.mtc-member.mtc-over').forEach(el=>el.classList.remove('mtc-over'));
-    if(ghost) ghost.remove();
-    card.classList.remove('mtc-dragsrc');
+    note.classList.remove('mtc-lifting');
     window._mtcDragging = false;
     if(!moved){ mtcOpenDetail(kind, id); return; }
     setTimeout(()=>{ window._mtcMoved = false; }, 60);
 
-    const el = document.elementFromPoint(ev.clientX, ev.clientY);
-    const priEl = el && el.closest('[data-prislot]');
-    const memberEl = el && el.closest('[data-member]');
-    const zoneEl = el && el.closest('[data-zone]');
-    const inVp = el && el.closest('#mtc-vp');
+    const pos = { x: Math.round(nx), y: Math.round(ny) };
+    const under = document.elementsFromPoint(ev.clientX, ev.clientY).filter(el => el !== note && !note.contains(el));
+    const memberEl = under.find(el => el.matches?.('[data-member]'));
+    const zoneEl   = under.find(el => el.matches?.('[data-zone]'));
 
-    if(priEl){ _mtcDropZone(kind, id, 'active', priEl.dataset.prislot); return; }
-    if(memberEl){ _mtcAssign(kind, id, memberEl.dataset.member); return; }
-    if(zoneEl){ _mtcDropZone(kind, id, zoneEl.dataset.zone); return; }
-    if(inVp){
-      // 빈 캔버스 → 자유 배치
-      const r = document.getElementById('mtc-vp').getBoundingClientRect();
-      const sx = (ev.clientX - r.left - mtcView.x) / mtcView.s;
-      const sy = (ev.clientY - r.top  - mtcView.y) / mtcView.s;
-      _mtcDropFree(kind, id, Math.round(sx-110), Math.round(sy-14));
-    }
+    if(memberEl){ _mtcAssign(kind, id, memberEl.dataset.member, pos); return; }
+    if(zoneEl){ _mtcDropZone(kind, id, zoneEl.dataset.zone, null, pos); return; }
+    _mtcDropFree(kind, id, pos.x, pos.y);   // 영역 밖 — 상태 그대로, 그 자리 고정
   };
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
 }
@@ -16820,70 +16895,64 @@ function _mtcFind(kind, id){
   return { arr, item: arr.find(x => x.id === id) };
 }
 
-function _mtcAssign(kind, id, name){
+function _mtcAssign(kind, id, name, pos){
   const { item } = _mtcFind(kind, id); if(!item) return;
-  if(_mtSameOwner(item.owner, name)) return;
-  item.owner = name;
+  if(pos) item.pos = pos;
+  if(!_mtSameOwner(item.owner, name)){
+    item.owner = name;
+    toast(`"${(item.title||item.text||'').slice(0,20)}" → ${name} 담당`);
+  }
   saveMTSystem(); renderMTSystem();
-  toast(`"${(item.title||item.text||'').slice(0,24)}" → ${name} 담당`);
 }
 
-function _mtcDropZone(kind, id, zone, pri){
+// 영역에 놓기 — 종류가 바뀌어도 노트의 위치는 놓은 자리 그대로 유지
+function _mtcDropZone(kind, id, zone, pri, pos){
   const { arr, item } = _mtcFind(kind, id); if(!item) return;
-  const label = (item.title||item.text||'').slice(0,24);
+  const label = (item.title||item.text||'').slice(0,20);
   const now = isoDate(new Date());
+  const p = pos || item.pos;
   const rm = () => { const i = arr.indexOf(item); if(i>=0) arr.splice(i,1); };
+  const done = msg => { saveMTSystem(); renderMTSystem(); if(msg) toast(msg); };
 
   if(zone === 'trash'){
     _mtcClosePanelIf(kind, id);
     _mtToTrash(kind, item); rm();
-    saveMTSystem(); renderMTSystem(); toast(`🗑 "${label}" 휴지통으로 (복원 가능)`); return;
+    return done(`🗑 "${label}" 휴지통 (복원 가능)`);
   }
   if(zone === 'inbox'){
-    if(kind === 'inbox'){ if(item.pos){ delete item.pos; saveMTSystem(); renderMTSystem(); } return; }
-    rm(); MT_INBOX.push({ id:Date.now(), text:item.title||'', owner:item.owner, created_at:item.created_at||now, memo:item.memo||'' });
-    saveMTSystem(); renderMTSystem(); toast(`📥 "${label}" 인박스로 되돌림`); return;
+    if(kind === 'inbox'){ item.pos = p; return done(); }
+    rm(); MT_INBOX.push({ id:Date.now(), text:item.title||'', owner:item.owner, created_at:item.created_at||now, memo:item.memo||'', pos:p });
+    return done(`📥 "${label}" 인박스로`);
   }
   if(zone === 'active' || zone === 'done'){
     const st = zone === 'done' ? 'done' : 'todo';
     if(kind === 'active'){
-      let changed = false;
-      if(pri && item.priority !== pri){ item.priority = pri; changed = true; }
-      if(zone === 'done' && item.status !== 'done'){ item.status = 'done'; changed = true; }
-      if(zone === 'active' && item.status === 'done'){ item.status = 'todo'; changed = true; }
-      if(changed){
-        saveMTSystem(); renderMTSystem();
-        toast(zone==='done' ? `✅ "${label}" 완료!` : pri ? `${MT_PRI[pri].icon} "${label}" → ${MT_PRI[pri].label}` : `⚡ "${label}" 다시 액티브로`);
-      }
-      return;
+      item.pos = p;
+      let msg = '';
+      if(pri && item.priority !== pri){ item.priority = pri; msg = `${MT_PRI[pri].icon} "${label}" → ${MT_PRI[pri].label}`; }
+      if(zone === 'done' && item.status !== 'done'){ item.status = 'done'; msg = `✅ "${label}" 완료!`; }
+      if(zone === 'active' && item.status === 'done'){ item.status = 'todo'; msg = `⚡ "${label}" 다시 액티브로`; }
+      return done(msg);
     }
     rm();
     const newId = Math.max(100, ...MT_ACTIVE.map(a=>a.id), Date.now()%100000) + 1;
-    MT_ACTIVE.push({ id:newId, title:item.title||item.text||'', passive_id:null, owner:item.owner, priority:pri||item.priority||'P2', status:st, due:null, steps:item.steps||[], comments:item.comments||[], created_at:item.created_at||now, memo:item.memo||'' });
-    saveMTSystem(); renderMTSystem(); toast(`⚡ "${label}" 행동으로${pri?` (${MT_PRI[pri].label})`:''}`); return;
+    MT_ACTIVE.push({ id:newId, title:item.title||item.text||'', passive_id:null, owner:item.owner, priority:pri||item.priority||'P2', status:st, due:null, steps:item.steps||[], comments:item.comments||[], created_at:item.created_at||now, memo:item.memo||'', pos:p });
+    return done(st==='done' ? `✅ "${label}" 완료로` : `⚡ "${label}" 액티브로`);
   }
   if(zone === 'passive'){
-    if(kind === 'passive') return;
+    if(kind === 'passive'){ item.pos = p; return done(); }
     rm();
-    const newId = Math.max(0, ...MT_PASSIVE.map(p=>p.id)) + 1;
-    MT_PASSIVE.push({ id:newId, title:item.title||item.text||'', category:'Operation', priority:item.priority||'P2', owner:item.owner, status:'active', sop:[], created_at:item.created_at||now, memo:item.memo||'' });
-    saveMTSystem(); renderMTSystem(); toast(`📦 "${label}" 책임 영역으로`); return;
+    const newId = Math.max(0, ...MT_PASSIVE.map(p2=>p2.id)) + 1;
+    MT_PASSIVE.push({ id:newId, title:item.title||item.text||'', category:'Operation', priority:item.priority||'P2', owner:item.owner, status:'active', sop:[], created_at:item.created_at||now, memo:item.memo||'', pos:p });
+    return done(`📦 "${label}" 책임으로`);
   }
 }
 
+// 영역 밖에 놓기 — 종류/상태는 그대로, 그 자리에 고정
 function _mtcDropFree(kind, id, x, y){
-  const { arr, item } = _mtcFind(kind, id); if(!item) return;
-  const label = (item.title||item.text||'').slice(0,24);
-  x = Math.max(0, Math.min(MTC_SURFACE.w-240, x));
-  y = Math.max(0, Math.min(MTC_SURFACE.h-40, y));
-  if(kind === 'inbox'){
-    item.pos = { x, y };
-    saveMTSystem(); renderMTSystem(); return;
-  }
-  // 액티브/책임을 빈 공간에 → 아이디어(인박스)로 전환해 자유 배치
-  const i = arr.indexOf(item); if(i>=0) arr.splice(i,1);
-  MT_INBOX.push({ id:Date.now(), text:item.title||'', owner:item.owner, created_at:item.created_at||isoDate(new Date()), memo:item.memo||'', pos:{x,y} });
-  saveMTSystem(); renderMTSystem(); toast(`✏ "${label}" 아이디어로 전환 (자유 배치)`);
+  const { item } = _mtcFind(kind, id); if(!item) return;
+  item.pos = { x: Math.max(0, Math.min(MTC_SURFACE.w-170, x)), y: Math.max(0, Math.min(MTC_SURFACE.h-100, y)) };
+  saveMTSystem(); renderMTSystem();
 }
 
 // ─── 상세 패널 ───
@@ -16927,7 +16996,6 @@ function mtcOpenDetail(kind, id){
     extra = `<div class="mtcp-acts">
       <button class="mtcp-btn" onclick="_mtcDropZone('inbox',${id},'active')">⚡ 액티브로</button>
       <button class="mtcp-btn" onclick="_mtcDropZone('inbox',${id},'passive')">📦 책임으로</button>
-      ${item.pos?`<button class="mtcp-btn" onclick="_mtcDropZone('inbox',${id},'inbox')">📥 인박스로 도킹</button>`:''}
     </div>`;
   }
 
