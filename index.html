@@ -15769,6 +15769,8 @@ let MT_CZONES = [];     // [v786] 직접 만든 박스 [{key,label,hue,x,y,w,h}]
 let MT_CDIVS = [];      // [v801] 구분선 [{id,x,y,len,vert,label}] — 보드를 나누는 얇은 선
 let MT_TPLS  = [];      // [v814] 템플릿(컴포넌트) 마스터 [{tid,title,memo,steps,kind,priority}] — 팀 공유
 let MT_HIDDEN = [];     // [v818] 보드에서 숨긴 사람 (퇴사자 등) — 계정은 그대로 두고 목록에서만 뺀다
+let MT_PAGES = [];      // [v820] 추가 스크린 [{pid,name}] — 팀 공유. 스크린 1(메인, pid 0)은 항상 존재
+let MTC_PAGE = 0;       // 지금 보고 있는 스크린 pid (기기별, 저장 안 함)
 // [v782] 캔버스 보드에 올릴 멤버 — 역할 탭과 무관하게 직접 고름 (팀 공유). null이면 아래 기본값.
 let MT_CMEMBERS = null;
 const MTC_DEFAULT_MEMBERS = ['MT2','Manji','GUWON','Vallen','Mr.Bruce','Mr.Kaiji'];
@@ -15813,6 +15815,74 @@ async function mtcViewMemberBoard(id, name){
   try{ closeTaskDetail(); }catch(_){}
   toast(MT_VIEWING ? `👁 ${name}의 보드 — 보기 전용` : '내 보드로 돌아옴');
 }
+// ═══ [v820] 스크린 — 메인 보드 + 빈 도화지들 ═══
+function mtcGotoPage(pid){
+  if(MTC_PAGE === pid) return;
+  MTC_PAGE = pid;
+  _mtcSelClear(); mtcClosePop(true); mtcCloseCtx();
+  mtcView.fitted = false;                    // 스크린마다 처음 위치로
+  renderMTSystem();
+  const sf = document.getElementById('mtc-surface');
+  if(sf && sf.animate) sf.animate(
+    [{ opacity:0, transform:(sf.style.transform||'')+' scale(.985)' },{ opacity:1, transform:sf.style.transform||'none' }],
+    { duration:240, easing:'cubic-bezier(.2,.9,.3,1)' });
+}
+// 새 스크린 — 빈 도화지에 기본 세트(큰 카드 1 + 작은 카드 3, 선으로 연결)를 깔아준다
+function mtcAddPage(){
+  const pid = Date.now();
+  MT_PAGES.push({ pid, name: '스크린 ' + (MT_PAGES.length + 2) });
+  const ctx = window._mtcCtx || {};
+  const owner = ctx.viewingMember || currentUser?.name || 'MT';
+  const now = isoDate(new Date());
+  const mk = (text, x, y, size) => {
+    const it = { id: Date.now() + Math.floor(Math.random()*9000), text, owner, created_at: now,
+                 pg: pid, pos:{ x, y }, ...(size ? { size } : {}) };
+    MT_INBOX.push(it); return _mtcUid(it);
+  };
+  const big = mk('핵심 주제', 260, 430, { w: 300, h: 88 });
+  const a = mk('가지 1', 760, 300);
+  const b = mk('가지 2', 760, 452);
+  const c = mk('가지 3', 760, 604);
+  MT_LINKS.push({ a: big, b: a }, { a: big, b: b }, { a: big, b: c });
+  saveMTSystem();
+  mtcGotoPage(pid);
+  toast('🗒 새 스크린 — 빈 도화지에 기본 세트를 깔아뒀어요');
+}
+function mtcPageMenu(e, pid){
+  const p = (MT_PAGES||[]).find(v=>v.pid===pid); if(!p) return;
+  _mtcCtxShow(e.clientX, e.clientY, `
+    <div class="mtc-ctx-h">${_mtcEsc(p.name)}</div>
+    <button onclick="mtcCloseCtx();mtcRenamePage(${pid})">✎ 이름 바꾸기</button>
+    <div class="mtc-ctx-sep"></div>
+    <button class="danger" onclick="mtcCloseCtx();mtcDeletePage(${pid})">🗑 스크린 삭제</button>`);
+}
+function mtcRenamePage(pid){
+  const p = (MT_PAGES||[]).find(v=>v.pid===pid); if(!p) return;
+  const t = prompt('스크린 이름', p.name); if(t === null) return;
+  p.name = t.trim() || p.name;
+  saveMTSystem(); renderMTSystem();
+}
+function mtcDeletePage(pid){
+  const i = (MT_PAGES||[]).findIndex(v=>v.pid===pid); if(i<0) return;
+  const cnt = [...MT_INBOX,...MT_PASSIVE,...MT_ACTIVE].filter(it=>(it.pg||0)===pid).length;
+  if(!confirm(`"${MT_PAGES[i].name}" 스크린을 지웁니다.\n카드 ${cnt}장은 휴지통으로 갑니다 (14일 복원 가능).`)) return;
+  [['inbox',MT_INBOX],['passive',MT_PASSIVE],['active',MT_ACTIVE]].forEach(([kind,arr]) => {
+    for(let j = arr.length-1; j >= 0; j--){
+      if((arr[j].pg||0) === pid){
+        const uid = _mtcUid(arr[j]);
+        MT_LINKS = MT_LINKS.filter(l => l.a !== uid && l.b !== uid);
+        _mtToTrash(kind, arr[j]); arr.splice(j,1);
+      }
+    }
+  });
+  MT_CDIVS = (MT_CDIVS||[]).filter(d => (d.pg||0) !== pid);
+  MT_CZONES = (MT_CZONES||[]).filter(z => (z.pg||0) !== pid);
+  MT_PAGES.splice(i,1);
+  if(MTC_PAGE === pid) MTC_PAGE = 0;
+  saveMTSystem(); renderMTSystem();
+  toast('스크린 삭제 — 카드는 휴지통에');
+}
+
 // ═══ [v815] 피그마 ③ 멀티플레이어 — 커서·잡고 있는 카드·접속자 ═══
 let _mtcRT = null, _mtcRTKey = '', _mtcPeers = new Map(), _mtcRTSend = 0;
 function _mtcMyColor(){
@@ -15927,7 +15997,7 @@ function mtcStampTemplate(tid, x, y){
   const ctx = window._mtcCtx || {};
   const owner = ctx.viewingMember || currentUser?.name || 'MT';
   const id = Date.now() + Math.floor(Math.random()*900);
-  const base = { id, owner, created_at: isoDate(new Date()), tpl: tid,
+  const base = { id, owner, created_at: isoDate(new Date()), tpl: tid, pg: MTC_PAGE,
                  memo: t.memo, steps: (t.steps||[]).map(s=>({ text:s.text, done:false })),
                  pos: { x: Math.round(x), y: Math.round(y) } };
   if(t.kind === 'passive') MT_PASSIVE.push({ ...base, title:t.title, category:'Operation', priority:t.priority, status:'active', sop:[] });
@@ -16397,7 +16467,7 @@ async function mtcOpenBoardPicker(){
 function mtSetScope(scope){
   if(MT_SCOPE === scope) return;
   MT_SCOPE = scope;
-  MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CMEMBERS=null; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[]; MT_HIDDEN=[];
+  MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CMEMBERS=null; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[]; MT_HIDDEN=[]; MT_PAGES=[]; MTC_PAGE=0;
   _mtSynced = false; _mtSig = '';
 }
 let mtViewMode = 'responsibility'; // 'responsibility'(책임뷰) | 'action'(행동뷰)
@@ -16442,11 +16512,12 @@ function saveMTLocal(){
     sessionStorage.setItem(_mtKey("lucky7_mt_open"), JSON.stringify(MT_OPEN));
     sessionStorage.setItem(_mtKey("lucky7_mt_tpls"), JSON.stringify(MT_TPLS));
     sessionStorage.setItem(_mtKey("lucky7_mt_hidden"), JSON.stringify(MT_HIDDEN));
+    sessionStorage.setItem(_mtKey("lucky7_mt_pages"), JSON.stringify(MT_PAGES));
   }catch(_){}
 }
 function saveMTSystem(){
   saveMTLocal();
-  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT, k:MT_LINKS, m:MT_CMEMBERS, z:MT_CZONES, d:MT_CDIVS, o:MT_OPEN, tp:MT_TPLS, hd:MT_HIDDEN });
+  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT, k:MT_LINKS, m:MT_CMEMBERS, z:MT_CZONES, d:MT_CDIVS, o:MT_OPEN, tp:MT_TPLS, hd:MT_HIDDEN, pg:MT_PAGES });
   if(sb) saveMTToCloud();   // [v145] shared across the team
 }
 let _mtSynced = false, _mtSig = '', _mtSaving = false, _mtPollTimer = null;
@@ -16454,7 +16525,7 @@ async function saveMTToCloud(){
   if(!sb) return;
   _mtSaving = true;
   try{
-    const { error } = await _dbUpsert('mt_state', _mtStateId(), { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES, cdivs:MT_CDIVS, open:MT_OPEN, tpls:MT_TPLS, hidden:MT_HIDDEN });
+    const { error } = await _dbUpsert('mt_state', _mtStateId(), { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES, cdivs:MT_CDIVS, open:MT_OPEN, tpls:MT_TPLS, hidden:MT_HIDDEN, pages:MT_PAGES });
     if(error){ console.warn('mt_state save:', error.message); toast('Board save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('mt_state save:', e && e.message); }
   finally{ setTimeout(() => { _mtSaving = false; }, 400); }
@@ -16477,6 +16548,7 @@ async function syncMTFromCloud(){
       MT_OPEN    = !!d.open;
       MT_TPLS    = Array.isArray(d.tpls) ? d.tpls : [];
       MT_HIDDEN  = Array.isArray(d.hidden) ? d.hidden : [];
+      MT_PAGES   = Array.isArray(d.pages) ? d.pages : [];
       _mtPurgeOldTrash();                                        // [v670] 14일 지난 항목 자동 소멸
       saveMTLocal();
     } else if(error){ console.warn('mt_state load:', error.message); }
@@ -16491,12 +16563,12 @@ async function pollMTSystem(){
     const { data, error } = await sb.from('mt_state').select('data').eq('id',_mtStateId()).maybeSingle();
     if(error || !data || !data.data) return;
     const d = data.data;
-    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{}, k:d.links||[], m:d.cmembers||null, z:d.czones||[], d:d.cdivs||[], o:!!d.open, tp:d.tpls||[], hd:d.hidden||[] });
+    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{}, k:d.links||[], m:d.cmembers||null, z:d.czones||[], d:d.cdivs||[], o:!!d.open, tp:d.tpls||[], hd:d.hidden||[], pg:d.pages||[] });
     if(sig === _mtSig) return;                        // no remote change
     const ae = document.activeElement;
     const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
     if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId || window._mtcDragging || window._mtcPanning) return;  // mid-edit / mid-drag [v776 canvas too]
-    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = Array.isArray(d.cmembers)?d.cmembers:null; MT_CZONES = Array.isArray(d.czones)?d.czones:[]; MT_CDIVS = Array.isArray(d.cdivs)?d.cdivs:[]; MT_OPEN = !!d.open; MT_TPLS = Array.isArray(d.tpls)?d.tpls:[]; MT_HIDDEN = Array.isArray(d.hidden)?d.hidden:[];
+    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = Array.isArray(d.cmembers)?d.cmembers:null; MT_CZONES = Array.isArray(d.czones)?d.czones:[]; MT_CDIVS = Array.isArray(d.cdivs)?d.cdivs:[]; MT_OPEN = !!d.open; MT_TPLS = Array.isArray(d.tpls)?d.tpls:[]; MT_HIDDEN = Array.isArray(d.hidden)?d.hidden:[]; MT_PAGES = Array.isArray(d.pages)?d.pages:[];
     _mtSig = sig; saveMTLocal();
     renderMTSystem();
   }catch(_){}
@@ -16515,6 +16587,7 @@ function loadMTSystem(){
     const rop = sessionStorage.getItem(_mtKey("lucky7_mt_open"));
     const rtp = sessionStorage.getItem(_mtKey("lucky7_mt_tpls"));
     const rhd = sessionStorage.getItem(_mtKey("lucky7_mt_hidden"));
+    const rpg = sessionStorage.getItem(_mtKey("lucky7_mt_pages"));
     if(rp){
       MT_INBOX = ri ? JSON.parse(ri) : [];
       MT_PASSIVE = JSON.parse(rp);
@@ -16528,12 +16601,13 @@ function loadMTSystem(){
       MT_OPEN = rop ? JSON.parse(rop) : false;
       MT_TPLS = rtp ? JSON.parse(rtp) : [];
       MT_HIDDEN = rhd ? JSON.parse(rhd) : [];
+      MT_PAGES = rpg ? JSON.parse(rpg) : [];
       return;
     }
   }catch(_){}
   _seedMTSystem();
 }
-function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[]; MT_HIDDEN=[]; try{ saveMTLocal(); }catch(_){} }
+function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[]; MT_HIDDEN=[]; MT_PAGES=[]; try{ saveMTLocal(); }catch(_){} }
 // [v670] 휴지통 유틸 — 삭제는 전부 휴지통 경유 (복원 가능), 14일 지나면 자동 소멸
 function _mtPurgeOldTrash(){ try{ const cut=Date.now()-14*86400000; MT_TRASH=MT_TRASH.filter(t=>(t.deleted_at||0)>cut); }catch(_){ MT_TRASH=[]; } }
 function _mtToTrash(kind, item){ MT_TRASH.unshift({ id:Date.now()+Math.floor(Math.random()*999), kind, item, deleted_at:Date.now(), by:(currentUser?.name||'?') }); if(MT_TRASH.length>200) MT_TRASH.length=200; }
@@ -17262,7 +17336,7 @@ function _mtcCreateCardIn(zone, x, y, w, h){
   const id = Date.now() + Math.floor(Math.random()*900);
   const size = { w: Math.max(140, Math.min(520, Math.round(w))), h: Math.max(24, Math.min(300, Math.round(h))) };
   const pos = { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) };
-  const base = { id, owner, created_at: now, pos, size };
+  const base = { id, owner, created_at: now, pos, size, pg: MTC_PAGE };
   if(zone === 'passive'){ MT_PASSIVE.push({ ...base, title:'', category:'Operation', priority:'P2', status:'active', sop:[] }); return { kind:'passive', id }; }
   if(zone === 'active'){ MT_ACTIVE.push({ ...base, title:'', passive_id:null, priority:_mtcPriFromY(pos.y), status:'todo', due:null, steps:[], comments:[] }); return { kind:'active', id }; }
   if(zone === 'done'){ MT_ACTIVE.push({ ...base, title:'', passive_id:null, priority:'P2', status:'done', due:null, steps:[], comments:[] }); return { kind:'active', id }; }
@@ -17406,7 +17480,7 @@ function _mtcPenStart(e, vp){
 // ─── [v801] 구분선 ───
 function mtcAddDivider(x, y, vert, silent, len){
   const id = 'd' + Date.now();
-  MT_CDIVS.push({ id, x: Math.max(0,Math.round(x)), y: Math.max(0,Math.round(y)),
+  MT_CDIVS.push({ id, pg: MTC_PAGE, x: Math.max(0,Math.round(x)), y: Math.max(0,Math.round(y)),
                   len: Math.max(60, Math.round(len || (vert ? 320 : 420))), vert: !!vert, label: '' });
   saveMTSystem(); renderMTSystem();
   const el = document.querySelector(`.mtc-div[data-div="${id}"]`);
@@ -17747,6 +17821,9 @@ function mtCanvasHTML(ctx){
   const ALLZ = _mtcAllZones();
   const rects = {}; ALLZ.forEach(zd => { rects[zd.key] = _mtcRect(zd); });
 
+  // [v820] 지금 보고 있는 스크린의 항목만 그린다 (pg 없으면 메인 스크린)
+  const PG = MTC_PAGE;
+  const onPg = it => (it.pg || 0) === PG;
   // 모든 항목 → 포스트잇. pos 없으면 소속 영역 안에 자동 격자.
   const notes = [];
   const addNotes = (kind, arr, areaKey) => {
@@ -17756,10 +17833,10 @@ function mtCanvasHTML(ctx){
       notes.push(_mtcNote(kind, item, today, pos));
     });
   };
-  addNotes('inbox',   MT_INBOX.filter(i => inScope(i.owner)), 'inbox');
-  addNotes('passive', passives, 'passive');
-  addNotes('active',  actAll.filter(a => a.status!=='done'), 'active');
-  addNotes('active',  actAll.filter(a => a.status==='done'), 'done');
+  addNotes('inbox',   MT_INBOX.filter(i => inScope(i.owner) && onPg(i)), 'inbox');
+  addNotes('passive', passives.filter(onPg), 'passive');
+  addNotes('active',  actAll.filter(a => a.status!=='done' && onPg(a)), 'active');
+  addNotes('active',  actAll.filter(a => a.status==='done' && onPg(a)), 'done');
 
   const counts = {
     inbox: MT_INBOX.filter(i=>inScope(i.owner)).length,
@@ -17779,7 +17856,11 @@ function mtCanvasHTML(ctx){
     counts[zd.key] = allItems.filter(it => { const p = posOf(it); return p && p.x+80>=z.x && p.x+80<=z.x+z.w && p.y+14>=z.y && p.y+14<=z.y+z.h; }).length;
   });
 
-  const zonesHTML = ALLZ.map(zd => { const z = rects[zd.key]; const n = counts[z.key]||0;
+  const zonesHTML = ALLZ.filter(zd => {
+    // 기본 영역은 메인 스크린에만, 직접 만든 박스는 만든 스크린에만
+    const isCustom = String(zd.key).startsWith('z:');
+    return isCustom ? (zd.pg || 0) === PG : PG === 0;
+  }).map(zd => { const z = rects[zd.key]; const n = counts[z.key]||0;
     const zsel = (window._mtcLinkFrom === 'zone:'+z.key) ? ' mtc-linksel' : ''; return `
     <div class="mtc-zone${zsel}" data-zone="${z.key}" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;--zc:${z.hue}" ${z.key==='trash'?'onclick="if(!window._mtcMoved&&!window._mtcLinkMode&&!window._mtcLinkFrom)mtcOpenTrash()"':''}>
       <span class="mtc-zone-lb">${z.label}<b>${n}</b></span>
@@ -17793,7 +17874,7 @@ function mtCanvasHTML(ctx){
     </div>`; }).join('');
 
   // [v801] 구분선 — 보드를 나누는 얇은 선. 라벨을 달 수 있고 카드 모서리에 자석처럼 맞는다.
-  const divsHTML = (MT_CDIVS||[]).map(d => `
+  const divsHTML = (MT_CDIVS||[]).filter(d => (d.pg||0) === PG).map(d => `
     <div class="mtc-div ${d.vert?'mtc-div-v':'mtc-div-h'}" data-div="${d.id}"
          style="left:${d.x}px;top:${d.y}px;${d.vert?`height:${d.len}px`:`width:${d.len}px`}">
       <span class="mtc-div-line"></span>
@@ -17806,7 +17887,7 @@ function mtCanvasHTML(ctx){
   const ROLE_LB = { ceo:'ADMIN', manager:'OP TEAM', hr:'OP TEAM', leader:'PLAYER LEADER', staff:'STAFF', admin:'ADMIN', op:'OP TEAM', player:'PLAYER' };
   const ROLE_COLOR = { ceo:MTC_C.sage, admin:MTC_C.sage, manager:MTC_C.clay, hr:MTC_C.clay, op:MTC_C.clay,
                        leader:MTC_C.amber, player:MTC_C.amber, staff:MTC_C.stone };
-  const memberZones = members.map((m,i) => {
+  const memberZones = PG !== 0 ? '' : members.map((m,i) => {
     const nm = m.name;
     const t = findTeam(nm);
     const rk = (t?.db_role||t?.role||'').toLowerCase();
@@ -18279,6 +18360,16 @@ function mtCanvasHTML(ctx){
   .mtc-note.mtc-got{animation:mtcGot .62s cubic-bezier(.2,1,.3,1);border-color:${MTC_C.teal}!important}
   .mtcn-from{font-size:.7em;font-family:ui-monospace,monospace;font-weight:800;color:#a8ded6;
     background:rgba(107,165,157,.18);border-radius:4px;padding:0 4px;flex:none}
+  /* [v820] 스크린 전환 — 하단 중앙 페이저 */
+  #mtc-pager{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:24;display:flex;align-items:center;gap:2px;
+    background:rgba(18,18,17,.6);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px) saturate(1.2);
+    border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:3px;box-shadow:0 8px 26px rgba(0,0,0,.45)}
+  #mtc-pager button{height:25px;border:none;border-radius:7px;background:transparent;cursor:pointer;
+    color:rgba(235,235,245,.55);font:10.5px 'Malgun Gothic',ui-monospace,monospace;font-weight:700;padding:0 12px;
+    transition:background .14s,color .14s;white-space:nowrap}
+  #mtc-pager button:hover{color:#fff;background:rgba(255,255,255,.06)}
+  #mtc-pager button.on{background:rgba(255,255,255,.11);color:#fff}
+  #mtc-pager .mtc-pager-add{width:26px;padding:0;font-size:13px;color:rgba(235,235,245,.4)}
   /* [v815] 멀티플레이어 — 남의 커서·잡고 있는 카드·접속자 */
   #mtc-peers{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:970}
   .mtc-peer{position:absolute;left:0;top:0;display:flex;align-items:flex-start;gap:3px;
@@ -18304,7 +18395,7 @@ function mtCanvasHTML(ctx){
     box-shadow:0 0 0 1px rgba(0,0,0,.35)}
   .mtc-note.mtc-sel{border-color:rgba(255,255,255,.75)!important;
     box-shadow:0 0 0 1.5px rgba(255,255,255,.45), 0 6px 18px rgba(0,0,0,.5)!important;z-index:7}
-  #mtc-selbar{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:2px;
+  #mtc-selbar{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:2px;
     background:rgba(18,18,17,.62);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px) saturate(1.2);
     border:1px solid rgba(255,255,255,.09);border-radius:11px;padding:4px;
     box-shadow:0 10px 32px rgba(0,0,0,.5);animation:mtcPopIn .18s cubic-bezier(.2,1.1,.35,1)}
@@ -18420,7 +18511,7 @@ function mtCanvasHTML(ctx){
   .mtc-ink-none{stroke:${MTC_C.stone};opacity:.45;stroke-dasharray:5 5}
   .mtc-ink-tag{fill:rgba(235,235,245,.6);font:9px ui-monospace,'Malgun Gothic',monospace;font-weight:800;letter-spacing:.06em}
   /* 확정 바 */
-  #mtc-penbar{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:8px;
+  #mtc-penbar{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:8px;
     background:rgba(20,20,20,.94);border:1px solid var(--br,#333);border-radius:11px;padding:7px 8px 7px 13px;
     box-shadow:0 12px 34px rgba(0,0,0,.55);animation:mtcPopIn .18s cubic-bezier(.2,1.1,.35,1)}
   .mtc-penbar-t{font:10.5px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:var(--tx2)}
@@ -18488,6 +18579,13 @@ function mtCanvasHTML(ctx){
         <button onclick="mtSetBoardView('kanban')" title="칸반 뷰">▦ 칸반</button>
         <button class="on" title="지금 캔버스 뷰">🗺 캔버스</button>
       </span>
+    </div>
+    <div id="mtc-pager">
+      <button class="${PG===0?'on':''}" onclick="mtcGotoPage(0)" oncontextmenu="event.preventDefault()">보드</button>
+      ${(MT_PAGES||[]).map((p,i)=>`<button class="${PG===p.pid?'on':''}" onclick="mtcGotoPage(${p.pid})"
+        oncontextmenu="event.preventDefault();mtcPageMenu(event,${p.pid})"
+        title="우클릭: 이름 바꾸기·삭제">${_mtcEsc(p.name||('스크린 '+(i+2)))}</button>`).join('')}
+      <button class="mtc-pager-add" onclick="mtcAddPage()" title="새 스크린 — 빈 도화지 + 기본 카드 세트">＋</button>
     </div>
     ${personalMode ? (MT_VIEWING
       ? `<div class="mtc-personal-tag mtc-ro-tag">👁 ${_mtcEsc(MT_VIEWING.name)}의 보드 — 보기 전용 <button onclick="mtcViewMemberBoard('${_mtcEsc(String(currentUser?.id||'me'))}','내 보드')">내 보드로</button></div>`
@@ -18726,7 +18824,7 @@ function mtcQuickAdd(inp){
   if(_mtcBlockRO()){ inp.value=''; return; }
   const text = (inp.value||'').trim(); if(!text) return;
   const ctx = window._mtcCtx || {};
-  MT_INBOX.push({ id:Date.now(), text, created_at:isoDate(new Date()), owner: ctx.viewingMember || currentUser?.name || 'MT' });
+  MT_INBOX.push({ id:Date.now(), text, created_at:isoDate(new Date()), owner: ctx.viewingMember || currentUser?.name || "MT", pg: MTC_PAGE });
   inp.value = '';
   saveMTSystem(); renderMTSystem();
   setTimeout(()=>{ document.getElementById('mtc-quick-in')?.focus(); }, 50);
@@ -19241,7 +19339,7 @@ function mtcNewNoteAt(x, y){
   const id = Date.now();
   x = Math.max(0, Math.min(MTC_SURFACE.w-170, x));
   y = Math.max(0, Math.min(MTC_SURFACE.h-100, y));
-  const it = { id, text:'', created_at:isoDate(new Date()), owner: ctx.viewingMember || currentUser?.name || 'MT', pos:{x,y} };
+  const it = { id, text:"", created_at:isoDate(new Date()), owner: ctx.viewingMember || currentUser?.name || "MT", pos:{x,y}, pg: MTC_PAGE };
   MT_INBOX.push(it);
   window._mtcPopUid = _mtcUid(it);          // 애니 2: 톡 나타나는 효과
   saveMTSystem(); renderMTSystem();
@@ -19893,7 +19991,7 @@ function _mtcDropZone(kind, id, zone, pri, pos){
   }
   if(zone === 'inbox'){
     if(kind === 'inbox'){ item.pos = p; return done(); }
-    rm(); MT_INBOX.push({ id:Date.now(), uid, text:item.title||'', owner:item.owner, created_at:item.created_at||now, memo:item.memo||'', pos:p });
+    rm(); MT_INBOX.push({ id:Date.now(), uid, text:item.title||"", owner:item.owner, created_at:item.created_at||now, memo:item.memo||"", pos:p, pg:item.pg });
     return done(`📥 "${label}" 인박스로`);
   }
   if(zone === 'active' || zone === 'done'){
@@ -19910,14 +20008,14 @@ function _mtcDropZone(kind, id, zone, pri, pos){
     }
     rm();
     const newId = Math.max(100, ...MT_ACTIVE.map(a=>a.id), Date.now()%100000) + 1;
-    MT_ACTIVE.push({ id:newId, uid, title:item.title||item.text||'', passive_id:null, owner:item.owner, priority:pri||item.priority||'P2', status:st, due:null, steps:item.steps||[], comments:item.comments||[], created_at:item.created_at||now, memo:item.memo||'', pos:p });
+    MT_ACTIVE.push({ id:newId, uid, title:item.title||item.text||"", passive_id:null, owner:item.owner, priority:pri||item.priority||"P2", status:st, due:null, steps:item.steps||[], comments:item.comments||[], created_at:item.created_at||now, memo:item.memo||"", pos:p, pg:item.pg });
     return done(st==='done' ? `✅ "${label}" 완료로` : `⚡ "${label}" 액티브로`);
   }
   if(zone === 'passive'){
     if(kind === 'passive'){ item.pos = p; return done(); }
     rm();
     const newId = Math.max(0, ...MT_PASSIVE.map(p2=>p2.id)) + 1;
-    MT_PASSIVE.push({ id:newId, uid, title:item.title||item.text||'', category:'Operation', priority:item.priority||'P2', owner:item.owner, status:'active', sop:[], created_at:item.created_at||now, memo:item.memo||'', pos:p });
+    MT_PASSIVE.push({ id:newId, uid, title:item.title||item.text||"", category:"Operation", priority:item.priority||"P2", owner:item.owner, status:"active", sop:[], created_at:item.created_at||now, memo:item.memo||"", pos:p, pg:item.pg });
     return done(`📦 "${label}" 책임으로`);
   }
 }
@@ -20074,7 +20172,7 @@ function _mtcStepDragOut(e, kind, id, idx){
     cur.steps.splice(idx, 1);                                       // 부모에서 제거
     const nid = Date.now();
     const sub = { id:nid, text:step.text, created_at:isoDate(new Date()), owner:cur.owner,
-                  sub:true, done:!!step.done,
+                  sub:true, done:!!step.done, pg: MTC_PAGE,
                   pos:{ x: Math.max(0, Math.round(p.x-90)), y: Math.max(0, Math.round(p.y-14)) },
                   size:{ w:190, h:26 } };
     MT_INBOX.push(sub);
@@ -20113,7 +20211,7 @@ function _mtcMemoDragOut(e, id){
     const cur = _mtcFindAny(id).item; if(!cur) return;
     cur.memo = '';                                        // 부모 메모는 비움
     const nid = Date.now();
-    const sub = { id:nid, text, created_at:isoDate(new Date()), owner:cur.owner, sub:true,
+    const sub = { id:nid, text, created_at:isoDate(new Date()), owner:cur.owner, sub:true, pg: MTC_PAGE,
                   pos:{ x: Math.max(0, Math.round(p.x-84)), y: Math.max(0, Math.round(p.y-13)) },
                   size:{ w: MTC_SUB_W, h: text.length > 30 ? 60 : 26 } };
     MT_INBOX.push(sub);
