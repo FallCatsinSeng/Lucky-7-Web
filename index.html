@@ -17078,6 +17078,17 @@ function mtCanvasHTML(ctx){
   .mtcpop-steptx{flex:1;word-break:keep-all}
   .mtcpop-grip{cursor:grab;color:var(--tx3);opacity:.55;font-size:11px;padding:1px 3px;touch-action:none;user-select:none;border-radius:4px}
   .mtcpop-step:hover .mtcpop-grip{opacity:1;color:var(--pc);background:rgba(255,255,255,.07)}
+  /* [v800] 방금 적은 항목 — 스르륵 나타나고, 손잡이가 잠깐 맥동해 끌어낼 수 있음을 알린다 */
+  @keyframes mtcStepIn{from{opacity:0;transform:translateY(-6px);background:color-mix(in srgb,var(--pc) 22%,transparent)}
+    to{opacity:1;transform:none;background:transparent}}
+  @keyframes mtcGripCall{0%,100%{transform:scale(1);opacity:.85}
+    50%{transform:scale(1.32);opacity:1;box-shadow:0 0 0 4px color-mix(in srgb,var(--pc) 22%,transparent)}}
+  .mtcpop-step-new{animation:mtcStepIn .32s cubic-bezier(.2,1.1,.35,1)}
+  .mtcpop-step-new .mtcpop-grip{color:var(--pc);opacity:1;background:color-mix(in srgb,var(--pc) 16%,transparent);
+    animation:mtcGripCall 1.15s ease-in-out 3}
+  .mtcpop-stephint{font:8.5px ui-monospace,'Malgun Gothic',monospace;color:var(--pc);opacity:.75;flex:none;white-space:nowrap;
+    animation:mtcStepIn .4s ease}
+  .mtcpop-step-new:hover .mtcpop-stephint{opacity:1}
   .mtcpop-stepx{background:none;border:none;color:var(--tx3);opacity:0;cursor:pointer;font-size:10px;padding:0 2px;flex:none}
   .mtcpop-step:hover .mtcpop-stepx{opacity:.7}
   .mtcpop-stepx:hover{opacity:1!important;color:#e88b84}
@@ -18548,14 +18559,17 @@ function _mtcShowPop(noteEl, pinned){
     </div>
     ${steps.length?`<div class="mtcpop-steps">
       <div class="mtcpop-steps-h">세부 항목 <span>⠿ 잡고 보드로 빼면 카드 ↗</span></div>
-      ${steps.map((s,i)=>`<div class="mtcpop-step ${s.done?'done':''}" data-step="${i}">
+      ${steps.map((s,i)=>{
+        const fresh = window._mtcNewStep && window._mtcNewStep.id === id && window._mtcNewStep.idx === i;
+        return `<div class="mtcpop-step ${s.done?'done':''}${fresh?' mtcpop-step-new':''}" data-step="${i}">
         <span class="mtcpop-grip" onpointerdown="_mtcStepDragOut(event,'${kind}',${id},${i})" title="보드로 끌어내면 별도 카드가 되고 이 카드와 선으로 이어집니다">⠿</span>
         <input type="checkbox" ${s.done?'checked':''} onchange="mtcToggleStep(${id},${i});mtcRepop()">
         <span class="mtcpop-steptx">${_mtcEsc(s.text)}</span>
-        <button class="mtcpop-stepx" onclick="mtcDelStep(${id},${i});mtcRepop()" title="삭제">✕</button></div>`).join('')}
+        ${fresh?`<span class="mtcpop-stephint">⠿ 잡고 밖으로 ↗</span>`:''}
+        <button class="mtcpop-stepx" onclick="mtcDelStep(${id},${i});mtcRepop()" title="삭제">✕</button></div>`; }).join('')}
       <div class="mtcpop-prog"><i style="width:${Math.round(doneN/steps.length*100)}%"></i></div>
     </div>`:''}
-    <input class="mtcpop-in mtcpop-addstep" placeholder="+ 세부 항목 적기 (Enter)" onkeydown="if(event.key==='Enter'){mtcAddStep(${id},this);mtcRepop()}">
+    <input class="mtcpop-in mtcpop-addstep" placeholder="+ 세부 항목 적기 (Enter)" onkeydown="if(event.key==='Enter'){mtcAddStep(${id},this);mtcRepop(true)}">
     <div class="mtcpop-acts">
       <button onclick="mtcClosePop(true);_mtcLinkTap('${uid}')">🔗 연결</button>
       <button onclick="mtcClosePop(true);_mtcEditNote(${id})">✎ 글 수정</button>
@@ -18667,9 +18681,13 @@ function mtcTogglePin(){
   document.querySelector('.mtcpop-pin')?.classList.toggle('on', _mtcPopPinned);
   if(!_mtcPopPinned) mtcPopLeave();
 }
-function mtcRepop(){
+function mtcRepop(focusAdd){
   const uid = _mtcPopKey; if(!uid) return;
-  setTimeout(()=>{ const n = document.querySelector(`.mtc-note[data-uid="${uid}"]`); if(n) _mtcShowPop(n, _mtcPopPinned); }, 60);
+  setTimeout(()=>{
+    const n = document.querySelector(`.mtc-note[data-uid="${uid}"]`); if(!n) return;
+    _mtcShowPop(n, _mtcPopPinned);
+    if(focusAdd) document.querySelector('#mtc-pop .mtcpop-addstep')?.focus();   // 연달아 적을 수 있게
+  }, 60);
 }
 function mtcPopSave(kind, id, el){
   const { item } = _mtcFind(kind, id); if(!item) return;
@@ -18767,6 +18785,9 @@ function mtcAddStep(id, inp){
   const t = (inp.value||'').trim(); if(!t) return;
   (item.steps = item.steps||[]).push({ text:t, done:false });
   inp.value = '';
+  // [v800] 방금 넣은 항목을 표시 — 나타날 때 애니메이션 + 손잡이가 잠깐 반짝여 끌어낼 수 있음을 알림
+  window._mtcNewStep = { id, idx: item.steps.length - 1 };
+  setTimeout(()=>{ window._mtcNewStep = null; }, 2600);
   saveMTSystem(); renderMTSystem();
 }
 function mtcToggleStep(id, i){
