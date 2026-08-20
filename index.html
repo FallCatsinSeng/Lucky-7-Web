@@ -15768,6 +15768,7 @@ let MT_LINKS = [];      // [v781] 카드 연결선 [{a:uid, b:uid}] — 흐름�
 let MT_CZONES = [];     // [v786] 직접 만든 박스 [{key,label,hue,x,y,w,h}] — 팀 공유
 let MT_CDIVS = [];      // [v801] 구분선 [{id,x,y,len,vert,label}] — 보드를 나누는 얇은 선
 let MT_TPLS  = [];      // [v814] 템플릿(컴포넌트) 마스터 [{tid,title,memo,steps,kind,priority}] — 팀 공유
+let MT_HIDDEN = [];     // [v818] 보드에서 숨긴 사람 (퇴사자 등) — 계정은 그대로 두고 목록에서만 뺀다
 // [v782] 캔버스 보드에 올릴 멤버 — 역할 탭과 무관하게 직접 고름 (팀 공유). null이면 아래 기본값.
 let MT_CMEMBERS = null;
 const MTC_DEFAULT_MEMBERS = ['MT2','Manji','GUWON','Vallen','Mr.Bruce','Mr.Kaiji'];
@@ -16243,9 +16244,19 @@ const MTC_EDGE = 96;    // 오른쪽 끝에서 이만큼 안으로 들어오면 
 const MTC_EDGE_KEEP = 300;   // 한 번 열리면 이 범위 안에서는 계속 열려 있는다 (목록 훑을 때 닫히지 않게)
 // [v817] 업무를 넘길 수 있는 대상 — 플레이어/스태프는 제외
 const MTC_SENDABLE = ['ceo','admin','manager','hr','settlement','operator','op','leader'];
+function _mtcHidden(id){ return (MT_HIDDEN||[]).map(String).includes(String(id)); }
+function mtcToggleHidden(id, name){
+  MT_HIDDEN = MT_HIDDEN || [];
+  const i = MT_HIDDEN.map(String).indexOf(String(id));
+  if(i >= 0) MT_HIDDEN.splice(i,1); else MT_HIDDEN.push(String(id));
+  // 숨긴 사람은 보드 멤버에서도 내린다
+  if(i < 0 && Array.isArray(MT_CMEMBERS)) MT_CMEMBERS = MT_CMEMBERS.filter(n => !_mtSameOwner(n, name));
+  saveMTSystem(); renderMTSystem(); mtcOpenMemberPicker();
+  toast(i >= 0 ? `${name} 다시 표시` : `${name} 숨김 — 계정은 그대로입니다`);
+}
 function _mtcSendTargets(){
   return (window._mtcTeam || []).filter(t =>
-    String(t.id) !== String(currentUser?.id) && MTC_SENDABLE.includes(t.role||''));
+    String(t.id) !== String(currentUser?.id) && MTC_SENDABLE.includes(t.role||'') && !_mtcHidden(t.id));
 }
 function _mtcDrawerEl(){
   let d = document.getElementById('mtc-drawer');
@@ -16376,7 +16387,7 @@ async function mtcOpenBoardPicker(){
       <div class="mtcm-h">내 보드</div>
       ${row(me, meName, (team||[]).find(t=>String(t.id)===me)?.short, '', true)}
       <div class="mtcm-h">팀</div>
-      ${list.filter(t=>String(t.id)!==me).map(t=>row(t.id, t.name, t.short, (t.db_role||'').toUpperCase(), false)).join('') ||
+      ${list.filter(t=>String(t.id)!==me && !_mtcHidden(t.id)).map(t=>row(t.id, t.name, t.short, (t.db_role||'').toUpperCase(), false)).join('') ||
         '<div style="font:11px ui-monospace,monospace;color:var(--tx3);padding:12px 2px">팀 목록을 불러오지 못했습니다</div>'}
     </div>
   </div>`;
@@ -16386,7 +16397,7 @@ async function mtcOpenBoardPicker(){
 function mtSetScope(scope){
   if(MT_SCOPE === scope) return;
   MT_SCOPE = scope;
-  MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CMEMBERS=null; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[];
+  MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CMEMBERS=null; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[]; MT_HIDDEN=[];
   _mtSynced = false; _mtSig = '';
 }
 let mtViewMode = 'responsibility'; // 'responsibility'(책임뷰) | 'action'(행동뷰)
@@ -16430,11 +16441,12 @@ function saveMTLocal(){
     sessionStorage.setItem(_mtKey("lucky7_mt_cdivs"), JSON.stringify(MT_CDIVS));
     sessionStorage.setItem(_mtKey("lucky7_mt_open"), JSON.stringify(MT_OPEN));
     sessionStorage.setItem(_mtKey("lucky7_mt_tpls"), JSON.stringify(MT_TPLS));
+    sessionStorage.setItem(_mtKey("lucky7_mt_hidden"), JSON.stringify(MT_HIDDEN));
   }catch(_){}
 }
 function saveMTSystem(){
   saveMTLocal();
-  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT, k:MT_LINKS, m:MT_CMEMBERS, z:MT_CZONES, d:MT_CDIVS, o:MT_OPEN, tp:MT_TPLS });
+  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT, k:MT_LINKS, m:MT_CMEMBERS, z:MT_CZONES, d:MT_CDIVS, o:MT_OPEN, tp:MT_TPLS, hd:MT_HIDDEN });
   if(sb) saveMTToCloud();   // [v145] shared across the team
 }
 let _mtSynced = false, _mtSig = '', _mtSaving = false, _mtPollTimer = null;
@@ -16442,7 +16454,7 @@ async function saveMTToCloud(){
   if(!sb) return;
   _mtSaving = true;
   try{
-    const { error } = await _dbUpsert('mt_state', _mtStateId(), { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES, cdivs:MT_CDIVS, open:MT_OPEN, tpls:MT_TPLS });
+    const { error } = await _dbUpsert('mt_state', _mtStateId(), { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES, cdivs:MT_CDIVS, open:MT_OPEN, tpls:MT_TPLS, hidden:MT_HIDDEN });
     if(error){ console.warn('mt_state save:', error.message); toast('Board save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('mt_state save:', e && e.message); }
   finally{ setTimeout(() => { _mtSaving = false; }, 400); }
@@ -16464,6 +16476,7 @@ async function syncMTFromCloud(){
       MT_CDIVS   = Array.isArray(d.cdivs) ? d.cdivs : [];
       MT_OPEN    = !!d.open;
       MT_TPLS    = Array.isArray(d.tpls) ? d.tpls : [];
+      MT_HIDDEN  = Array.isArray(d.hidden) ? d.hidden : [];
       _mtPurgeOldTrash();                                        // [v670] 14일 지난 항목 자동 소멸
       saveMTLocal();
     } else if(error){ console.warn('mt_state load:', error.message); }
@@ -16478,12 +16491,12 @@ async function pollMTSystem(){
     const { data, error } = await sb.from('mt_state').select('data').eq('id',_mtStateId()).maybeSingle();
     if(error || !data || !data.data) return;
     const d = data.data;
-    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{}, k:d.links||[], m:d.cmembers||null, z:d.czones||[], d:d.cdivs||[], o:!!d.open, tp:d.tpls||[] });
+    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{}, k:d.links||[], m:d.cmembers||null, z:d.czones||[], d:d.cdivs||[], o:!!d.open, tp:d.tpls||[], hd:d.hidden||[] });
     if(sig === _mtSig) return;                        // no remote change
     const ae = document.activeElement;
     const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
     if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId || window._mtcDragging || window._mtcPanning) return;  // mid-edit / mid-drag [v776 canvas too]
-    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = Array.isArray(d.cmembers)?d.cmembers:null; MT_CZONES = Array.isArray(d.czones)?d.czones:[]; MT_CDIVS = Array.isArray(d.cdivs)?d.cdivs:[]; MT_OPEN = !!d.open; MT_TPLS = Array.isArray(d.tpls)?d.tpls:[];
+    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = Array.isArray(d.cmembers)?d.cmembers:null; MT_CZONES = Array.isArray(d.czones)?d.czones:[]; MT_CDIVS = Array.isArray(d.cdivs)?d.cdivs:[]; MT_OPEN = !!d.open; MT_TPLS = Array.isArray(d.tpls)?d.tpls:[]; MT_HIDDEN = Array.isArray(d.hidden)?d.hidden:[];
     _mtSig = sig; saveMTLocal();
     renderMTSystem();
   }catch(_){}
@@ -16501,6 +16514,7 @@ function loadMTSystem(){
     const rdv = sessionStorage.getItem(_mtKey("lucky7_mt_cdivs"));
     const rop = sessionStorage.getItem(_mtKey("lucky7_mt_open"));
     const rtp = sessionStorage.getItem(_mtKey("lucky7_mt_tpls"));
+    const rhd = sessionStorage.getItem(_mtKey("lucky7_mt_hidden"));
     if(rp){
       MT_INBOX = ri ? JSON.parse(ri) : [];
       MT_PASSIVE = JSON.parse(rp);
@@ -16513,12 +16527,13 @@ function loadMTSystem(){
       MT_CDIVS = rdv ? JSON.parse(rdv) : [];
       MT_OPEN = rop ? JSON.parse(rop) : false;
       MT_TPLS = rtp ? JSON.parse(rtp) : [];
+      MT_HIDDEN = rhd ? JSON.parse(rhd) : [];
       return;
     }
   }catch(_){}
   _seedMTSystem();
 }
-function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[]; try{ saveMTLocal(); }catch(_){} }
+function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[]; MT_HIDDEN=[]; try{ saveMTLocal(); }catch(_){} }
 // [v670] 휴지통 유틸 — 삭제는 전부 휴지통 경유 (복원 가능), 14일 지나면 자동 소멸
 function _mtPurgeOldTrash(){ try{ const cut=Date.now()-14*86400000; MT_TRASH=MT_TRASH.filter(t=>(t.deleted_at||0)>cut); }catch(_){ MT_TRASH=[]; } }
 function _mtToTrash(kind, item){ MT_TRASH.unshift({ id:Date.now()+Math.floor(Math.random()*999), kind, item, deleted_at:Date.now(), by:(currentUser?.name||'?') }); if(MT_TRASH.length>200) MT_TRASH.length=200; }
@@ -17801,6 +17816,7 @@ function mtCanvasHTML(ctx){
     const doing = mine.filter(a=>a.status==='doing').length;
     const todo  = mine.filter(a=>a.status==='todo').length;
     const p1    = mine.filter(a=>a.status!=='done'&&a.priority==='P1').length;
+    if(_mtcHidden((findTeam(nm)||{}).id)) return '';   // 숨긴 사람은 보드에도 올리지 않는다
     const mp = _mtcLayout()['m:'+nm] || { x: 30+i*180, y: 22, w:170, h:76 };
     const mw = mp.w || 170, mh = mp.h || 76;
     // [v792] 카드를 키우면 이름이 좌상단으로 붙고, 아래가 업무 카드를 받는 공간이 된다
@@ -17839,6 +17855,24 @@ function mtCanvasHTML(ctx){
   /* 캔버스 모드 — 컨테이너 max-width/패딩 전부 해제해서 화면 끝까지 */
   #ch-other.mtc-full{max-width:none!important;margin:0!important;padding:0!important;width:100%!important}
   body:has(#ch-other.mtc-full) main{padding:0!important;max-width:none!important}
+  /* [v818] 빈 보드 안내 — 조용히 숨 쉬는 고리 하나 */
+  .mtc-blank{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);z-index:12;text-align:center;pointer-events:none;
+    animation:mtcBlankIn .5s cubic-bezier(.2,.9,.3,1)}
+  @keyframes mtcBlankIn{from{opacity:0;transform:translate(-50%,-46%)}to{opacity:1}}
+  .mtc-blank-ring{width:74px;height:74px;margin:0 auto 18px;border-radius:50%;position:relative;
+    border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center}
+  .mtc-blank-ring::before,.mtc-blank-ring::after{content:'';position:absolute;inset:-1px;border-radius:50%;
+    border:1px solid rgba(255,255,255,.16);animation:mtcBreathe 3.6s ease-in-out infinite}
+  .mtc-blank-ring::after{animation-delay:1.8s}
+  @keyframes mtcBreathe{0%{transform:scale(1);opacity:.5}70%{transform:scale(1.55);opacity:0}100%{opacity:0}}
+  .mtc-blank-plus{font:200 30px/1 ui-monospace,monospace;color:rgba(255,255,255,.42)}
+  .mtc-blank-t{font:14px 'Malgun Gothic',sans-serif;font-weight:700;color:rgba(255,255,255,.72);margin-bottom:6px}
+  .mtc-blank-s{font:11.5px 'Malgun Gothic',sans-serif;color:rgba(235,235,245,.42)}
+  .mtc-blank-s b{color:rgba(255,255,255,.8);font-weight:700}
+  .mtc-blank-keys{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:22px;max-width:420px}
+  .mtc-blank-keys span{font:9.5px 'Malgun Gothic',ui-monospace,monospace;color:rgba(235,235,245,.34);
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:5px 9px}
+  .mtc-blank-keys b{color:rgba(255,255,255,.62);font-weight:700}
   #mtc-vp{position:relative;height:100vh;min-height:420px;border:none;border-radius:0;overflow:hidden;background:
     radial-gradient(circle,rgba(255,255,255,.04) 1px,transparent 1px) 0 0/28px 28px,var(--bg-c,#161615);cursor:grab;touch-action:none;user-select:none}
   #mtc-vp.mtc-grabbing{cursor:grabbing}
@@ -18318,6 +18352,14 @@ function mtCanvasHTML(ctx){
   .mtcm-av{width:24px;height:24px;border-radius:50%;font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none}
   .mtcm-nm{flex:1;text-align:left;font:12px ui-monospace,Consolas,'Malgun Gothic',monospace}
   .mtcm-ck{font-size:12px;color:var(--ac,#c2a04a);font-weight:800}
+  /* [v818] 숨김(퇴사자) 처리 */
+  .mtcm-line{display:flex;align-items:center;gap:2px}
+  .mtcm-line .mtcm-row{flex:1;min-width:0}
+  .mtcm-line.hid .mtcm-row{opacity:.34;cursor:default}
+  .mtcm-nm em{font-style:normal;font-size:9px;color:#c8867c;background:rgba(192,127,116,.16);border-radius:4px;padding:1px 5px;margin-left:5px}
+  .mtcm-hide{background:none;border:none;cursor:pointer;color:var(--tx3);font-size:11px;padding:4px 7px;border-radius:6px;opacity:.45}
+  .mtcm-hide:hover{opacity:1;color:#e88b84;background:rgba(192,127,116,.14)}
+  .mtcm-line.hid .mtcm-hide{opacity:.8;color:#a8ded6}
   .mtcs-row{display:flex;align-items:center;gap:6px;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.06)}
   .mtcs-i{flex:1;min-width:0}
   .mtcs-nm{font:11.5px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:var(--tx1);word-break:keep-all}
@@ -18439,6 +18481,17 @@ function mtCanvasHTML(ctx){
     ${personalMode ? (MT_VIEWING
       ? `<div class="mtc-personal-tag mtc-ro-tag">👁 ${_mtcEsc(MT_VIEWING.name)}의 보드 — 보기 전용 <button onclick="mtcViewMemberBoard('${_mtcEsc(String(currentUser?.id||'me'))}','내 보드')">내 보드로</button></div>`
       : `<div class="mtc-personal-tag">🔒 내 보드 — 팀원이 열어볼 수 있어요</div>`) : ''}
+    ${notes.length ? '' : `<div class="mtc-blank">
+      <div class="mtc-blank-ring"><span class="mtc-blank-plus">+</span></div>
+      <div class="mtc-blank-t">보드가 비어 있어요</div>
+      <div class="mtc-blank-s">아무 곳이나 <b>더블클릭</b>하면 카드가 생깁니다</div>
+      <div class="mtc-blank-keys">
+        <span><b>드래그</b> 여러 장 선택</span>
+        <span><b>Shift+드래그</b> 화면 이동</span>
+        <span><b>오른쪽 벽</b> 넘기기</span>
+        <span><b>✏ 펜</b> 그려서 만들기</span>
+      </div>
+    </div>`}
     <div id="mtc-surface">
       ${zonesHTML}
       <svg id="mtc-links" width="${MTC_SURFACE.w}" height="${MTC_SURFACE.h}">
@@ -18580,11 +18633,17 @@ async function mtcOpenMemberPicker(){
     const head = role !== lastRole ? `<div class="mtcm-h">${ROLE_LB[role]||role.toUpperCase()||'기타'}</div>` : '';
     lastRole = role;
     const on = cur.some(n=>_mtSameOwner(n, t.name));
-    return `${head}<button class="mtcm-row ${on?'on':''}" onclick="mtcToggleMember('${_mtcEsc(t.name).replace(/'/g,"\\'")}')">
-      <span class="mtcm-av" style="${avatarBg(t.name, (t.short||t.name.slice(0,2)).toUpperCase())}">${_mtcEsc((t.short||t.name.slice(0,2)).toUpperCase())}</span>
-      <span class="mtcm-nm">${_mtcEsc(t.name)}</span>
-      <span class="mtcm-ck">${on?'✓':'+'}</span>
-    </button>`;
+    const hid = _mtcHidden(t.id);
+    const esc = _mtcEsc(t.name).replace(/'/g,"\\'");
+    return `${head}<div class="mtcm-line ${hid?'hid':''}">
+      <button class="mtcm-row ${on?'on':''}" ${hid?'disabled':''} onclick="mtcToggleMember('${esc}')">
+        <span class="mtcm-av" style="${avatarBg(t.name, (t.short||t.name.slice(0,2)).toUpperCase())}">${_mtcEsc((t.short||t.name.slice(0,2)).toUpperCase())}</span>
+        <span class="mtcm-nm">${_mtcEsc(t.name)}${hid?' <em>숨김</em>':''}</span>
+        <span class="mtcm-ck">${hid?'':(on?'✓':'+')}</span>
+      </button>
+      <button class="mtcm-hide" title="${hid?'다시 표시':'퇴사 등 — 목록에서 숨기기 (계정은 그대로)'}"
+              onclick="mtcToggleHidden('${_mtcEsc(String(t.id))}','${esc}')">${hid?'↩':'✕'}</button>
+    </div>`;
   }).join('');
   panel.innerHTML = `<div class="ap-panel-inner">
     <div class="ap-panel-head">
