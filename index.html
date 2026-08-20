@@ -17111,6 +17111,18 @@ function mtCanvasHTML(ctx){
   .mtc-link-zc .mtc-link-line{fill:none;stroke:rgba(149,133,192,.72);stroke-width:1.9;stroke-dasharray:5 5;stroke-linecap:round}
   .mtc-link:hover .mtc-link-line{stroke:var(--re,#c46a6a)!important;stroke-width:3;animation:none;filter:none}
   .mtc-note.mtc-linksel{border-color:var(--ac,#c2a04a);z-index:7;animation:mtcPulse 1.5s ease-in-out infinite}
+  /* [v798] 포개서 연결 — 대상은 고리 표시, 끌고 있는 쪽은 살짝 비침 */
+  .mtc-note.mtc-linkhot{border-color:#6ba59d!important;
+    box-shadow:0 0 0 2px rgba(107,165,157,.5), 0 6px 20px rgba(0,0,0,.5)!important;z-index:8}
+  .mtc-note.mtc-linkhot::after{content:'🔗';position:absolute;right:-9px;top:-11px;font-size:11px;
+    background:rgba(24,24,23,.96);border:1px solid #6ba59d;border-radius:50%;width:19px;height:19px;
+    display:flex;align-items:center;justify-content:center;line-height:1}
+  .mtc-zone.mtc-linkhot{border-color:#6ba59d!important;
+    box-shadow:inset 0 2px 0 0 var(--zc), 0 0 0 2px rgba(107,165,157,.45), 0 10px 30px rgba(0,0,0,.42)!important}
+  .mtc-note.mtc-linking-src,.mtc-zone.mtc-linking-src{opacity:.62}
+  .mtc-trail{will-change:transform,opacity}
+  .mtc-tossmark{position:absolute;border-radius:7px;pointer-events:none;z-index:2;
+    background:radial-gradient(ellipse at center, rgba(255,255,255,.09), transparent 72%)}
   .mtc-zone.mtc-linksel{border-color:#6ba59d!important;box-shadow:inset 0 3px 0 0 var(--zc),0 0 0 2px rgba(122,211,196,.45),0 0 28px rgba(122,211,196,.25)}
   .mtc-note.mtc-sizing{box-shadow:0 3px 10px rgba(0,0,0,.8),0 16px 40px rgba(0,0,0,.5)!important}
   body.mtc-linking .mtc-zone{cursor:crosshair}
@@ -17695,6 +17707,24 @@ function _mtcSnapPos(x, y, w, h, selfEl, cached){
   return { x: nx, y: ny, guides };
 }
 // 드롭 대상(영역·인원)을 좌표표로 만들어 둔다 — elementsFromPoint를 매 프레임 부르지 않기 위해
+// [v798] 카드끼리 겹쳐 놓으면 자동 연결 — 드래그 시작 때 다른 카드들의 좌표를 재둔다
+function _mtcBuildCardHits(selfEl){
+  const list = [];
+  document.querySelectorAll('.mtc-note').forEach(el => {
+    if(el === selfEl) return;
+    const x = parseFloat(el.style.left)||0, y = parseFloat(el.style.top)||0;
+    list.push({ el, uid: el.dataset.uid, x, y, w: el.offsetWidth, h: el.offsetHeight });
+  });
+  return list;
+}
+function _mtcCardHitAt(cx, cy, cards){
+  if(!cards) return null;
+  for(const c of cards){
+    if(cx >= c.x && cx <= c.x+c.w && cy >= c.y && cy <= c.y+c.h) return c;
+  }
+  return null;
+}
+function _mtcHasLink(a, b){ return MT_LINKS.some(l => (l.a===a&&l.b===b) || (l.a===b&&l.b===a)); }
 function _mtcBuildHitmap(){
   const list = [];
   document.querySelectorAll('.mtc-member').forEach(el => {
@@ -17879,7 +17909,7 @@ function _mtcBoxMoveStart(e, el, key, vp){
   let targets = null, elW = 0, elH = 0, rafId = 0, lastEv = null, easeX = 0, easeY = 0;
   // [v794] 인원 카드를 보드 밖으로 던지면 보드에서 내려간다 (계정은 그대로)
   const isMemberBox = String(key).startsWith('m:');
-  let outside = false, vhist = [];
+  let outside = false, vhist = [], zoneLinkTarget = null;
   const _outsideVp = ev => {
     const r = _mtcVpRect || vp?.getBoundingClientRect(); if(!r) return false;
     const m = 26;   // 가장자리에서 이만큼 벗어나면 "던짐"으로 간주
@@ -17903,6 +17933,22 @@ function _mtcBoxMoveStart(e, el, key, vp){
     }
     _mtcShowGuides(sn.guides, el);
     el.style.left = vx + 'px'; el.style.top = vy + 'px';
+    // [v798] 박스를 다른 박스 위에 포개면 자동 연결
+    if(isZone){
+      const cx = vx + elW/2, cy = vy + elH/2;
+      let over = null;
+      document.querySelectorAll('.mtc-zone').forEach(z => {
+        if(z === el) return;
+        const zx = parseFloat(z.style.left)||0, zy = parseFloat(z.style.top)||0;
+        if(cx>=zx && cx<=zx+z.offsetWidth && cy>=zy && cy<=zy+z.offsetHeight) over = z;
+      });
+      if(over !== zoneLinkTarget){
+        zoneLinkTarget?.classList.remove('mtc-linkhot');
+        zoneLinkTarget = over;
+        over?.classList.add('mtc-linkhot');
+        el.classList.toggle('mtc-linking-src', !!over);
+      }
+    }
     const rdx = vx - ox, rdy = vy - oy;
     carried.forEach(c => { c.el.style.left = (c.x0+rdx)+'px'; c.el.style.top = (c.y0+rdy)+'px'; });
     carried.forEach(c => _mtcDrawLinks(c.el));
@@ -17937,7 +17983,20 @@ function _mtcBoxMoveStart(e, el, key, vp){
       setTimeout(()=>{ window._mtcMoved = false; }, 60);
       return;
     }
-    el.classList.remove('mtc-toss');
+    el.classList.remove('mtc-toss', 'mtc-linking-src');
+    // 박스를 다른 박스에 포갰으면 — 연결만 하고 원래 자리로 되돌린다 (박스는 겹쳐 두지 않음)
+    if(isZone && zoneLinkTarget && window._mtcMoved){
+      const a = 'zone:' + zoneLinkTarget.dataset.zone, b = 'zone:' + key;
+      zoneLinkTarget.classList.remove('mtc-linkhot');
+      const dup = _mtcHasLink(a, b);
+      if(!dup) MT_LINKS.push({ a, b });
+      el.style.left = ox+'px'; el.style.top = oy+'px';
+      saveMTSystem(); renderMTSystem();
+      toast(dup ? '이미 이어져 있어요' : '🔗 박스끼리 연결됨');
+      setTimeout(()=>{ window._mtcMoved = false; }, 60);
+      return;
+    }
+    zoneLinkTarget?.classList.remove('mtc-linkhot');
     if(window._mtcMoved){
       const rdx = nx - ox, rdy = ny - oy;
       carried.forEach(c => {
@@ -17983,19 +18042,53 @@ function _mtcTossFly(el, vhist, dist){
   // 세게 던질수록 더 멀리
   const k = ((dist||620) + Math.min(520, sp*260)) / Math.max(0.25, Math.hypot(vx, vy));
   const tx = Math.round(vx*k), ty = Math.round(vy*k);
-  const spin = Math.max(-34, Math.min(34, vx * 14));
+  const grav = Math.min(150, 60 + sp*26);              // 살짝 아래로 휘는 포물선
+  const ang  = Math.atan2(vy, vx) * 180 / Math.PI;     // 진행 방향
+  const spin = Math.max(-30, Math.min(30, vx * 12));
   el.style.pointerEvents = 'none';
-  // 살짝 머금었다가 가속하며 빨려 들어가듯 사라진다 (뒤로 갈수록 빨라지는 ease-in + 축소 + 블러)
-  if(el.animate){
-    el.animate([
-      { transform:'translate3d(0,0,0) scale(1)', opacity:1, filter:'blur(0px)', offset:0 },
-      { transform:`translate3d(${Math.round(tx*0.07)}px,${Math.round(ty*0.07)}px,0) scale(1.05)`, opacity:1, filter:'blur(0px)', offset:0.16 },
-      { transform:`translate3d(${tx}px,${ty}px,0) rotate(${spin.toFixed(1)}deg) scale(.1)`, opacity:0, filter:'blur(3px)', offset:1 }
-    ], { duration: 430, easing:'cubic-bezier(.5,0,.82,.28)', fill:'forwards' });
-  } else {
+  if(!el.animate){
     el.style.transition = 'transform .43s cubic-bezier(.5,0,.82,.28), opacity .43s ease-in';
-    el.style.transform = `translate3d(${tx}px,${ty}px,0) rotate(${spin.toFixed(1)}deg) scale(.1)`;
+    el.style.transform = `translate3d(${tx}px,${ty+grav}px,0) rotate(${spin.toFixed(1)}deg) scale(.1)`;
     el.style.opacity = '0';
+    return;
+  }
+  // 진행 방향으로 늘어나고 옆으로 눌리는 스쿼시&스트레치 — 속도감의 핵심
+  const T = (px, py, sx, sy, rot) =>
+    `translate3d(${Math.round(px)}px,${Math.round(py)}px,0) rotate(${ang.toFixed(1)}deg) scale(${sx},${sy}) rotate(${(-ang).toFixed(1)}deg) rotate(${rot}deg)`;
+  const DUR = 460;
+  el.animate([
+    { transform: T(0,0,1,1,0),                                   opacity:1, filter:'blur(0px)',   offset:0 },
+    { transform: T(-tx*0.04, -ty*0.04, 0.94, 1.06, 0),           opacity:1, filter:'blur(0px)',   offset:0.12 },  // 살짝 뒤로 머금기
+    { transform: T(tx*0.38, ty*0.38+grav*0.14, 1.5, 0.72, spin*0.4), opacity:.92, filter:'blur(1.4px)', offset:0.46 }, // 쭉 늘어나며 가속
+    { transform: T(tx, ty+grav, 0.5, 0.34, spin),                opacity:0, filter:'blur(5px)',   offset:1 }
+  ], { duration: DUR, easing:'cubic-bezier(.42,0,.78,.24)', fill:'forwards' });
+
+  // 잔상 — 뒤따라오며 옅어지는 복제본 두 장
+  const host = el.parentElement;
+  if(host){
+    [{d:38,o:.3},{d:74,o:.15}].forEach(({d,o}) => {
+      const g = el.cloneNode(true);
+      g.classList.add('mtc-trail');
+      g.style.cssText += ';pointer-events:none;z-index:998;';
+      host.appendChild(g);
+      g.animate([
+        { transform: T(0,0,1,1,0), opacity:o*0.9, filter:'blur(1px)', offset:0 },
+        { transform: T(tx*0.38, ty*0.38+grav*0.14, 1.5, 0.72, spin*0.4), opacity:o*0.5, filter:'blur(3px)', offset:0.46 },
+        { transform: T(tx, ty+grav, 0.5, 0.34, spin), opacity:0, filter:'blur(7px)', offset:1 }
+      ], { duration: DUR, delay: d, easing:'cubic-bezier(.42,0,.78,.24)', fill:'forwards' });
+      setTimeout(()=>g.remove(), DUR + d + 60);
+    });
+    // 떠난 자리에 남는 옅은 자국
+    const mark = document.createElement('div');
+    mark.className = 'mtc-tossmark';
+    mark.style.left = el.style.left; mark.style.top = el.style.top;
+    mark.style.width = (el.offsetWidth||MTC_CARD_W)+'px'; mark.style.height = (el.offsetHeight||26)+'px';
+    host.appendChild(mark);
+    mark.animate([
+      { opacity:.5, transform:'scale(1)' },
+      { opacity:0,  transform:'scale(.86)' }
+    ], { duration: 340, easing:'cubic-bezier(.3,.7,.3,1)', fill:'forwards' });
+    setTimeout(()=>mark.remove(), 400);
   }
 }
 // 카드를 밖으로 던짐 → 휴지통으로 (14일 복원 가능)
@@ -18126,6 +18219,7 @@ function _mtcNoteDown(e, note, vp){
   // 프레임당 한 번, transform으로만 움직인다 — left/top을 매 프레임 쓰면 레이아웃이 다시 계산되어 끊긴다
   let targets = null, hits = null, noteW = 0, noteH = 0, rafId = 0, lastEv = null;
   let hasLinks = false, lastKey = '', prevHit = null, easeX = 0, easeY = 0;
+  let cardHits = null, linkTarget = null;   // [v798] 겹쳐 놓으면 자동 연결
   // [v794] 카드를 보드 밖으로 던지면 삭제 (휴지통 경유 — 복원 가능)
   let outside = false, vhist = [];
   const _outsideVp = ev => {
@@ -18156,6 +18250,14 @@ function _mtcNoteDown(e, note, vp){
     if(key !== lastKey){ lastKey = key; _mtcShowGuides(sn.guides, note); }   // 스냅이 바뀔 때만
     else if(sn.guides.length) _mtcSizeGuides(sn.guides);
     if(hasLinks){ note.style.left = vx+'px'; note.style.top = vy+'px'; note.style.transform = 'none'; _mtcDrawLinks(note); }
+    // 다른 카드 위에 포갰는지 — 포개면 놓는 순간 선으로 이어진다
+    const over = _mtcCardHitAt(vx + noteW/2, vy + noteH/2, cardHits);
+    if(over !== linkTarget){
+      linkTarget?.el.classList.remove('mtc-linkhot');
+      linkTarget = over;
+      if(over) over.el.classList.add('mtc-linkhot');
+      note.classList.toggle('mtc-linking-src', !!over);
+    }
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);
     if(hit !== prevHit){ _mtcMarkOver(hit, prevHit, note, ny); prevHit = hit; }
     else if(hit && hit.key === 'active') _mtcMarkBand(hit, ny);
@@ -18170,6 +18272,7 @@ function _mtcNoteDown(e, note, vp){
       targets = _mtcBuildTargets(note);                         // 상대 좌표는 한 번만 측정
       hits = _mtcBuildHitmap();                                 // 드롭 대상도 좌표로 판정 (elementFromPoint 제거)
       _mtcVpRect = vp.getBoundingClientRect();
+      cardHits = _mtcBuildCardHits(note);
       hasLinks = MT_LINKS.some(l => l.a === note.dataset.uid || l.b === note.dataset.uid);
     }
     vhist.push({ x:ev.clientX, y:ev.clientY, t:performance.now() });
@@ -18198,9 +18301,15 @@ function _mtcNoteDown(e, note, vp){
     }
     setTimeout(()=>{ window._mtcMoved = false; }, 60);
 
+    note.classList.remove('mtc-linking-src');
+    linkTarget?.el.classList.remove('mtc-linkhot');
+
     // 보드 밖으로 뺐거나, 안에서라도 홱 뿌리쳤으면 — 빨려 나가듯 사라지고 휴지통으로
     if(outside || _mtcFlingCheck(vhist, vp)){ _mtcTossCard(note, kind, id, vhist); return; }
     note.classList.remove('mtc-toss');
+
+    // 다른 카드에 포개어 놓았으면 — 자동으로 선 잇고, 겹치지 않게 옆으로 비켜 놓는다
+    if(linkTarget){ _mtcLinkByOverlap(kind, id, note.dataset.uid, linkTarget, noteW, noteH); return; }
 
     const pos = { x: Math.round(nx), y: Math.round(ny) };
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);   // 좌표 기반 판정
@@ -18209,6 +18318,22 @@ function _mtcNoteDown(e, note, vp){
     _mtcDropFree(kind, id, pos.x, pos.y);   // 영역 밖 — 상태 그대로, 그 자리 고정
   };
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+}
+
+// [v798] 카드를 다른 카드 위에 포개어 놓으면 자동 연결 — 겹친 채 두지 않고 바로 아래로 비켜 놓는다
+function _mtcLinkByOverlap(kind, id, uid, target, w, h){
+  const { item } = _mtcFind(kind, id); if(!item) return;
+  const already = _mtcHasLink(uid, target.uid);
+  if(!already) MT_LINKS.push({ a: target.uid, b: uid });
+  // 대상 카드 바로 아래(자리가 없으면 오른쪽)에 붙여 놓기 — 높이를 못 재도 겹치지 않게 최소값 보장
+  const th = Math.max(target.h || 0, h || 0, 26), tw = Math.max(target.w || 0, MTC_CARD_W);
+  let nx = target.x, ny = target.y + th + 8;
+  if(ny + h > MTC_SURFACE.h - 20){ nx = target.x + tw + MTC_GAP; ny = target.y; }
+  item.pos = { x: Math.max(0, Math.round(nx)), y: Math.max(0, Math.round(ny)) };
+  saveMTSystem(); renderMTSystem();
+  const el = document.querySelector(`.mtc-note[data-uid="${uid}"]`);
+  if(el){ el.classList.add('mtc-flash'); setTimeout(()=>el.classList.remove('mtc-flash'), 620); }
+  toast(already ? '이미 이어져 있어요' : '🔗 포개서 연결됨');
 }
 
 // [v785] 액티브 영역 안 y좌표 → 우선순위 (위 1 / 가운데 2 / 아래 3)
