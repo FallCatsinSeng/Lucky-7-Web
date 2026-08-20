@@ -15767,6 +15767,7 @@ let MT_CLAYOUT = {};    // [v780] 캔버스 존 배치 {zoneKey|'m:이름': {x,y
 let MT_LINKS = [];      // [v781] 카드 연결선 [{a:uid, b:uid}] — 흐름도처럼 잇기
 let MT_CZONES = [];     // [v786] 직접 만든 박스 [{key,label,hue,x,y,w,h}] — 팀 공유
 let MT_CDIVS = [];      // [v801] 구분선 [{id,x,y,len,vert,label}] — 보드를 나누는 얇은 선
+let MT_TPLS  = [];      // [v814] 템플릿(컴포넌트) 마스터 [{tid,title,memo,steps,kind,priority}] — 팀 공유
 // [v782] 캔버스 보드에 올릴 멤버 — 역할 탭과 무관하게 직접 고름 (팀 공유). null이면 아래 기본값.
 let MT_CMEMBERS = null;
 const MTC_DEFAULT_MEMBERS = ['MT2','Manji','GUWON','Vallen','Mr.Bruce','Mr.Kaiji'];
@@ -15811,6 +15812,119 @@ async function mtcViewMemberBoard(id, name){
   try{ closeTaskDetail(); }catch(_){}
   toast(MT_VIEWING ? `👁 ${name}의 보드 — 보기 전용` : '내 보드로 돌아옴');
 }
+// ═══ [v814] 피그마 ② 컴포넌트 = 템플릿 카드 ═══
+// 마스터 하나를 만들어 두고 찍어내면 인스턴스가 생긴다. 마스터를 고치면 인스턴스에 반영.
+function _mtcTpls(){ return Array.isArray(MT_TPLS) ? MT_TPLS : (MT_TPLS = []); }
+function mtcMakeTemplate(kind, id){
+  const { item } = _mtcFind(kind, id); if(!item) return;
+  const title = (item.title || item.text || '').trim();
+  if(!title){ toast('제목을 먼저 적어주세요', true); return; }
+  const t = { tid: 't'+Date.now(), title, memo: item.memo || '',
+              steps: (item.steps||[]).map(s=>({ text:s.text, done:false })),
+              kind: kind === 'inbox' ? 'inbox' : kind, priority: item.priority || 'P2',
+              by: currentUser?.name || 'MT', at: isoDate(new Date()) };
+  _mtcTpls().push(t);
+  item.tpl = t.tid;                       // 이 카드를 마스터로 연결해 둔다
+  saveMTSystem(); renderMTSystem();
+  toast(`🧩 "${title}" 템플릿 등록 — 툴바 템플릿에서 찍어낼 수 있어요`);
+}
+function mtcStampTemplate(tid, x, y){
+  const t = _mtcTpls().find(v=>v.tid===tid); if(!t) return;
+  const ctx = window._mtcCtx || {};
+  const owner = ctx.viewingMember || currentUser?.name || 'MT';
+  const id = Date.now() + Math.floor(Math.random()*900);
+  const base = { id, owner, created_at: isoDate(new Date()), tpl: tid,
+                 memo: t.memo, steps: (t.steps||[]).map(s=>({ text:s.text, done:false })),
+                 pos: { x: Math.round(x), y: Math.round(y) } };
+  if(t.kind === 'passive') MT_PASSIVE.push({ ...base, title:t.title, category:'Operation', priority:t.priority, status:'active', sop:[] });
+  else if(t.kind === 'active') MT_ACTIVE.push({ ...base, title:t.title, passive_id:null, priority:t.priority, status:'todo', due:null, comments:[] });
+  else MT_INBOX.push({ ...base, text:t.title });
+  saveMTSystem(); renderMTSystem();
+  const el = document.querySelector(`.mtc-note[data-id="${id}"]`);
+  if(el){ el.classList.add('mtc-pop'); setTimeout(()=>el.classList.remove('mtc-pop'), 400); }
+  toast(`🧩 "${t.title}" 찍어냄`);
+  return id;
+}
+// 마스터를 고치면 아직 손대지 않은 인스턴스에 반영
+function mtcSyncTemplate(tid){
+  const t = _mtcTpls().find(v=>v.tid===tid); if(!t) return 0;
+  let n = 0;
+  const apply = (arr, titleKey) => arr.forEach(it => {
+    if(it.tpl !== tid || it.detached) return;
+    it[titleKey] = t.title; it.memo = t.memo;
+    // 진행 상황(체크)은 살리고, 목록만 마스터에 맞춘다
+    const done = new Set((it.steps||[]).filter(s=>s.done).map(s=>s.text));
+    it.steps = (t.steps||[]).map(s=>({ text:s.text, done: done.has(s.text) }));
+    n++;
+  });
+  apply(MT_INBOX,'text'); apply(MT_PASSIVE,'title'); apply(MT_ACTIVE,'title');
+  saveMTSystem(); renderMTSystem();
+  return n;
+}
+function mtcDetachInstance(kind, id){
+  const { item } = _mtcFind(kind, id); if(!item || !item.tpl) return;
+  item.detached = true;
+  saveMTSystem(); renderMTSystem();
+  toast('🔓 템플릿에서 분리 — 이제 마스터가 바뀌어도 그대로');
+}
+function mtcDeleteTemplate(tid){
+  const i = _mtcTpls().findIndex(v=>v.tid===tid); if(i<0) return;
+  const t = MT_TPLS[i];
+  if(!confirm(`템플릿 "${t.title}"을 지웁니다.\n이미 찍어낸 카드는 그대로 남습니다.`)) return;
+  MT_TPLS.splice(i,1);
+  saveMTSystem(); renderMTSystem(); mtcOpenTemplates();
+}
+function mtcOpenTemplates(){
+  const list = _mtcTpls();
+  let panel = document.getElementById('task-detail-panel');
+  if(!panel){ panel=document.createElement('div'); panel.id='task-detail-panel'; panel.className='ap-side-panel'; document.body.appendChild(panel); }
+  const KL = { inbox:'인박스', passive:'패시브', active:'액티브' };
+  const rows = list.length ? list.map(t => {
+    const used = [...MT_INBOX,...MT_PASSIVE,...MT_ACTIVE].filter(i=>i.tpl===t.tid).length;
+    return `<div class="mtcs-row">
+      <div class="mtcs-i">
+        <div class="mtcs-nm">🧩 ${_mtcEsc(t.title)}</div>
+        <div class="mtcs-meta">${KL[t.kind]||''} · 세부 ${t.steps.length}개 · 찍어낸 카드 ${used}장</div>
+      </div>
+      <button class="mtcp-btn" onclick="mtcStampHere('${t.tid}')">＋ 찍기</button>
+      <button class="mtcp-btn" onclick="mtcEditTemplate('${t.tid}')">✎</button>
+      <button class="mtcp-btn danger" style="flex:0 0 30px;padding:6px 0" onclick="mtcDeleteTemplate('${t.tid}')">✕</button>
+    </div>`; }).join('')
+    : `<div style="font:11px ui-monospace,monospace;color:var(--tx3);padding:14px 2px;line-height:1.7">
+        아직 템플릿이 없습니다.<br>반복하는 업무 카드를 우클릭 → <b>템플릿으로 등록</b>하세요.</div>`;
+  panel.innerHTML = `<div class="ap-panel-inner">
+    <div class="ap-panel-head">
+      <div class="ap-panel-head-l"><div>
+        <div class="ap-panel-name">🧩 템플릿</div>
+        <div class="ap-panel-meta">반복 업무를 마스터로 두고 찍어냅니다 · 마스터를 고치면 인스턴스에 반영</div>
+      </div></div>
+      <button class="ap-panel-close" onclick="closeTaskDetail()">✕</button>
+    </div>
+    <div class="ap-panel-body">${rows}</div>
+  </div>`;
+  requestAnimationFrame(()=>panel.classList.add('open'));
+  setTimeout(()=>panel.classList.add('open'), 60);
+}
+function mtcStampHere(tid){
+  // 화면 가운데 빈자리에 찍는다
+  const vp = document.getElementById('mtc-vp'); if(!vp) return;
+  const r = vp.getBoundingClientRect();
+  const p = _mtcToSurface(r.left + r.width/2, r.top + r.height/2, vp);
+  const spot = _mtcFreeSpot(Math.round(p.x-98), Math.round(p.y-13), MTC_CARD_W, 26, null);
+  mtcStampTemplate(tid, spot.x, spot.y);
+}
+function mtcEditTemplate(tid){
+  const t = _mtcTpls().find(v=>v.tid===tid); if(!t) return;
+  const title = prompt('템플릿 이름', t.title); if(title === null) return;
+  const steps = prompt('세부 항목 (줄바꿈으로 구분)', (t.steps||[]).map(s=>s.text).join('\n'));
+  if(steps === null) return;
+  t.title = title.trim() || t.title;
+  t.steps = steps.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>({ text:s, done:false }));
+  const n = mtcSyncTemplate(tid);
+  toast(`🧩 템플릿 수정 — 인스턴스 ${n}장에 반영`);
+  mtcOpenTemplates();
+}
+
 // ═══ [v813] 피그마 ① 범위 선택 + 정렬·균등 분배 ═══
 let MTC_SEL = new Set();     // 선택된 카드 uid
 function _mtcSelClear(){
@@ -16160,7 +16274,7 @@ async function mtcOpenBoardPicker(){
 function mtSetScope(scope){
   if(MT_SCOPE === scope) return;
   MT_SCOPE = scope;
-  MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CMEMBERS=null; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false;
+  MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CMEMBERS=null; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[];
   _mtSynced = false; _mtSig = '';
 }
 let mtViewMode = 'responsibility'; // 'responsibility'(책임뷰) | 'action'(행동뷰)
@@ -16203,11 +16317,12 @@ function saveMTLocal(){
     sessionStorage.setItem(_mtKey('lucky7_mt_czones'), JSON.stringify(MT_CZONES));     // [v786]
     sessionStorage.setItem(_mtKey("lucky7_mt_cdivs"), JSON.stringify(MT_CDIVS));
     sessionStorage.setItem(_mtKey("lucky7_mt_open"), JSON.stringify(MT_OPEN));
+    sessionStorage.setItem(_mtKey("lucky7_mt_tpls"), JSON.stringify(MT_TPLS));
   }catch(_){}
 }
 function saveMTSystem(){
   saveMTLocal();
-  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT, k:MT_LINKS, m:MT_CMEMBERS, z:MT_CZONES, d:MT_CDIVS, o:MT_OPEN });
+  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT, k:MT_LINKS, m:MT_CMEMBERS, z:MT_CZONES, d:MT_CDIVS, o:MT_OPEN, tp:MT_TPLS });
   if(sb) saveMTToCloud();   // [v145] shared across the team
 }
 let _mtSynced = false, _mtSig = '', _mtSaving = false, _mtPollTimer = null;
@@ -16215,7 +16330,7 @@ async function saveMTToCloud(){
   if(!sb) return;
   _mtSaving = true;
   try{
-    const { error } = await _dbUpsert('mt_state', _mtStateId(), { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES, cdivs:MT_CDIVS, open:MT_OPEN });
+    const { error } = await _dbUpsert('mt_state', _mtStateId(), { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES, cdivs:MT_CDIVS, open:MT_OPEN, tpls:MT_TPLS });
     if(error){ console.warn('mt_state save:', error.message); toast('Board save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('mt_state save:', e && e.message); }
   finally{ setTimeout(() => { _mtSaving = false; }, 400); }
@@ -16236,6 +16351,7 @@ async function syncMTFromCloud(){
       MT_CZONES  = Array.isArray(d.czones) ? d.czones : [];                            // [v786]
       MT_CDIVS   = Array.isArray(d.cdivs) ? d.cdivs : [];
       MT_OPEN    = !!d.open;
+      MT_TPLS    = Array.isArray(d.tpls) ? d.tpls : [];
       _mtPurgeOldTrash();                                        // [v670] 14일 지난 항목 자동 소멸
       saveMTLocal();
     } else if(error){ console.warn('mt_state load:', error.message); }
@@ -16250,12 +16366,12 @@ async function pollMTSystem(){
     const { data, error } = await sb.from('mt_state').select('data').eq('id',_mtStateId()).maybeSingle();
     if(error || !data || !data.data) return;
     const d = data.data;
-    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{}, k:d.links||[], m:d.cmembers||null, z:d.czones||[], d:d.cdivs||[], o:!!d.open });
+    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{}, k:d.links||[], m:d.cmembers||null, z:d.czones||[], d:d.cdivs||[], o:!!d.open, tp:d.tpls||[] });
     if(sig === _mtSig) return;                        // no remote change
     const ae = document.activeElement;
     const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
     if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId || window._mtcDragging || window._mtcPanning) return;  // mid-edit / mid-drag [v776 canvas too]
-    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = Array.isArray(d.cmembers)?d.cmembers:null; MT_CZONES = Array.isArray(d.czones)?d.czones:[]; MT_CDIVS = Array.isArray(d.cdivs)?d.cdivs:[]; MT_OPEN = !!d.open;
+    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = Array.isArray(d.cmembers)?d.cmembers:null; MT_CZONES = Array.isArray(d.czones)?d.czones:[]; MT_CDIVS = Array.isArray(d.cdivs)?d.cdivs:[]; MT_OPEN = !!d.open; MT_TPLS = Array.isArray(d.tpls)?d.tpls:[];
     _mtSig = sig; saveMTLocal();
     renderMTSystem();
   }catch(_){}
@@ -16272,6 +16388,7 @@ function loadMTSystem(){
     const rz = sessionStorage.getItem(_mtKey('lucky7_mt_czones'));   // [v786]
     const rdv = sessionStorage.getItem(_mtKey("lucky7_mt_cdivs"));
     const rop = sessionStorage.getItem(_mtKey("lucky7_mt_open"));
+    const rtp = sessionStorage.getItem(_mtKey("lucky7_mt_tpls"));
     if(rp){
       MT_INBOX = ri ? JSON.parse(ri) : [];
       MT_PASSIVE = JSON.parse(rp);
@@ -16283,12 +16400,13 @@ function loadMTSystem(){
       MT_CZONES = rz ? JSON.parse(rz) : [];
       MT_CDIVS = rdv ? JSON.parse(rdv) : [];
       MT_OPEN = rop ? JSON.parse(rop) : false;
+      MT_TPLS = rtp ? JSON.parse(rtp) : [];
       return;
     }
   }catch(_){}
   _seedMTSystem();
 }
-function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; try{ saveMTLocal(); }catch(_){} }
+function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; MT_TPLS=[]; try{ saveMTLocal(); }catch(_){} }
 // [v670] 휴지통 유틸 — 삭제는 전부 휴지통 경유 (복원 가능), 14일 지나면 자동 소멸
 function _mtPurgeOldTrash(){ try{ const cut=Date.now()-14*86400000; MT_TRASH=MT_TRASH.filter(t=>(t.deleted_at||0)>cut); }catch(_){ MT_TRASH=[]; } }
 function _mtToTrash(kind, item){ MT_TRASH.unshift({ id:Date.now()+Math.floor(Math.random()*999), kind, item, deleted_at:Date.now(), by:(currentUser?.name||'?') }); if(MT_TRASH.length>200) MT_TRASH.length=200; }
@@ -17470,6 +17588,7 @@ function _mtcNote(kind, item, today, pos){
     ${item.sub ? `<span class="mtcn-subic" title="상위 카드에서 분리된 세부 항목">↳</span>`
                : `<span class="mtcn-dot" title="${({inbox:'인박스',passive:'패시브',active:'액티브'})[kind]||''}"></span>`}
     ${item.from && !item.seen ? `<span class="mtcn-from" title="${_mtcEsc(item.from)}님이 보냄">${_mtcEsc(item.from)}↗</span>` : ''}
+    ${item.tpl ? `<span class="mtcn-tpl${item.detached?' off':''}" title="${item.detached?'템플릿에서 분리된 카드':'템플릿에서 찍어낸 카드'}">◇</span>` : ''}
     ${st}<span class="mtcn-text">${text}</span>${memoDot}${stepB}${dayB}${owner}${pri}
     ${MTC_HANDLES.map(d=>`<div class="mtcn-rz mtcn-rz-${d}" data-rz="${d}" title="드래그로 카드 크기 조절"></div>`).join('')}
   </div>`;
@@ -17985,6 +18104,9 @@ function mtCanvasHTML(ctx){
   .mtc-note.mtc-got{animation:mtcGot .62s cubic-bezier(.2,1,.3,1);border-color:${MTC_C.teal}!important}
   .mtcn-from{font-size:.7em;font-family:ui-monospace,monospace;font-weight:800;color:#a8ded6;
     background:rgba(107,165,157,.18);border-radius:4px;padding:0 4px;flex:none}
+  /* [v814] 템플릿에서 찍어낸 카드 표시 */
+  .mtcn-tpl{font-size:.8em;color:${MTC_C.lilac};opacity:.85;flex:none;font-weight:700}
+  .mtcn-tpl.off{color:rgba(235,235,245,.28)}
   /* [v813] 범위 선택 */
   .mtc-marquee{position:absolute;z-index:930;pointer-events:none;border-radius:4px;
     border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.055);
@@ -18158,6 +18280,7 @@ function mtCanvasHTML(ctx){
         <button class="mtc-tb-zoom" onclick="mtcZoomBy(1.15)" title="확대">＋</button>
       </span>
       <span class="mtc-tb-sep"></span>
+      <button onclick="mtcOpenTemplates()" title="반복 업무를 템플릿으로 두고 찍어내기"><em>🧩</em><i>템플릿</i>${_mtcTpls().length?`<b>${_mtcTpls().length}</b>`:''}</button>
       <button onclick="mtcOpenCleanup()" title="카드 여러 장 골라서 정리"><em>🧹</em><i>정리</i></button>
       <button onclick="mtcOpenSnapshots()" title="보드 저장 / 불러오기"><em>💾</em><i>저장</i></button>
       <button onclick="mtcResetLayout()" title="영역 배치·크기와 카드 위치를 기본값으로"><em>⟲</em><i>배치</i></button>
@@ -18563,6 +18686,10 @@ function mtcCtxNote(x, y, kind, id, uid){
     <div class="mtc-ctx-sep"></div>
     <button onclick="mtcCloseCtx();_mtcEditNote(${id})">✎ 글 수정</button>
     <button onclick="mtcCloseCtx();mtcOpenDetail('${kind}',${id})">☰ 상세 열기</button>
+    ${item.tpl
+      ? `<button onclick="mtcCloseCtx();mtcStampTemplate('${item.tpl}',${(item.pos?.x||100)+16},${(item.pos?.y||100)+34})">🧩 하나 더 찍기</button>
+         ${item.detached ? '' : `<button onclick="mtcCloseCtx();mtcDetachInstance('${kind}',${id})">🔓 템플릿에서 분리</button>`}`
+      : `<button onclick="mtcCloseCtx();mtcMakeTemplate('${kind}',${id})">🧩 템플릿으로 등록</button>`}
     ${(window._mtcTeam||[]).length ? `
     <div class="mtc-ctx-h">개인 보드로 보내기</div>
     ${(window._mtcTeam||[]).filter(t=>String(t.id)!==String(currentUser?.id)).slice(0,6).map(t=>
