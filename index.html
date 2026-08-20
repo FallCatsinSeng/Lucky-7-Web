@@ -15777,15 +15777,34 @@ function _mtStateId(){ return MT_SCOPE; }
 function _mtKey(k){ return MT_SCOPE === 'default' ? k : k + '__' + MT_SCOPE; }
 // [v810] 남의 개인 보드를 들여다보는 중인지 — 보고만 있을 땐 고칠 수 없다
 let MT_VIEWING = null;   // {id, name} · null이면 내 보드
+let MT_OPEN = false;     // [v811] 이 개인 보드를 팀에 공개했는지 (보드 데이터에 함께 저장)
 function _mtcRO(){ return !!MT_VIEWING; }
+function _mtcIsAdmin(){ return currentUserRole === 'admin' || (currentUser && ['ceo','admin'].includes(currentUser.role)); }
 function _mtcBlockRO(){
   if(!_mtcRO()) return false;
   toast(`${MT_VIEWING.name}의 보드는 보기 전용입니다`, true);
   return true;
 }
-function mtcViewMemberBoard(id, name){
+// [v811] 이 보드를 팀에 공개 / 비공개 (내 보드거나 어드민일 때만)
+function mtcToggleOpen(){
+  if(MT_VIEWING && !_mtcIsAdmin()){ toast('내 보드에서만 바꿀 수 있어요', true); return; }
+  MT_OPEN = !MT_OPEN;
+  saveMTSystem(); renderMTSystem();
+  toast(MT_OPEN ? '🌐 이 보드를 팀에 공개했습니다' : '🔒 다시 비공개로 (어드민은 계속 볼 수 있음)');
+}
+async function mtcViewMemberBoard(id, name){
   const mine = String(currentUser?.id || currentUser?.name || 'me');
-  MT_VIEWING = (String(id) === mine) ? null : { id:String(id), name };
+  const other = String(id) !== mine;
+  // 어드민이 아니면 공개된 보드만 열 수 있다
+  if(other && !_mtcIsAdmin()){
+    let open = false;
+    try{
+      const { data } = await sb.from('mt_state').select('data').eq('id','personal:'+id).maybeSingle();
+      open = !!(data && data.data && data.data.open);
+    }catch(_){}
+    if(!open){ toast(`${name}의 보드는 비공개입니다`, true); return; }
+  }
+  MT_VIEWING = other ? { id:String(id), name } : null;
   mtSetScope('personal:' + id);
   _mtSynced = false;
   renderMTSystem('personal');
@@ -15839,7 +15858,7 @@ async function mtcOpenBoardPicker(){
     <div class="ap-panel-head">
       <div class="ap-panel-head-l"><div>
         <div class="ap-panel-name">🗂 누구의 보드를 볼까요</div>
-        <div class="ap-panel-meta">남의 보드는 보기만 됩니다 · 내 보드에서만 편집</div>
+        <div class="ap-panel-meta">${_mtcIsAdmin() ? '어드민 — 모든 보드를 볼 수 있습니다' : '공개된 보드만 볼 수 있습니다'} · 남의 보드는 보기 전용</div>
       </div></div>
       <button class="ap-panel-close" onclick="closeTaskDetail()">✕</button>
     </div>
@@ -15857,7 +15876,7 @@ async function mtcOpenBoardPicker(){
 function mtSetScope(scope){
   if(MT_SCOPE === scope) return;
   MT_SCOPE = scope;
-  MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CMEMBERS=null; MT_CZONES=[]; MT_CDIVS=[];
+  MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CMEMBERS=null; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false;
   _mtSynced = false; _mtSig = '';
 }
 let mtViewMode = 'responsibility'; // 'responsibility'(책임뷰) | 'action'(행동뷰)
@@ -15899,11 +15918,12 @@ function saveMTLocal(){
     sessionStorage.setItem(_mtKey('lucky7_mt_cmembers'), JSON.stringify(MT_CMEMBERS)); // [v782]
     sessionStorage.setItem(_mtKey('lucky7_mt_czones'), JSON.stringify(MT_CZONES));     // [v786]
     sessionStorage.setItem(_mtKey("lucky7_mt_cdivs"), JSON.stringify(MT_CDIVS));
+    sessionStorage.setItem(_mtKey("lucky7_mt_open"), JSON.stringify(MT_OPEN));
   }catch(_){}
 }
 function saveMTSystem(){
   saveMTLocal();
-  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT, k:MT_LINKS, m:MT_CMEMBERS, z:MT_CZONES, d:MT_CDIVS });
+  _mtSig = JSON.stringify({ i:MT_INBOX, p:MT_PASSIVE, a:MT_ACTIVE, t:MT_TRASH, l:MT_CLAYOUT, k:MT_LINKS, m:MT_CMEMBERS, z:MT_CZONES, d:MT_CDIVS, o:MT_OPEN });
   if(sb) saveMTToCloud();   // [v145] shared across the team
 }
 let _mtSynced = false, _mtSig = '', _mtSaving = false, _mtPollTimer = null;
@@ -15911,7 +15931,7 @@ async function saveMTToCloud(){
   if(!sb) return;
   _mtSaving = true;
   try{
-    const { error } = await _dbUpsert('mt_state', _mtStateId(), { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES, cdivs:MT_CDIVS });
+    const { error } = await _dbUpsert('mt_state', _mtStateId(), { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH, clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES, cdivs:MT_CDIVS, open:MT_OPEN });
     if(error){ console.warn('mt_state save:', error.message); toast('Board save FAILED: ' + error.message, true); }
   }catch(e){ console.warn('mt_state save:', e && e.message); }
   finally{ setTimeout(() => { _mtSaving = false; }, 400); }
@@ -15931,6 +15951,7 @@ async function syncMTFromCloud(){
       MT_CMEMBERS = Array.isArray(d.cmembers) ? d.cmembers : null;                    // [v782]
       MT_CZONES  = Array.isArray(d.czones) ? d.czones : [];                            // [v786]
       MT_CDIVS   = Array.isArray(d.cdivs) ? d.cdivs : [];
+      MT_OPEN    = !!d.open;
       _mtPurgeOldTrash();                                        // [v670] 14일 지난 항목 자동 소멸
       saveMTLocal();
     } else if(error){ console.warn('mt_state load:', error.message); }
@@ -15945,12 +15966,12 @@ async function pollMTSystem(){
     const { data, error } = await sb.from('mt_state').select('data').eq('id',_mtStateId()).maybeSingle();
     if(error || !data || !data.data) return;
     const d = data.data;
-    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{}, k:d.links||[], m:d.cmembers||null, z:d.czones||[], d:d.cdivs||[] });
+    const sig = JSON.stringify({ i:d.inbox||[], p:d.passive||[], a:d.active||[], t:d.trash||[], l:d.clayout||{}, k:d.links||[], m:d.cmembers||null, z:d.czones||[], d:d.cdivs||[], o:!!d.open });
     if(sig === _mtSig) return;                        // no remote change
     const ae = document.activeElement;
     const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
     if(typing || mtKDrag || mtDragPassiveId || mtDragActiveId || mtDragInboxId || window._mtcDragging || window._mtcPanning) return;  // mid-edit / mid-drag [v776 canvas too]
-    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = Array.isArray(d.cmembers)?d.cmembers:null; MT_CZONES = Array.isArray(d.czones)?d.czones:[]; MT_CDIVS = Array.isArray(d.cdivs)?d.cdivs:[];
+    MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[]; MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = Array.isArray(d.cmembers)?d.cmembers:null; MT_CZONES = Array.isArray(d.czones)?d.czones:[]; MT_CDIVS = Array.isArray(d.cdivs)?d.cdivs:[]; MT_OPEN = !!d.open;
     _mtSig = sig; saveMTLocal();
     renderMTSystem();
   }catch(_){}
@@ -15966,6 +15987,7 @@ function loadMTSystem(){
     const rm = sessionStorage.getItem(_mtKey('lucky7_mt_cmembers')); // [v782]
     const rz = sessionStorage.getItem(_mtKey('lucky7_mt_czones'));   // [v786]
     const rdv = sessionStorage.getItem(_mtKey("lucky7_mt_cdivs"));
+    const rop = sessionStorage.getItem(_mtKey("lucky7_mt_open"));
     if(rp){
       MT_INBOX = ri ? JSON.parse(ri) : [];
       MT_PASSIVE = JSON.parse(rp);
@@ -15976,12 +15998,13 @@ function loadMTSystem(){
       MT_CMEMBERS = rm ? JSON.parse(rm) : null;
       MT_CZONES = rz ? JSON.parse(rz) : [];
       MT_CDIVS = rdv ? JSON.parse(rdv) : [];
+      MT_OPEN = rop ? JSON.parse(rop) : false;
       return;
     }
   }catch(_){}
   _seedMTSystem();
 }
-function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CZONES=[]; MT_CDIVS=[]; try{ saveMTLocal(); }catch(_){} }
+function _seedMTSystem(){ MT_INBOX=[]; MT_PASSIVE=[]; MT_ACTIVE=[]; MT_TRASH=[]; MT_CLAYOUT={}; MT_LINKS=[]; MT_CZONES=[]; MT_CDIVS=[]; MT_OPEN=false; try{ saveMTLocal(); }catch(_){} }
 // [v670] 휴지통 유틸 — 삭제는 전부 휴지통 경유 (복원 가능), 14일 지나면 자동 소멸
 function _mtPurgeOldTrash(){ try{ const cut=Date.now()-14*86400000; MT_TRASH=MT_TRASH.filter(t=>(t.deleted_at||0)>cut); }catch(_){ MT_TRASH=[]; } }
 function _mtToTrash(kind, item){ MT_TRASH.unshift({ id:Date.now()+Math.floor(Math.random()*999), kind, item, deleted_at:Date.now(), by:(currentUser?.name||'?') }); if(MT_TRASH.length>200) MT_TRASH.length=200; }
@@ -17631,6 +17654,16 @@ function mtCanvasHTML(ctx){
   .mtc-member:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.45), inset 0 0 22px color-mix(in srgb,var(--rc) 12%,transparent)}
   .mtc-member.mtc-over{border-color:var(--rc);transform:translateY(-3px) scale(1.025);
     box-shadow:0 0 0 3px color-mix(in srgb,var(--rc) 38%,transparent), 0 12px 32px color-mix(in srgb,var(--rc) 30%,transparent)}
+  /* [v811] 인원 카드에 카드를 겹쳤을 때 무슨 일이 일어나는지 아래에 적어준다 */
+  .mtc-member[data-drophint]::after{content:attr(data-drophint);position:absolute;left:0;right:0;bottom:-20px;text-align:center;
+    font:9.5px 'Malgun Gothic',ui-monospace,monospace;font-weight:700;color:color-mix(in srgb,var(--rc) 65%,#fff);
+    white-space:nowrap;pointer-events:none}
+  .mtc-member.mtc-sendover{border-color:${MTC_C.teal}!important;
+    box-shadow:0 0 0 3px rgba(107,165,157,.45), 0 12px 32px rgba(107,165,157,.28)!important}
+  .mtc-member.mtc-sendover::after{color:#a8ded6}
+  .mtc-toolbar .mtc-tb-open.on{color:#9fd6cd}
+  .mtc-toolbar .mtc-tb-open.on::after{content:'';position:absolute;left:10px;right:10px;bottom:3px;height:1.5px;border-radius:1px;background:${MTC_C.teal}}
+  .mtc-toolbar .mtc-tb-open{position:relative}
   /* 보드 밖으로 끌고 나갔을 때 — 놓으면 버려진다는 신호 */
   .mtc-member.mtc-toss,.mtc-note.mtc-toss{opacity:.45;filter:grayscale(.65);border-style:dashed!important;
     box-shadow:0 0 0 1px rgba(192,127,116,.5), 0 10px 26px rgba(0,0,0,.45)!important}
@@ -17774,7 +17807,9 @@ function mtCanvasHTML(ctx){
       <span class="mtc-quick-hint">더블클릭 새 카드<span>·</span>던지면 버림<span>·</span>우클릭 메뉴</span>
     </div>
     <div class="mtc-toolbar">
-      ${personalMode ? `<button onclick="mtcOpenBoardPicker()" title="다른 멤버의 보드 보기"><em>🗂</em><i>${MT_VIEWING ? _mtcEsc(MT_VIEWING.name) : '내 보드'}</i></button><span class="mtc-tb-sep"></span>` : ''}
+      ${personalMode ? `<button onclick="mtcOpenBoardPicker()" title="다른 멤버의 보드 보기"><em>🗂</em><i>${MT_VIEWING ? _mtcEsc(MT_VIEWING.name) : '내 보드'}</i></button>
+      ${(!MT_VIEWING || _mtcIsAdmin()) ? `<button class="mtc-tb-open ${MT_OPEN?'on':''}" onclick="mtcToggleOpen()" title="${MT_OPEN?'팀에 공개됨 — 누르면 비공개로':'비공개 — 누르면 팀에 공개'}"><em>${MT_OPEN?'🌐':'🔒'}</em><i>${MT_OPEN?'공개':'비공개'}</i></button>` : ''}
+      <span class="mtc-tb-sep"></span>` : ''}
       ${(ctx.isManager && !personalMode) ? `<button onclick="mtcOpenMemberPicker()" title="보드에 올릴 멤버 고르기"><em>👥</em><i>멤버</i><b>${members.length}</b></button><span class="mtc-tb-sep"></span>` : ''}
       <button class="mtc-tb-pen ${mtcPenOn?'on':''}" onclick="mtcTogglePen()" title="손으로 그리면 인식 — 네모=박스(영역 안이면 카드) · 두 카드를 잇는 선=연결 · 곧은 선=구분선"><em>✏</em><i>펜</i></button>
       <button class="mtc-tb-link ${window._mtcLinkMode?'on':''}" onclick="mtcToggleLinkMode()" title="카드를 탁, 탁 누르면 선으로 연결"><em>🔗</em><i>연결</i></button>
@@ -18397,13 +18432,19 @@ function _mtcHitAt(clientX, clientY, hits){
   }
   return null;
 }
-function _mtcMarkOver(hit, prev, note, ny){
-  if(prev && prev.el) prev.el.classList.remove('mtc-over');
+function _mtcMarkOver(hit, prev, note, ny, shift){
+  if(prev && prev.el){ prev.el.classList.remove('mtc-over','mtc-sendover'); prev.el.removeAttribute('data-drophint'); }
   document.querySelectorAll('.mtc-band.mtc-bhot').forEach(el=>el.classList.remove('mtc-bhot'));
   if(hit && hit.el){
     hit.el.classList.add('mtc-over');
     if(hit.key === 'active') _mtcMarkBand(hit, ny);
+    // [v811] 인원 카드 위에서는 무슨 일이 일어날지 글로 알려준다
+    if(hit.type === 'member') _mtcMemberDropHint(hit, shift);
   }
+}
+function _mtcMemberDropHint(hit, shift){
+  hit.el.classList.toggle('mtc-sendover', !!shift);
+  hit.el.setAttribute('data-drophint', shift ? `📤 ${hit.key}의 보드로 보내기` : `${hit.key} 담당으로  ·  Shift = 보드로 보내기`);
 }
 let _mtcBandKey = '';
 function _mtcMarkBand(hit, ny){
@@ -18934,7 +18975,8 @@ function _mtcNoteDown(e, note, vp){
       note.classList.toggle('mtc-linking-src', !!over);
     }
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);
-    if(hit !== prevHit){ _mtcMarkOver(hit, prevHit, note, ny); prevHit = hit; }
+    if(hit !== prevHit){ _mtcMarkOver(hit, prevHit, note, ny, ev.shiftKey); prevHit = hit; }
+    else if(hit && hit.type === 'member') _mtcMemberDropHint(hit, ev.shiftKey);   // Shift를 누르는 순간 바뀌게
     else if(hit && hit.key === 'active') _mtcMarkBand(hit, ny);
   };
   const mv = ev => {
@@ -18961,7 +19003,7 @@ function _mtcNoteDown(e, note, vp){
     window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
     if(rafId){ cancelAnimationFrame(rafId); rafId = 0; }
     if(moved){ lastEv = ev; paint(); }   // 마지막 프레임을 확실히 반영 (프레임이 밀렸어도 제자리로 튀지 않게)
-    document.querySelectorAll('.mtc-zone.mtc-over,.mtc-member.mtc-over').forEach(el=>el.classList.remove('mtc-over'));
+    document.querySelectorAll('.mtc-zone.mtc-over,.mtc-member.mtc-over').forEach(el=>{ el.classList.remove('mtc-over','mtc-sendover'); el.removeAttribute('data-drophint'); });
     _mtcClearGuides();
     document.querySelectorAll('.mtc-band.mtc-bhot').forEach(el=>el.classList.remove('mtc-bhot'));
     note.classList.remove('mtc-lifting');
