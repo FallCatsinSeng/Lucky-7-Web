@@ -15811,6 +15811,85 @@ async function mtcViewMemberBoard(id, name){
   try{ closeTaskDetail(); }catch(_){}
   toast(MT_VIEWING ? `👁 ${name}의 보드 — 보기 전용` : '내 보드로 돌아옴');
 }
+// [v812] 내 보드에 새로 도착한 카드가 있으면 한 번 알리고, 본 것으로 표시한다
+function _mtcAnnounceReceived(personalMode){
+  if(!personalMode || _mtcRO()) return;
+  const got = MT_INBOX.filter(i => i.from && !i.seen);
+  if(!got.length) return;
+  const who = [...new Set(got.map(g=>g.from))].join(', ');
+  toast(`📥 ${who}님이 보낸 카드 ${got.length}장 도착`);
+  // 도착 애니메이션이 한 번 재생될 시간을 준 뒤 읽음 처리
+  setTimeout(() => {
+    let changed = false;
+    MT_INBOX.forEach(i => { if(i.from && !i.seen){ i.seen = true; changed = true; } });
+    if(changed){ saveMTSystem(); }
+  }, 1800);
+}
+
+// ═══ [v812] 오른쪽 벽으로 밀면 열리는 멤버 서랍 ═══
+const MTC_EDGE = 96;   // 오른쪽 끝에서 이만큼 안으로 들어오면 서랍이 열린다
+function _mtcDrawerEl(){
+  let d = document.getElementById('mtc-drawer');
+  if(!d){
+    d = document.createElement('div');
+    d.id = 'mtc-drawer';
+    document.getElementById('mtc-vp')?.appendChild(d);
+  }
+  return d;
+}
+function _mtcOpenDrawer(){
+  const d = _mtcDrawerEl();
+  if(d.classList.contains('open')) return d;
+  const team = (window._mtcTeam || []).filter(t => String(t.id) !== String(currentUser?.id));
+  const short = n => (n||'?').replace(/^Mr\./i,'').slice(0,2).toUpperCase();
+  d.innerHTML = `<div class="mtc-drawer-h">보낼 사람</div>` + (team.length
+    ? team.map(t => `<div class="mtc-drawer-row" data-mid="${_mtcEsc(String(t.id))}" data-mname="${_mtcEsc(t.name)}">
+        <span class="mtc-drawer-av" style="${avatarBg(t.name, short(t.name))}">${_mtcEsc(short(t.name))}</span>
+        <span class="mtc-drawer-nm">${_mtcEsc(t.name)}</span>
+        <span class="mtc-drawer-ar">→</span>
+      </div>`).join('')
+    : `<div class="mtc-drawer-empty">팀 목록을 불러오지 못했어요</div>`);
+  requestAnimationFrame(()=>d.classList.add('open'));
+  setTimeout(()=>d.classList.add('open'), 30);   // 프레임이 늦어도 확실히 열리게
+  return d;
+}
+function _mtcCloseDrawer(){
+  const d = document.getElementById('mtc-drawer');
+  if(!d) return;
+  d.classList.remove('open');
+  d.querySelectorAll('.mtc-drawer-row').forEach(r=>r.classList.remove('hot'));
+  setTimeout(()=>{ if(!d.classList.contains('open')) d.remove(); }, 260);
+}
+function _mtcDrawerRowAt(cx, cy){
+  const d = document.getElementById('mtc-drawer');
+  if(!d || !d.classList.contains('open')) return null;
+  let hit = null;
+  d.querySelectorAll('.mtc-drawer-row').forEach(r => {
+    const b = r.getBoundingClientRect();
+    if(cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom) hit = r;
+  });
+  return hit;
+}
+// 카드가 그 사람 줄로 빨려 들어가는 연출 → 실제 전송
+function _mtcFlyIntoRow(note, row, kind, id){
+  const nb = note.getBoundingClientRect(), rb = row.getBoundingClientRect();
+  const dx = (rb.left + 34) - (nb.left + nb.width/2);
+  const dy = (rb.top + rb.height/2) - (nb.top + nb.height/2);
+  note.style.pointerEvents = 'none';
+  if(note.animate){
+    note.animate([
+      { transform:'translate3d(0,0,0) scale(1)', opacity:1 },
+      { transform:`translate3d(${dx*0.55}px,${dy*0.55}px,0) scale(.7) rotate(-3deg)`, opacity:.9, offset:.55 },
+      { transform:`translate3d(${dx}px,${dy}px,0) scale(.12)`, opacity:0 }
+    ], { duration: 380, easing:'cubic-bezier(.4,0,.7,.3)', fill:'forwards' });
+  }
+  row.classList.add('landed');
+  setTimeout(()=>row.classList.remove('landed'), 520);
+  setTimeout(()=>{
+    _mtcSendToMemberBoard(kind, id, row.dataset.mid, row.dataset.mname).then(()=>_mtcCloseDrawer());
+  }, 300);
+}
+
 // [v810] 카드를 그 사람의 개인 보드로 보내기 — 저쪽에 확실히 들어간 뒤에만 이쪽에서 지운다
 async function _mtcSendToMemberBoard(kind, id, memberId, memberName){
   const { arr, item } = _mtcFind(kind, id); if(!item) return;
@@ -16536,6 +16615,7 @@ async function renderMTSystem(mode){
     otherView.classList.add('mtc-full');   // .content max-width 해제 — 화면 끝까지
     otherView.innerHTML = `<div class="mt-wrap" style="padding:0;max-width:none;margin:0">${bodyHTML}</div>`;
     mtCanvasInit();
+    _mtcAnnounceReceived(personalMode);   // [v812] 받은 카드가 있으면 알려준다
     return;
   }
   otherView.classList.remove('mtc-full');
@@ -17176,13 +17256,15 @@ function _mtcNote(kind, item, today, pos){
   const w = (item.size && item.size.w) || (item.sub ? MTC_SUB_W : MTC_CARD_W);
   const h = (item.size && item.size.h) || 0;
   const fs = item.sub ? Math.max(9.5, _mtcFontFor(w,h)*0.94).toFixed(2) : _mtcFontFor(w, h);
-  const isNew = (window._mtcPopUid === _mtcUid(item)) ? ' mtc-pop' : '';
+  const isNew = (window._mtcPopUid === _mtcUid(item)) ? ' mtc-pop'
+              : (item.from && !item.seen ? ' mtc-got' : '');
   const tall = h >= 58 ? ' mtcn-tall' : '';
   const subC = item.sub ? ' mtcn-sub' : '';
   return `<div class="mtc-note mtcn-${isDone?'done':kind}${sel}${isNew}${tall}${subC}" data-kind="${kind}" data-id="${item.id}" data-uid="${_mtcUid(item)}"
       style="left:${pos.x}px;top:${pos.y}px;width:${w}px;${h?`min-height:${h}px;`:''}font-size:${fs}px">
     ${item.sub ? `<span class="mtcn-subic" title="상위 카드에서 분리된 세부 항목">↳</span>`
                : `<span class="mtcn-dot" title="${({inbox:'인박스',passive:'패시브',active:'액티브'})[kind]||''}"></span>`}
+    ${item.from && !item.seen ? `<span class="mtcn-from" title="${_mtcEsc(item.from)}님이 보냄">${_mtcEsc(item.from)}↗</span>` : ''}
     ${st}<span class="mtcn-text">${text}</span>${memoDot}${stepB}${dayB}${owner}${pri}
     ${MTC_HANDLES.map(d=>`<div class="mtcn-rz mtcn-rz-${d}" data-rz="${d}" title="드래그로 카드 크기 조절"></div>`).join('')}
   </div>`;
@@ -17664,6 +17746,40 @@ function mtCanvasHTML(ctx){
   .mtc-toolbar .mtc-tb-open.on{color:#9fd6cd}
   .mtc-toolbar .mtc-tb-open.on::after{content:'';position:absolute;left:10px;right:10px;bottom:3px;height:1.5px;border-radius:1px;background:${MTC_C.teal}}
   .mtc-toolbar .mtc-tb-open{position:relative}
+  /* [v812] 오른쪽 벽 멤버 서랍 */
+  #mtc-drawer{position:absolute;right:0;top:64px;bottom:64px;width:214px;z-index:960;overflow-y:auto;
+    background:rgba(18,18,17,.72);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+    border-left:1px solid rgba(255,255,255,.09);border-radius:14px 0 0 14px;padding:10px 8px;
+    box-shadow:-18px 0 44px rgba(0,0,0,.5);
+    transform:translateX(100%);opacity:0;transition:transform .26s cubic-bezier(.2,.9,.25,1),opacity .2s}
+  #mtc-drawer.open{transform:none;opacity:1}
+  .mtc-drawer-h{font:9px 'Malgun Gothic',ui-monospace,monospace;font-weight:800;letter-spacing:.14em;
+    color:rgba(235,235,245,.36);padding:2px 8px 8px}
+  .mtc-drawer-row{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;cursor:pointer;
+    border:1px solid transparent;transition:background .14s,border-color .14s,transform .18s cubic-bezier(.2,.9,.25,1)}
+  .mtc-drawer-av{width:26px;height:26px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;
+    color:#fff;font:9px ui-monospace,monospace;font-weight:800}
+  .mtc-drawer-nm{flex:1;font:11.5px 'Malgun Gothic',ui-monospace,monospace;font-weight:600;color:rgba(235,235,245,.8);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mtc-drawer-ar{font-size:11px;color:rgba(235,235,245,.25);transition:transform .18s,color .18s}
+  .mtc-drawer-row.hot{background:color-mix(in srgb,${MTC_C.teal} 20%,transparent);
+    border-color:color-mix(in srgb,${MTC_C.teal} 55%,transparent);transform:translateX(-6px)}
+  .mtc-drawer-row.hot .mtc-drawer-nm{color:#fff}
+  .mtc-drawer-row.hot .mtc-drawer-ar{color:#a8ded6;transform:translateX(3px)}
+  @keyframes mtcLanded{0%{transform:translateX(-6px) scale(1)}
+    35%{transform:translateX(-6px) scale(1.06);background:color-mix(in srgb,${MTC_C.teal} 42%,transparent)}
+    100%{transform:translateX(0) scale(1)}}
+  .mtc-drawer-row.landed{animation:mtcLanded .5s cubic-bezier(.2,1,.3,1)}
+  .mtc-drawer-empty{font:10px ui-monospace,monospace;color:rgba(235,235,245,.3);padding:10px}
+  .mtc-note.mtc-sending{border-color:${MTC_C.teal}!important;
+    box-shadow:0 0 0 2px rgba(107,165,157,.45), 0 14px 34px rgba(0,0,0,.55)!important}
+  /* 받은 카드 — 처음 볼 때 한 번 반응 */
+  @keyframes mtcGot{0%{transform:scale(.86);opacity:0;box-shadow:0 0 0 0 rgba(107,165,157,.55)}
+    45%{transform:scale(1.06);opacity:1;box-shadow:0 0 0 8px rgba(107,165,157,.16)}
+    100%{transform:scale(1);box-shadow:0 0 0 0 rgba(107,165,157,0)}}
+  .mtc-note.mtc-got{animation:mtcGot .62s cubic-bezier(.2,1,.3,1);border-color:${MTC_C.teal}!important}
+  .mtcn-from{font-size:.7em;font-family:ui-monospace,monospace;font-weight:800;color:#a8ded6;
+    background:rgba(107,165,157,.18);border-radius:4px;padding:0 4px;flex:none}
   /* 보드 밖으로 끌고 나갔을 때 — 놓으면 버려진다는 신호 */
   .mtc-member.mtc-toss,.mtc-note.mtc-toss{opacity:.45;filter:grayscale(.65);border-style:dashed!important;
     box-shadow:0 0 0 1px rgba(192,127,116,.5), 0 10px 26px rgba(0,0,0,.45)!important}
@@ -18936,7 +19052,7 @@ function _mtcNoteDown(e, note, vp){
   let hasLinks = false, lastKey = '', prevHit = null, easeX = 0, easeY = 0;
   let cardHits = null, linkTarget = null;   // [v798] 겹쳐 놓으면 자동 연결
   // [v794] 카드를 보드 밖으로 던지면 삭제 (휴지통 경유 — 복원 가능)
-  let outside = false, vhist = [];
+  let outside = false, vhist = [], drawerRow = null;
   const _outsideVp = ev => {
     const r = _mtcVpRect || vp.getBoundingClientRect();
     const m = 26;
@@ -18996,6 +19112,19 @@ function _mtcNoteDown(e, note, vp){
     if(vhist.length > 6) vhist.shift();
     const now = _outsideVp(ev);
     if(now !== outside){ outside = now; note.classList.toggle('mtc-toss', outside); }
+    // [v812] 오른쪽 벽에 닿으면 멤버 서랍이 열린다
+    const r = _mtcVpRect || vp.getBoundingClientRect();
+    if(!outside && ev.clientX > r.right - MTC_EDGE){
+      _mtcOpenDrawer();
+      const row = _mtcDrawerRowAt(ev.clientX, ev.clientY);
+      if(row !== drawerRow){
+        drawerRow?.classList.remove('hot');
+        drawerRow = row; row?.classList.add('hot');
+        note.classList.toggle('mtc-sending', !!row);
+      }
+    } else if(document.getElementById('mtc-drawer')){
+      _mtcCloseDrawer(); drawerRow = null; note.classList.remove('mtc-sending');
+    }
     lastEv = ev;
     if(!rafId) rafId = requestAnimationFrame(paint);
   };
@@ -19018,8 +19147,12 @@ function _mtcNoteDown(e, note, vp){
     }
     setTimeout(()=>{ window._mtcMoved = false; }, 60);
 
-    note.classList.remove('mtc-linking-src');
+    note.classList.remove('mtc-linking-src', 'mtc-sending');
     linkTarget?.el.classList.remove('mtc-linkhot', 'mtc-unlinkhot');
+
+    // [v812] 멤버 서랍의 한 줄에 밀어 넣었으면 — 빨려 들어가는 연출 후 그 사람 보드로
+    if(drawerRow){ _mtcFlyIntoRow(note, drawerRow, kind, id); return; }
+    _mtcCloseDrawer();
 
     // 보드 밖으로 뺐거나, 안에서라도 홱 뿌리쳤으면 — 빨려 나가듯 사라지고 휴지통으로
     if(outside || _mtcFlingCheck(vhist, vp)){ _mtcTossCard(note, kind, id, vhist); return; }
