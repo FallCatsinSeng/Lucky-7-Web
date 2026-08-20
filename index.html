@@ -16578,12 +16578,73 @@ function mtcSetZone(key, field, val){
 }
 // ═══ [v802] 펜 — 손으로 그리면 알아서 박스·연결선·구분선이 된다 ═══
 let mtcPenOn = false;
+let _mtcInk = [];    // [v803] 확정 전까지 모아두는 획들 [{pts, path, kind, info, A, B}]
 function mtcTogglePen(){
   mtcPenOn = !mtcPenOn;
   document.body.classList.toggle('mtc-pen', mtcPenOn);
+  if(!mtcPenOn) mtcPenCancel();
   renderMTSystem();
-  toast(mtcPenOn ? '✏ 펜 — 네모를 그리면 박스, 두 카드를 이으면 연결선, 곧게 그으면 구분선'
-                 : '펜 끄기');
+  if(mtcPenOn) toast('✏ 자유롭게 그리고, 다 그리면 [확정]을 누르세요');
+}
+// 그려둔 획들을 모두 지운다
+function mtcPenCancel(){
+  _mtcInk.forEach(s => { s.path?.remove(); s.tag?.remove(); });
+  _mtcInk = [];
+  document.getElementById('mtc-penbar')?.remove();
+}
+// 획 하나를 무엇으로 볼지 판정 (그리는 즉시 미리 알려주기 위해)
+function _mtcClassifyStroke(pts){
+  const s = _mtcStrokeInfo(pts);
+  if(s.closed) return { kind:'box', info:s, label:'박스' };
+  const A = _mtcElAtSurface(pts[0].x, pts[0].y);
+  const B = _mtcElAtSurface(pts[pts.length-1].x, pts[pts.length-1].y);
+  if(A && B && A.ref !== B.ref) return { kind:'link', info:s, A, B, label:'연결선' };
+  if(s.straight && s.len > 90) return { kind:'div', info:s, label:'구분선' };
+  return { kind:null, info:s, label:'?' };
+}
+// 확정 — 모아둔 획을 한꺼번에 실제 요소로
+function mtcPenCommit(){
+  const strokes = _mtcInk.filter(s => s.kind);
+  if(!strokes.length){ toast('만들 수 있는 획이 없어요', true); mtcPenCancel(); return; }
+  let box=0, link=0, div=0;
+  strokes.forEach(s => {
+    const i = s.info;
+    if(s.kind === 'box'){ mtcAddZone(i.minX, i.minY, i.w, i.h, true); box++; }
+    else if(s.kind === 'link'){
+      if(!_mtcHasLink(s.A.ref, s.B.ref)){ MT_LINKS.push({ a:s.A.ref, b:s.B.ref }); link++; }
+    }
+    else if(s.kind === 'div'){
+      const vert = i.h > i.w;
+      mtcAddDivider(vert ? (i.minX+i.maxX)/2 : i.minX, vert ? i.minY : (i.minY+i.maxY)/2, vert, true, vert ? i.h : i.w);
+      div++;
+    }
+  });
+  // 잉크가 결과물로 바뀌는 느낌 — 획을 먼저 흩어 없앤다
+  _mtcInk.forEach(s => { [s.path, s.tag].forEach(n => { if(n){ n.style.transition='opacity .25s'; n.style.opacity='0'; } }); });
+  const skipped = _mtcInk.length - strokes.length;
+  setTimeout(() => {
+    mtcPenCancel();
+    saveMTSystem(); renderMTSystem();
+    const parts = [box&&`박스 ${box}`, link&&`연결 ${link}`, div&&`구분선 ${div}`].filter(Boolean).join(' · ');
+    toast(`✏ ${parts}${skipped?` (인식 안 된 획 ${skipped}개는 버림)`:''}`);
+  }, 220);
+}
+function _mtcPenBar(){
+  let bar = document.getElementById('mtc-penbar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'mtc-penbar';
+    document.getElementById('mtc-vp')?.appendChild(bar);
+  }
+  const ok = _mtcInk.filter(s=>s.kind);
+  const tally = {};
+  ok.forEach(s => { tally[s.label] = (tally[s.label]||0)+1; });
+  const sum = Object.entries(tally).map(([k,v])=>`${k} ${v}`).join(' · ') || '아직 인식된 획 없음';
+  const bad = _mtcInk.length - ok.length;
+  bar.innerHTML = `
+    <span class="mtc-penbar-t">✏ ${sum}${bad?` <em>· 미인식 ${bad}</em>`:''}</span>
+    <button class="mtc-penbar-x" onclick="mtcPenCancel()">지우기</button>
+    <button class="mtc-penbar-ok" onclick="mtcPenCommit()" ${ok.length?'':'disabled'}>확정</button>`;
 }
 function _mtcStrokeInfo(pts){
   let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9,len=0;
@@ -16647,36 +16708,22 @@ function _mtcPenStart(e, vp){
     if(rafId) cancelAnimationFrame(rafId);
     push(ev); paint();
     window._mtcDragging = false;
-    const fade = () => { path.style.transition='opacity .22s'; path.style.opacity='0'; setTimeout(()=>path.remove(), 240); };
-    if(pts.length < 4){ fade(); return; }
-    const s = _mtcStrokeInfo(pts);
-
-    // ① 네모를 그렸다 → 그 자리에 박스
-    if(s.closed){
-      fade();
-      mtcAddZone(s.minX, s.minY, s.w, s.h, true);
-      toast('🗂 박스로 인식 — 우클릭으로 이름·색 바꾸기');
-      return;
+    // [v803] 바로 만들지 않고 모아둔다 — 다 그린 뒤 [확정]을 눌러야 실제로 생성
+    if(pts.length < 4){ path.remove(); return; }
+    const c = _mtcClassifyStroke(pts);
+    path.classList.add('mtc-ink-' + (c.kind || 'none'));
+    if(c.kind){
+      // 무엇으로 인식됐는지 획 옆에 살짝 띄워준다
+      const tag = document.createElementNS('http://www.w3.org/2000/svg','text');
+      tag.setAttribute('class','mtc-ink-tag');
+      tag.setAttribute('x', (c.info.minX + 2).toFixed(0));
+      tag.setAttribute('y', (c.info.minY - 6).toFixed(0));
+      tag.textContent = c.label;
+      path.parentNode.appendChild(tag);
+      c.tag = tag;
     }
-    // ② 두 대상을 이었다 → 연결선
-    const A = _mtcElAtSurface(pts[0].x, pts[0].y);
-    const B = _mtcElAtSurface(pts[pts.length-1].x, pts[pts.length-1].y);
-    if(A && B && A.ref !== B.ref){
-      fade();
-      if(_mtcHasLink(A.ref, B.ref)) toast('이미 이어져 있어요');
-      else { MT_LINKS.push({ a:A.ref, b:B.ref }); saveMTSystem(); renderMTSystem(); toast('🔗 그어서 연결됨'); }
-      return;
-    }
-    // ③ 허공에 곧게 그었다 → 구분선
-    if(s.straight && s.len > 90){
-      fade();
-      const vert = s.h > s.w;
-      mtcAddDivider(vert ? (s.minX+s.maxX)/2 : s.minX, vert ? s.minY : (s.minY+s.maxY)/2, vert, true, vert ? s.h : s.w);
-      toast('─ 구분선으로 인식');
-      return;
-    }
-    fade();
-    toast('인식하지 못했어요 — 네모/두 카드를 잇는 선/곧은 선', true);
+    _mtcInk.push({ pts, path, ...c });
+    _mtcPenBar();
   };
   window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
 }
@@ -17292,8 +17339,11 @@ function mtCanvasHTML(ctx){
   .mtcpop-steps{margin-bottom:6px}
   .mtcpop-steps-h{font:8.5px ui-monospace,monospace;font-weight:800;letter-spacing:.08em;color:var(--tx3);margin-bottom:3px;display:flex;justify-content:space-between}
   .mtcpop-steps-h span{font-weight:600;letter-spacing:0;opacity:.7}
-  .mtcpop-step{display:flex;gap:5px;align-items:flex-start;font:10.5px/1.45 ui-monospace,'Malgun Gothic',monospace;color:var(--tx2);padding:3px 4px;border-radius:5px}
-  .mtcpop-step:hover{background:rgba(255,255,255,.045)}
+  .mtcpop-step{display:flex;gap:5px;align-items:flex-start;font:10.5px/1.45 ui-monospace,'Malgun Gothic',monospace;color:var(--tx2);
+    padding:4px 4px;border-radius:5px;cursor:grab;touch-action:none;user-select:none;
+    border:1px solid transparent;transition:background .12s,border-color .12s}
+  .mtcpop-step:hover{background:rgba(255,255,255,.06);border-color:color-mix(in srgb,var(--pc) 30%,transparent)}
+  .mtcpop-step:active{cursor:grabbing}
   .mtcpop-step.done .mtcpop-steptx{text-decoration:line-through;opacity:.5}
   .mtcpop-steptx{flex:1;word-break:keep-all}
   .mtcpop-grip{cursor:grab;color:var(--tx3);opacity:.55;font-size:11px;padding:1px 3px;touch-action:none;user-select:none;border-radius:4px}
@@ -17472,7 +17522,25 @@ function mtCanvasHTML(ctx){
   body.mtc-pen #mtc-vp{cursor:crosshair}
   #mtc-ink{position:absolute;left:0;top:0;pointer-events:none;z-index:940;overflow:visible}
   .mtc-ink-path{fill:none;stroke:${MTC_C.amber};stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;
-    opacity:.9;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+    opacity:.92;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+  /* 인식 결과에 따라 잉크 색이 바뀐다 — 확정 전에 무엇이 될지 보인다 */
+  .mtc-ink-box{stroke:${MTC_C.lilac}}
+  .mtc-ink-link{stroke:${MTC_C.teal}}
+  .mtc-ink-div{stroke:rgba(255,255,255,.55)}
+  .mtc-ink-none{stroke:${MTC_C.stone};opacity:.45;stroke-dasharray:5 5}
+  .mtc-ink-tag{fill:rgba(235,235,245,.6);font:9px ui-monospace,'Malgun Gothic',monospace;font-weight:800;letter-spacing:.06em}
+  /* 확정 바 */
+  #mtc-penbar{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:8px;
+    background:rgba(20,20,20,.94);border:1px solid var(--br,#333);border-radius:11px;padding:7px 8px 7px 13px;
+    box-shadow:0 12px 34px rgba(0,0,0,.55);animation:mtcPopIn .18s cubic-bezier(.2,1.1,.35,1)}
+  .mtc-penbar-t{font:10.5px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:var(--tx2)}
+  .mtc-penbar-t em{font-style:normal;color:var(--tx3);opacity:.8}
+  #mtc-penbar button{border-radius:8px;cursor:pointer;font:10.5px ui-monospace,'Malgun Gothic',monospace;font-weight:800;padding:6px 12px;border:1px solid var(--br)}
+  .mtc-penbar-x{background:rgba(255,255,255,.04);color:var(--tx3)}
+  .mtc-penbar-x:hover{color:#e88b84;border-color:#c07f74}
+  .mtc-penbar-ok{background:color-mix(in srgb,${MTC_C.amber} 22%,transparent);border-color:${MTC_C.amber}!important;color:#e6cd9c}
+  .mtc-penbar-ok:hover{background:color-mix(in srgb,${MTC_C.amber} 34%,transparent)}
+  .mtc-penbar-ok:disabled{opacity:.35;cursor:default;background:rgba(255,255,255,.03);border-color:var(--br)!important;color:var(--tx3)}
   .mtc-toolbar .mtc-tb-zoom{width:28px;padding:0;font-size:13px;color:var(--tx2)}
   .mtc-quick{position:absolute;left:12px;top:12px;z-index:20;display:flex;gap:6px;align-items:center}
   .mtc-quick input{width:250px;background:rgba(20,20,20,.88);border:1px solid var(--br,#262625);border-radius:8px;color:var(--tx1);font:11.5px ui-monospace,Consolas,'Malgun Gothic',monospace;padding:7px 10px;outline:none}
@@ -17741,8 +17809,13 @@ function mtCanvasInit(){
   if(!window._mtcEscBound){
     window._mtcEscBound = true;
     window.addEventListener('keydown', e => {
-      if(e.key === 'Escape' && (window._mtcLinkMode || window._mtcLinkFrom) && mtBoardView === 'canvas'){
-        window._mtcLinkMode = false; window._mtcLinkFrom = null; renderMTSystem();
+      if(mtBoardView !== 'canvas') return;
+      if(e.key === 'Escape' && (window._mtcLinkMode || window._mtcLinkFrom)){
+        window._mtcLinkMode = false; window._mtcLinkFrom = null; renderMTSystem(); return;
+      }
+      if(mtcPenOn && _mtcInk.length){
+        if(e.key === 'Enter'){ e.preventDefault(); mtcPenCommit(); }        // 엔터로도 확정
+        else if(e.key === 'Escape'){ e.preventDefault(); mtcPenCancel(); }
       }
     });
   }
@@ -18895,11 +18968,14 @@ function _mtcShowPop(noteEl, pinned){
       <div class="mtcpop-steps-h">세부 항목 <span>⠿ 잡고 보드로 빼면 카드 ↗</span></div>
       ${steps.map((s,i)=>{
         const fresh = window._mtcNewStep && window._mtcNewStep.id === id && window._mtcNewStep.idx === i;
-        return `<div class="mtcpop-step ${s.done?'done':''}${fresh?' mtcpop-step-new':''}" data-step="${i}">
-        <span class="mtcpop-grip" onpointerdown="_mtcStepDragOut(event,'${kind}',${id},${i})" title="보드로 끌어내면 별도 카드가 되고 이 카드와 선으로 이어집니다">⠿</span>
+        // [v803] 줄 아무 데나 잡아도 바로 밖으로 빠진다 (체크박스·삭제 버튼만 예외)
+        return `<div class="mtcpop-step ${s.done?'done':''}${fresh?' mtcpop-step-new':''}" data-step="${i}"
+             onpointerdown="if(!event.target.closest('input,button'))_mtcStepDragOut(event,'${kind}',${id},${i})"
+             title="잡아서 보드로 끌면 별도 카드가 되고 이 카드와 선으로 이어집니다">
+        <span class="mtcpop-grip">⠿</span>
         <input type="checkbox" ${s.done?'checked':''} onchange="mtcToggleStep(${id},${i});mtcRepop()">
         <span class="mtcpop-steptx">${_mtcEsc(s.text)}</span>
-        ${fresh?`<span class="mtcpop-stephint">⠿ 잡고 밖으로 ↗</span>`:''}
+        ${fresh?`<span class="mtcpop-stephint">잡고 밖으로 ↗</span>`:''}
         <button class="mtcpop-stepx" onclick="mtcDelStep(${id},${i});mtcRepop()" title="삭제">✕</button></div>`; }).join('')}
       <div class="mtcpop-prog"><i style="width:${Math.round(doneN/steps.length*100)}%"></i></div>
     </div>`:''}
