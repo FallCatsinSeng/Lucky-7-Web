@@ -16479,20 +16479,31 @@ let _mtcPanelKey = null;   // {kind,id} — 재렌더 후 패널 유지
 // · 노트를 영역에 놓으면 분류가 바뀜 / 영역 밖에 놓으면 상태 그대로 그 자리에 고정
 // · 빈 보드 더블클릭 = 그 자리에 새 노트 · 영역을 옮기면 안의 노트들이 같이 따라감
 // · 배치(MT_CLAYOUT)는 팀 전체 공유
+// [v791] 절제된 팔레트 — 채도를 낮추고 명도를 맞춰서, 구분은 되되 튀지 않게
+const MTC_C = {
+  slate:  '#6f93b8',   // 인박스
+  lilac:  '#9585c0',   // 패시브
+  amber:  '#bd9a5f',   // 액티브
+  sage:   '#6e9d7c',   // 완료
+  clay:   '#c07f74',   // 경고·OP
+  teal:   '#6ba59d',   // PO·박스 연결
+  stone:  '#7d7a76'    // 휴지통
+};
+const MTC_PRI_C = { P1: MTC_C.clay, P2: MTC_C.amber, P3: MTC_C.sage };
 const MTC_ZONES = [
-  { key:'passive', label:'🧭 패시브',  x:40,   y:180, w:480, h:460, hue:'#b074ec', empty:'계속 신경 쓸 영역' },
-  { key:'active',  label:'⚡ 액티브',  x:560,  y:180, w:560, h:460, hue:'#c2a04a', empty:'지금 실행하는 행동' },
-  { key:'done',    label:'✅ 완료',    x:1160, y:180, w:440, h:460, hue:'#3aa05a', empty:'끝낸 것들' },
-  { key:'trash',   label:'🗑 휴지통',  x:1640, y:180, w:200, h:150, hue:'#8a8a8a', empty:'끌어다 놓으면 삭제' },
-  { key:'po',      label:'💭 PO',      x:1640, y:360, w:200, h:280, hue:'#5ba8a0', empty:'개인 의견·제안' },
-  { key:'inbox',   label:'📥 인박스', x:40,   y:690, w:1560, h:560, hue:'#5fa3d9', empty:'떠오른 건 전부 여기 — 더블클릭으로 추가' }
+  { key:'passive', label:'🧭 패시브',  x:40,   y:180, w:480, h:460, hue:MTC_C.lilac, empty:'계속 신경 쓸 영역' },
+  { key:'active',  label:'⚡ 액티브',  x:560,  y:180, w:560, h:460, hue:MTC_C.amber, empty:'지금 실행하는 행동' },
+  { key:'done',    label:'✅ 완료',    x:1160, y:180, w:440, h:460, hue:MTC_C.sage,  empty:'끝낸 것들' },
+  { key:'trash',   label:'🗑 휴지통',  x:1640, y:180, w:200, h:150, hue:MTC_C.stone, empty:'끌어다 놓으면 삭제' },
+  { key:'po',      label:'💭 PO',      x:1640, y:360, w:200, h:280, hue:MTC_C.teal,  empty:'개인 의견·제안' },
+  { key:'inbox',   label:'📥 인박스', x:40,   y:690, w:1560, h:560, hue:MTC_C.slate, empty:'떠오른 건 전부 여기 — 더블클릭으로 추가' }
 ];
 // [v786] 직접 만든 박스 — 이름·색 자유. 카드를 넣어도 종류는 그대로, 위치로만 묶임.
 function _mtcCustomZones(){ return Array.isArray(MT_CZONES) ? MT_CZONES : []; }
 function _mtcAllZones(){ return MTC_ZONES.concat(_mtcCustomZones()); }
 // 카드 종류를 바꾸지 않고 위치만 잡는 영역 (PO·커스텀 박스)
 function _mtcIsFreeZone(key){ return key === 'po' || String(key).startsWith('z:'); }
-const MTC_ZONE_COLORS = ['#5fa3d9','#b074ec','#c2a04a','#3aa05a','#d2564f','#5ba8a0','#e0715f','#8a8a8a'];
+const MTC_ZONE_COLORS = [MTC_C.slate, MTC_C.lilac, MTC_C.amber, MTC_C.sage, MTC_C.clay, MTC_C.teal, '#a88fa0', MTC_C.stone];
 const MTC_SURFACE = { w: 2800, h: 1500 };
 
 function _mtcLayout(){ return MT_CLAYOUT || {}; }
@@ -16561,7 +16572,15 @@ function mtcDeleteZone(key){
   try{ closeTaskDetail(); }catch(_){}
   toast(`"${nm}" 박스 삭제 (안의 카드는 그대로)`);
 }
-function mtcResetLayout(){ MT_CLAYOUT = {}; saveMTSystem(); renderMTSystem(); toast('⟲ 배치 초기화됨 (팀 공유)'); }
+// [v791] 배치 초기화 — 영역 위치·크기뿐 아니라 카드 위치도 제자리로. (안 그러면 카드만 남아 떠돌게 됨)
+function mtcResetLayout(){
+  const n = MT_INBOX.length + MT_PASSIVE.length + MT_ACTIVE.length;
+  if(!confirm(`영역 배치를 기본값으로 되돌리고, 카드 ${n}장도 각자 영역 안에 다시 정렬합니다.\n\n(카드 내용·연결선·직접 만든 박스는 그대로입니다)\n계속할까요?`)) return;
+  MT_CLAYOUT = {};
+  [MT_INBOX, MT_PASSIVE, MT_ACTIVE].forEach(arr => arr.forEach(it => { delete it.pos; }));   // 소속 영역 안으로 자동 재배치
+  saveMTSystem(); renderMTSystem();
+  toast('⟲ 배치 초기화 — 카드도 제자리로');
+}
 
 // ─── [v789] 보드 저장 / 불러오기 — 이름 붙여 스냅샷으로 보관 ───
 function _mtcSnapsKey(){ return 'lucky7_mtc_snaps__' + MT_SCOPE; }
@@ -16715,9 +16734,11 @@ function _mtcEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/
 // [v780] 포스트잇 노트 — 모든 항목이 보드 위 절대좌표로 붙음
 function _mtcNotePos(item, idx, area){
   if(item.pos) return item.pos;
-  // pos 없는 항목은 소속 영역 안에 세로로 쌓기 (저장 안 함 — 옮기는 순간 저장됨)
-  const rows = Math.max(1, Math.floor((area.h - 46) / 32));
-  return { x: area.x + 12 + Math.floor(idx / rows) * 244, y: area.y + 38 + (idx % rows) * 32 };
+  // pos 없는 항목은 소속 영역 안에 가지런히 쌓기 (저장 안 함 — 옮기는 순간 저장됨)
+  const rowH = 40, colW = 246;
+  const rows = Math.max(1, Math.floor((area.h - 46 - MTC_PAD) / rowH));
+  const col = Math.floor(idx / rows), row = idx % rows;
+  return { x: area.x + MTC_PAD + col * colW, y: area.y + 44 + row * rowH };
 }
 // 카드 크기 → 글꼴 크기. 폭이 주, 높이가 보조. 부드러운 곡선으로 10.5~24px.
 function _mtcFontFor(w, h){
@@ -16739,7 +16760,7 @@ function _mtcNote(kind, item, today, pos){
   const isDone = kind==='active' && item.status==='done';
   const pm = MT_PRI[item.priority] || MT_PRI.P2;
   const st = kind==='active' ? `<button class="mtcn-st" style="color:${({todo:'var(--tx3)',doing:'var(--ac)',done:'var(--gr)'})[item.status]||'var(--tx3)'}" onclick="event.stopPropagation();mtCycleActive(${item.id})" title="대기→진행→완료">${({todo:'○',doing:'◐',done:'●'})[item.status]||'○'}</button>` : '';
-  const pri = (kind==='active' && !isDone) ? `<button class="mtcn-pri" style="background:${pm.color}" onclick="event.stopPropagation();mtcCyclePri(${item.id})" title="우선순위 클릭 전환">${pm.num}</button>` : '';
+  const pri = (kind==='active' && !isDone) ? `<button class="mtcn-pri" style="background:${MTC_PRI_C[item.priority]||MTC_C.amber}" onclick="event.stopPropagation();mtcCyclePri(${item.id})" title="우선순위 클릭 전환">${pm.num}</button>` : '';
   const owner = item.owner ? `<span class="mtcn-av" style="${avatarBg(item.owner, item.owner.slice(0,2).toUpperCase())}" title="${_mtcEsc(item.owner)}">${_mtcEsc(item.owner.slice(0,2).toUpperCase())}</span>` : '';
   const memoDot = (item.memo||'').trim() ? `<span class="mtcn-memo" title="메모 있음">≡</span>` : '';
   const steps = item.steps||[]; const stepB = steps.length?`<span class="mtcn-steps">☑${steps.filter(s=>s.done).length}/${steps.length}</span>`:'';
@@ -16824,8 +16845,8 @@ function mtCanvasHTML(ctx){
       <span class="mtc-zone-lb">${z.label}<b>${n}</b></span>
       ${z.key!=='trash' ? `<button class="mtc-zone-tidy" onclick="event.stopPropagation();mtcTidyZone('${z.key}')" title="이 박스 안의 카드를 자동 정렬">⊞ 정렬</button>` : ''}
       ${z.key==='active' ? `<div class="mtc-bands">
-        ${['P1','P2','P3'].map(p=>`<div class="mtc-band" data-band="${p}" style="--bc:${MT_PRI[p].color}">
-          <span class="mtc-band-lb">${MT_PRI[p].icon} ${MT_PRI[p].num} ${MT_PRI[p].label}</span></div>`).join('')}
+        ${['P1','P2','P3'].map(p=>`<div class="mtc-band" data-band="${p}" style="--bc:${MTC_PRI_C[p]}">
+          <span class="mtc-band-lb">${MT_PRI[p].num} ${MT_PRI[p].label}</span></div>`).join('')}
       </div>` : ''}
       ${!n ? `<span class="mtc-zone-empty">${z.empty||''}</span>` : ''}
       <div class="mtc-resize" data-resize="${z.key}" title="드래그로 크기 조절"></div>
@@ -16834,7 +16855,8 @@ function mtCanvasHTML(ctx){
   // Work split — 인원 카드 (노트를 사람 위에 놓으면 담당 지정)
   // [v783] 역할별 색 구분: ADMIN 초록 · OP 빨강 · PLAYER LEADER 노랑 테두리
   const ROLE_LB = { ceo:'ADMIN', manager:'OP TEAM', hr:'OP TEAM', leader:'PLAYER LEADER', staff:'STAFF', admin:'ADMIN', op:'OP TEAM', player:'PLAYER' };
-  const ROLE_COLOR = { ceo:'#3aa05a', admin:'#3aa05a', manager:'#d2564f', hr:'#d2564f', op:'#d2564f', leader:'#e0b341', player:'#e0b341', staff:'#8a8a8a' };
+  const ROLE_COLOR = { ceo:MTC_C.sage, admin:MTC_C.sage, manager:MTC_C.clay, hr:MTC_C.clay, op:MTC_C.clay,
+                       leader:MTC_C.amber, player:MTC_C.amber, staff:MTC_C.stone };
   const memberZones = members.map((m,i) => {
     const nm = m.name;
     const t = findTeam(nm);
@@ -16871,31 +16893,34 @@ function mtCanvasHTML(ctx){
   #mtc-vp.mtc-grabbing{cursor:grabbing}
   #mtc-surface{position:absolute;left:0;top:0;width:${MTC_SURFACE.w}px;height:${MTC_SURFACE.h}px;transform-origin:0 0}
   /* 영역 — 구분감 강화: 상단 컬러 바 + 헤더 띠 + 은은한 광 */
-  .mtc-zone{position:absolute;border-radius:14px;cursor:move;
-    background:linear-gradient(180deg,color-mix(in srgb,var(--zc) 11%,transparent) 0,color-mix(in srgb,var(--zc) 3.5%,transparent) 46px,color-mix(in srgb,var(--zc) 2.5%,transparent) 100%);
-    border:1px solid color-mix(in srgb,var(--zc) 34%,transparent);
-    box-shadow:inset 0 3px 0 0 var(--zc), 0 2px 18px color-mix(in srgb,var(--zc) 9%,transparent);
+  /* 영역 — 색은 얇은 상단선과 라벨에만. 면은 거의 중립으로 두어 차분하게. */
+  .mtc-zone{position:absolute;border-radius:13px;cursor:move;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--zc) 5.5%,rgba(255,255,255,.012)) 0,rgba(255,255,255,.008) 40px,rgba(255,255,255,.006) 100%);
+    border:1px solid color-mix(in srgb,var(--zc) 20%,rgba(255,255,255,.06));
+    box-shadow:inset 0 2px 0 0 color-mix(in srgb,var(--zc) 62%,transparent), 0 1px 14px rgba(0,0,0,.28);
     transition:box-shadow .18s cubic-bezier(.2,.8,.2,1),border-color .18s,background .18s}
-  .mtc-zone.mtc-over{border-color:var(--zc);
-    background:linear-gradient(180deg,color-mix(in srgb,var(--zc) 22%,transparent) 0,color-mix(in srgb,var(--zc) 11%,transparent) 100%);
-    box-shadow:inset 0 3px 0 0 var(--zc), 0 0 0 2px color-mix(in srgb,var(--zc) 40%,transparent), 0 8px 34px color-mix(in srgb,var(--zc) 26%,transparent)}
-  .mtc-zone-lb{position:absolute;left:0;right:0;top:0;height:34px;display:flex;align-items:center;gap:6px;padding:0 14px;
-    font:12px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;letter-spacing:.07em;
-    color:color-mix(in srgb,var(--zc) 62%,#fff);
-    border-bottom:1px solid color-mix(in srgb,var(--zc) 20%,transparent);pointer-events:none}
-  .mtc-zone-lb b{font-size:9.5px;background:color-mix(in srgb,var(--zc) 32%,transparent);color:#fff;border-radius:6px;padding:1.5px 7px;font-weight:800}
+  .mtc-zone.mtc-over{border-color:color-mix(in srgb,var(--zc) 55%,transparent);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--zc) 13%,transparent) 0,color-mix(in srgb,var(--zc) 5%,transparent) 100%);
+    box-shadow:inset 0 2px 0 0 var(--zc), 0 0 0 1px color-mix(in srgb,var(--zc) 30%,transparent), 0 10px 34px rgba(0,0,0,.42)}
+  .mtc-zone-lb{position:absolute;left:0;right:0;top:0;height:33px;display:flex;align-items:center;gap:6px;padding:0 14px;
+    font:11.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;letter-spacing:.06em;
+    color:color-mix(in srgb,var(--zc) 68%,#e8e8e6);
+    border-bottom:1px solid rgba(255,255,255,.05);pointer-events:none}
+  .mtc-zone-lb b{font-size:9px;background:rgba(255,255,255,.07);color:color-mix(in srgb,var(--zc) 55%,#fff);border-radius:5px;padding:1.5px 6px;font-weight:700}
   .mtc-zone-tidy{position:absolute;right:9px;top:6px;z-index:2;border-radius:7px;cursor:pointer;
     background:color-mix(in srgb,var(--zc) 16%,rgba(20,20,20,.6));border:1px solid color-mix(in srgb,var(--zc) 34%,transparent);
     color:color-mix(in srgb,var(--zc) 72%,#fff);font:9.5px ui-monospace,'Malgun Gothic',monospace;font-weight:800;padding:3px 8px;
     opacity:0;transition:opacity .15s,background .15s}
   .mtc-zone:hover .mtc-zone-tidy{opacity:.9}
   .mtc-zone-tidy:hover{opacity:1!important;background:color-mix(in srgb,var(--zc) 30%,transparent)}
-  /* 크기 조절 손잡이 — 잡기 쉽게 히트박스를 크게 (보이는 삼각형은 안쪽에) */
+  /* 크기 손잡이 — 히트박스는 넓게(투명), 보이는 건 얇은 코너 브래킷만 */
   .mtc-resize{position:absolute;right:-6px;bottom:-6px;width:42px;height:42px;cursor:nwse-resize;z-index:3;
-    background:radial-gradient(circle at 76% 76%, color-mix(in srgb,var(--zc) 62%,transparent) 0 9px, transparent 10px);
-    opacity:.5;transition:opacity .15s,transform .15s}
+    background:none;opacity:0;transition:opacity .16s}
+  .mtc-resize::after{content:'';position:absolute;right:9px;bottom:9px;width:13px;height:13px;
+    border-right:1.5px solid rgba(255,255,255,.4);border-bottom:1.5px solid rgba(255,255,255,.4);
+    border-bottom-right-radius:5px;transition:border-color .16s}
   .mtc-zone:hover .mtc-resize{opacity:1}
-  .mtc-resize:hover{transform:scale(1.15)}
+  .mtc-resize:hover::after{border-color:rgba(255,255,255,.78)}
   /* 미니멀 가로 카드 — 한 줄, 왼쪽 컬러 바로 종류 구분 */
   .mtc-note{position:absolute;width:228px;display:flex;align-items:center;gap:6px;padding:7px 9px;
     border-radius:9px;cursor:grab;z-index:5;
@@ -16906,8 +16931,10 @@ function mtCanvasHTML(ctx){
     /* 애니 1: 들었다 놓을 때 스프링처럼 안착 · 글꼴/크기도 부드럽게 */
     transition:transform .34s cubic-bezier(.2,1.25,.35,1),box-shadow .2s ease,border-color .15s ease,font-size .16s cubic-bezier(.3,.9,.3,1),width .16s cubic-bezier(.3,.9,.3,1)}
   .mtc-note:hover{border-color:color-mix(in srgb,var(--nc) 55%,transparent);box-shadow:0 6px 18px rgba(0,0,0,.5);transform:translateY(-1px);z-index:6}
-  /* 드래그 중인 카드 — 트랜지션을 끄고 GPU 레이어로 올려서 프레임 낙차를 없앤다 */
-  .mtc-note.mtc-lifting{z-index:999;box-shadow:0 18px 38px rgba(0,0,0,.62);cursor:grabbing;border-color:var(--nc);
+  /* 드래그 중인 카드 — 크기는 그대로(선 밖으로 안 나가게), 떠오른 느낌은 그림자와 밝기로만 */
+  .mtc-note.mtc-lifting{z-index:999;cursor:grabbing;border-color:color-mix(in srgb,var(--nc) 70%,transparent);
+    background:linear-gradient(180deg,rgba(41,41,40,.98),rgba(32,32,31,.98));
+    box-shadow:0 2px 6px rgba(0,0,0,.5), 0 22px 46px rgba(0,0,0,.6);
     transition:none!important;will-change:transform;backface-visibility:hidden}
   /* 드래그 중엔 다른 요소의 트랜지션·애니메이션·그림자 연산을 멈춰 프레임을 확보 */
   body.mtc-dragging .mtc-note:not(.mtc-lifting){transition:none!important}
@@ -16945,15 +16972,16 @@ function mtCanvasHTML(ctx){
   .mtc-note.mtc-pop{animation:mtcPop .34s cubic-bezier(.2,1.2,.35,1)}
   /* 애니 3: 연결 대상 카드가 은은하게 맥동 */
   @keyframes mtcPulse{0%,100%{box-shadow:0 0 0 2px rgba(194,160,74,.5),0 4px 14px rgba(0,0,0,.5)}50%{box-shadow:0 0 0 5px rgba(194,160,74,.16),0 4px 18px rgba(0,0,0,.55)}}
-  /* 카드 크기 손잡이 — 히트박스 26px, 보이는 표시는 작게 */
-  .mtcn-rz{position:absolute;right:-5px;bottom:-5px;width:26px;height:26px;cursor:nwse-resize;opacity:0;transition:opacity .15s;z-index:2;
-    background:radial-gradient(circle at 72% 72%, rgba(255,255,255,.5) 0 5px, transparent 6px)}
-  .mtc-note:hover .mtcn-rz{opacity:.8}
-  .mtcn-rz:hover{opacity:1!important}
-  .mtcn-inbox{--nc:#5fa3d9}
-  .mtcn-passive{--nc:#b074ec}
-  .mtcn-active{--nc:#c2a04a}
-  .mtcn-done{--nc:#3aa05a;opacity:.58}
+  /* 카드 크기 손잡이 — 히트박스 26px, 보이는 건 아주 작은 코너 브래킷 */
+  .mtcn-rz{position:absolute;right:-5px;bottom:-5px;width:26px;height:26px;cursor:nwse-resize;opacity:0;transition:opacity .15s;z-index:2}
+  .mtcn-rz::after{content:'';position:absolute;right:7px;bottom:7px;width:8px;height:8px;
+    border-right:1.5px solid rgba(255,255,255,.4);border-bottom:1.5px solid rgba(255,255,255,.4);border-bottom-right-radius:4px;transition:border-color .16s}
+  .mtc-note:hover .mtcn-rz{opacity:1}
+  .mtcn-rz:hover::after{border-color:rgba(255,255,255,.8)}
+  .mtcn-inbox{--nc:${MTC_C.slate}}
+  .mtcn-passive{--nc:${MTC_C.lilac}}
+  .mtcn-active{--nc:${MTC_C.amber}}
+  .mtcn-done{--nc:${MTC_C.sage};opacity:.58}
   .mtcn-done:hover{opacity:.85}
   .mtcn-done .mtcn-text{text-decoration:line-through}
   .mtcn-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:keep-all;white-space:pre-wrap}
@@ -16983,9 +17011,9 @@ function mtCanvasHTML(ctx){
   /* 아직 안 붙었을 때 — 더 흐린 자국 */
   .mtc-guide-near{opacity:.3!important;animation:none!important;box-shadow:0 0 8px rgba(0,0,0,.5)!important}
   /* 딱 붙는 순간 — 빛나지 않고, 그림자가 한 번 깊어졌다 돌아옴 */
-  @keyframes mtcSnapTick{0%{box-shadow:0 18px 38px rgba(0,0,0,.62)}
-    38%{box-shadow:0 3px 10px rgba(0,0,0,.85), 0 22px 50px rgba(0,0,0,.5)}
-    100%{box-shadow:0 18px 38px rgba(0,0,0,.62)}}
+  @keyframes mtcSnapTick{0%{box-shadow:0 2px 6px rgba(0,0,0,.5), 0 22px 46px rgba(0,0,0,.6)}
+    36%{box-shadow:0 1px 3px rgba(0,0,0,.9), 0 8px 18px rgba(0,0,0,.55)}
+    100%{box-shadow:0 2px 6px rgba(0,0,0,.5), 0 22px 46px rgba(0,0,0,.6)}}
   .mtc-note.mtc-snapped{animation:mtcSnapTick .28s cubic-bezier(.3,.8,.3,1)}
   @keyframes mtcSnapTickBox{0%,100%{filter:none}45%{filter:brightness(1.12) contrast(1.04)}}
   .mtc-zone.mtc-snapped,.mtc-member.mtc-snapped{animation:mtcSnapTickBox .3s ease-out}
@@ -17059,14 +17087,14 @@ function mtCanvasHTML(ctx){
   /* 카드 ↔ 카드 — 가는 실선 */
   .mtc-link-cc .mtc-link-line{fill:none;stroke:rgba(235,235,245,.42);stroke-width:1.8}
   /* 박스 ↔ 박스 — 굵은 점선 + 청록, 흐름을 나타내듯 천천히 흐름 */
-  .mtc-link-zz .mtc-link-line{fill:none;stroke:#7ad3c4;stroke-width:3.4;stroke-dasharray:11 8;stroke-linecap:round;
-    opacity:.82;filter:drop-shadow(0 0 5px rgba(122,211,196,.35));animation:mtcFlow 1.4s linear infinite}
-  @keyframes mtcFlow{to{stroke-dashoffset:-38}}
+  .mtc-link-zz .mtc-link-line{fill:none;stroke:#6ba59d;stroke-width:2.6;stroke-dasharray:10 6;stroke-linecap:round;
+    opacity:.85;animation:mtcFlow 1.6s linear infinite}
+  @keyframes mtcFlow{to{stroke-dashoffset:-32}}
   /* 박스 ↔ 카드 — 가는 점선 보라 */
-  .mtc-link-zc .mtc-link-line{fill:none;stroke:rgba(176,116,236,.7);stroke-width:2;stroke-dasharray:5 5;stroke-linecap:round}
+  .mtc-link-zc .mtc-link-line{fill:none;stroke:rgba(149,133,192,.72);stroke-width:1.9;stroke-dasharray:5 5;stroke-linecap:round}
   .mtc-link:hover .mtc-link-line{stroke:var(--re,#c46a6a)!important;stroke-width:3;animation:none;filter:none}
   .mtc-note.mtc-linksel{border-color:var(--ac,#c2a04a);z-index:7;animation:mtcPulse 1.5s ease-in-out infinite}
-  .mtc-zone.mtc-linksel{border-color:#7ad3c4!important;box-shadow:inset 0 3px 0 0 var(--zc),0 0 0 2px rgba(122,211,196,.45),0 0 28px rgba(122,211,196,.25)}
+  .mtc-zone.mtc-linksel{border-color:#6ba59d!important;box-shadow:inset 0 3px 0 0 var(--zc),0 0 0 2px rgba(122,211,196,.45),0 0 28px rgba(122,211,196,.25)}
   .mtc-note.mtc-sizing{box-shadow:0 3px 10px rgba(0,0,0,.8),0 16px 40px rgba(0,0,0,.5)!important}
   body.mtc-linking .mtc-zone{cursor:crosshair}
   .mtc-toolbar .mtc-tb-link.on{border-color:#5fa3d9;color:#8cc4ee;background:rgba(95,163,217,.15)}
@@ -17086,9 +17114,9 @@ function mtCanvasHTML(ctx){
   /* 인원 카드 */
   /* 인원 카드 — 역할별 색 (ADMIN 초록 · OP 빨강 · LEADER 노랑) */
   .mtc-member{position:absolute;width:200px;height:88px;border-radius:12px;cursor:move;z-index:4;display:flex;align-items:center;gap:10px;padding:0 13px;
-    background:linear-gradient(135deg,color-mix(in srgb,var(--rc,#8a8a8a) 15%,rgba(24,24,23,.94)),rgba(24,24,23,.94));
-    border:1.5px solid color-mix(in srgb,var(--rc,#8a8a8a) 58%,transparent);
-    box-shadow:0 2px 12px rgba(0,0,0,.35), inset 0 0 22px color-mix(in srgb,var(--rc,#8a8a8a) 7%,transparent);
+    background:linear-gradient(135deg,color-mix(in srgb,var(--rc,#8a8a8a) 9%,rgba(26,26,25,.95)),rgba(24,24,23,.95));
+    border:1px solid color-mix(in srgb,var(--rc,#8a8a8a) 40%,transparent);
+    box-shadow:inset 0 2px 0 0 color-mix(in srgb,var(--rc,#8a8a8a) 55%,transparent), 0 2px 12px rgba(0,0,0,.35);
     transition:box-shadow .18s cubic-bezier(.2,.8,.2,1),transform .18s cubic-bezier(.2,.8,.2,1),border-color .15s}
   .mtc-member:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.45), inset 0 0 22px color-mix(in srgb,var(--rc) 12%,transparent)}
   .mtc-member.mtc-over{border-color:var(--rc);transform:translateY(-3px) scale(1.025);
@@ -17098,8 +17126,9 @@ function mtCanvasHTML(ctx){
   .mtc-member-rl{display:inline-block;font-size:.67em;font-family:ui-monospace,monospace;font-weight:800;letter-spacing:.11em;color:color-mix(in srgb,var(--rc) 75%,#fff);
     background:color-mix(in srgb,var(--rc) 20%,transparent);border-radius:4px;padding:1px 5px;margin-top:3px}
   .mtc-member-st{font-size:.83em;font-family:ui-monospace,monospace;color:var(--tx3);margin-top:3px}
-  .mtc-mrz{background:radial-gradient(circle at 74% 74%, color-mix(in srgb,var(--rc,#888) 75%,transparent) 0 7px, transparent 8px);opacity:0;width:34px;height:34px;right:-5px;bottom:-5px}
-  .mtc-member:hover .mtc-mrz{opacity:.95}
+  .mtc-mrz{width:34px;height:34px;right:-5px;bottom:-5px}
+  .mtc-mrz::after{right:8px;bottom:8px;width:11px;height:11px}
+  .mtc-member:hover .mtc-mrz{opacity:1}
   .mtc-personal-tag{position:absolute;left:12px;bottom:12px;z-index:20;font:10px ui-monospace,'Malgun Gothic',monospace;font-weight:700;
     color:#8cc4ee;background:rgba(95,163,217,.12);border:1px solid rgba(95,163,217,.3);border-radius:8px;padding:5px 10px}
   .mtc-member-p1{color:#e88b84}
@@ -17161,12 +17190,16 @@ function mtCanvasHTML(ctx){
       ${zonesHTML}
       <svg id="mtc-links" width="${MTC_SURFACE.w}" height="${MTC_SURFACE.h}">
         <defs>
-          <marker id="mtc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="rgba(235,235,245,.45)"/></marker>
-          <marker id="mtc-arrow-z" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="#7ad3c4"/></marker>
-          <marker id="mtc-arrow-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="rgba(176,116,236,.75)"/></marker>
+          <!-- markerUnits=userSpaceOnUse: 선 두께와 무관한 고정 크기 → 촉이 선 한가운데에 정확히 붙는다 -->
+          <marker id="mtc-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="11" markerHeight="11"
+                  markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <path d="M1,1 L11,6 L1,11 z" fill="rgba(235,235,245,.5)"/></marker>
+          <marker id="mtc-arrow-z" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="15" markerHeight="15"
+                  markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <path d="M1,1 L11,6 L1,11 z" fill="#6ba59d"/></marker>
+          <marker id="mtc-arrow-m" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12"
+                  markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+            <path d="M1,1 L11,6 L1,11 z" fill="rgba(149,133,192,.85)"/></marker>
         </defs>
       </svg>
       ${memberZones}
@@ -17948,11 +17981,12 @@ function _mtcNoteDown(e, note, vp){
     const sn = _mtcSnapPos(rx, ry, noteW, noteH, note, targets);   // 자석 정렬 (좌표는 캐시 사용)
     nx = sn.x; ny = sn.y;
     // 합성(compositing)만 일어나는 transform — 레이아웃/페인트 없음
-    note.style.transform = `translate3d(${nx-ox}px,${ny-oy}px,0) scale(1.02)`;   // 기울임 없이 살짝 떠오르기만
+    // 확대하지 않는다 — 커지면 그만큼 카드가 가이드선 밖으로 삐져나온다. 떠오른 느낌은 그림자로만.
+    note.style.transform = `translate3d(${nx-ox}px,${ny-oy}px,0)`;
     const key = sn.guides.map(g=>g.key).join('|');
     if(key !== lastKey){ lastKey = key; _mtcShowGuides(sn.guides, note); }   // 스냅이 바뀔 때만
     else if(sn.guides.length) _mtcSizeGuides(sn.guides);
-    if(hasLinks){ note.style.left = nx+'px'; note.style.top = ny+'px'; note.style.transform = 'scale(1.02)'; _mtcDrawLinks(note); }
+    if(hasLinks){ note.style.left = nx+'px'; note.style.top = ny+'px'; note.style.transform = 'none'; _mtcDrawLinks(note); }
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);
     if(hit !== prevHit){ _mtcMarkOver(hit, prevHit, note, ny); prevHit = hit; }
     else if(hit && hit.key === 'active') _mtcMarkBand(hit, ny);
