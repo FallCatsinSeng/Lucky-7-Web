@@ -11460,7 +11460,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v775';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v822';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
@@ -28063,13 +28063,26 @@ function _csInjectCSS(){
    구성을 보스가 직접 바꿀 수 있게 한다(아래 기본값은 출발점일 뿐, PCB_COLS_CUSTOM이 있으면 그게 이긴다).
    id는 저장된 카드 분류의 키라서 한 번 정해지면 안 바꾼다 — 이름만 바뀐다. */
 const PCB_COLS_DEFAULT = [
-  { id:'inquiry', name:'문의 · 미확정',   desc:'연락만 옴 · 확정 전',     c:'#8A7CA8' },
-  { id:'hold',    name:'대기 · STAND BY', desc:'확정 · 시작 대기',       c:'#C87B54' },
-  { id:'staffing',name:'인원 모으는 중',  desc:'사람 채우는 중',         c:'#C9963A' },
-  { id:'test',    name:'테스트 예정',    desc:'배정 완료 · 테스트 대기', c:'#5FA3D9' },
-  { id:'live',    name:'운영 중',       desc:'정상 가동',            c:'#4E9A62' },
-  { id:'empty',   name:'빈 PC',        desc:'계정 미배정',           c:'#6E7A6C' }
+  { id:'inquiry', name:'문의 · 미확정',   en:'INQUIRY',  desc:'연락만 옴 · 확정 전',     descEn:'Contacted · not confirmed', c:'#8A7CA8' },
+  { id:'hold',    name:'대기 · STAND BY', en:'STAND BY', desc:'확정 · 시작 대기',       descEn:'Confirmed · waiting',       c:'#C87B54' },
+  { id:'staffing',name:'인원 모으는 중',  en:'STAFFING', desc:'사람 채우는 중',         descEn:'Filling shifts',            c:'#C9963A' },
+  { id:'test',    name:'테스트 예정',    en:'TEST',     desc:'배정 완료 · 테스트 대기', descEn:'Assigned · test pending',   c:'#5FA3D9' },
+  { id:'live',    name:'운영 중',       en:'LIVE',     desc:'정상 가동',            descEn:'Running',                   c:'#4E9A62' },
+  { id:'empty',   name:'빈 PC',        en:'EMPTY PC', desc:'계정 미배정',           descEn:'No account',                c:'#6E7A6C' }
 ];
+/* [v822] 보드 전용 i18n — 언어 토글(setLang→reload)마다 렌더 시점에 _uiLang()으로 갈린다.
+   커스텀으로 이름을 바꾼 단계는 사용자 데이터라 번역하지 않고 그대로 둔다(기본 이름일 때만 EN 치환). */
+function _iqT(ko,en){ try{ return (_uiLang()==='ko')?ko:en; }catch(_){ return ko; } }
+function _pcbColName(col){
+  if(_iqT(1,0)) return col.name;
+  const d = PCB_COLS_DEFAULT.find(x=>x.id===col.id);
+  return (d && col.name===d.name && d.en) ? d.en : col.name;
+}
+function _pcbColDesc(col){
+  if(_iqT(1,0)) return col.desc||'';
+  const d = PCB_COLS_DEFAULT.find(x=>x.id===col.id);
+  return (d && (col.desc===d.desc||!col.desc) && d.descEn) ? d.descEn : (col.desc||'');
+}
 let PCB_COLS_CUSTOM = null;
 const PCB_PALETTE = ['#8A7CA8','#C87B54','#C9963A','#5FA3D9','#4E9A62','#6E7A6C','#B5677D','#4F9A93'];
 Object.defineProperty(window, 'PCB_COLS', {
@@ -28079,6 +28092,10 @@ Object.defineProperty(window, 'PCB_COLS', {
 let PCB_STATE = {};            // { [pcId]: { col, note } } — 사용자가 지정한 것만
 let _pcbDragPc = null;
 let _pcbLoaded = false;
+/* [v822] 문의(Inquiry) 카드 — PC가 아직 없는 "전화 온 건"을 담는 카드. 같은 pc_board KV에 inq로 저장.
+   {id, name, source, start, days, hours, pcKey, staff:[], tester, note, col, crmId, applied, testAt, createdAt, createdBy} */
+let PCB_INQ = [];
+let _pcbDragInq = null;        // 드래그 중인 문의 카드 id
 
 /* ── [v749] 배치 플래너 (boss 8/13) ──────────────────────────────────────────────────────
    보스가 클라이언트가 들어올 때마다 디스코드 글을 직접 고쳐가며 "PC23에 넣었던 사람을 PC21로"
@@ -28143,8 +28160,8 @@ async function _pcbLoad(){
     const { data } = await sb.from('trust_state').select('data').eq('id','pc_board').maybeSingle();
     const d = (data && data.data && typeof data.data==='object') ? data.data : {};
     /* v747은 { [pcId]:{col,note} } 를 통째로 저장했다. 그 형태도 그대로 읽히게 둔다(마이그레이션 불필요) */
-    if(d.__v2){ PCB_STATE = d.state||{}; PCB_PLAN = d.plan||{}; PCB_EXTRA = Array.isArray(d.extra)?d.extra:[]; PCB_COLS_CUSTOM = Array.isArray(d.cols)?d.cols:null; }
-    else { PCB_STATE = d; PCB_PLAN = {}; PCB_EXTRA = []; PCB_COLS_CUSTOM = null; }
+    if(d.__v2){ PCB_STATE = d.state||{}; PCB_PLAN = d.plan||{}; PCB_EXTRA = Array.isArray(d.extra)?d.extra:[]; PCB_COLS_CUSTOM = Array.isArray(d.cols)?d.cols:null; PCB_INQ = Array.isArray(d.inq)?d.inq:[]; }
+    else { PCB_STATE = d; PCB_PLAN = {}; PCB_EXTRA = []; PCB_COLS_CUSTOM = null; PCB_INQ = []; }
   }catch(e){ console.warn('pc_board load failed:', e && e.message); }
   _pcbLoaded = true;
 }
@@ -28153,7 +28170,7 @@ function _pcbSave(){
   if(!sb) return;
   clearTimeout(_pcbSaveTimer);
   _pcbSaveTimer = setTimeout(async () => {
-    try{ await _dbUpsert('trust_state','pc_board', { __v2:true, state:PCB_STATE, plan:PCB_PLAN, extra:PCB_EXTRA, cols:PCB_COLS_CUSTOM }); }
+    try{ await _dbUpsert('trust_state','pc_board', { __v2:true, state:PCB_STATE, plan:PCB_PLAN, extra:PCB_EXTRA, cols:PCB_COLS_CUSTOM, inq:PCB_INQ }); }
     catch(e){ toast('보드 저장 실패: ' + (e && e.message), true); }
   }, 500);
 }
@@ -28236,6 +28253,12 @@ function _pcbGather(){
 }
 function _pcbEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
+/* ═══ [v822] 가로 파이프라인 렌더 — boss 8/20 ═══════════════════════════════════════════════
+   "계정 보드는 세로 형식보다 가로 형식이 맞는 것 같거든" — v755의 세로 문서형을 뒤집어 채용 보드처럼
+   단계가 가로로 늘어서는 칸반으로. 문의(전화 온 건)는 PC가 생기기 전에도 카드로 만들 수 있고(＋ 문의),
+   PC·CRM·담당·테스터와 연결한 뒤 [테스트 공지]→[확정 적용]으로 공지·캘린더·PC현황·기준EXP까지 이어진다.
+   드래그는 전부 초안(v749 원칙 유지) — 실제 반영은 🚀 확정 적용 버튼 하나로만 일어난다.
+   전 라벨 _iqT(ko,en) — 언어 전환(재로드) 시 그대로 갈아입는다. */
 async function renderPcBoard(){
   const host = document.getElementById('ch-other'); if(!host) return;
   _pcbInjectCSS();
@@ -28243,126 +28266,220 @@ async function renderPcBoard(){
   if(!Object.keys(PCB_PLAN).length) _pcbSeedPlanFromLive();
   const items = _pcbGather();
   const buckets = {}; PCB_COLS.forEach(c => buckets[c.id] = []);
+  const firstCol = (PCB_COLS[0]||{}).id;
   items.forEach(it => {
     const saved = PCB_STATE[it.key] || PCB_STATE[it.pc] || {};
     let col = saved.col;
     if(!col || !buckets[col]) col = it.planned ? 'staffing' : _pcbAutoCol(it);
+    if(!buckets[col]) col = firstCol;
     // 클라이언트가 빠졌는데 예전 분류가 남아있으면 빈 PC로 되돌린다(실데이터가 항상 우선)
-    if(!it.planned && !it.clientName && col !== 'empty' && col !== 'hold') col = 'empty';
+    if(!it.planned && !it.clientName && col !== 'empty' && col !== 'hold' && buckets.empty) col = 'empty';
     buckets[col].push({ ...it, note: saved.note || '', label: saved.label || '',
                         assigned: saved.assigned || '', status: saved.status || '', action: saved.action || '' });
   });
-  const planned = _pcbPlanned();
-  const pool = _pcbAllStaff().filter(s => !planned.has(s.id));
+  const iqBuckets = {}; PCB_COLS.forEach(c => iqBuckets[c.id] = []);
+  PCB_INQ.forEach(iq => { const c = iqBuckets[iq.col] ? iq.col : firstCol; if(iqBuckets[c]) iqBuckets[c].push(iq); });
 
-  const cols = PCB_COLS.map(col => {
-    const cards = buckets[col.id].map(it => {
-      const rows = PCB_PLAN[it.key] || [];
-      const shift = _pcbShiftOf(it.key);
-      const slotDefs = _pcbSlotsFor(it.key);
-      const slots = slotDefs.map(sl => {
-        const r = rows.find(x => x.slot === sl.id);
-        const who = r && r.staffId ? _pcbStaffName(r.staffId) : '';
-        const armed = _pcbSel && !who;                 // 선택 상태에서 빈 칸은 "여기 클릭" 대상
-        return `<div class="pcb-slot${who?' filled':''}${armed?' armed':''}" data-key="${it.key}" data-slot="${sl.id}"
-             onclick="_pcbSlotClick(event,'${it.key}',${sl.id})"
-             ondragover="_pcbSlotOver(event)" ondragleave="_pcbSlotLeave(event)"
-             ondrop="_pcbSlotDrop(event,'${it.key}',${sl.id})">
-          <span class="pcb-slabel">${sl.name}<em class="pcb-shr">${sl.time}</em></span>
-          ${who
-            ? `<span class="pcb-person" draggable="true"
-                 ondragstart="_pcbPersonDrag(event,'${r.staffId}','${it.key}',${sl.id})" ondragend="_pcbPersonEnd(event)"
-                 >${_pcbEsc(who)}<button class="pcb-x" onclick="event.stopPropagation();_pcbClearSlot('${it.key}',${sl.id})" title="빼기">✕</button></span>`
-            : `<span class="pcb-slotempty">${armed?'⬇ 여기 클릭':'비어 있음'}</span>`}
-          <span class="pcb-stime">${sl.jkt}</span>
-        </div>`;
-      }).join('');
-      const meta = [it.lv?('Lv '+it.lv):'', it.job||''].filter(Boolean).join(' · ');
-      const filled = rows.filter(r=>r.staffId).length;
-      /* [v755] boss 8/15 "그냥 세로 모양으로" — 디스코드에 직접 쓰던 그 문서 형태 그대로 옮긴다.
-         Account / Assigned / Status / Action / Note 다섯 줄이 그가 쓰던 필드다. 전부 그 자리에서 편집. */
-      const fld = (f, ph) => `<div class="pcb-frow">
-          <span class="pcb-fkey">${f.cap}</span>
-          <div class="pcb-fval" contenteditable="true" spellcheck="false" draggable="false"
-               onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
-               ondragstart="event.preventDefault();event.stopPropagation()"
-               onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-               onblur="${f.on}" data-ph="${ph}">${_pcbEsc(f.v)}</div>
-          ${f.extra||''}
-        </div>`;
-      return `<div class="pcb-card${it.planned?' is-planned':''}" draggable="true" data-key="${it.key}"
-          ondragstart="_pcbDragStart(event,'${it.key}')" ondragend="_pcbDragEnd(event)">
-        <div class="pcb-top">
-          <span class="pcb-pc${it.planned?' editable':''}"${it.planned?` onclick="event.stopPropagation();_pcbRenamePc('${it.key}')" title="클릭하면 PC 번호를 바꿉니다"`:''}>PC ${it.pc}</span>
-          ${it.planned?`<span class="pcb-plantag">계획</span>`:''}
-          <span class="pcb-cover${filled>=slotDefs.length?' ok':''}">${filled}/${slotDefs.length}</span>
-          ${meta?`<span class="pcb-meta">${_pcbEsc(meta)}</span>`:''}
-          <span class="pcb-shift" title="이 PC의 교대 구성">
-            ${PCB_SHIFT_ORDER.map(k=>`<button class="pcb-shbtn${shift===k?' on':''}"
-                 onclick="event.stopPropagation();_pcbSetShift('${it.key}','${k}')">${PCB_SHIFTSETS[k].slots.length}교대</button>`).join('')}
-          </span>
-          ${it.planned?`<button class="pcb-pcdel" onclick="event.stopPropagation();_pcbDelPc('${it.key}')" title="이 계획 PC 삭제">✕</button>`:''}
-        </div>
-        <div class="pcb-fields">
-          ${fld({cap:'Account', v:(it.label||it.clientName), on:`_pcbAccEdit('${it.key}', this.textContent)`,
-                 extra:(!it.planned && it.label) ? `<button class="pcb-revert" onclick="event.stopPropagation();_pcbAccEdit('${it.key}','')"
-                   title="실제 클라이언트 이름(${_pcbEsc(it.clientName||'없음')})으로 되돌리기">↺</button>` : ''},
-                 '계정 이름…')}
-          ${fld({cap:'Assigned', v:it.assigned, on:`_pcbField('${it.key}','assigned', this.textContent)`},
-                 '예: 2 Person or 3 Person (24 Hours) &gt; 1 SET')}
-          ${fld({cap:'Status',   v:it.status,   on:`_pcbField('${it.key}','status', this.textContent)`},   '예: FIXED · STAND BY')}
-          ${fld({cap:'Action',   v:it.action,   on:`_pcbField('${it.key}','action', this.textContent)`},   '예: TEST next monday')}
-          ${fld({cap:'Note',     v:it.note,     on:`_pcbNote('${it.key}', this.textContent)`},             '메모…')}
-        </div>
-        <div class="pcb-slots">${slots}</div>
+  const vet = _pcbVeteranSet();
+  const pcOptions = items.slice().sort((a,b)=>Number(a.pc)-Number(b.pc))
+    .map(it=>`<option value="${it.key}">PC ${it.pc}${it.planned?_iqT(' (계획)',' (plan)'):''}${it.clientName?' — '+_pcbEsc(it.clientName):''}</option>`).join('');
+
+  /* ── 문의 카드 ── */
+  const iqCard = iq => {
+    const mini = (f, icon, ph) => `<div class="pcb-iqcell">
+        <span class="pcb-iqcap">${icon}</span>
+        <div class="pcb-fval iq" contenteditable="true" spellcheck="false" draggable="false"
+             onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+             ondragstart="event.preventDefault();event.stopPropagation()"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+             onblur="_pcbInqField('${iq.id}','${f}', this.textContent)" data-ph="${ph}">${_pcbEsc(iq[f]||'')}</div>
+      </div>`;
+    const staffChips = (iq.staff||[]).map(sid=>`<span class="pcb-person tag" draggable="true"
+          ondragstart="_pcbPersonDrag(event,'${sid}','','')" ondragend="_pcbPersonEnd(event)">${_pcbEsc(_pcbStaffName(sid))}<button class="pcb-x" onclick="event.stopPropagation();_pcbInqRmStaff('${iq.id}','${sid}')">✕</button></span>`).join('');
+    const testerChip = iq.tester ? `<span class="pcb-person tag${vet.has(iq.tester)?' vet':''}" draggable="true"
+          ondragstart="_pcbPersonDrag(event,'${iq.tester}','','')" ondragend="_pcbPersonEnd(event)">${vet.has(iq.tester)?'⭐ ':''}${_pcbEsc(_pcbStaffName(iq.tester))}<button class="pcb-x" onclick="event.stopPropagation();_pcbInqSetTester('${iq.id}',null)">✕</button></span>` : '';
+    const armed = !!_pcbSel;
+    const linkedPc = iq.pcKey ? items.find(x=>x.key===iq.pcKey) : null;
+    return `<div class="pcb-iq" draggable="true" data-iq="${iq.id}"
+        ondragstart="_pcbInqDragStart(event,'${iq.id}')" ondragend="_pcbDragEnd(event)">
+      <div class="pcb-iqtop">
+        <span class="pcb-iqtag">${_iqT('문의','INQ')}</span>
+        <div class="pcb-iqname" contenteditable="true" spellcheck="false" draggable="false"
+             onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+             ondragstart="event.preventDefault();event.stopPropagation()"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+             onblur="_pcbInqField('${iq.id}','name', this.textContent)" data-ph="${_iqT('클라이언트 이름…','Client name…')}">${_pcbEsc(iq.name||'')}</div>
+        ${iq.applied?`<span class="pcb-stamp ok" title="${_pcbEsc((iq.applied.at||'').slice(0,10))} · ${_pcbEsc(iq.applied.by||'')}">✅ ${_iqT('적용됨','Applied')}</span>`:''}
+        <button class="pcb-pcdel" onclick="event.stopPropagation();_pcbInqDel('${iq.id}')" title="${_iqT('문의 삭제','Delete inquiry')}">✕</button>
+      </div>
+      <div class="pcb-iqgrid">
+        ${mini('source','📞',_iqT('경로 — 예: 지인 소개','How — e.g. referral'))}
+        ${mini('start','📅',_iqT('시작 — 2026-08-25','Start — 2026-08-25'))}
+        ${mini('days','⏳',_iqT('기간 — 예: 30일','Days — e.g. 30d'))}
+        ${mini('hours','🕐',_iqT('시간 — 예: 09–19','Hours — e.g. 09–19'))}
+      </div>
+      <div class="pcb-iqlink">
+        ${linkedPc
+          ? `<span class="pcb-chip pc" onclick="setActiveChannel('pc-status')" title="${_iqT('PC 현황으로 이동','Open PC status')}">🖥 PC ${linkedPc.pc}${linkedPc.planned?_iqT('·계획','·plan'):''}<button class="pcb-x" onclick="event.stopPropagation();_pcbInqLinkPc('${iq.id}','')">✕</button></span>`
+          : `<select class="pcb-iqsel" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" onchange="_pcbInqLinkPc('${iq.id}', this.value)">
+               <option value="">${_iqT('🖥 PC 연결…','🖥 Link PC…')}</option>${pcOptions}</select>`}
+        ${iq.crmId
+          ? `<span class="pcb-chip crm" onclick="_pcbInqCrm('${iq.id}')" title="${_iqT('클라이언트(CRM) 열기','Open client (CRM)')}">🤝 CRM</span>`
+          : `<button class="pcb-mini" onclick="_pcbInqCrm('${iq.id}')" title="${_iqT('인사 › 클라이언트에 등록하고 연결','Register in HR › Clients and link')}">＋ CRM</button>`}
+      </div>
+      <div class="pcb-iqzone${armed?' armed':''}" ondragover="_pcbSlotOver(event)" ondragleave="_pcbSlotLeave(event)"
+           ondrop="_pcbInqDropStaff(event,'${iq.id}','staff')" onclick="_pcbInqZoneClick(event,'${iq.id}','staff')">
+        <span class="pcb-zcap">${_iqT('담당','STAFF')}</span>
+        ${staffChips || `<span class="pcb-slotempty">${armed?_iqT('⬇ 여기 클릭','⬇ click here'):_iqT('서랍에서 끌어오기','drag from drawer')}</span>`}
+      </div>
+      <div class="pcb-iqzone${armed?' armed':''}" ondragover="_pcbSlotOver(event)" ondragleave="_pcbSlotLeave(event)"
+           ondrop="_pcbInqDropStaff(event,'${iq.id}','tester')" onclick="_pcbInqZoneClick(event,'${iq.id}','tester')">
+        <span class="pcb-zcap">${_iqT('테스터','TESTER')}</span>
+        ${testerChip || `<span class="pcb-slotempty">${armed?_iqT('⬇ 여기 클릭','⬇ click here'):_iqT('⭐ 기존 운영 직원 추천','⭐ pick a proven operator')}</span>`}
+      </div>
+      <div class="pcb-fval note" contenteditable="true" spellcheck="false" draggable="false"
+           onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+           ondragstart="event.preventDefault();event.stopPropagation()"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+           onblur="_pcbInqField('${iq.id}','note', this.textContent)" data-ph="${_iqT('메모…','Note…')}">${_pcbEsc(iq.note||'')}</div>
+      <div class="pcb-iqfoot">
+        ${iq.testAt
+          ? `<span class="pcb-stamp">🧪 ${_iqT('공지됨','posted')} ${_pcbEsc(String(iq.testAt).slice(5,10))}</span>`
+          : `<button class="pcb-mini act" onclick="_pcbInqTestPost('${iq.id}')" title="${_iqT('테스트 일정을 공지사항+캘린더에 올립니다','Posts the test to notices + calendar')}">🧪 ${_iqT('테스트 공지','Post test')}</button>`}
+        ${iq.applied
+          ? ''
+          : `<button class="pcb-mini act go" onclick="_pcbInqApply('${iq.id}')" title="${_iqT('클라이언트 등록 · PC 배정 · 공지 · 캘린더 · 기준EXP까지 한 번에','Client + PC + notice + calendar + EXP standard in one go')}">🚀 ${_iqT('확정 적용','Apply')}</button>`}
+      </div>
+    </div>`;
+  };
+
+  /* ── PC 카드 (가로 압축형) ── */
+  const pcCard = it => {
+    const rows = PCB_PLAN[it.key] || [];
+    const shift = _pcbShiftOf(it.key);
+    const slotDefs = _pcbSlotsFor(it.key);
+    const filled = rows.filter(r=>r.staffId).length;
+    const slots = slotDefs.map(sl => {
+      const r = rows.find(x => x.slot === sl.id);
+      const who = r && r.staffId ? _pcbStaffName(r.staffId) : '';
+      const armed = _pcbSel && !who;
+      return `<div class="pcb-slot${who?' filled':''}${armed?' armed':''}" data-key="${it.key}" data-slot="${sl.id}"
+           title="${sl.name} · ${sl.time} (${sl.jkt})"
+           onclick="_pcbSlotClick(event,'${it.key}',${sl.id})"
+           ondragover="_pcbSlotOver(event)" ondragleave="_pcbSlotLeave(event)"
+           ondrop="_pcbSlotDrop(event,'${it.key}',${sl.id})">
+        <span class="pcb-snum">${sl.id}</span>
+        ${who
+          ? `<span class="pcb-person" draggable="true"
+               ondragstart="_pcbPersonDrag(event,'${r.staffId}','${it.key}',${sl.id})" ondragend="_pcbPersonEnd(event)"
+               >${_pcbEsc(who)}<button class="pcb-x" onclick="event.stopPropagation();_pcbClearSlot('${it.key}',${sl.id})" title="${_iqT('빼기','remove')}">✕</button></span>`
+          : `<span class="pcb-slotempty">${armed?_iqT('⬇ 클릭','⬇ click'):sl.time.slice(0,5)}</span>`}
       </div>`;
     }).join('');
+    const meta = [it.lv?('Lv '+it.lv):'', it.job||''].filter(Boolean).join(' · ');
+    const fld = (f, ph) => `<div class="pcb-fcell">
+        <span class="pcb-fkey">${f.cap}</span>
+        <div class="pcb-fval" contenteditable="true" spellcheck="false" draggable="false"
+             onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+             ondragstart="event.preventDefault();event.stopPropagation()"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+             onblur="${f.on}" data-ph="${ph}">${_pcbEsc(f.v)}</div>
+      </div>`;
+    const linkedIqs = PCB_INQ.filter(q=>q.pcKey===it.key);
+    return `<div class="pcb-card${it.planned?' is-planned':''}" draggable="true" data-key="${it.key}"
+        ondragstart="_pcbDragStart(event,'${it.key}')" ondragend="_pcbDragEnd(event)"
+        ondragover="_pcbPcOver(event)" ondragleave="_pcbPcLeave(event)" ondrop="_pcbPcDrop(event,'${it.key}')">
+      <div class="pcb-top">
+        <span class="pcb-pc${it.planned?' editable':''}"${it.planned?` onclick="event.stopPropagation();_pcbRenamePc('${it.key}')" title="${_iqT('클릭하면 PC 번호를 바꿉니다','Click to change the PC number')}"`:''}>PC ${it.pc}</span>
+        ${it.planned?`<span class="pcb-plantag">${_iqT('계획','PLAN')}</span>`:''}
+        <span class="pcb-cover${filled>=slotDefs.length?' ok':''}">${filled}/${slotDefs.length}</span>
+        ${meta?`<span class="pcb-meta">${_pcbEsc(meta)}</span>`:''}
+        <span class="pcb-shift" title="${_iqT('이 PC의 교대 구성','Shift setup for this PC')}">
+          ${PCB_SHIFT_ORDER.map(k=>`<button class="pcb-shbtn${shift===k?' on':''}"
+               onclick="event.stopPropagation();_pcbSetShift('${it.key}','${k}')">${PCB_SHIFTSETS[k].slots.length}</button>`).join('')}
+        </span>
+        ${it.planned?`<button class="pcb-pcdel" onclick="event.stopPropagation();_pcbDelPc('${it.key}')" title="${_iqT('이 계획 PC 삭제','Delete this planned PC')}">✕</button>`:''}
+      </div>
+      <div class="pcb-accrow">
+        <div class="pcb-fval acc" contenteditable="true" spellcheck="false" draggable="false"
+             onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+             ondragstart="event.preventDefault();event.stopPropagation()"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+             onblur="_pcbAccEdit('${it.key}', this.textContent)" data-ph="${_iqT('계정 이름…','Account…')}">${_pcbEsc(it.label||it.clientName)}</div>
+        ${(!it.planned && it.label) ? `<button class="pcb-revert" onclick="event.stopPropagation();_pcbAccEdit('${it.key}','')"
+             title="${_iqT('실제 클라이언트 이름','Real client name')}(${_pcbEsc(it.clientName||'—')})${_iqT('으로 되돌리기',' — revert')}">↺</button>` : ''}
+      </div>
+      <div class="pcb-fields">
+        ${fld({cap:_iqT('배정','ASSIGN'), v:it.assigned, on:`_pcbField('${it.key}','assigned', this.textContent)`}, _iqT('예: 3인 24시간','e.g. 3P 24h'))}
+        ${fld({cap:_iqT('상태','STATUS'), v:it.status,   on:`_pcbField('${it.key}','status', this.textContent)`},   _iqT('예: FIXED','e.g. FIXED'))}
+        ${fld({cap:_iqT('조치','ACTION'), v:it.action,   on:`_pcbField('${it.key}','action', this.textContent)`},   _iqT('예: 월요일 테스트','e.g. test Mon'))}
+      </div>
+      <div class="pcb-slots">${slots}</div>
+      ${linkedIqs.length?`<div class="pcb-links">${linkedIqs.map(q=>`<span class="pcb-chip iqref" onclick="_pcbScrollIq('${q.id}')" title="${_iqT('연결된 문의로 이동','Jump to linked inquiry')}">🔗 ${_pcbEsc(q.name||_iqT('(문의)','(inquiry)'))}</span>`).join('')}</div>`:''}
+      <div class="pcb-fval note" contenteditable="true" spellcheck="false" draggable="false"
+           onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+           ondragstart="event.preventDefault();event.stopPropagation()"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+           onblur="_pcbNote('${it.key}', this.textContent)" data-ph="${_iqT('메모…','Note…')}">${_pcbEsc(it.note)}</div>
+    </div>`;
+  };
+
+  const cols = PCB_COLS.map(col => {
+    const iqs = iqBuckets[col.id].map(iqCard).join('');
+    const pcs = buckets[col.id].map(pcCard).join('');
+    const n = iqBuckets[col.id].length + buckets[col.id].length;
     return `<div class="pcb-col" data-col="${col.id}" ondragover="_pcbOver(event)" ondragleave="_pcbLeave(event)" ondrop="_pcbDrop(event,'${col.id}')">
       <div class="pcb-colhead" style="--c:${col.c}">
         <span class="pcb-dot"></span>
-        <span class="pcb-cname" onclick="_pcbRenameCol('${col.id}')" title="클릭하면 이름을 바꿉니다">${_pcbEsc(col.name)}</span>
-        <span class="pcb-cnt">${buckets[col.id].length}</span>
-        ${buckets[col.id].length===0 ? `<button class="pcb-coldel" onclick="_pcbDelCol('${col.id}')" title="이 단계 삭제">✕</button>` : ''}
-        <span class="pcb-cdesc">${_pcbEsc(col.desc||'')}</span>
+        <span class="pcb-cname" onclick="_pcbRenameCol('${col.id}')" title="${_iqT('클릭하면 이름을 바꿉니다','Click to rename')}">${_pcbEsc(_pcbColName(col))}</span>
+        <span class="pcb-cnt">${n}</span>
+        <button class="pcb-coladd" onclick="_pcbInqNew('${col.id}')" title="${_iqT('이 단계에 문의 카드 추가','Add an inquiry card here')}">＋</button>
+        ${n===0 ? `<button class="pcb-coldel" onclick="_pcbDelCol('${col.id}')" title="${_iqT('이 단계 삭제','Delete this stage')}">✕</button>` : ''}
+        <span class="pcb-cdesc">${_pcbEsc(_pcbColDesc(col))}</span>
       </div>
-      <div class="pcb-cards">${cards || '<div class="pcb-empty">여기로 카드를 끌어오세요</div>'}</div>
+      <div class="pcb-cards">${(iqs+pcs) || `<div class="pcb-empty">${_iqT('여기로 카드를 끌어오세요','Drop cards here')}</div>`}</div>
     </div>`;
   }).join('');
+
+  const flow = PCB_COLS.map(col => {
+    const n = iqBuckets[col.id].length + buckets[col.id].length;
+    return `<button class="pcb-fchip" style="--c:${col.c}" onclick="_pcbScrollCol('${col.id}')"><span class="pcb-dot"></span>${_pcbEsc(_pcbColName(col))}<b>${n}</b></button>`;
+  }).join('<span class="pcb-fsep">›</span>');
 
   host.innerHTML = `
     <div class="pcb-wrap">
       <div class="pcb-head">
         <div>
-          <div class="pcb-eyebrow">운영 · 배치 플래너</div>
-          <h1 class="pcb-h1">계정 보드</h1>
-          <p class="pcb-sub"><b>① 아래에서 사람 클릭 → ② PC의 시프트 칸 클릭</b> (끌어다 놓아도 됩니다). <b>Account · Assigned · Status · Action · Note</b>는 값을 클릭하면 바로 고쳐집니다. 여기서 바꿔도 <b>실제 배정은 안 바뀝니다</b> — 다 짜고 나면 디스코드로 내보내세요.</p>
+          <div class="pcb-eyebrow">${_iqT('운영 · 문의 파이프라인','OPS · INQUIRY PIPELINE')}</div>
+          <h1 class="pcb-h1">${_iqT('계정 보드','Account Board')}</h1>
+          <p class="pcb-sub">${_iqT('<b>전화 오면 ＋ 문의</b>로 카드 만들기 → PC·CRM·담당·테스터 <b>드래그로 연결</b> → 🧪 테스트 공지 → 🚀 확정 적용. 보드 위 드래그는 전부 <b>초안</b>이고, 실제 반영(클라이언트·PC 배정·공지·캘린더·기준EXP)은 🚀 버튼 하나로만 일어납니다.',
+            '<b>New call → ＋ Inquiry</b> card → <b>drag-link</b> PC · CRM · staff · tester → 🧪 post test → 🚀 Apply. Everything on the board is a <b>draft</b>; the real writes (client · PC · notice · calendar · EXP standard) happen only on 🚀.')}</p>
         </div>
         <div class="pcb-actions">
-          <button class="pcb-btn ghost" onclick="_pcbAddPlannedPc()">＋ 계획 PC</button>
-          <button class="pcb-btn ghost" onclick="_pcbAddCol()">＋ 단계</button>
-          <button class="pcb-btn ghost" onclick="_pcbResetPlan()">↻ 현재 배정 불러오기</button>
-          <button class="pcb-btn" onclick="_pcbCopyDiscord()">📋 디스코드 복사</button>
-          <button class="pcb-btn" onclick="_pcbSendDiscord()" title="보드를 웹훅으로 디스코드 채널에 바로 게시">📨 디스코드 게시</button>
-          <button class="pcb-btn ghost" onclick="_pcbSetWebhook()" title="디스코드 웹훅 URL 설정">⚙</button>
+          <button class="pcb-btn" onclick="_pcbInqNew()">＋ ${_iqT('문의','Inquiry')}</button>
+          <button class="pcb-btn ghost" onclick="_pcbToggleDrawer()">${_pcbDrawerOpen?'▸':'◂'} 👥 ${_iqT('인력','Staff')}</button>
+          <button class="pcb-btn ghost" onclick="_pcbAddPlannedPc()">＋ ${_iqT('계획 PC','Planned PC')}</button>
+          <button class="pcb-btn ghost" onclick="_pcbAddCol()">＋ ${_iqT('단계','Stage')}</button>
+          <button class="pcb-btn ghost" onclick="_pcbResetPlan()" title="${_iqT('초안을 지우고 실제 배정을 다시 불러옵니다','Reset the draft from live assignments')}">↻</button>
+          <button class="pcb-btn ghost" onclick="_pcbCopyDiscord()" title="${_iqT('디스코드 복사','Copy for Discord')}">📋</button>
+          <button class="pcb-btn ghost" onclick="_pcbSendDiscord()" title="${_iqT('디스코드 게시','Post to Discord')}">📨</button>
+          <button class="pcb-btn ghost" onclick="_pcbSetWebhook()" title="${_iqT('웹훅 설정','Webhook settings')}">⚙</button>
         </div>
       </div>
-      <div class="pcb-pool${_pcbSel?' picking':''}" ondragover="_pcbOver(event)" ondragleave="_pcbLeave(event)" ondrop="_pcbPoolDrop(event)">
-        <div class="pcb-poolbar">
-          <span class="pcb-step">${_pcbSel ? '②' : '①'}</span>
-          <b class="pcb-poolhead">${_pcbSel
-              ? `<span class="pcb-selname">${_pcbEsc(_pcbStaffName(_pcbSel))}</span> 선택됨 — 넣을 <u>시프트 칸을 클릭</u>하세요`
-              : '사람을 클릭하세요'}</b>
-          ${_pcbSel ? `<button class="pcb-btn ghost sm" onclick="_pcbSelect(null)">취소</button>` : `<span class="pcb-poolnote">대기 인력 ${pool.length}명 · 클릭하거나 끌어다 놓으면 됩니다</span>`}
-        </div>
-        <div class="pcb-poollist">
-          ${pool.map(s=>`<span class="pcb-person pool${_pcbSel===s.id?' sel':''}" draggable="true"
-             onclick="_pcbSelect('${s.id}')"
-             ondragstart="_pcbPersonDrag(event,'${s.id}','','')" ondragend="_pcbPersonEnd(event)">${_pcbEsc(s.name)}</span>`).join('')
-            || '<div class="pcb-empty">전원 배치됨</div>'}
-        </div>
-      </div>
+      <div class="pcb-flow">${flow}</div>
+      ${_pcbSel?`<div class="pcb-selbar"><span class="pcb-step">②</span><b><span class="pcb-selname">${_pcbEsc(_pcbStaffName(_pcbSel))}</span></b> ${_iqT('선택됨 — 넣을 <u>시프트 칸</u>이나 <u>담당·테스터 칸</u>을 클릭하세요','selected — click a <u>shift slot</u> or a <u>staff/tester zone</u>')} <button class="pcb-btn ghost sm" onclick="_pcbSelect(null)">${_iqT('취소','Cancel')}</button></div>`:''}
       <div class="pcb-board">${cols}</div>
+      ${_pcbDrawerHTML()}
     </div>`;
+  if(_pcbDrawerOpen) _pcbAttRefresh();
+}
+function _pcbScrollCol(id){
+  const el = document.querySelector('.pcb-col[data-col="'+id+'"]');
+  if(el) el.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
+}
+function _pcbScrollIq(id){
+  const el = document.querySelector('.pcb-iq[data-iq="'+id+'"]');
+  if(el){ el.scrollIntoView({ behavior:'smooth', inline:'center', block:'center' }); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'), 1200); }
 }
 /* ── [v751] 단계(컬럼) 편집 — 클라이언트가 들어오는 경로가 매번 달라서 고정 칸으로는 안 맞는다 ── */
 function _pcbEnsureCustomCols(){
@@ -28479,9 +28596,10 @@ function _pcbDragStart(e, pc){
   e.currentTarget.classList.add('pcb-dragging');
 }
 function _pcbDragEnd(e){
-  _pcbDragPc = null;
+  _pcbDragPc = null; _pcbDragInq = null;
   document.querySelectorAll('.pcb-dragging').forEach(x=>x.classList.remove('pcb-dragging'));
   document.querySelectorAll('.pcb-col.over').forEach(x=>x.classList.remove('over'));
+  document.querySelectorAll('.pcb-card.link').forEach(x=>x.classList.remove('link'));
 }
 function _pcbOver(e){ e.preventDefault(); e.currentTarget.classList.add('over'); }
 function _pcbLeave(e){ e.currentTarget.classList.remove('over'); }
@@ -28489,9 +28607,18 @@ function _pcbDrop(e, colId){
   e.preventDefault();
   e.currentTarget.classList.remove('over');
   if(_pcbDrag){ _pcbDrag = null; return; }   // 인력 드래그가 칸 밖에 떨어진 경우 — 분류는 건드리지 않음
+  if(_pcbDragInq){                            // [v822] 문의 카드 → 단계 이동
+    const iq = PCB_INQ.find(x=>x.id===_pcbDragInq); _pcbDragInq = null;
+    if(iq && iq.col !== colId){
+      iq.col = colId; _pcbSave(); renderPcBoard();
+      toast((iq.name||_iqT('문의','inquiry'))+' → '+_pcbColName(PCB_COLS.find(c=>c.id===colId)||{name:colId}));
+      _pcbStageNudge(iq, colId);
+    }
+    return;
+  }
   const key = _pcbDragPc != null ? String(_pcbDragPc) : String(e.dataTransfer.getData('text/plain')||'');
   _pcbDragPc = null;
-  if(!key) return;
+  if(!key || key.slice(0,3)==='iq:') return;
   if(!PCB_STATE[key]) PCB_STATE[key] = {};
   PCB_STATE[key].col = colId;
   _pcbSave();
@@ -28566,14 +28693,28 @@ function _pcbBoardText(){
   /* [v751] 보스가 만든 단계는 여기 없으므로 기본색으로 떨어뜨린다 — 없으면 .split()에서 터졌다 */
   const CODE = { inquiry:'0;35', empty:'0;30', hold:'1;33', staffing:'0;33', test:'1;36', live:'0;32' };
   const codeOf = id => CODE[id] || '0;37';
+  /* [v822] 문의 카드도 단계별로 내보낸다 — PC 목록 위에 INQ 블록으로 */
+  const iqB = {}; PCB_COLS.forEach(c=>iqB[c.id]=[]);
+  PCB_INQ.forEach(iq=>{ const c = iqB[iq.col] ? iq.col : (PCB_COLS[0]||{}).id; if(iqB[c]) iqB[c].push(iq); });
   const bar = '━'.repeat(50);
   const out = [];
   PCB_COLS.forEach(col=>{
-    const list = buckets[col.id]; if(!list.length) return;
+    const list = buckets[col.id]; const iqs = iqB[col.id]||[];
+    if(!list.length && !iqs.length) return;
     const cc = codeOf(col.id);
     out.push(C(bar,'1;37'));
-    out.push(C(col.name.toUpperCase()+'  ('+list.length+')','1;37'));
+    out.push(C(col.name.toUpperCase()+'  ('+(list.length+iqs.length)+')','1;37'));
     out.push(C(bar,'1;37'));
+    iqs.forEach(iq=>{
+      out.push(C('INQ  '+(iq.name||'—')+(iq.applied?'  [APPLIED]':iq.testAt?'  [TEST SET]':''), '1;'+cc.split(';')[1]));
+      if(iq.source) out.push(C('  Source   : '+iq.source, cc));
+      if(iq.start||iq.days) out.push(C('  Start    : '+[iq.start,iq.days].filter(Boolean).join(' · '), cc));
+      if(iq.hours)  out.push(C('  Hours    : '+iq.hours, cc));
+      if(iq.pcKey)  out.push(C('  PC       : PC '+String(iq.pcKey).replace(/^x/,''), cc));
+      if((iq.staff||[]).length) out.push(C('  Staff    : '+iq.staff.map(_pcbStaffName).join(', '), cc));
+      if(iq.tester) out.push(C('  Tester   : '+_pcbStaffName(iq.tester), cc));
+      if(iq.note)   out.push(C('  Note     : '+iq.note, cc));
+    });
     list.forEach(it=>{
       const sdef = _pcbSlotsFor(it.key);
       out.push(C('PC '+it.pc+(it.planned?'  (계획)':''), '1;'+cc.split(';')[1]));
@@ -28645,114 +28786,558 @@ async function _pcbSendDiscord(){
     toast(allOk ? '📨 디스코드에 게시됨' : '전송 실패 — 웹훅 URL을 확인하세요', !allOk);
   }catch(_){ toast('전송 실패 — 네트워크를 확인하세요', true); }
 }
+/* ═══ [v822] 문의 카드 CRUD ═══════════════════════════════════════════════════════════════ */
+function _pcbInqNew(colId){
+  const nm = prompt(_iqT('문의 온 클라이언트 이름 (비워도 됩니다)','Client name (can be empty)'), '');
+  if(nm === null) return;
+  const cid = PCB_COLS.some(c=>c.id===colId) ? colId : ((PCB_COLS.find(c=>c.id==='inquiry')||PCB_COLS[0]||{}).id);
+  PCB_INQ.unshift({ id:'iq_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    name:String(nm).trim(), source:'', start:'', days:'', hours:'',
+    pcKey:null, staff:[], tester:null, note:'', col:cid, crmId:null, applied:null, testAt:null,
+    createdAt:new Date().toISOString(), createdBy:(typeof currentUser!=='undefined'&&currentUser&&currentUser.name)||'' });
+  _pcbSave(); renderPcBoard();
+  try{ logAction('create','pipeline inquiry', String(nm).trim()); }catch(_){}
+  toast(_iqT('문의 카드 생성 — 칸을 채우고 PC·담당을 연결하세요','Inquiry card created — fill it in and link PC/staff'));
+}
+function _pcbInqDel(id){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq) return;
+  if(!confirm(_iqT('문의 카드','Inquiry card')+' "'+(iq.name||'—')+'" '+_iqT('를 지울까요?','— delete?'))) return;
+  PCB_INQ = PCB_INQ.filter(x=>x.id!==id);
+  _pcbSave(); renderPcBoard();
+}
+function _pcbInqField(id, f, v){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq) return;
+  const lim = f==='note' ? 300 : f==='name' ? 60 : 80;
+  iq[f] = String(v||'').trim().slice(0, lim);
+  _pcbSave();
+}
+function _pcbInqLinkPc(id, key){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq) return;
+  iq.pcKey = key || null;
+  _pcbSave(); renderPcBoard();
+  if(key) toast('🔗 '+(iq.name||_iqT('문의','inquiry'))+' ↔ PC '+String(key).replace(/^x/,''));
+}
+function _pcbInqAssign(id, role, sid){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq || !sid) return;
+  if(role==='tester') iq.tester = sid;
+  else { iq.staff = iq.staff||[]; if(!iq.staff.includes(sid)) iq.staff.push(sid); }
+  _pcbSave(); renderPcBoard();
+  toast(_pcbStaffName(sid)+' → '+(role==='tester'?_iqT('테스터','tester'):_iqT('담당','staff')));
+}
+function _pcbInqRmStaff(id, sid){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq) return;
+  iq.staff = (iq.staff||[]).filter(x=>x!==sid);
+  _pcbSave(); renderPcBoard();
+}
+function _pcbInqSetTester(id, sid){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq) return;
+  iq.tester = sid || null;
+  _pcbSave(); renderPcBoard();
+}
+function _pcbInqDropStaff(e, id, role){
+  e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('over');
+  const d = _pcbDrag; _pcbDrag = null;
+  if(!d || !d.staffId) return;
+  _pcbInqAssign(id, role, d.staffId);   // 시프트 칸에서 끌어와도 그 칸은 유지 — 담당/테스터는 별개 표시다
+}
+function _pcbInqZoneClick(e, id, role){
+  if(!_pcbSel) return;
+  e.preventDefault(); e.stopPropagation();
+  const sid = _pcbSel; _pcbSel = null;
+  _pcbInqAssign(id, role, sid);
+}
+/* 문의 카드 드래그 — 단계 이동(칼럼 드롭) + PC 카드 위에 떨어뜨리면 연결 */
+function _pcbInqDragStart(e, id){
+  _pcbDragInq = id;
+  try{ e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain','iq:'+id); }catch(_){}
+  e.currentTarget.classList.add('pcb-dragging');
+}
+function _pcbPcOver(e){ if(!_pcbDragInq) return; e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('link'); }
+function _pcbPcLeave(e){ e.currentTarget.classList.remove('link'); }
+function _pcbPcDrop(e, key){
+  if(!_pcbDragInq) return;
+  e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('link');
+  const id = _pcbDragInq; _pcbDragInq = null;
+  _pcbInqLinkPc(id, key);
+}
+/* 🤝 CRM 연결 — 이미 연결돼 있으면 인사›클라이언트로 이동해 열고, 없으면 등록+연결.
+   addClientAccount()과 같은 관례(계정 + 이름 연동 풀 캐릭터)를 따르되 prompt 없이 카드 이름을 쓴다. */
+async function _pcbInqCrm(id){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq) return;
+  if(iq.crmId){
+    try{ setActiveChannel('op-clients'); }catch(_){}
+    const cid = iq.crmId;
+    setTimeout(()=>{ try{ if(typeof openClientDetail==='function' && CLIENT_ACCOUNTS.some(a=>a.id===cid)) openClientDetail(cid); }catch(_){} }, 500);
+    return;
+  }
+  if(!_pcbRoleOk()){ toast(_iqT('권한 없음','No permission'), true); return; }
+  const nm = String(iq.name||'').trim();
+  if(!nm){ toast(_iqT('클라이언트 이름부터 적어주세요','Enter the client name first'), true); return; }
+  try{ if(sb && typeof _clientSynced!=='undefined' && !_clientSynced && typeof syncClientStateFromCloud==='function') await syncClientStateFromCloud(); }catch(_){}
+  const low = nm.toLowerCase();
+  let acc = CLIENT_ACCOUNTS.find(a=>String(a.name||'').trim().toLowerCase()===low);
+  if(!acc){
+    const iso = new Date().toISOString().slice(0,10);
+    acc = { id:'ca_'+Date.now().toString(36), name:nm, discord:'', joined:iso, work:{start:9,end:19}, active:true,
+            payment:{ status:'unpaid', monthly:0, due_day:1, last_paid:null, invoices:[] },
+            contract:{ start:iso, end:'', monthly_fee:0, note:_iqT('계정 보드 문의에서 등록','Registered from the inquiry board') }, comms:[] };
+    CLIENT_ACCOUNTS.push(acc);
+    if(!CLIENTS.some(c=>String(c.name||'').trim().toLowerCase()===low)){
+      CLIENTS.push({ id:'c_'+Date.now().toString(36), name:nm, label:'', game:'lineage', char_class:'knight', server:'tbd',
+                     weapon:6, armor_set:4, armor_set_max:null, hours:null, schedule_note:'' });
+    }
+    try{ saveClientState(true); }catch(_){}
+    try{ logAction('create','added client (pipeline)', nm); }catch(_){}
+    toast('🤝 '+nm+' '+_iqT('CRM 등록·연결됨 — 칩을 누르면 열립니다','registered & linked — click the chip to open'));
+  } else {
+    toast('🤝 '+nm+' '+_iqT('기존 CRM에 연결됨','linked to the existing CRM record'));
+  }
+  iq.crmId = acc.id;
+  _pcbSave(); renderPcBoard();
+}
+function _pcbStageNudge(iq, colId){
+  if(colId==='test' && !iq.testAt) toast(_iqT('🧪 테스터·날짜 채우고 [테스트 공지]를 누르면 공지·캘린더에 올라갑니다','🧪 set tester + date, then hit [Post test]'));
+  else if(colId==='live' && !iq.applied) toast(_iqT('🚀 [확정 적용]을 누르면 클라이언트·PC·공지·캘린더·기준EXP까지 자동 반영됩니다','🚀 hit [Apply] to push client · PC · notice · calendar · EXP standard'));
+}
+
+/* ═══ [v822] 인력 서랍 — 지금 OPEN(근무/시프트 중)인 직원과 배치 가능한 직원 ═══════════════════
+   출퇴근(attendance)에서 실제 출근 상태를, PC현황(PCS)에서 현재 KST가 시프트 안인지를 읽는다.
+   ⭐ = 클라이언트 붙은 실PC에 실제 배정된 적 있는 직원 — "테스트는 기존 잘하던 직원" 규칙의 후보. */
+let _pcbDrawerOpen = false, _pcbDrawerQ = '', _pcbAtt = null, _pcbAttAt = 0, _pcbAttBusy = false;
+function _pcbToggleDrawer(){ _pcbDrawerOpen = !_pcbDrawerOpen; renderPcBoard(); }
+function _pcbKstNow(){ const d = new Date(Date.now() + (new Date().getTimezoneOffset() + 540) * 60000); return d.getHours() + d.getMinutes()/60; }
+function _pcbH2(h){ return String(Math.floor(((Number(h)||0)%24+24)%24)).padStart(2,'0'); }
+function _pcbHm(iso){ try{ const d=new Date(iso); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }catch(_){ return ''; } }
+function _pcbVeteranSet(){
+  const v = new Set();
+  (typeof PCS!=='undefined'?PCS:[]).forEach(p=>{ if((p.clients||[]).length) (p.assignments||[]).forEach(a=>{ if(a && a.staff) v.add(a.staff); }); });
+  return v;
+}
+function _pcbStaffCtx(){
+  const now = _pcbKstNow(); const onPc = {};
+  (typeof PCS!=='undefined'?PCS:[]).forEach(p=>{
+    (p.assignments||[]).forEach(a=>{
+      if(!a || !a.staff) return;
+      const s = ((Number(a.start)||0)%24+24)%24, e = s + (Number(a.len)||0);
+      const hit = (now>=s && now<e) || (e>24 && now < e-24);
+      if(hit && !onPc[a.staff]) onPc[a.staff] = { pc:p.id, from:s, to:(s+(Number(a.len)||0))%24 };
+    });
+  });
+  return { onPc };
+}
+async function _pcbAttRefresh(force){
+  if(!sb){ if(_pcbAtt===null){ _pcbAtt={}; _pcbDrawerBody(); } return; }
+  if(_pcbAttBusy) return;
+  if(!force && _pcbAtt && Date.now()-_pcbAttAt < 60000) return;
+  _pcbAttBusy = true;
+  try{
+    const lower = new Date(Date.now()-86400000).toISOString().slice(0,10);   // 밤샘 시프트 대비 어제부터
+    const { data } = await sb.from('attendance')
+      .select('user_id,user_name,date,clock_in,clock_out,break_start,break_end')
+      .gte('date', lower).order('date',{ascending:false}).limit(400);
+    const by = {};
+    (data||[]).forEach(r=>{
+      const k = String(r.user_id||'').toLowerCase(); if(!k) return;
+      const cur = by[k]; const open = r.clock_in && !r.clock_out;
+      if(!cur || (open && !(cur.clock_in && !cur.clock_out))) by[k] = r;
+    });
+    _pcbAtt = by; _pcbAttAt = Date.now();
+  }catch(_){ if(!_pcbAtt) _pcbAtt = {}; }
+  _pcbAttBusy = false;
+  _pcbDrawerBody();
+}
+function _pcbAttStatus(s){
+  const by = _pcbAtt || {};
+  let r = by[String(s.id).toLowerCase()];
+  if(!r){ const nm = String(s.name||'').toLowerCase(); r = Object.values(by).find(x=>String(x.user_name||'').toLowerCase()===nm); }
+  if(!r || !r.clock_in) return null;
+  if(r.clock_out) return { st:'out', t:r.clock_out };
+  if(r.break_start && !r.break_end) return { st:'break', t:r.break_start };
+  return { st:'in', t:r.clock_in };
+}
+function _pcbDrawerBody(){ const el = document.getElementById('pcb-drawer-body'); if(el) el.innerHTML = _pcbDrawerBodyHTML(); }
+function _pcbDrawerBodyHTML(){
+  const all = _pcbAllStaff();
+  const q = String(_pcbDrawerQ||'').trim().toLowerCase();
+  const list = q ? all.filter(s=>String(s.name).toLowerCase().includes(q)) : all;
+  const { onPc } = _pcbStaffCtx();
+  const vet = _pcbVeteranSet(); const planned = _pcbPlanned();
+  const working = [], shiftOn = [], free = [];
+  list.forEach(s=>{
+    const at = _pcbAttStatus(s);
+    if(at && (at.st==='in' || at.st==='break')) working.push({ s, at, pc:onPc[s.id] });
+    else if(onPc[s.id]) shiftOn.push({ s, at, pc:onPc[s.id] });
+    else free.push({ s, at });
+  });
+  const chip = x => {
+    const sub = x.at && x.at.st==='break' ? _iqT('휴식 중','on break')
+      : x.at && x.at.st==='in' ? (_iqT('출근 ','in ')+_pcbHm(x.at.t))
+      : x.pc ? ('PC '+x.pc.pc+' · '+_pcbH2(x.pc.from)+'–'+_pcbH2(x.pc.to))
+      : (planned.has(x.s.id) ? _iqT('초안 배치됨','in draft') : _iqT('배치 가능','free'));
+    const dot = x.at && x.at.st==='break' ? 'break' : x.at && x.at.st==='in' ? 'on' : x.pc ? 'shift' : 'off';
+    return `<div class="pcb-dchip${_pcbSel===x.s.id?' sel':''}" draggable="true"
+        onclick="_pcbSelect('${x.s.id}')"
+        ondragstart="_pcbPersonDrag(event,'${x.s.id}','','')" ondragend="_pcbPersonEnd(event)">
+      <span class="pcb-ddot ${dot}"></span>
+      <span class="pcb-dname">${vet.has(x.s.id)?'⭐ ':''}${_pcbEsc(x.s.name)}</span>
+      <span class="pcb-dsub">${sub}</span>
+    </div>`;
+  };
+  const sec = (t, arr) => arr.length ? `<div class="pcb-dsec">${t} <b>${arr.length}</b></div>${arr.map(chip).join('')}` : '';
+  return (_pcbAtt===null ? `<div class="pcb-dload">${_iqT('출퇴근 확인 중…','Checking attendance…')}</div>` : '')
+    + sec('🟢 '+_iqT('지금 근무 중','Working now'), working)
+    + sec('🔵 '+_iqT('시프트 ON · KST','On shift · KST'), shiftOn)
+    + sec('⚪ '+_iqT('배치 가능','Available'), free)
+    + (!list.length ? `<div class="pcb-dload">${_iqT('검색 결과 없음','No match')}</div>` : '');
+}
+function _pcbDrawerHTML(){
+  if(!_pcbDrawerOpen) return '';
+  return `<div class="pcb-drawer" ondragover="_pcbOver(event)" ondragleave="_pcbLeave(event)" ondrop="_pcbPoolDrop(event)">
+    <div class="pcb-dhead">
+      <b>👥 ${_iqT('인력 배치','Staffing')}</b>
+      <input class="pcb-dsearch" placeholder="${_iqT('검색…','Search…')}" value="${_pcbEsc(_pcbDrawerQ)}" oninput="_pcbDrawerQ=this.value;_pcbDrawerBody()">
+      <button class="pcb-pcdel" onclick="_pcbToggleDrawer()" title="${_iqT('닫기','Close')}">✕</button>
+    </div>
+    <div id="pcb-drawer-body" class="pcb-dbody">${_pcbDrawerBodyHTML()}</div>
+    <div class="pcb-dfoot">${_iqT('클릭=선택 후 칸 클릭 · 드래그=바로 배치 · 여기로 끌면 배치 해제 · ⭐=운영 경험(테스터 추천)','Click=select then click a slot · drag=assign · drop here to unassign · ⭐=proven on live PCs')}</div>
+  </div>`;
+}
+
+/* ═══ [v822] 확정 연계 자동화 — 공지·캘린더·클라이언트·PC·기준EXP ═══════════════════════════
+   전부 "읽고-고치고-쓰기"로 원본 배열의 동기화 가드를 지킨다. 미동기 상태에서 전체 덮어쓰기가
+   가장 위험하므로(announce/client/pc 전부 한 행짜리 KV) 쓰기 전에 반드시 해당 sync를 먼저 태운다. */
+async function _pcbAnnPost(title, content){
+  try{
+    if(typeof ANNOUNCEMENTS==='undefined') return false;
+    if(sb && typeof _annSynced!=='undefined' && !_annSynced && typeof syncAnnFromCloud==='function'){ await syncAnnFromCloud(); _annSynced = true; }
+    const me = (typeof currentUser!=='undefined' && currentUser && currentUser.name) || 'MT';
+    ANNOUNCEMENTS.unshift({ id:Date.now(), scope:'all', category:'공지', title:title, content:content,
+      html:_pcbEsc(content).replace(/\n/g,'<br>'), files:[], mustRead:false, author:me,
+      date:new Date().toISOString().slice(0,10), ts:new Date().toISOString(), pinned:false,
+      read_by:[me.toLowerCase().replace(/\s+/g,'')] });
+    if(typeof saveAnnouncements==='function') saveAnnouncements();
+    try{ if(typeof _annPostWebhook==='function') _annPostWebhook(ANNOUNCEMENTS[0]); }catch(_){}
+    try{ renderSidebar(); }catch(_){}
+    return true;
+  }catch(e){ console.warn('pcb ann post:', e && e.message); return false; }
+}
+async function _pcbCalAdd(ev){
+  if(!sb) return false;
+  try{
+    const { data } = await sb.from('calendar_state').select('data').eq('id','team').maybeSingle();
+    const arr = (data && Array.isArray(data.data)) ? data.data : [];
+    if(!arr.some(x=>x && x.id===ev.id)) arr.push(ev);
+    const r = await _dbUpsert('calendar_state','team', arr);
+    if(r && r.error) return false;
+    try{ sessionStorage.setItem('lucky7_cal_events', JSON.stringify(arr)); }catch(_){}
+    try{ if(typeof CAL_EVENTS!=='undefined' && typeof calScope!=='undefined' && calScope==='team' && !CAL_EVENTS.some(x=>x && x.id===ev.id)) CAL_EVENTS.push(ev); }catch(_){}
+    return true;
+  }catch(_){ return false; }
+}
+async function _pcbEnsureExpStd(name, pcNum){
+  if(typeof _srGetCalc!=='function' || typeof _srPutCalc!=='function') return 'skip';
+  try{
+    let arr = await _srGetCalc('clients'); if(!Array.isArray(arr)) arr = [];
+    const norm = x => { try{ return (typeof _rcStdNorm==='function') ? _rcStdNorm(x) : String(x||'').replace(/[\s·.\-_'"]/g,'').toLowerCase(); }catch(_){ return String(x||'').toLowerCase(); } };
+    const n = norm(name);
+    const hit = arr.find(a => a && ((norm(a.name)===n && n) || (pcNum!=null && a.pc!=null && Number(a.pc)===Number(pcNum))));
+    if(hit){ if(hit.pc==null && pcNum!=null) hit.pc = pcNum; await _srPutCalc('clients', arr); return 'exists'; }
+    arr.push({ name:String(name), pc:(pcNum!=null?pcNum:null), maps:[] });
+    const ok = await _srPutCalc('clients', arr);
+    return ok ? 'created' : 'fail';
+  }catch(_){ return 'fail'; }
+}
+function _pcbSlotHours(sk, slot){
+  if(String(sk)==='2') return slot===2 ? {start:21,len:12} : {start:9,len:12};
+  return slot===2 ? {start:17,len:8} : slot===3 ? {start:1,len:8} : {start:9,len:8};
+}
+function _pcbRoleOk(){
+  return !(typeof currentUserRole!=='undefined' && currentUserRole!=='admin' && currentUserRole!=='op');
+}
+async function _pcbInqDate(iq){
+  let d = String(iq.start||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  const t = prompt(_iqT('날짜 (YYYY-MM-DD)','Date (YYYY-MM-DD)'), new Date().toISOString().slice(0,10));
+  if(t===null) return null;
+  d = String(t).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){ toast(_iqT('날짜 형식이 아니에요 (YYYY-MM-DD)','Not a date (YYYY-MM-DD)'), true); return null; }
+  iq.start = d;
+  return d;
+}
+/* 🧪 테스트 공지 — 공지사항 + 팀 캘린더에 테스트 일정을 올린다 */
+async function _pcbInqTestPost(id){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq) return;
+  if(!_pcbRoleOk()){ toast(_iqT('권한 없음','No permission'), true); return; }
+  const nm = String(iq.name||'').trim();
+  if(!nm){ toast(_iqT('클라이언트 이름부터 적어주세요','Enter the client name first'), true); return; }
+  if(!iq.tester){ toast(_iqT('테스터부터 지정하세요 — ⭐ 기존 운영 직원 추천','Pick a tester first — ⭐ proven operators recommended'), true); return; }
+  const date = await _pcbInqDate(iq); if(!date) return;
+  const tn = _pcbStaffName(iq.tester);
+  const pcIt = iq.pcKey ? _pcbGather().find(x=>x.key===iq.pcKey) : null;
+  const lines = [
+    _iqT('클라이언트','Client')+' : '+nm,
+    _iqT('일자','Date')+' : '+date,
+    _iqT('테스터','Tester')+' : '+tn + (pcIt ? '\nPC : PC '+pcIt.pc : ''),
+    iq.hours ? _iqT('시간대','Hours')+' : '+iq.hours : '',
+    _iqT('결과는 테스트 클라이언트에게 공개됩니다 — 기준 EXP 대비로 보고해주세요.','Results are shared with the test client — report against the EXP standard.')
+  ].filter(Boolean);
+  if(!confirm(_iqT('🧪 테스트 공지를 올릴까요?','🧪 Post the test notice?')+'\n\n'+lines.join('\n')+'\n\n'+_iqT('→ 공지사항 + 팀 캘린더에 등록됩니다.','→ goes to Notices + the team calendar.'))) return;
+  const ok1 = await _pcbAnnPost('🧪 '+_iqT('테스트','TEST')+' — '+nm+' ('+date+')', lines.join('\n'));
+  const ok2 = await _pcbCalAdd({ id:'iqt'+iq.id, date:date, title:nm+' '+_iqT('테스트','test'), type:'event', icon:'🧪', allDay:true, repeat:'none' });
+  iq.testAt = new Date().toISOString();
+  if(PCB_COLS.some(c=>c.id==='test')) iq.col = 'test';
+  _pcbSave(); renderPcBoard();
+  try{ logAction('create','pipeline test notice', nm); }catch(_){}
+  toast((ok1?'📢 ':'')+(ok2?'📅 ':'')+_iqT('테스트 공지 완료','Test posted')+(!ok1||!ok2?_iqT(' (일부 실패 — 콘솔 확인)',' (partial — see console)'):''), !(ok1&&ok2));
+}
+/* 🚀 확정 적용 — 클라이언트 등록 → PC 배정 → 공지 → 캘린더 → 기준EXP 카드까지 한 번에 */
+async function _pcbInqApply(id){
+  const iq = PCB_INQ.find(x=>x.id===id); if(!iq) return;
+  if(!_pcbRoleOk()){ toast(_iqT('권한 없음','No permission'), true); return; }
+  const nm = String(iq.name||'').trim();
+  if(!nm){ toast(_iqT('클라이언트 이름부터 적어주세요','Enter the client name first'), true); return; }
+  const start = await _pcbInqDate(iq); if(!start) return;
+  const pcIt = iq.pcKey ? _pcbGather().find(x=>x.key===iq.pcKey) : null;
+  const realPc = (pcIt && !pcIt.planned) ? pcIt : null;
+  const rows = ((iq.pcKey && PCB_PLAN[iq.pcKey]) || []).filter(r=>r.staffId);
+  const staffNames = (iq.staff||[]).map(_pcbStaffName).filter(Boolean);
+  const slotNames = rows.map(r=>_pcbStaffName(r.staffId));
+  const L = [ _iqT('🚀 확정 적용 — 아래를 실제로 실행합니다:','🚀 Apply — this will REALLY do the following:'), '' ];
+  L.push('1) '+_iqT('클라이언트 등록/연결: ','Register/link client: ')+nm+_iqT(' (인사›클라이언트 + PC현황 풀)',' (HR›Clients + pool)'));
+  if(realPc) L.push('2) PC '+realPc.pc+_iqT(' 에 계정 연결','— attach account')+(rows.length?_iqT(' + 시프트 '+rows.length+'명 실배정(기존 대체): ',' + apply '+rows.length+' shifts (replaces current): ')+slotNames.join(', '):''));
+  else if(pcIt) L.push('2) PC '+pcIt.pc+_iqT(' 는 계획 PC — 실배정은 건너뜀',' is planned-only — skipping real assignment'));
+  else L.push('2) '+_iqT('PC 미연결 — PC 단계는 건너뜀','No PC linked — skipping'));
+  L.push('3) '+_iqT('공지 게시 + 팀 캘린더 등록 ('+start+' 시작)','Notice + team calendar (starts '+start+')'));
+  L.push('4) '+_iqT('기준 EXP 카드 생성(빈 상태) → 기준표에서 목표 입력','Create empty EXP-standard card → fill targets in Standards'));
+  if(iq.applied) L.push('', _iqT('⚠ 이미 한 번 적용된 카드입니다 — 다시 실행하면 중복될 수 있습니다.','⚠ Already applied once — running again may duplicate.'));
+  if(!confirm(L.join('\n'))) return;
+  /* 1. 클라이언트 (풀 + CRM) — 미동기 상태 덮어쓰기 방지: 먼저 sync */
+  try{ if(sb && typeof _clientSynced!=='undefined' && !_clientSynced && typeof syncClientStateFromCloud==='function') await syncClientStateFromCloud(); }catch(_){}
+  const low = nm.toLowerCase();
+  let pool = (typeof CLIENTS!=='undefined'?CLIENTS:[]).find(c=>String(c.name||'').trim().toLowerCase()===low);
+  if(!pool){
+    pool = { id:'c_'+Date.now().toString(36), name:nm, label:'', game:'lineage', char_class:'knight', server:'tbd',
+             weapon:6, armor_set:4, armor_set_max:null, level:null, ac:null, hours:null,
+             days:[1,2,3,4,5,6], startH:null, endH:null,
+             schedule_note:[iq.hours, iq.days, iq.source].filter(Boolean).join(' · ') };
+    CLIENTS.push(pool);
+  }
+  let acc = iq.crmId ? CLIENT_ACCOUNTS.find(a=>a.id===iq.crmId) : null;
+  if(!acc) acc = CLIENT_ACCOUNTS.find(a=>String(a.name||'').trim().toLowerCase()===low);
+  if(!acc){
+    acc = { id:'ca_'+Date.now().toString(36), name:nm, discord:'', joined:start, work:{start:9,end:19}, active:true,
+            payment:{ status:'unpaid', monthly:0, due_day:1, last_paid:null, invoices:[] },
+            contract:{ start:start, end:'', monthly_fee:0, note:_iqT('계정 보드에서 확정','Confirmed from the account board') }, comms:[] };
+    CLIENT_ACCOUNTS.push(acc);
+  }
+  iq.crmId = acc.id;
+  try{ saveClientState(true); }catch(_){}
+  /* 2. PC 실배정 */
+  let pcNote = '';
+  if(realPc){
+    try{ if(sb && typeof _pcLoaded!=='undefined' && !_pcLoaded && typeof loadPCState==='function') await loadPCState(); }catch(_){}
+    const p = (typeof PCS!=='undefined'?PCS:[]).find(x=>String(x.id)===String(realPc.key));
+    if(p){
+      p.clients = p.clients || [];
+      const cap = (typeof MAX_CLIENTS_PER_PC!=='undefined'?MAX_CLIENTS_PER_PC:3);
+      if(!p.clients.includes(pool.id)){
+        if(p.clients.length >= cap) pcNote = _iqT('PC 계정칸이 꽉 차 연결 생략','PC account slots full — attach skipped');
+        else p.clients.push(pool.id);
+      }
+      if(rows.length){
+        const sk = _pcbShiftOf(iq.pcKey);
+        p.assignments = rows.map(r=>{ const h=_pcbSlotHours(sk, r.slot); return { staff:r.staffId, start:h.start, len:h.len }; });
+      }
+      try{ if(typeof savePCState==='function') savePCState(); }catch(_){}
+    }
+  }
+  /* 3. 공지 + 캘린더 */
+  const annLines = [
+    _iqT('클라이언트','Client')+' : '+nm,
+    _iqT('시작','Start')+' : '+start + (iq.days?(' ('+iq.days+')'):''),
+    pcIt ? 'PC : PC '+pcIt.pc : '',
+    iq.hours ? _iqT('시간대','Hours')+' : '+iq.hours : '',
+    slotNames.length ? _iqT('시프트','Shifts')+' : '+slotNames.join(', ') : (staffNames.length ? _iqT('담당','Staff')+' : '+staffNames.join(', ') : ''),
+    iq.tester ? _iqT('테스터','Tester')+' : '+_pcbStaffName(iq.tester) : ''
+  ].filter(Boolean);
+  const ok1 = await _pcbAnnPost('🆕 '+_iqT('신규 클라이언트','NEW CLIENT')+' — '+nm, annLines.join('\n'));
+  const ok2 = await _pcbCalAdd({ id:'iqs'+iq.id, date:start, title:nm+' '+_iqT('시작','starts'), type:'client', icon:'🤝', allDay:true, repeat:'none' });
+  /* 4. 기준 EXP */
+  const std = await _pcbEnsureExpStd(nm, realPc ? Number(realPc.pc) : null);
+  iq.applied = { at:new Date().toISOString(), by:(typeof currentUser!=='undefined'&&currentUser&&currentUser.name)||'' };
+  if(PCB_COLS.some(c=>c.id==='live')) iq.col = 'live';
+  _pcbSave(); renderPcBoard();
+  try{ logAction('create','pipeline apply', nm); }catch(_){}
+  const bits = [ '🤝 '+_iqT('클라이언트','client'), realPc?('🖥 PC '+realPc.pc):null, ok1?'📢':null, ok2?'📅':null,
+    std==='created'?_iqT('🎯 기준EXP 생성','🎯 EXP std created'):std==='exists'?_iqT('🎯 기준EXP 이미 있음','🎯 EXP std exists'):std==='fail'?_iqT('🎯 기준EXP 실패','🎯 EXP std FAILED'):null,
+    pcNote||null ].filter(Boolean);
+  toast('🚀 '+_iqT('확정 적용 완료 — ','Applied — ')+bits.join(' · '), std==='fail');
+  if(std==='created') setTimeout(()=>{ toast(_iqT('기준표에서 '+nm+' 맵 목표를 채워주세요','Fill '+nm+"'s map targets in Standards")); }, 2600);
+}
+
 function _pcbInjectCSS(){
   if(document.getElementById('pcb-css')) return;
   const s = document.createElement('style'); s.id = 'pcb-css';
   s.textContent = [
-    ".pcb-wrap{padding:26px 30px 60px;max-width:1600px}",
-    ".pcb-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:22px}",
+    /* [v822] 가로 파이프라인 — 채용 칸반의 뼈대(색 헤더+카운트+드롭 하이라이트)에 보드 고유의 압축 카드 */
+    ".pcb-wrap{padding:24px 26px 40px}",
+    ".pcb-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:14px}",
     ".pcb-eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ac,#c9963a)}",
-    ".pcb-h1{font-size:26px;font-weight:750;margin:6px 0 0;color:var(--tx,#e6e5e2);letter-spacing:-.01em}",
-    ".pcb-sub{margin:8px 0 0;font-size:13px;color:var(--tx3,#8a8a86);max-width:62ch;line-height:1.6}",
+    ".pcb-h1{font-size:25px;font-weight:750;margin:6px 0 0;color:var(--tx,#e6e5e2);letter-spacing:-.01em}",
+    ".pcb-sub{margin:8px 0 0;font-size:12.5px;color:var(--tx3,#8a8a86);max-width:74ch;line-height:1.55}",
     ".pcb-sub b{color:var(--tx2,#b5b5b0);font-weight:600}",
-    ".pcb-actions{display:flex;align-items:center;gap:10px}",
-    ".pcb-total{font-size:12px;color:var(--tx3,#8a8a86);font-variant-numeric:tabular-nums}",
-    ".pcb-btn{background:#5865F2;border:1px solid rgba(255,255,255,.2);color:#fff;font:inherit;font-size:13px;font-weight:700;padding:8px 15px;border-radius:9px;cursor:pointer;box-shadow:0 4px 12px rgba(88,101,242,.32)}",
-    ".pcb-btn:hover{background:#6772f5}",
-    /* [v755] 세로 문서형 — 단계는 가로 전체 배너, PC는 그 아래로 쌓인다 (보스 디스코드 글 그대로) */
-    ".pcb-board{display:flex;flex-direction:column;gap:26px;padding-bottom:40px;max-width:860px}",
-    ".pcb-col{background:transparent;border:0;border-radius:0;padding:0;transition:background .12s}",
-    ".pcb-col.over{background:color-mix(in srgb,var(--ac,#c9963a) 6%,transparent);border-radius:12px;outline:1px dashed var(--ac,#c9963a);outline-offset:6px}",
-    ".pcb-colhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 12px;margin-bottom:12px;border-top:2px solid var(--c);border-bottom:2px solid var(--c);background:color-mix(in srgb,var(--c) 10%,transparent)}",
-    ".pcb-dot{width:8px;height:8px;border-radius:50%;background:var(--c);flex:0 0 auto}",
-    ".pcb-cname{font:800 13px ui-monospace,Consolas,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--c);cursor:pointer;border-bottom:1px dashed transparent}",
+    ".pcb-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}",
+    ".pcb-btn{background:var(--ac,#c9963a);border:1px solid transparent;color:#1a1408;font:inherit;font-size:12.5px;font-weight:700;padding:7px 13px;border-radius:9px;cursor:pointer}",
+    ".pcb-btn:hover{filter:brightness(1.08)}",
+    ".pcb-btn.ghost{background:transparent;color:var(--tx2,#b5b5b0);border:1px solid var(--br2,#33332f);font-weight:600}",
+    ".pcb-btn.ghost:hover{background:var(--bg-h,#242427);color:var(--tx,#e6e5e2)}",
+    ".pcb-btn.sm{padding:3px 10px;font-size:11.5px;margin-left:6px}",
+    /* 흐름 요약 스트립 — 누르면 그 단계로 스크롤 */
+    ".pcb-flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 12px}",
+    ".pcb-fchip{display:inline-flex;align-items:center;gap:6px;font:600 11.5px inherit;color:var(--tx3,#8a8a86);background:transparent;border:1px solid var(--br2,#33332f);border-radius:8px;padding:3px 9px;cursor:pointer}",
+    ".pcb-fchip:hover{border-color:var(--c);color:var(--tx,#e6e5e2)}",
+    ".pcb-fchip b{color:var(--c);font-variant-numeric:tabular-nums}",
+    ".pcb-fsep{color:var(--tx4,#6b6b67);font-size:11px;opacity:.6}",
+    ".pcb-dot{width:7px;height:7px;border-radius:50%;background:var(--c);flex:0 0 auto}",
+    /* 선택 안내 바 (2클릭 흐름) */
+    ".pcb-selbar{position:sticky;top:8px;z-index:40;display:flex;align-items:center;gap:9px;background:var(--bg-c,#17171a);border:1px solid var(--ac,#c9963a);border-radius:11px;padding:8px 13px;margin-bottom:12px;font-size:12.5px;color:var(--tx,#e6e5e2);box-shadow:0 8px 22px rgba(0,0,0,.35)}",
+    ".pcb-selbar u{text-decoration-color:var(--ac,#c9963a);text-underline-offset:2px}",
+    ".pcb-selname{color:var(--ac,#c9963a);font-weight:800}",
+    ".pcb-step{width:19px;height:19px;border-radius:50%;background:var(--ac,#c9963a);color:#1a1408;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}",
+    /* 가로 보드 */
+    ".pcb-board{display:flex;align-items:flex-start;gap:13px;overflow-x:auto;padding:2px 2px 24px;scrollbar-width:thin}",
+    ".pcb-board::-webkit-scrollbar{height:9px}",
+    ".pcb-board::-webkit-scrollbar-thumb{background:var(--br2,#33332f);border-radius:9px}",
+    ".pcb-board::-webkit-scrollbar-thumb:hover{background:var(--br3,#44443f)}",
+    ".pcb-col{flex:0 0 328px;min-width:0;background:color-mix(in srgb,var(--bg-c,#17171a) 88%,transparent);border:1px solid var(--br,#2a2a28);border-radius:13px;transition:background .12s,border-color .12s}",
+    ".pcb-col.over{border-color:var(--ac,#c9963a);background:color-mix(in srgb,var(--ac,#c9963a) 5%,var(--bg-c,#17171a))}",
+    ".pcb-colhead{position:relative;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:10px 12px 8px;border-bottom:1px solid var(--br,#2a2a28)}",
+    ".pcb-colhead::before{content:'';position:absolute;top:0;left:12px;right:12px;height:2px;border-radius:0 0 2px 2px;background:var(--c);opacity:.85}",
+    ".pcb-cname{font:800 12px ui-monospace,Consolas,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--c);cursor:pointer;border-bottom:1px dashed transparent}",
     ".pcb-cname:hover{border-bottom-color:var(--tx4,#6b6b67)}",
-    ".pcb-coldel{background:none;border:none;color:var(--tx4,#6b6b67);cursor:pointer;font-size:10px;padding:0 2px;line-height:1;margin-left:auto}",
+    ".pcb-cnt{font-size:10.5px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent);padding:1px 7px;border-radius:999px;font-variant-numeric:tabular-nums}",
+    ".pcb-coladd{background:none;border:1px solid var(--br2,#33332f);border-radius:6px;color:var(--tx3,#8a8a86);cursor:pointer;font-size:11px;line-height:1;padding:2px 6px;margin-left:auto}",
+    ".pcb-coladd:hover{color:var(--ac,#c9963a);border-color:var(--ac,#c9963a)}",
+    ".pcb-coldel{background:none;border:none;color:var(--tx4,#6b6b67);cursor:pointer;font-size:10px;padding:0 2px;line-height:1}",
     ".pcb-coldel:hover{color:#c46a6a}",
-    ".pcb-cnt{font-size:11px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent);padding:1px 7px;border-radius:999px;font-variant-numeric:tabular-nums}",
-    ".pcb-cdesc{flex:1 1 100%;font-size:10.5px;color:var(--tx4,#6b6b67);letter-spacing:.01em}",
-    ".pcb-cards{display:flex;flex-direction:column;gap:10px;min-height:56px}",
-    /* 세로 배치에선 빈 단계마다 큰 상자가 있으면 스크롤만 길어진다 — 얇은 한 줄로 */
-    ".pcb-empty{font-size:11px;color:var(--tx4,#6b6b67);padding:7px 12px;border:1px dashed var(--br2,#33332f);border-radius:8px;opacity:.7}",
-    ".pcb-card{background:var(--bg-a,#1e1e21);border:1px solid var(--br2,#33332f);border-radius:11px;padding:11px 12px;cursor:grab;transition:transform .1s,box-shadow .12s,border-color .12s}",
+    ".pcb-cdesc{flex:1 1 100%;font-size:10px;color:var(--tx4,#6b6b67);letter-spacing:.01em}",
+    ".pcb-cards{display:flex;flex-direction:column;gap:9px;padding:10px;min-height:80px}",
+    ".pcb-empty{font-size:11px;color:var(--tx4,#6b6b67);padding:16px 12px;border:1px dashed var(--br2,#33332f);border-radius:9px;text-align:center;opacity:.7}",
+    /* PC 카드 (압축형) */
+    ".pcb-card{background:var(--bg-a,#1e1e21);border:1px solid var(--br2,#33332f);border-radius:11px;padding:9px 10px;cursor:grab;transition:transform .1s,box-shadow .12s,border-color .12s}",
     ".pcb-card:hover{border-color:var(--br3,#44443f);box-shadow:0 4px 14px rgba(0,0,0,.28)}",
     ".pcb-card:active{cursor:grabbing}",
     ".pcb-card.pcb-dragging{opacity:.45;transform:scale(.97)}",
-    ".pcb-top{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}",
+    ".pcb-card.is-planned{border-style:dashed;border-color:color-mix(in srgb,#5FA3D9 55%,var(--br2,#33332f))}",
+    ".pcb-card.link{border-color:var(--ac,#c9963a);border-style:dashed;background:color-mix(in srgb,var(--ac,#c9963a) 7%,var(--bg-a,#1e1e21))}",
+    ".pcb-top{display:flex;align-items:center;gap:7px;margin-bottom:4px}",
     ".pcb-pc{font:700 12px ui-monospace,Consolas,monospace;color:var(--ac,#c9963a);letter-spacing:.02em}",
-    ".pcb-meta{font-size:10.5px;color:var(--tx4,#6b6b67);margin-left:auto}",
-    /* [v755] Account / Assigned / Status / Action / Note — 디스코드 글의 정렬된 필드 줄을 그대로 */
-    ".pcb-fields{margin:4px 0 10px}",
-    ".pcb-frow{display:flex;align-items:flex-start;gap:8px;padding:1px 0}",
-    ".pcb-fkey{flex:0 0 66px;font:600 11px ui-monospace,Consolas,monospace;color:var(--tx4,#6b6b67);padding-top:3px;letter-spacing:.02em}",
-    ".pcb-fval{flex:1;min-width:0;font:13px/1.45 ui-monospace,Consolas,monospace;color:var(--tx,#e6e5e2);outline:none;cursor:text;border-radius:5px;padding:2px 5px;border:1px solid transparent;word-break:break-word}",
-    ".pcb-frow:first-child .pcb-fval{font-size:14px;font-weight:700}",
-    ".pcb-fval:hover{border-color:var(--br2,#33332f)}",
-    ".pcb-fval:focus{border-color:var(--ac,#c9963a);background:var(--bg-h,#242427)}",
-    ".pcb-fval:empty::before{content:attr(data-ph);color:var(--tx4,#6b6b67);font-weight:400;opacity:.62}",
-    ".pcb-revert{flex:0 0 auto;font-size:11px;line-height:1;color:var(--tx4,#6b6b67);background:transparent;border:1px solid var(--br2,#33332f);border-radius:5px;padding:3px 5px;cursor:pointer}",
-    ".pcb-revert:hover{color:var(--ac,#c9963a);border-color:var(--ac,#c9963a)}",
     ".pcb-pc.editable{cursor:pointer;border-bottom:1px dashed transparent}",
     ".pcb-pc.editable:hover{border-bottom-color:var(--ac,#c9963a)}",
-    ".pcb-pcdel{font-size:10px;line-height:1;color:var(--tx4,#6b6b67);background:transparent;border:0;padding:2px 3px;cursor:pointer;border-radius:4px}",
-    ".pcb-pcdel:hover{color:#E5484D;background:rgba(229,72,77,.12)}",
-    ".pcb-acc i{color:var(--tx4,#6b6b67);font-weight:400;font-style:italic;font-size:13px}",
-    ".pcb-shifts{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}",
-    ".pcb-sh{font:10.5px ui-monospace,Consolas,monospace;background:var(--bg-h,#242427);border:1px solid var(--br,#2a2a28);border-radius:6px;padding:2px 7px;color:var(--tx3,#8a8a86);font-variant-numeric:tabular-nums}",
-    ".pcb-sh b{color:var(--tx2,#b5b5b0);font-weight:700;margin-right:5px}",
-    ".pcb-none{font-size:10.5px;color:#c87b54;background:rgba(200,123,84,.12);border-radius:6px;padding:2px 8px}",
-    ".pcb-note{font-size:12px;color:var(--tx2,#b5b5b0);border-top:1px dashed var(--br2,#33332f);padding-top:8px;min-height:19px;outline:none;line-height:1.5;white-space:pre-wrap;word-break:break-word}",
-    ".pcb-note:empty::before{content:attr(data-ph);color:var(--tx4,#6b6b67);font-style:italic}",
-    ".pcb-note:focus{color:var(--tx,#e6e5e2)}",
-    /* [v749] 배치 플래너 */
-    ".pcb-btn.ghost{background:transparent;color:var(--tx2,#b5b5b0);border:1px solid var(--br2,#33332f);box-shadow:none;font-weight:600}",
-    ".pcb-btn.ghost:hover{background:var(--bg-h,#242427);color:var(--tx,#e6e5e2)}",
-    ".pcb-plantag{font-size:9px;font-weight:700;letter-spacing:.06em;color:#5FA3D9;background:rgba(95,163,217,.15);padding:1px 6px;border-radius:5px}",
-    ".pcb-cover{font:10.5px ui-monospace,Consolas,monospace;font-weight:700;color:#C87B54;background:rgba(200,123,84,.14);padding:1px 6px;border-radius:5px;font-variant-numeric:tabular-nums}",
+    ".pcb-plantag{font-size:8.5px;font-weight:700;letter-spacing:.06em;color:#5FA3D9;background:rgba(95,163,217,.15);padding:1px 5px;border-radius:5px}",
+    ".pcb-cover{font:10px ui-monospace,Consolas,monospace;font-weight:700;color:#C87B54;background:rgba(200,123,84,.14);padding:1px 5px;border-radius:5px;font-variant-numeric:tabular-nums}",
     ".pcb-cover.ok{color:#4E9A62;background:rgba(78,154,98,.15)}",
-    /* [v752] PC별 교대 구성 토글 — 3교대(8h) / 2교대(12h) */
+    ".pcb-meta{font-size:10px;color:var(--tx4,#6b6b67);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
     ".pcb-shift{display:inline-flex;margin-left:auto;border:1px solid var(--br2,#33332f);border-radius:6px;overflow:hidden;flex:0 0 auto}",
-    ".pcb-shbtn{font:9.5px ui-monospace,Consolas,monospace;font-weight:700;color:var(--tx4,#6b6b67);background:transparent;border:0;padding:2px 6px;cursor:pointer;letter-spacing:.02em}",
+    ".pcb-shbtn{font:9.5px ui-monospace,Consolas,monospace;font-weight:700;color:var(--tx4,#6b6b67);background:transparent;border:0;padding:2px 6px;cursor:pointer}",
     ".pcb-shbtn+.pcb-shbtn{border-left:1px solid var(--br2,#33332f)}",
     ".pcb-shbtn:hover{color:var(--tx2,#b5b5b0);background:var(--bg-h,#242427)}",
     ".pcb-shbtn.on{color:#0d0d0e;background:var(--ac,#c9963a)}",
-    ".pcb-shr{font-style:normal;font-size:9.5px;font-weight:600;opacity:.62;letter-spacing:0}",
-    ".pcb-card.is-planned{border-style:dashed;border-color:#5FA3D9}",
-    ".pcb-slots{display:flex;flex-direction:column;gap:4px;margin:0 0 2px 66px;border-left:1px solid var(--br2,#33332f);padding-left:10px}",
-    ".pcb-slot{display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:7px;background:var(--bg-h,#242427);border:1px dashed var(--br2,#33332f);min-height:28px;transition:border-color .1s,background .1s}",
-    ".pcb-slot.filled{border-style:solid;background:var(--bg-a,#1e1e21)}",
+    ".pcb-pcdel{font-size:10px;line-height:1;color:var(--tx4,#6b6b67);background:transparent;border:0;padding:2px 3px;cursor:pointer;border-radius:4px}",
+    ".pcb-pcdel:hover{color:#E5484D;background:rgba(229,72,77,.12)}",
+    ".pcb-accrow{display:flex;align-items:center;gap:6px;margin-bottom:5px}",
+    ".pcb-fval{min-width:0;font:12px/1.4 ui-monospace,Consolas,monospace;color:var(--tx,#e6e5e2);outline:none;cursor:text;border-radius:5px;padding:2px 5px;border:1px solid transparent;word-break:break-word}",
+    ".pcb-fval:hover{border-color:var(--br2,#33332f)}",
+    ".pcb-fval:focus{border-color:var(--ac,#c9963a);background:var(--bg-h,#242427)}",
+    ".pcb-fval:empty::before{content:attr(data-ph);color:var(--tx4,#6b6b67);font-weight:400;opacity:.6}",
+    ".pcb-fval.acc{flex:1;font-size:13.5px;font-weight:700}",
+    ".pcb-fval.note{font-size:11.5px;color:var(--tx2,#b5b5b0);margin-top:5px;border-top:1px dashed var(--br2,#33332f);border-radius:0 0 5px 5px;padding-top:5px}",
+    ".pcb-revert{flex:0 0 auto;font-size:11px;line-height:1;color:var(--tx4,#6b6b67);background:transparent;border:1px solid var(--br2,#33332f);border-radius:5px;padding:3px 5px;cursor:pointer}",
+    ".pcb-revert:hover{color:var(--ac,#c9963a);border-color:var(--ac,#c9963a)}",
+    ".pcb-fields{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px}",
+    ".pcb-fcell{min-width:0;background:var(--bg-h,#242427);border:1px solid var(--br,#2a2a28);border-radius:7px;padding:3px 6px 4px}",
+    ".pcb-fkey{display:block;font:700 8.5px ui-monospace,Consolas,monospace;color:var(--tx4,#6b6b67);letter-spacing:.07em;margin-bottom:1px}",
+    ".pcb-fcell .pcb-fval{font-size:11px;padding:0 2px;border:0}",
+    ".pcb-fcell:focus-within{border-color:var(--ac,#c9963a)}",
+    /* 시프트 칸 — 가로 필 */
+    ".pcb-slots{display:flex;gap:5px}",
+    ".pcb-slot{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:5px;padding:3px 6px;border-radius:7px;background:var(--bg-h,#242427);border:1px dashed var(--br2,#33332f);min-height:26px;transition:border-color .1s,background .1s}",
+    ".pcb-slot.filled{border-style:solid;background:var(--bg-c,#17171a)}",
     ".pcb-slot.over{border-color:var(--ac,#c9963a);background:color-mix(in srgb,var(--ac,#c9963a) 12%,var(--bg-h,#242427))}",
-    ".pcb-slabel{font:10px ui-monospace,Consolas,monospace;font-weight:700;color:var(--tx4,#6b6b67);flex:0 0 118px;letter-spacing:.02em;line-height:1.35;display:flex;align-items:baseline;gap:7px}",
-    ".pcb-person{flex:0 1 auto!important;max-width:280px}",
-    ".pcb-slotempty{font-size:11px;color:var(--tx4,#6b6b67);font-style:italic;flex:1}",
-    ".pcb-stime{font:9px ui-monospace,Consolas,monospace;color:var(--tx4,#6b6b67);margin-left:auto;flex:0 0 auto;opacity:.8}",
-    ".pcb-person{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:650;color:var(--tx,#e6e5e2);background:var(--bg-c,#17171a);border:1px solid var(--br2,#33332f);border-radius:6px;padding:2px 7px;cursor:grab;flex:1;min-width:0}",
+    ".pcb-snum{font:700 9.5px ui-monospace,Consolas,monospace;color:var(--tx4,#6b6b67);flex:0 0 auto}",
+    ".pcb-slotempty{font-size:10px;color:var(--tx4,#6b6b67);font-style:italic;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".pcb-person{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:650;color:var(--tx,#e6e5e2);background:var(--bg-a,#1e1e21);border:1px solid var(--br2,#33332f);border-radius:6px;padding:1px 6px;cursor:grab;flex:1;min-width:0}",
     ".pcb-person:active{cursor:grabbing}",
     ".pcb-person.pcb-dragging{opacity:.4}",
+    ".pcb-person.tag{flex:0 1 auto;padding:2px 7px}",
     ".pcb-x{background:none;border:none;color:var(--tx4,#6b6b67);cursor:pointer;font-size:10px;padding:0 0 0 3px;margin-left:auto;line-height:1}",
     ".pcb-x:hover{color:#c46a6a}",
-    /* [v750] 인력 풀을 위쪽 전체폭으로 — 오른쪽 좁은 레일은 눈에 안 띄어서 존재 자체를 몰랐다 */
-    ".pcb-pool{background:var(--bg-c,#17171a);border:1px solid var(--br,#2a2a28);border-radius:14px;padding:12px 14px;margin-bottom:16px;position:sticky;top:0;z-index:5}",
-    ".pcb-pool.over{border-color:var(--ac,#c9963a)}",
-    ".pcb-pool.picking{border-color:var(--ac,#c9963a);box-shadow:0 0 0 1px var(--ac,#c9963a) inset,0 6px 20px rgba(0,0,0,.3)}",
-    ".pcb-poolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}",
-    ".pcb-step{width:20px;height:20px;border-radius:50%;background:var(--ac,#c9963a);color:#1a1408;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}",
-    ".pcb-poolhead{font-size:13px;font-weight:650;color:var(--tx,#e6e5e2)}",
-    ".pcb-poolhead u{text-decoration-color:var(--ac,#c9963a);text-underline-offset:2px}",
-    ".pcb-selname{color:var(--ac,#c9963a);font-weight:800}",
-    ".pcb-poolnote{font-size:11px;color:var(--tx4,#6b6b67);margin-left:auto}",
-    ".pcb-btn.sm{padding:4px 11px;font-size:11.5px;margin-left:auto}",
-    ".pcb-poollist{display:flex;flex-wrap:wrap;gap:6px}",
-    ".pcb-person.pool{flex:0 0 auto;cursor:pointer;padding:5px 11px;font-size:12.5px}",
-    ".pcb-person.pool:hover{border-color:var(--ac,#c9963a);color:var(--ac,#c9963a)}",
-    ".pcb-person.pool.sel{background:var(--ac,#c9963a);color:#1a1408;border-color:var(--ac,#c9963a);font-weight:800}",
-    /* 선택 상태에서 빈 칸을 켜서 어디를 눌러야 하는지 보이게 */
     ".pcb-slot.armed{border-color:var(--ac,#c9963a);border-style:solid;background:color-mix(in srgb,var(--ac,#c9963a) 10%,var(--bg-h,#242427));cursor:pointer;animation:pcbPulse 1.6s ease-in-out infinite}",
     ".pcb-slot.armed .pcb-slotempty{color:var(--ac,#c9963a);font-style:normal;font-weight:700}",
+    ".pcb-links{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}",
+    /* 문의 카드 */
+    ".pcb-iq{background:var(--bg-c,#17171a);border:1px solid var(--br2,#33332f);border-left:3px solid color-mix(in srgb,#8A7CA8 62%,transparent);border-radius:11px;padding:9px 10px;cursor:grab;transition:box-shadow .12s,border-color .12s}",
+    ".pcb-iq:hover{border-color:var(--br3,#44443f);border-left-color:#8A7CA8;box-shadow:0 4px 14px rgba(0,0,0,.28)}",
+    ".pcb-iq:active{cursor:grabbing}",
+    ".pcb-iq.pcb-dragging{opacity:.45;transform:scale(.97)}",
+    ".pcb-iq.flash{border-color:var(--ac,#c9963a);box-shadow:0 0 0 1px var(--ac,#c9963a) inset}",
+    ".pcb-iqtop{display:flex;align-items:center;gap:7px;margin-bottom:5px}",
+    ".pcb-iqtag{font:800 8.5px ui-monospace,Consolas,monospace;letter-spacing:.09em;color:#8A7CA8;background:color-mix(in srgb,#8A7CA8 15%,transparent);padding:2px 6px;border-radius:5px;flex:0 0 auto}",
+    ".pcb-iqname{flex:1;min-width:0;font:700 13.5px/1.35 inherit;color:var(--tx,#e6e5e2);outline:none;cursor:text;border-radius:5px;padding:1px 5px;border:1px solid transparent;word-break:break-word}",
+    ".pcb-iqname:hover{border-color:var(--br2,#33332f)}",
+    ".pcb-iqname:focus{border-color:var(--ac,#c9963a);background:var(--bg-h,#242427)}",
+    ".pcb-iqname:empty::before{content:attr(data-ph);color:var(--tx4,#6b6b67);font-weight:400;opacity:.6}",
+    ".pcb-iqgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px}",
+    ".pcb-iqcell{display:flex;align-items:center;gap:4px;min-width:0;background:var(--bg-h,#242427);border:1px solid var(--br,#2a2a28);border-radius:7px;padding:2px 6px}",
+    ".pcb-iqcell:focus-within{border-color:var(--ac,#c9963a)}",
+    ".pcb-iqcap{font-size:10px;opacity:.75;flex:0 0 auto}",
+    ".pcb-iqcell .pcb-fval{flex:1;font-size:11px;border:0;padding:1px 2px}",
+    ".pcb-iqlink{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:6px}",
+    ".pcb-iqsel{font:600 10.5px inherit;color:var(--tx3,#8a8a86);background:var(--bg-h,#242427);border:1px solid var(--br2,#33332f);border-radius:7px;padding:3px 5px;max-width:190px;cursor:pointer;outline:none}",
+    ".pcb-iqsel:hover{border-color:var(--br3,#44443f);color:var(--tx,#e6e5e2)}",
+    ".pcb-chip{display:inline-flex;align-items:center;gap:4px;font:650 10.5px ui-monospace,Consolas,monospace;color:var(--tx2,#b5b5b0);background:var(--bg-h,#242427);border:1px solid var(--br2,#33332f);border-radius:7px;padding:3px 8px;cursor:pointer;max-width:100%}",
+    ".pcb-chip:hover{border-color:var(--ac,#c9963a);color:var(--tx,#e6e5e2)}",
+    ".pcb-chip.iqref{font-weight:600;color:var(--tx3,#8a8a86);max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:inline-block;padding:2px 7px}",
+    ".pcb-mini{font:650 10.5px inherit;color:var(--tx3,#8a8a86);background:transparent;border:1px solid var(--br2,#33332f);border-radius:7px;padding:3px 9px;cursor:pointer}",
+    ".pcb-mini:hover{color:var(--tx,#e6e5e2);border-color:var(--br3,#44443f)}",
+    ".pcb-mini.act{color:var(--tx2,#b5b5b0)}",
+    ".pcb-mini.act:hover{color:#5FA3D9;border-color:#5FA3D9}",
+    ".pcb-mini.act.go:hover{color:#4E9A62;border-color:#4E9A62}",
+    ".pcb-iqzone{display:flex;align-items:center;gap:5px;flex-wrap:wrap;border:1px dashed var(--br2,#33332f);border-radius:8px;padding:4px 7px;margin-bottom:4px;min-height:27px;transition:border-color .1s,background .1s}",
+    ".pcb-iqzone.over{border-color:var(--ac,#c9963a);background:color-mix(in srgb,var(--ac,#c9963a) 10%,transparent)}",
+    ".pcb-iqzone.armed{border-color:var(--ac,#c9963a);border-style:solid;cursor:pointer;animation:pcbPulse 1.6s ease-in-out infinite}",
+    ".pcb-iqzone.armed .pcb-slotempty{color:var(--ac,#c9963a);font-style:normal;font-weight:700}",
+    ".pcb-zcap{font:700 8.5px ui-monospace,Consolas,monospace;color:var(--tx4,#6b6b67);letter-spacing:.07em;flex:0 0 44px}",
+    ".pcb-iqfoot{display:flex;align-items:center;gap:6px;margin-top:6px}",
+    ".pcb-stamp{font:650 10px ui-monospace,Consolas,monospace;color:var(--tx3,#8a8a86);background:var(--bg-h,#242427);border:1px solid var(--br,#2a2a28);border-radius:6px;padding:2px 7px}",
+    ".pcb-stamp.ok{color:#4E9A62;background:rgba(78,154,98,.12);border-color:transparent}",
+    /* 인력 서랍 */
+    ".pcb-drawer{position:fixed;right:14px;top:64px;bottom:14px;width:278px;z-index:60;display:flex;flex-direction:column;background:var(--bg-c,#17171a);border:1px solid var(--br,#2a2a28);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.45)}",
+    ".pcb-drawer.over{border-color:var(--ac,#c9963a)}",
+    ".pcb-dhead{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--br,#2a2a28)}",
+    ".pcb-dhead b{font-size:12.5px;color:var(--tx,#e6e5e2);flex:0 0 auto}",
+    ".pcb-dsearch{flex:1;min-width:0;font:inherit;font-size:11.5px;color:var(--tx,#e6e5e2);background:var(--bg-h,#242427);border:1px solid var(--br2,#33332f);border-radius:7px;padding:4px 8px;outline:none}",
+    ".pcb-dsearch:focus{border-color:var(--ac,#c9963a)}",
+    ".pcb-dbody{flex:1;overflow-y:auto;padding:8px 10px;scrollbar-width:thin}",
+    ".pcb-dsec{font:700 10px ui-monospace,Consolas,monospace;letter-spacing:.06em;color:var(--tx3,#8a8a86);margin:9px 2px 5px}",
+    ".pcb-dsec:first-child{margin-top:2px}",
+    ".pcb-dsec b{color:var(--tx2,#b5b5b0)}",
+    ".pcb-dchip{display:flex;align-items:center;gap:7px;background:var(--bg-a,#1e1e21);border:1px solid var(--br2,#33332f);border-radius:8px;padding:5px 8px;margin-bottom:4px;cursor:grab}",
+    ".pcb-dchip:hover{border-color:var(--ac,#c9963a)}",
+    ".pcb-dchip:active{cursor:grabbing}",
+    ".pcb-dchip.sel{border-color:var(--ac,#c9963a);box-shadow:0 0 0 1px var(--ac,#c9963a) inset}",
+    ".pcb-ddot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}",
+    ".pcb-ddot.on{background:#4E9A62}",
+    ".pcb-ddot.break{background:#C9963A}",
+    ".pcb-ddot.shift{background:#5FA3D9}",
+    ".pcb-ddot.off{background:var(--br3,#44443f)}",
+    ".pcb-dname{font-size:12px;font-weight:650;color:var(--tx,#e6e5e2);flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    ".pcb-dsub{font:10px ui-monospace,Consolas,monospace;color:var(--tx4,#6b6b67);margin-left:auto;flex:0 0 auto}",
+    ".pcb-dfoot{font-size:9.5px;color:var(--tx4,#6b6b67);line-height:1.5;padding:8px 12px;border-top:1px solid var(--br,#2a2a28)}",
+    ".pcb-dload{font-size:11px;color:var(--tx4,#6b6b67);padding:9px 4px;font-style:italic}",
     "@keyframes pcbPulse{0%,100%{opacity:1}50%{opacity:.72}}",
-    "@media(prefers-reduced-motion:reduce){.pcb-slot.armed{animation:none}}",
-    "@media(max-width:900px){.pcb-pool{position:static}}",
-    "@media(max-width:900px){.pcb-wrap{padding:18px 14px 50px}.pcb-board{flex-direction:column}.pcb-col{width:100%;min-width:0}}"
+    "@media(prefers-reduced-motion:reduce){.pcb-slot.armed,.pcb-iqzone.armed{animation:none}}",
+    "@media(max-width:900px){.pcb-wrap{padding:16px 12px 40px}.pcb-col{flex:0 0 86vw}.pcb-drawer{width:min(86vw,300px);top:56px}}"
   ].join("\n");
   document.head.appendChild(s);
 }
