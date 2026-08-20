@@ -16603,14 +16603,16 @@ function _mtcNote(kind, item, today, pos){
   const dayB = (!isDone && days>=1) ? `<span class="mtcn-day ${days>=7?'old':''}">D${days}</span>` : '';
   const sel = (window._mtcLinkFrom === _mtcUid(item)) ? ' mtc-linksel' : '';
   // [v784] 카드 크기 조절 — 폭·높이 둘 다 반영해 글꼴이 자연스럽게 따라감
-  const w = (item.size && item.size.w) || 228;
+  const w = (item.size && item.size.w) || (item.sub ? 190 : 228);
   const h = (item.size && item.size.h) || 0;
-  const fs = _mtcFontFor(w, h);
+  const fs = item.sub ? Math.max(9.5, _mtcFontFor(w,h)*0.92).toFixed(2) : _mtcFontFor(w, h);
   const isNew = (window._mtcPopUid === _mtcUid(item)) ? ' mtc-pop' : '';
   const tall = h >= 62 ? ' mtcn-tall' : '';
-  return `<div class="mtc-note mtcn-${isDone?'done':kind}${sel}${isNew}${tall}" data-kind="${kind}" data-id="${item.id}" data-uid="${_mtcUid(item)}"
+  const subC = item.sub ? ' mtcn-sub' : '';
+  return `<div class="mtc-note mtcn-${isDone?'done':kind}${sel}${isNew}${tall}${subC}" data-kind="${kind}" data-id="${item.id}" data-uid="${_mtcUid(item)}"
       style="left:${pos.x}px;top:${pos.y}px;width:${w}px;${h?`min-height:${h}px;`:''}font-size:${fs}px">
-    <span class="mtcn-dot" title="${({inbox:'인박스',passive:'패시브',active:'액티브'})[kind]||''}"></span>
+    ${item.sub ? `<span class="mtcn-subic" title="상위 카드에서 분리된 세부 항목">↳</span>`
+               : `<span class="mtcn-dot" title="${({inbox:'인박스',passive:'패시브',active:'액티브'})[kind]||''}"></span>`}
     ${st}<span class="mtcn-text">${text}</span>${memoDot}${stepB}${dayB}${owner}${pri}
     <div class="mtcn-rz" title="드래그로 카드 크기 조절"></div>
   </div>`;
@@ -16753,6 +16755,17 @@ function mtCanvasHTML(ctx){
     transition:box-shadow .18s ease;cursor:grabbing;border-color:var(--nc);width:auto}
   /* 종류 표시 — 굵은 왼쪽 줄 대신 작은 점 */
   .mtcn-dot{width:6px;height:6px;border-radius:50%;background:var(--nc,#5fa3d9);flex:none;box-shadow:0 0 6px color-mix(in srgb,var(--nc) 60%,transparent)}
+  /* 서브카드 — 상위 카드에서 분리된 세부 항목. 본 카드보다 작고 점선 테두리. */
+  .mtc-note.mtcn-sub{background:linear-gradient(180deg,rgba(30,30,29,.93),rgba(23,23,22,.93));
+    border:1px dashed color-mix(in srgb,var(--nc) 40%,rgba(255,255,255,.1));
+    border-radius:7px;padding:4px 8px;box-shadow:0 1px 5px rgba(0,0,0,.3);opacity:.93}
+  .mtc-note.mtcn-sub:hover{opacity:1;border-style:solid}
+  .mtcn-subic{flex:none;font-size:.95em;color:color-mix(in srgb,var(--nc) 75%,#fff);opacity:.8;font-weight:700}
+  .mtc-note.mtcn-sub .mtcn-text{opacity:.9}
+  .mtc-stepghost{position:fixed;z-index:10001;pointer-events:none;padding:5px 10px;border-radius:7px;
+    background:rgba(28,28,27,.97);border:1px dashed rgba(255,255,255,.28);color:var(--tx2);
+    font:11px ui-monospace,'Malgun Gothic',monospace;box-shadow:0 10px 26px rgba(0,0,0,.55);opacity:.85}
+  .mtc-stepghost.ok{border-color:#7fc4ff;color:#cfe7fb;box-shadow:0 10px 26px rgba(0,0,0,.55),0 0 0 3px rgba(127,196,255,.18);opacity:1}
   /* 카드를 높게 늘리면 글이 여러 줄로 흐름 */
   .mtc-note.mtcn-tall{align-items:flex-start;flex-wrap:wrap;align-content:flex-start;padding:9px 10px}
   .mtc-note.mtcn-tall .mtcn-text{flex:1 1 100%;order:2;margin:2px 0 6px}
@@ -16791,10 +16804,23 @@ function mtCanvasHTML(ctx){
     letter-spacing:.08em;color:color-mix(in srgb,var(--bc) 52%,transparent)}
   .mtc-band.mtc-bhot{background:linear-gradient(90deg,color-mix(in srgb,var(--bc) 11%,transparent),transparent)}
   .mtc-band.mtc-bhot .mtc-band-lb{color:var(--bc)}
-  /* 정렬 가이드선 */
-  .mtc-guide{position:absolute;background:#e0715f;pointer-events:none;z-index:900;box-shadow:0 0 6px rgba(224,113,95,.6)}
-  .mtc-guide-v{top:0;bottom:0;width:1px}
-  .mtc-guide-h{left:0;right:0;height:1px}
+  /* 자석 정렬 — 화면을 가로지르지 않고 붙은 두 카드 사이만, 부드럽게 나타났다 사라짐 */
+  .mtc-guide{position:absolute;pointer-events:none;z-index:900;border-radius:2px;opacity:.9;
+    transition:opacity .18s ease,transform .18s ease}
+  .mtc-guide-v{width:2px;
+    background:linear-gradient(180deg,transparent,color-mix(in srgb,#7fc4ff 92%,transparent) 14%,color-mix(in srgb,#7fc4ff 92%,transparent) 86%,transparent);
+    box-shadow:0 0 10px rgba(127,196,255,.55);animation:mtcGuideV .22s cubic-bezier(.2,1.1,.35,1)}
+  .mtc-guide-h{height:2px;
+    background:linear-gradient(90deg,transparent,color-mix(in srgb,#7fc4ff 92%,transparent) 14%,color-mix(in srgb,#7fc4ff 92%,transparent) 86%,transparent);
+    box-shadow:0 0 10px rgba(127,196,255,.55);animation:mtcGuideH .22s cubic-bezier(.2,1.1,.35,1)}
+  @keyframes mtcGuideV{from{transform:scaleY(.35);opacity:0}to{transform:scaleY(1);opacity:.9}}
+  @keyframes mtcGuideH{from{transform:scaleX(.35);opacity:0}to{transform:scaleX(1);opacity:.9}}
+  .mtc-guide.mtc-guide-out{opacity:0;transform:scale(.9)}
+  /* 딱 붙는 순간 카드가 살짝 반응 */
+  @keyframes mtcSnapTick{0%{box-shadow:0 18px 38px rgba(0,0,0,.62)}
+    40%{box-shadow:0 0 0 3px rgba(127,196,255,.4),0 18px 38px rgba(0,0,0,.62)}
+    100%{box-shadow:0 18px 38px rgba(0,0,0,.62)}}
+  .mtc-note.mtc-snapped,.mtc-zone.mtc-snapped,.mtc-member.mtc-snapped{animation:mtcSnapTick .3s ease-out}
   /* 확대 배율 표시 */
   #mtc-zoomtag{position:absolute;right:12px;bottom:12px;z-index:20;padding:5px 11px;border-radius:8px;
     background:rgba(20,20,20,.9);border:1px solid var(--br,#333);color:var(--tx2);
@@ -16834,8 +16860,14 @@ function mtCanvasHTML(ctx){
     border-radius:7px;color:var(--tx1);font:11px/1.5 ui-monospace,'Malgun Gothic',monospace;padding:6px 8px;outline:none;margin-bottom:6px}
   .mtcpop-memo:focus{border-color:var(--pc)}
   .mtcpop-steps{margin-bottom:6px}
-  .mtcpop-step{display:flex;gap:6px;align-items:flex-start;font:10.5px/1.45 ui-monospace,'Malgun Gothic',monospace;color:var(--tx2);padding:2px 0;cursor:pointer}
-  .mtcpop-step.done span{text-decoration:line-through;opacity:.5}
+  .mtcpop-steps-h{font:8.5px ui-monospace,monospace;font-weight:800;letter-spacing:.08em;color:var(--tx3);margin-bottom:3px;display:flex;justify-content:space-between}
+  .mtcpop-steps-h span{font-weight:600;letter-spacing:0;opacity:.7}
+  .mtcpop-step{display:flex;gap:5px;align-items:flex-start;font:10.5px/1.45 ui-monospace,'Malgun Gothic',monospace;color:var(--tx2);padding:3px 4px;border-radius:5px}
+  .mtcpop-step:hover{background:rgba(255,255,255,.045)}
+  .mtcpop-step.done .mtcpop-steptx{text-decoration:line-through;opacity:.5}
+  .mtcpop-steptx{flex:1;word-break:keep-all}
+  .mtcpop-grip{cursor:grab;color:var(--tx3);opacity:.45;font-size:10px;padding:0 1px;touch-action:none}
+  .mtcpop-step:hover .mtcpop-grip{opacity:.9;color:#7fc4ff}
   .mtcpop-prog{height:3px;background:rgba(255,255,255,.07);border-radius:2px;margin-top:5px;overflow:hidden}
   .mtcpop-prog i{display:block;height:100%;background:var(--pc);transition:width .3s}
   .mtcpop-addstep{width:100%;margin-bottom:7px}
@@ -17138,6 +17170,7 @@ function mtCanvasInit(){
     const n = e.target.closest('.mtc-note');
     if(n && !n.contains(e.relatedTarget)) mtcPopLeave();
   });
+  vp.addEventListener('mouseleave', () => mtcPopLeave());   // 보드 밖으로 나가면 바로
 
   vp.addEventListener('pointerdown', e => {
     if(e.button !== 0) return;
@@ -17307,31 +17340,63 @@ function _mtcSnapPos(x, y, w, h, selfEl){
   targets.forEach(t => {
     [t.x1, t.cx, t.x2].forEach(tv => mineX.forEach(m => {
       const d = Math.abs(m.v - tv);
-      if(d <= MTC_SNAP_D && (!bestX || d < bestX.d)) bestX = { d, x: tv - m.off, line: tv };
+      if(d <= MTC_SNAP_D && (!bestX || d < bestX.d)) bestX = { d, x: tv - m.off, line: tv, t };
     }));
     [t.y1, t.cy, t.y2].forEach(tv => mineY.forEach(m => {
       const d = Math.abs(m.v - tv);
-      if(d <= MTC_SNAP_D && (!bestY || d < bestY.d)) bestY = { d, y: tv - m.off, line: tv };
+      if(d <= MTC_SNAP_D && (!bestY || d < bestY.d)) bestY = { d, y: tv - m.off, line: tv, t };
     }));
   });
   let nx = x, ny = y;
-  if(bestX){ nx = bestX.x; guides.push({ v:true, at: bestX.line }); }
-  else nx = Math.round(x / MTC_GRID) * MTC_GRID;      // 붙을 게 없으면 격자에 살짝 정돈
-  if(bestY){ ny = bestY.y; guides.push({ v:false, at: bestY.line }); }
-  else ny = Math.round(y / MTC_GRID) * MTC_GRID;
+  // 가이드선은 화면을 가로지르지 않고, 붙은 두 박스 사이 구간만
+  // 가이드 길이는 내 카드 주변으로만 — 큰 영역에 붙어도 길게 뻗지 않게
+  const OVER = 74;
+  if(bestX){
+    nx = bestX.x;
+    const lo = Math.max(Math.min(ny, bestX.t.y1), ny - OVER);
+    const hi = Math.min(Math.max(ny+h, bestX.t.y2), ny + h + OVER);
+    guides.push({ v:true, at: bestX.line, from: lo, to: hi, key:'x'+bestX.line });
+  } else nx = Math.round(x / MTC_GRID) * MTC_GRID;      // 붙을 게 없으면 격자에 살짝 정돈
+  if(bestY){
+    ny = bestY.y;
+    const lo = Math.max(Math.min(nx, bestY.t.x1), nx - OVER);
+    const hi = Math.min(Math.max(nx+w, bestY.t.x2), nx + w + OVER);
+    guides.push({ v:false, at: bestY.line, from: lo, to: hi, key:'y'+bestY.line });
+  } else ny = Math.round(y / MTC_GRID) * MTC_GRID;
   return { x: nx, y: ny, guides };
 }
-function _mtcShowGuides(guides){
+let _mtcGuideSig = '';
+function _mtcShowGuides(guides, el){
   const sf = document.getElementById('mtc-surface'); if(!sf) return;
+  const sig = (guides||[]).map(g=>g.key).join('|');
+  if(sig === _mtcGuideSig){                       // 같은 자리에 계속 붙어있으면 다시 그리지 않음
+    // 길이만 갱신
+    (guides||[]).forEach((g,i) => {
+      const e = sf.querySelectorAll('.mtc-guide')[i]; if(!e) return;
+      if(g.v){ e.style.top = g.from+'px'; e.style.height = Math.max(8, g.to-g.from)+'px'; }
+      else   { e.style.left = g.from+'px'; e.style.width  = Math.max(8, g.to-g.from)+'px'; }
+    });
+    return;
+  }
+  _mtcGuideSig = sig;
   sf.querySelectorAll('.mtc-guide').forEach(g=>g.remove());
+  if(sig && el){ el.classList.remove('mtc-snapped'); void el.offsetWidth; el.classList.add('mtc-snapped'); }  // 붙는 순간 살짝 반응
   (guides||[]).forEach(g => {
-    const el = document.createElement('div');
-    el.className = 'mtc-guide ' + (g.v ? 'mtc-guide-v' : 'mtc-guide-h');
-    if(g.v){ el.style.left = g.at+'px'; } else { el.style.top = g.at+'px'; }
-    sf.appendChild(el);
+    const d = document.createElement('div');
+    d.className = 'mtc-guide ' + (g.v ? 'mtc-guide-v' : 'mtc-guide-h');
+    if(g.v){ d.style.left = g.at+'px'; d.style.top = g.from+'px'; d.style.height = Math.max(8, g.to-g.from)+'px'; }
+    else   { d.style.top  = g.at+'px'; d.style.left = g.from+'px'; d.style.width  = Math.max(8, g.to-g.from)+'px'; }
+    sf.appendChild(d);
   });
 }
-function _mtcClearGuides(){ document.querySelectorAll('.mtc-guide').forEach(g=>g.remove()); }
+function _mtcClearGuides(){
+  _mtcGuideSig = '';
+  document.querySelectorAll('.mtc-guide').forEach(g => {
+    g.classList.add('mtc-guide-out');
+    setTimeout(()=>g.remove(), 200);          // 사라질 때도 부드럽게
+  });
+  document.querySelectorAll('.mtc-snapped').forEach(e=>e.classList.remove('mtc-snapped'));
+}
 
 // 영역 안 카드들을 격자로 가지런히 (우클릭 → 정렬)
 function mtcTidyZone(key){
@@ -17441,7 +17506,7 @@ function _mtcBoxMoveStart(e, el, key, vp){
     let rx = Math.max(0, Math.min(MTC_SURFACE.w - el.offsetWidth,  ox + dx));
     let ry = Math.max(0, Math.min(MTC_SURFACE.h - el.offsetHeight, oy + dy));
     const sn = _mtcSnapPos(rx, ry, el.offsetWidth, el.offsetHeight, el);   // 자석 정렬
-    nx = sn.x; ny = sn.y; _mtcShowGuides(sn.guides);
+    nx = sn.x; ny = sn.y; _mtcShowGuides(sn.guides, el);
     el.style.left = nx + 'px'; el.style.top = ny + 'px';
     const rdx = nx - ox, rdy = ny - oy;
     carried.forEach(c => { c.el.style.left = (c.x0+rdx)+'px'; c.el.style.top = (c.y0+rdy)+'px'; });
@@ -17534,7 +17599,7 @@ function _mtcNoteDown(e, note, vp){
     let ry = Math.max(0, Math.min(MTC_SURFACE.h-100, oy + (ev.clientY-startY)/mtcView.s));
     const sn = _mtcSnapPos(rx, ry, note.offsetWidth, note.offsetHeight, note);   // 자석 정렬
     nx = sn.x; ny = sn.y;
-    _mtcShowGuides(sn.guides);
+    _mtcShowGuides(sn.guides, note);
     note.style.left = nx+'px'; note.style.top = ny+'px';
     _mtcDrawLinks();   // 선이 카드를 따라옴
     highlight(ev.clientX, ev.clientY);
@@ -17663,17 +17728,21 @@ function mtcPopHover(noteEl){
   clearTimeout(_mtcPopT);
   _mtcPopT = setTimeout(()=>{
     if(window._mtcDragging) return;
+    if(!noteEl.matches(':hover')) return;      // 이미 벗어났으면 띄우지 않음
     _mtcShowPop(noteEl, false);
-  }, 420);
+  }, 380);
 }
 function mtcPopLeave(){
   if(_mtcPopPinned) return;
   clearTimeout(_mtcPopT);
+  // 카드↔팝업 사이를 건너갈 최소 여유만 두고 곧바로 닫음
   _mtcPopT = setTimeout(()=>{
     const p = document.getElementById('mtc-pop');
-    if(p && p.matches(':hover')) return;      // 팝업 위로 마우스가 넘어갔으면 유지
+    if(p && (p.matches(':hover') || p.contains(document.activeElement))) return;
+    const n = _mtcPopKey && document.querySelector(`.mtc-note[data-uid="${_mtcPopKey}"]`);
+    if(n && n.matches(':hover')) return;
     mtcClosePop();
-  }, 260);
+  }, 70);
 }
 function _mtcShowPop(noteEl, pinned){
   const kind = noteEl.dataset.kind, id = Number(noteEl.dataset.id), uid = noteEl.dataset.uid;
@@ -17719,8 +17788,11 @@ function _mtcShowPop(noteEl, pinned){
     </div>
     <textarea class="mtcpop-memo" placeholder="메모 · 세부 내용…" onblur="mtcPopField('${kind}',${id},'memo',this.value)">${_mtcEsc(item.memo||'')}</textarea>
     ${steps.length?`<div class="mtcpop-steps">
-      ${steps.map((s,i)=>`<label class="mtcpop-step ${s.done?'done':''}">
-        <input type="checkbox" ${s.done?'checked':''} onchange="mtcToggleStep(${id},${i});mtcRepop()"><span>${_mtcEsc(s.text)}</span></label>`).join('')}
+      <div class="mtcpop-steps-h">하위 항목 <span>밖으로 끌면 카드가 됩니다 ↗</span></div>
+      ${steps.map((s,i)=>`<div class="mtcpop-step ${s.done?'done':''}" data-step="${i}">
+        <span class="mtcpop-grip" onpointerdown="_mtcStepDragOut(event,'${kind}',${id},${i})" title="밖으로 끌어내기">⠿</span>
+        <input type="checkbox" ${s.done?'checked':''} onchange="mtcToggleStep(${id},${i});mtcRepop()">
+        <span class="mtcpop-steptx">${_mtcEsc(s.text)}</span></div>`).join('')}
       <div class="mtcpop-prog"><i style="width:${Math.round(doneN/steps.length*100)}%"></i></div>
     </div>`:''}
     ${kind==='active'?`<input class="mtcpop-in mtcpop-addstep" placeholder="+ 하위 항목 (Enter)" onkeydown="if(event.key==='Enter'){mtcAddStep(${id},this);mtcRepop()}">`:''}
@@ -17743,6 +17815,52 @@ function _mtcShowPop(noteEl, pinned){
   el.addEventListener('pointerdown', ()=>{ _mtcPopPinned = true; el.querySelector('.mtcpop-pin')?.classList.add('on'); });
   el.addEventListener('mouseleave', ()=>{ if(!_mtcPopPinned) mtcPopLeave(); });
   el.addEventListener('mouseenter', ()=>clearTimeout(_mtcPopT));
+}
+// [v787] 하위 항목을 팝업 밖으로 끌어내면 → 독립 서브카드가 되고 부모와 자동 연결
+function _mtcStepDragOut(e, kind, id, idx){
+  e.preventDefault(); e.stopPropagation();
+  const { item } = _mtcFind(kind, id); if(!item || !item.steps || !item.steps[idx]) return;
+  const step = item.steps[idx];
+  const parentUid = _mtcUid(item);
+  _mtcPopPinned = true;
+
+  const ghost = document.createElement('div');
+  ghost.className = 'mtc-stepghost';
+  ghost.textContent = '↳ ' + step.text;
+  document.body.appendChild(ghost);
+  const move = ev => {
+    ghost.style.left = (ev.clientX + 12) + 'px';
+    ghost.style.top  = (ev.clientY + 8) + 'px';
+    const vp = document.getElementById('mtc-vp');
+    const over = vp && _mtcInsideVp(ev.clientX, ev.clientY, vp);
+    ghost.classList.toggle('ok', !!over);
+  };
+  const up = ev => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    ghost.remove();
+    const vp = document.getElementById('mtc-vp');
+    if(!vp || !_mtcInsideVp(ev.clientX, ev.clientY, vp)) return;   // 보드 밖이면 취소
+    const p = _mtcToSurface(ev.clientX, ev.clientY, vp);
+    const cur = _mtcFind(kind, id).item; if(!cur) return;
+    cur.steps.splice(idx, 1);                                       // 부모에서 제거
+    const nid = Date.now();
+    const sub = { id:nid, text:step.text, created_at:isoDate(new Date()), owner:cur.owner,
+                  sub:true, done:!!step.done,
+                  pos:{ x: Math.max(0, Math.round(p.x-90)), y: Math.max(0, Math.round(p.y-14)) },
+                  size:{ w:190, h:26 } };
+    MT_INBOX.push(sub);
+    MT_LINKS.push({ a: parentUid, b: _mtcUid(sub) });                // 부모와 자동 연결
+    window._mtcPopUid = sub.uid;
+    saveMTSystem(); renderMTSystem();
+    setTimeout(()=>{ window._mtcPopUid = null; }, 400);
+    toast('↳ 서브카드로 분리 · 부모와 연결됨');
+    mtcRepop();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+}
+function _mtcInsideVp(cx, cy, vp){
+  const r = vp.getBoundingClientRect();
+  return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
 }
 function mtcTogglePin(){
   _mtcPopPinned = !_mtcPopPinned;
