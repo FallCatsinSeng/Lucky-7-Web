@@ -15775,6 +15775,85 @@ function mtcMembers(){ return (Array.isArray(MT_CMEMBERS) && MT_CMEMBERS.length)
 let MT_SCOPE = 'default';
 function _mtStateId(){ return MT_SCOPE; }
 function _mtKey(k){ return MT_SCOPE === 'default' ? k : k + '__' + MT_SCOPE; }
+// [v810] 남의 개인 보드를 들여다보는 중인지 — 보고만 있을 땐 고칠 수 없다
+let MT_VIEWING = null;   // {id, name} · null이면 내 보드
+function _mtcRO(){ return !!MT_VIEWING; }
+function _mtcBlockRO(){
+  if(!_mtcRO()) return false;
+  toast(`${MT_VIEWING.name}의 보드는 보기 전용입니다`, true);
+  return true;
+}
+function mtcViewMemberBoard(id, name){
+  const mine = String(currentUser?.id || currentUser?.name || 'me');
+  MT_VIEWING = (String(id) === mine) ? null : { id:String(id), name };
+  mtSetScope('personal:' + id);
+  _mtSynced = false;
+  renderMTSystem('personal');
+  try{ closeTaskDetail(); }catch(_){}
+  toast(MT_VIEWING ? `👁 ${name}의 보드 — 보기 전용` : '내 보드로 돌아옴');
+}
+// [v810] 카드를 그 사람의 개인 보드로 보내기 — 저쪽에 확실히 들어간 뒤에만 이쪽에서 지운다
+async function _mtcSendToMemberBoard(kind, id, memberId, memberName){
+  const { arr, item } = _mtcFind(kind, id); if(!item) return;
+  const label = (item.title || item.text || '').slice(0,20) || '(빈 카드)';
+  if(!sb){ toast('오프라인이라 보낼 수 없어요', true); return; }
+  const target = 'personal:' + memberId;
+  toast(`${memberName}에게 보내는 중…`);
+  try{
+    const { data, error } = await sb.from('mt_state').select('data').eq('id', target).maybeSingle();
+    if(error) throw error;
+    const d = (data && data.data) ? data.data : {};
+    const inbox = Array.isArray(d.inbox) ? d.inbox : [];
+    // 종류와 무관하게 상대의 인박스로 — 받는 사람이 스스로 분류하게
+    inbox.push({ id: Date.now(), text: item.title || item.text || '', owner: memberName,
+                 created_at: item.created_at || isoDate(new Date()), memo: item.memo || '',
+                 steps: item.steps || [], from: currentUser?.name || 'MT' });
+    const { error: werr } = await _dbUpsert('mt_state', target, { ...d, inbox });
+    if(werr) throw werr;
+  }catch(e){
+    toast('보내기 실패 — 카드는 그대로 둡니다: ' + (e.message||e), true);
+    return;                                   // 실패하면 원본을 지우지 않는다
+  }
+  const uid = _mtcUid(item);
+  MT_LINKS = MT_LINKS.filter(l => l.a !== uid && l.b !== uid);
+  const i = arr.indexOf(item); if(i>=0) arr.splice(i,1);
+  saveMTSystem(); renderMTSystem();
+  toast(`📤 "${label}" → ${memberName}의 보드로 보냄`);
+}
+async function mtcOpenBoardPicker(){
+  const team = await loadTeamMembers();
+  const me = String(currentUser?.id || currentUser?.name || 'me');
+  const meName = currentUser?.name || '나';
+  let panel = document.getElementById('task-detail-panel');
+  if(!panel){ panel=document.createElement('div'); panel.id='task-detail-panel'; panel.className='ap-side-panel'; document.body.appendChild(panel); }
+  const ORDER = { ceo:0, manager:1, hr:2, leader:3, staff:4 };
+  const list = [...(team||[])].sort((a,b)=>(ORDER[(a.db_role||'').toLowerCase()]??9)-(ORDER[(b.db_role||'').toLowerCase()]??9) || a.name.localeCompare(b.name));
+  const cur = MT_VIEWING ? MT_VIEWING.id : me;
+  const row = (id, name, short, sub, isMe) => `
+    <button class="mtcm-row ${String(id)===String(cur)?'on':''}" onclick="mtcViewMemberBoard('${_mtcEsc(String(id))}','${_mtcEsc(name).replace(/'/g,"\\'")}')">
+      <span class="mtcm-av" style="${avatarBg(name,(short||name.slice(0,2)).toUpperCase())}">${_mtcEsc((short||name.slice(0,2)).toUpperCase())}</span>
+      <span class="mtcm-nm">${_mtcEsc(name)}${isMe?' (나)':''}${sub?`<em style="opacity:.5;font-style:normal"> · ${sub}</em>`:''}</span>
+      <span class="mtcm-ck">${String(id)===String(cur)?'●':'›'}</span>
+    </button>`;
+  panel.innerHTML = `<div class="ap-panel-inner">
+    <div class="ap-panel-head">
+      <div class="ap-panel-head-l"><div>
+        <div class="ap-panel-name">🗂 누구의 보드를 볼까요</div>
+        <div class="ap-panel-meta">남의 보드는 보기만 됩니다 · 내 보드에서만 편집</div>
+      </div></div>
+      <button class="ap-panel-close" onclick="closeTaskDetail()">✕</button>
+    </div>
+    <div class="ap-panel-body">
+      <div class="mtcm-h">내 보드</div>
+      ${row(me, meName, (team||[]).find(t=>String(t.id)===me)?.short, '', true)}
+      <div class="mtcm-h">팀</div>
+      ${list.filter(t=>String(t.id)!==me).map(t=>row(t.id, t.name, t.short, (t.db_role||'').toUpperCase(), false)).join('') ||
+        '<div style="font:11px ui-monospace,monospace;color:var(--tx3);padding:12px 2px">팀 목록을 불러오지 못했습니다</div>'}
+    </div>
+  </div>`;
+  requestAnimationFrame(()=>panel.classList.add('open'));
+  setTimeout(()=>panel.classList.add('open'), 60);
+}
 function mtSetScope(scope){
   if(MT_SCOPE === scope) return;
   MT_SCOPE = scope;
@@ -17099,6 +17178,7 @@ function mtCanvasHTML(ctx){
     ? [{ name: me, short: (findTeam(me)?.short) || me.slice(0,2).toUpperCase() }]
     : mtcMembers().map(nm => { const t = findTeam(nm); return { name: t?.name || nm, short: t?.short || nm.replace(/^Mr\./i,'').slice(0,2).toUpperCase() }; });
   window._mtcCtx = { members: members.map(m=>m.name), me, viewingMember, personalMode, today };
+  window._mtcTeam = (team||[]).map(t=>({ id:t.id, name:t.name }));   // 개인 보드로 보낼 때 계정 id가 필요
 
   // 팀 보드는 모든 카드를 보여줌 — 담당자가 보드 멤버가 아니어도 숨기지 않는다
   // (숨기면 카드가 사라진 것처럼 보여서 위험. 인원 카드는 배정 대상일 뿐)
@@ -17580,8 +17660,18 @@ function mtCanvasHTML(ctx){
   .mtc-member-rl{display:inline-block;font-size:.67em;font-family:ui-monospace,monospace;font-weight:800;letter-spacing:.11em;color:color-mix(in srgb,var(--rc) 75%,#fff);
     background:color-mix(in srgb,var(--rc) 20%,transparent);border-radius:4px;padding:1px 5px;margin-top:3px}
   .mtc-member-st{font-size:.83em;font-family:ui-monospace,monospace;color:var(--tx3);margin-top:3px}
-  .mtc-personal-tag{position:absolute;left:12px;bottom:12px;z-index:20;font:10px ui-monospace,'Malgun Gothic',monospace;font-weight:700;
-    color:#8cc4ee;background:rgba(95,163,217,.12);border:1px solid rgba(95,163,217,.3);border-radius:8px;padding:5px 10px}
+  .mtc-personal-tag{position:absolute;left:14px;bottom:14px;z-index:20;display:flex;align-items:center;gap:8px;
+    font:10px 'Malgun Gothic',ui-monospace,monospace;font-weight:600;
+    color:rgba(179,206,229,.85);background:rgba(18,18,17,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:6px 11px;box-shadow:0 8px 26px rgba(0,0,0,.4)}
+  .mtc-ro-tag{color:rgba(226,196,143,.9)}
+  .mtc-personal-tag button{background:rgba(255,255,255,.07);border:none;border-radius:6px;color:rgba(255,255,255,.8);
+    font:9.5px 'Malgun Gothic',monospace;font-weight:600;padding:3px 8px;cursor:pointer}
+  .mtc-personal-tag button:hover{background:rgba(255,255,255,.14)}
+  /* 보기 전용일 때 — 잡히지 않는다는 걸 커서와 채도로 알린다 */
+  body.mtc-ro #mtc-vp{cursor:default}
+  body.mtc-ro .mtc-note,body.mtc-ro .mtc-zone,body.mtc-ro .mtc-member{cursor:default!important}
+  body.mtc-ro .mtcn-rz,body.mtc-ro .mtc-resize,body.mtc-ro .mtc-div-end{display:none}
   .mtc-member-p1{color:#e88b84}
   .mtcm-h{font:9px ui-monospace,monospace;font-weight:800;letter-spacing:.1em;color:var(--tx3);margin:14px 0 5px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.07)}
   .mtcm-row{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;padding:6px 4px;cursor:pointer;border-radius:7px;color:var(--tx2)}
@@ -17684,6 +17774,7 @@ function mtCanvasHTML(ctx){
       <span class="mtc-quick-hint">더블클릭 새 카드<span>·</span>던지면 버림<span>·</span>우클릭 메뉴</span>
     </div>
     <div class="mtc-toolbar">
+      ${personalMode ? `<button onclick="mtcOpenBoardPicker()" title="다른 멤버의 보드 보기"><em>🗂</em><i>${MT_VIEWING ? _mtcEsc(MT_VIEWING.name) : '내 보드'}</i></button><span class="mtc-tb-sep"></span>` : ''}
       ${(ctx.isManager && !personalMode) ? `<button onclick="mtcOpenMemberPicker()" title="보드에 올릴 멤버 고르기"><em>👥</em><i>멤버</i><b>${members.length}</b></button><span class="mtc-tb-sep"></span>` : ''}
       <button class="mtc-tb-pen ${mtcPenOn?'on':''}" onclick="mtcTogglePen()" title="손으로 그리면 인식 — 네모=박스(영역 안이면 카드) · 두 카드를 잇는 선=연결 · 곧은 선=구분선"><em>✏</em><i>펜</i></button>
       <button class="mtc-tb-link ${window._mtcLinkMode?'on':''}" onclick="mtcToggleLinkMode()" title="카드를 탁, 탁 누르면 선으로 연결"><em>🔗</em><i>연결</i></button>
@@ -17704,7 +17795,9 @@ function mtCanvasHTML(ctx){
         <button class="on" title="지금 캔버스 뷰">🗺 캔버스</button>
       </span>
     </div>
-    ${personalMode ? `<div class="mtc-personal-tag">🔒 내 보드 — 나만 봅니다</div>` : ''}
+    ${personalMode ? (MT_VIEWING
+      ? `<div class="mtc-personal-tag mtc-ro-tag">👁 ${_mtcEsc(MT_VIEWING.name)}의 보드 — 보기 전용 <button onclick="mtcViewMemberBoard('${_mtcEsc(String(currentUser?.id||'me'))}','내 보드')">내 보드로</button></div>`
+      : `<div class="mtc-personal-tag">🔒 내 보드 — 팀원이 열어볼 수 있어요</div>`) : ''}
     <div id="mtc-surface">
       ${zonesHTML}
       <svg id="mtc-links" width="${MTC_SURFACE.w}" height="${MTC_SURFACE.h}">
@@ -17919,6 +18012,7 @@ function mtcZoomBy(f){
 }
 function mtcZoomReset(){ const vp=document.getElementById('mtc-vp'); mtcFit(); if(vp) _mtcClampPan(vp); _mtcApply(); _mtcShowZoom(); }
 function mtcQuickAdd(inp){
+  if(_mtcBlockRO()){ inp.value=''; return; }
   const text = (inp.value||'').trim(); if(!text) return;
   const ctx = window._mtcCtx || {};
   MT_INBOX.push({ id:Date.now(), text, created_at:isoDate(new Date()), owner: ctx.viewingMember || currentUser?.name || 'MT' });
@@ -17970,11 +18064,17 @@ function mtCanvasInit(){
   });
   vp.addEventListener('mouseleave', () => { mtcPopLeave(); _mtcFocusLinks(null); });   // 보드 밖으로 나가면 바로
 
+  document.body.classList.toggle('mtc-ro', _mtcRO());
   vp.addEventListener('pointerdown', e => {
     if(e.button !== 0) return;
     if(e.target.closest('input,button,textarea,select')) return;
     mtcCloseCtx();
     if(!e.target.closest('.mtc-note')) mtcClosePop(true);   // 빈 곳 클릭 = 팝업 닫기
+    // 남의 보드는 보기만 — 이동은 되지만 내용은 못 바꾼다
+    if(_mtcRO()){
+      if(e.target.closest('.mtc-note,.mtc-member,.mtc-div,.mtc-zone')) return;
+      _mtcPanStart(e, vp); return;
+    }
     // [v802] 펜 모드 — 빈 보드에서 시작하면 획을 그린다
     if(mtcPenOn && !e.target.closest('.mtc-note,.mtc-member,.mtc-div,.mtc-resize,.mtcn-rz')){
       _mtcPenStart(e, vp); return;
@@ -18005,6 +18105,7 @@ function mtCanvasInit(){
   // [v783] 우클릭 메뉴 — 카드: 연결/편집/우선순위/담당/삭제 · 빈 보드: 새 노트
   vp.addEventListener('contextmenu', e => {
     e.preventDefault();
+    if(_mtcBlockRO()) return;
     const note = e.target.closest('.mtc-note');
     if(note){ mtcCtxNote(e.clientX, e.clientY, note.dataset.kind, Number(note.dataset.id), note.dataset.uid); return; }
     const dv = e.target.closest('.mtc-div');
@@ -18026,6 +18127,7 @@ function mtCanvasInit(){
   // 더블클릭 — 노트 위면 인라인 편집, 빈 보드면 그 자리에 새 노트 (그림판처럼)
   vp.addEventListener('dblclick', e => {
     if(e.target.closest('input,button,textarea')) return;
+    if(_mtcBlockRO()) return;
     const note = e.target.closest('.mtc-note');
     if(note){ _mtcEditNote(Number(note.dataset.id)); return; }
     if(e.target.closest('.mtc-member')) return;
@@ -18069,6 +18171,10 @@ function mtcCtxNote(x, y, kind, id, uid){
     <div class="mtc-ctx-sep"></div>
     <button onclick="mtcCloseCtx();_mtcEditNote(${id})">✎ 글 수정</button>
     <button onclick="mtcCloseCtx();mtcOpenDetail('${kind}',${id})">☰ 상세 열기</button>
+    ${(window._mtcTeam||[]).length ? `
+    <div class="mtc-ctx-h">개인 보드로 보내기</div>
+    ${(window._mtcTeam||[]).filter(t=>String(t.id)!==String(currentUser?.id)).slice(0,6).map(t=>
+      `<button onclick="mtcCloseCtx();_mtcSendToMemberBoard('${kind}',${id},'${_mtcEsc(String(t.id))}','${_mtcEsc(t.name).replace(/'/g,"\\'")}')">📤 ${_mtcEsc(t.name)}</button>`).join('')}` : ''}
     ${priRow}
     ${moveRow}
     <div class="mtc-ctx-sep"></div>
@@ -18882,7 +18988,15 @@ function _mtcNoteDown(e, note, vp){
 
     const pos = { x: Math.round(nx), y: Math.round(ny) };
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);   // 좌표 기반 판정
-    if(hit && hit.type === 'member'){ _mtcAssign(kind, id, hit.key, pos); return; }
+    if(hit && hit.type === 'member'){
+      // Shift를 누른 채 놓으면 담당 지정이 아니라 그 사람 개인 보드로 보낸다
+      if(ev.shiftKey){
+        const t = (window._mtcTeam||[]).find(m => _mtSameOwner(m.name, hit.key));
+        if(t) { _mtcSendToMemberBoard(kind, id, t.id, t.name); return; }
+        toast('그 멤버의 계정을 찾지 못했어요', true);
+      }
+      _mtcAssign(kind, id, hit.key, pos); return;
+    }
     if(hit && hit.type === 'zone'){ _mtcDropZone(kind, id, hit.key, null, pos); return; }
     _mtcDropFree(kind, id, pos.x, pos.y);   // 영역 밖 — 상태 그대로, 그 자리 고정
   };
@@ -19088,6 +19202,7 @@ function mtcPopLeave(){
   }, 70);
 }
 function _mtcShowPop(noteEl, pinned){
+  if(_mtcRO() && pinned) return;   // 남의 보드에선 편집 팝업을 고정하지 않는다
   const kind = noteEl.dataset.kind, id = Number(noteEl.dataset.id), uid = noteEl.dataset.uid;
   const { item } = _mtcFind(kind, id); if(!item) return;
   document.getElementById('mtc-pop')?.remove();
@@ -34213,6 +34328,7 @@ function routeContent(){
   } else if(ch && ch.module === 'mytasks'){
     pcView.style.display = 'none';
     otherView.style.display = '';
+    MT_VIEWING = null;                                                          // 채널 재진입 시 항상 내 보드부터
     mtSetScope('personal:' + (currentUser?.id || currentUser?.name || 'me'));   // [v784] 본인 전용 보드
     _mtSynced = false;
     renderMTSystem('personal'); // 내 업무 — 본인만 보는 보드
