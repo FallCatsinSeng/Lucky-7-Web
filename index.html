@@ -16392,7 +16392,7 @@ async function renderMTSystem(mode){
 
   // [v777] 캔버스 모드 — 헤더/역할탭/멤버칩 전부 없이 화면 전체가 캔버스
   if(mtBoardView === 'canvas'){
-    otherView.innerHTML = `<div class="mt-wrap" style="padding:6px">${bodyHTML}</div>`;
+    otherView.innerHTML = `<div class="mt-wrap" style="padding:0;max-width:none">${bodyHTML}</div>`;
     mtCanvasInit();
     return;
   }
@@ -16439,29 +16439,30 @@ let mtcView = { x: 20, y: 20, s: 0, fitted:false };   // s=0 → init에서 화�
 window._mtcDragging = false; window._mtcPanning = false;
 let _mtcPanelKey = null;   // {kind,id} — 재렌더 후 패널 유지
 
-// 기본 배치 — 인박스가 제일 큼 (아이디어를 쏟아붓는 곳). 모든 존은 헤더 드래그로 이동, 우하단 핸들로 크기 조절.
+// 기본 배치 — 위: 직원 카드 / 가운데: 책임 · 액티브 · 완료 / 맨 밑: 인박스 크게 (아이디어를 위로 올려보내는 흐름)
+// 모든 존은 빈 곳 아무데나 잡고 드래그로 이동, 우하단 핸들로 크기 조절.
 const MTC_ZONES = [
-  { key:'inbox',   label:'📥 인박스',        x:30,   y:180, w:620, h:790, hue:'#5fa3d9', hint:'떠오른 건 일단 여기' },
-  { key:'passive', label:'📦 책임',          x:680,  y:180, w:300, h:380, hue:'#b074ec', hint:'계속 신경 쓸 영역' },
-  { key:'active',  label:'⚡ 액티브',         x:680,  y:590, w:300, h:380, hue:'#c2a04a', hint:'우선순위 슬롯에 바로 놓기' },
-  { key:'done',    label:'✅ 완료',           x:1010, y:590, w:280, h:380, hue:'#3aa05a', hint:'끝낸 행동' },
-  { key:'trash',   label:'🗑 휴지통',         x:1010, y:180, w:280, h:170, hue:'#8a8a8a', hint:'놓으면 삭제 · 클릭해 복원' }
+  { key:'passive', label:'📦 책임',   x:30,   y:170, w:390, h:430, hue:'#b074ec', hint:'계속 신경 쓸 영역' },
+  { key:'active',  label:'⚡ 액티브',  x:450,  y:170, w:450, h:430, hue:'#c2a04a', hint:'우선순위 슬롯에 바로 놓기' },
+  { key:'done',    label:'✅ 완료',    x:930,  y:170, w:390, h:430, hue:'#3aa05a', hint:'끝낸 행동' },
+  { key:'trash',   label:'🗑',        x:1350, y:170, w:180, h:130, hue:'#8a8a8a', hint:'놓으면 삭제' },
+  { key:'inbox',   label:'📥 인박스', x:30,   y:630, w:1500, h:560, hue:'#5fa3d9', hint:'떠오른 건 전부 여기 → 위로 올려보내기' }
 ];
-const MTC_SURFACE = { w: 2600, h: 1200 };
+const MTC_SURFACE = { w: 2600, h: 1300 };
 
 // 존/인원 배치 저장 (기기별 — localStorage)
 let _mtcLayoutCache = null;
 function _mtcLayout(){
   if(_mtcLayoutCache) return _mtcLayoutCache;
-  try{ _mtcLayoutCache = JSON.parse(localStorage.getItem('lucky7_mtc_layout')||'{}'); }catch(_){ _mtcLayoutCache = {}; }
+  try{ _mtcLayoutCache = JSON.parse(localStorage.getItem('lucky7_mtc_layout2')||'{}'); }catch(_){ _mtcLayoutCache = {}; }
   return _mtcLayoutCache;
 }
 function _mtcRect(z){ const l = _mtcLayout()[z.key]; return l ? { ...z, ...l } : z; }
 function _mtcSetRect(key, r){
   const l = _mtcLayout(); l[key] = { ...(l[key]||{}), ...r };
-  try{ localStorage.setItem('lucky7_mtc_layout', JSON.stringify(l)); }catch(_){}
+  try{ localStorage.setItem('lucky7_mtc_layout2', JSON.stringify(l)); }catch(_){}
 }
-function mtcResetLayout(){ _mtcLayoutCache = {}; try{ localStorage.removeItem('lucky7_mtc_layout'); }catch(_){} renderMTSystem(); toast('⟲ 배치 초기화됨'); }
+function mtcResetLayout(){ _mtcLayoutCache = {}; try{ localStorage.removeItem('lucky7_mtc_layout2'); }catch(_){} renderMTSystem(); toast('⟲ 배치 초기화됨'); }
 
 function _mtcDays(created, today){
   if(!created) return 0;
@@ -16556,7 +16557,7 @@ function mtCanvasHTML(ctx){
   .mt-view-seg{display:inline-flex;gap:0;border:1px solid var(--br,#262625);border-radius:8px;overflow:hidden;margin-right:6px}
   .mt-view-seg button{background:rgba(255,255,255,.015);border:none;color:var(--tx3);font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;padding:5px 11px;cursor:pointer}
   .mt-view-seg button.on{background:rgba(194,160,74,.12);color:var(--ac-strong,#d4b566)}
-  #mtc-vp{position:relative;height:calc(100vh - 100px);min-height:420px;border:1px solid var(--br,#262625);border-radius:10px;overflow:hidden;background:
+  #mtc-vp{position:relative;height:calc(100vh - 62px);min-height:420px;border:none;border-radius:0;overflow:hidden;background:
     radial-gradient(circle,rgba(255,255,255,.045) 1px,transparent 1px) 0 0/26px 26px,var(--bg-c,#161615);cursor:grab;touch-action:none;user-select:none}
   #mtc-vp.mtc-grabbing{cursor:grabbing}
   #mtc-surface{position:absolute;left:0;top:0;width:${MTC_SURFACE.w}px;height:${MTC_SURFACE.h}px;transform-origin:0 0}
@@ -16633,10 +16634,9 @@ function mtCanvasHTML(ctx){
       <button class="mtc-tb-kanban" onclick="mtSetBoardView('kanban')" title="칸반 뷰로 돌아가기">▦ 칸반</button>
     </div>
     <div id="mtc-surface">
-      <div class="mtc-wslabel">WORK SPLIT — 카드를 사람 위에 놓으면 담당 지정</div>
+      <div class="mtc-wslabel">WORK SPLIT — 카드를 사람 위에 놓으면 담당 지정 · 빈 곳에 놓으면 자유 배치</div>
       ${memberZones}
       ${zonesHTML}
-      <div class="mtc-freehint">✏ 자유 구상 공간<br>카드를 빈 곳에 놓으면 아이디어로 떠 있어요</div>
       ${freeCards}
     </div>
   </div>`;
@@ -16670,8 +16670,10 @@ function mtCanvasInit(){
   mtcView.s = 1;   // 줌 없음 — 전체 화면이 그대로 캔버스
   if(!mtcView.fitted) mtcFit(); else { _mtcClampPan(vp); _mtcApply(); }
 
-  // 휠 = 캔버스 이동 (줌 아님)
+  // 휠 = 캔버스 이동 (줌 아님) — 단, 스크롤 가능한 존 내부에선 존 스크롤 우선
   vp.addEventListener('wheel', e => {
+    const zb = e.target.closest('.mtc-zone-body');
+    if(zb && zb.scrollHeight > zb.clientHeight) return;   // 존 안 카드 목록 스크롤
     e.preventDefault();
     mtcView.x -= e.deltaX;
     mtcView.y -= e.deltaY;
@@ -16684,8 +16686,11 @@ function mtCanvasInit(){
     if(card){ _mtcCardDown(e, card, vp); return; }
     const rz = e.target.closest('.mtc-resize');
     if(rz){ _mtcResizeStart(e, rz.closest('.mtc-zone'), rz.dataset.resize); return; }
-    const zhead = e.target.closest('.mtc-zone-head');
-    if(zhead){ _mtcBoxMoveStart(e, zhead.closest('.mtc-zone'), zhead.closest('.mtc-zone').dataset.zone); return; }
+    // 존은 빈 곳 아무데나 잡고 드래그 (카드/입력/버튼 제외)
+    const zoneEl = e.target.closest('.mtc-zone');
+    if(zoneEl && !e.target.closest('input,button,textarea,select')){
+      _mtcBoxMoveStart(e, zoneEl, zoneEl.dataset.zone); return;
+    }
     const memberEl = e.target.closest('.mtc-member');
     if(memberEl){ _mtcBoxMoveStart(e, memberEl, 'm:'+memberEl.dataset.member); return; }
     // 빈 공간(서피스 자체 / 뷰포트) → 팬
