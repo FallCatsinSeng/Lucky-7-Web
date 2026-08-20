@@ -16869,14 +16869,22 @@ function mtCanvasHTML(ctx){
     const p1    = mine.filter(a=>a.status!=='done'&&a.priority==='P1').length;
     const mp = _mtcLayout()['m:'+nm] || { x: 40+i*218, y: 26 };
     const mw = mp.w || 200, mh = mp.h || 88;
-    const mfs = Math.max(9.5, Math.min(18, 12 * Math.pow(mw/200, 0.4)));   // 카드 크기에 따라 글꼴도
-    return `<div class="mtc-member" data-member="${_mtcEsc(nm)}" style="left:${mp.x}px;top:${mp.y}px;width:${mw}px;height:${mh}px;--rc:${rc};font-size:${mfs.toFixed(2)}px">
-      <span class="mtc-member-av" style="${avatarBg(nm, (m.short||nm.slice(0,2)).toUpperCase())}">${_mtcEsc((m.short||nm.slice(0,2)).toUpperCase())}</span>
-      <div class="mtc-member-i">
-        <div class="mtc-member-nm">${_mtcEsc(nm)}${nm===me?' (나)':''}</div>
-        ${roleLb?`<div class="mtc-member-rl">${roleLb}</div>`:''}
-        <div class="mtc-member-st">◐ ${doing} · ○ ${todo}${p1?` · <b class="mtc-member-p1">🔥${p1}</b>`:''}</div>
+    // [v792] 카드를 키우면 이름이 좌상단으로 붙고, 아래가 업무 카드를 받는 공간이 된다
+    const big = mh >= 132 || mw >= 300;
+    const mfs = big ? Math.max(10.5, Math.min(15, 11.5 * Math.pow(mw/240, 0.28)))
+                    : Math.max(9.5, Math.min(18, 12 * Math.pow(mw/200, 0.4)));
+    const held = allItems.filter(it => it.pos && it.pos.x+80>=mp.x && it.pos.x+80<=mp.x+mw && it.pos.y+14>=mp.y && it.pos.y+14<=mp.y+mh).length;
+    return `<div class="mtc-member${big?' mtc-member-big':''}" data-member="${_mtcEsc(nm)}" style="left:${mp.x}px;top:${mp.y}px;width:${mw}px;height:${mh}px;--rc:${rc};font-size:${mfs.toFixed(2)}px">
+      <div class="mtc-member-hd">
+        <span class="mtc-member-av" style="${avatarBg(nm, (m.short||nm.slice(0,2)).toUpperCase())}">${_mtcEsc((m.short||nm.slice(0,2)).toUpperCase())}</span>
+        <div class="mtc-member-i">
+          <div class="mtc-member-nm">${_mtcEsc(nm)}${nm===me?' (나)':''}</div>
+          ${roleLb?`<div class="mtc-member-rl">${roleLb}</div>`:''}
+          <div class="mtc-member-st">◐ ${doing} · ○ ${todo}${p1?` · <b class="mtc-member-p1">🔥${p1}</b>`:''}</div>
+        </div>
+        ${big?`<span class="mtc-member-cnt">${held}</span>`:''}
       </div>
+      ${big && !held ? `<span class="mtc-member-drop">카드를 여기에 놓으면 ${_mtcEsc(nm)} 담당</span>` : ''}
       <div class="mtc-resize mtc-mrz" data-mresize="${_mtcEsc(nm)}" title="드래그로 크기 조절"></div>
     </div>`;
   }).join('');
@@ -17121,6 +17129,16 @@ function mtCanvasHTML(ctx){
   .mtc-member:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.45), inset 0 0 22px color-mix(in srgb,var(--rc) 12%,transparent)}
   .mtc-member.mtc-over{border-color:var(--rc);transform:translateY(-3px) scale(1.025);
     box-shadow:0 0 0 3px color-mix(in srgb,var(--rc) 38%,transparent), 0 12px 32px color-mix(in srgb,var(--rc) 30%,transparent)}
+  .mtc-member-hd{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+  /* 크게 늘리면 이름이 좌상단으로 붙고 아래가 카드를 받는 공간이 된다 */
+  .mtc-member-big{align-items:flex-start;padding:11px 13px}
+  .mtc-member-big .mtc-member-hd{flex:none;width:100%;align-items:flex-start;
+    padding-bottom:9px;border-bottom:1px solid color-mix(in srgb,var(--rc) 18%,rgba(255,255,255,.05))}
+  .mtc-member-big .mtc-member-av{width:2.2em;height:2.2em;font-size:.9em}
+  .mtc-member-cnt{margin-left:auto;font-size:.78em;font-family:ui-monospace,monospace;font-weight:800;
+    color:color-mix(in srgb,var(--rc) 70%,#fff);background:rgba(255,255,255,.07);border-radius:5px;padding:1px 7px}
+  .mtc-member-drop{position:absolute;left:0;right:0;top:58%;transform:translateY(-50%);text-align:center;pointer-events:none;
+    font:10px ui-monospace,'Malgun Gothic',monospace;color:color-mix(in srgb,var(--rc) 34%,rgba(235,235,245,.22));padding:0 12px}
   .mtc-member-av{width:2.85em;height:2.85em;border-radius:50%;font-size:1em;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none;box-shadow:0 0 0 2px color-mix(in srgb,var(--rc) 45%,transparent)}
   .mtc-member-nm{font-size:1em;font-family:ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;color:var(--tx1)}
   .mtc-member-rl{display:inline-block;font-size:.67em;font-family:ui-monospace,monospace;font-weight:800;letter-spacing:.11em;color:color-mix(in srgb,var(--rc) 75%,#fff);
@@ -17832,7 +17850,7 @@ function _mtcBoxMoveStart(e, el, key, vp){
     });
   }
 
-  let targets = null, elW = 0, elH = 0, rafId = 0, lastEv = null;
+  let targets = null, elW = 0, elH = 0, rafId = 0, lastEv = null, easeX = 0, easeY = 0;
   const paint = () => {
     rafId = 0;
     const ev = lastEv; if(!ev) return;
@@ -17840,9 +17858,18 @@ function _mtcBoxMoveStart(e, el, key, vp){
     let rx = Math.max(0, Math.min(MTC_SURFACE.w - elW,  ox + dx));
     let ry = Math.max(0, Math.min(MTC_SURFACE.h - elH, oy + dy));
     const sn = _mtcSnapPos(rx, ry, elW, elH, el, targets);   // 자석 정렬
-    nx = sn.x; ny = sn.y; _mtcShowGuides(sn.guides, el);
-    el.style.left = nx + 'px'; el.style.top = ny + 'px';
-    const rdx = nx - ox, rdy = ny - oy;
+    nx = sn.x; ny = sn.y;
+    easeX += ((nx - rx) - easeX) * 0.32;
+    easeY += ((ny - ry) - easeY) * 0.32;
+    if(Math.abs((nx - rx) - easeX) < 0.4) easeX = nx - rx;
+    if(Math.abs((ny - ry) - easeY) < 0.4) easeY = ny - ry;
+    const vx = rx + easeX, vy = ry + easeY;
+    if(Math.abs(easeX - (nx-rx)) > 0.05 || Math.abs(easeY - (ny-ry)) > 0.05){
+      if(!rafId) rafId = requestAnimationFrame(paint);
+    }
+    _mtcShowGuides(sn.guides, el);
+    el.style.left = vx + 'px'; el.style.top = vy + 'px';
+    const rdx = vx - ox, rdy = vy - oy;
     carried.forEach(c => { c.el.style.left = (c.x0+rdx)+'px'; c.el.style.top = (c.y0+rdy)+'px'; });
     carried.forEach(c => _mtcDrawLinks(c.el));
     if(isZone) _mtcDrawLinks(el);          // 박스에 걸린 연결선도 따라옴
@@ -17972,7 +17999,7 @@ function _mtcNoteDown(e, note, vp){
 
   // 프레임당 한 번, transform으로만 움직인다 — left/top을 매 프레임 쓰면 레이아웃이 다시 계산되어 끊긴다
   let targets = null, hits = null, noteW = 0, noteH = 0, rafId = 0, lastEv = null;
-  let hasLinks = false, lastKey = '', prevHit = null;
+  let hasLinks = false, lastKey = '', prevHit = null, easeX = 0, easeY = 0;
   const paint = () => {
     rafId = 0;
     const ev = lastEv; if(!ev) return;
@@ -17980,13 +18007,22 @@ function _mtcNoteDown(e, note, vp){
     const ry = Math.max(0, Math.min(MTC_SURFACE.h-100, oy + (ev.clientY-startY)/mtcView.s));
     const sn = _mtcSnapPos(rx, ry, noteW, noteH, note, targets);   // 자석 정렬 (좌표는 캐시 사용)
     nx = sn.x; ny = sn.y;
+    // 커서는 1:1로 따라가되 자석이 당기는 몫만 부드럽게 스며들게 — 툭 튀지 않고 끌려붙는 느낌
+    easeX += ((nx - rx) - easeX) * 0.32;
+    easeY += ((ny - ry) - easeY) * 0.32;
+    if(Math.abs((nx - rx) - easeX) < 0.4) easeX = nx - rx;
+    if(Math.abs((ny - ry) - easeY) < 0.4) easeY = ny - ry;
+    const vx = rx + easeX, vy = ry + easeY;
+    if(Math.abs(easeX - (nx-rx)) > 0.05 || Math.abs(easeY - (ny-ry)) > 0.05){
+      if(!rafId) rafId = requestAnimationFrame(paint);   // 붙는 동작이 끝날 때까지 이어서 그리기
+    }
     // 합성(compositing)만 일어나는 transform — 레이아웃/페인트 없음
     // 확대하지 않는다 — 커지면 그만큼 카드가 가이드선 밖으로 삐져나온다. 떠오른 느낌은 그림자로만.
-    note.style.transform = `translate3d(${nx-ox}px,${ny-oy}px,0)`;
+    note.style.transform = `translate3d(${vx-ox}px,${vy-oy}px,0)`;
     const key = sn.guides.map(g=>g.key).join('|');
     if(key !== lastKey){ lastKey = key; _mtcShowGuides(sn.guides, note); }   // 스냅이 바뀔 때만
     else if(sn.guides.length) _mtcSizeGuides(sn.guides);
-    if(hasLinks){ note.style.left = nx+'px'; note.style.top = ny+'px'; note.style.transform = 'none'; _mtcDrawLinks(note); }
+    if(hasLinks){ note.style.left = vx+'px'; note.style.top = vy+'px'; note.style.transform = 'none'; _mtcDrawLinks(note); }
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);
     if(hit !== prevHit){ _mtcMarkOver(hit, prevHit, note, ny); prevHit = hit; }
     else if(hit && hit.key === 'active') _mtcMarkBand(hit, ny);
@@ -18049,7 +18085,17 @@ function _mtcFind(kind, id){
 
 function _mtcAssign(kind, id, name, pos){
   const { item } = _mtcFind(kind, id); if(!item) return;
-  if(pos) item.pos = pos;
+  // 크게 늘린 인원 카드 위에 놓으면 그 안쪽(헤더 아래)에 자리 잡게
+  if(pos){
+    const mp = _mtcLayout()['m:'+name];
+    const mw = mp?.w || 200, mh = mp?.h || 88;
+    if(mp && (mh >= 132 || mw >= 300)){
+      const cw = (item.size && item.size.w) || (item.sub ? 190 : 228);
+      pos = { x: Math.round(Math.max(mp.x+10, Math.min(mp.x+mw-cw-10, pos.x))),
+              y: Math.round(Math.max(mp.y+56, Math.min(mp.y+mh-38, pos.y))) };
+    }
+    item.pos = pos;
+  }
   if(!_mtSameOwner(item.owner, name)){
     item.owner = name;
     toast(`"${(item.title||item.text||'').slice(0,20)}" → ${name} 담당`);
