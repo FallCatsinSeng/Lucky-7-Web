@@ -16562,6 +16562,82 @@ function mtcDeleteZone(key){
 }
 function mtcResetLayout(){ MT_CLAYOUT = {}; saveMTSystem(); renderMTSystem(); toast('⟲ 배치 초기화됨 (팀 공유)'); }
 
+// ─── [v789] 보드 저장 / 불러오기 — 이름 붙여 스냅샷으로 보관 ───
+function _mtcSnapsKey(){ return 'lucky7_mtc_snaps__' + MT_SCOPE; }
+function mtcSnaps(){
+  try{ return JSON.parse(localStorage.getItem(_mtcSnapsKey())||'[]'); }catch(_){ return []; }
+}
+function _mtcSaveSnaps(list){ try{ localStorage.setItem(_mtcSnapsKey(), JSON.stringify(list)); }catch(e){ toast('저장 공간이 부족합니다', true); } }
+function _mtcBoardState(){
+  return { inbox:MT_INBOX, passive:MT_PASSIVE, active:MT_ACTIVE, trash:MT_TRASH,
+           clayout:MT_CLAYOUT, links:MT_LINKS, cmembers:MT_CMEMBERS, czones:MT_CZONES };
+}
+function mtcSaveSnapshot(name){
+  const list = mtcSnaps();
+  const cards = MT_INBOX.length + MT_PASSIVE.length + MT_ACTIVE.length;
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  list.unshift({ id:Date.now(), name:(name||'').trim() || stamp, at:stamp, cards, by:(currentUser?.name||'?'), data:JSON.parse(JSON.stringify(_mtcBoardState())) });
+  if(list.length > 20) list.length = 20;               // 최근 20개만 보관
+  _mtcSaveSnaps(list);
+  toast(`💾 "${list[0].name}" 저장됨 (카드 ${cards}장)`);
+  mtcOpenSnapshots();
+}
+function mtcLoadSnapshot(id){
+  const s = mtcSnaps().find(x=>x.id===id); if(!s) return;
+  const cur = MT_INBOX.length + MT_PASSIVE.length + MT_ACTIVE.length;
+  if(!confirm(`"${s.name}" 시점으로 되돌립니다.\n\n지금 보드(카드 ${cur}장)는 이 내용으로 덮어써집니다.\n계속할까요?`)) return;
+  mtcSaveSnapshot('되돌리기 직전 자동저장');           // 되돌리기 전 상태도 남겨둠
+  const d = s.data;
+  MT_INBOX = d.inbox||[]; MT_PASSIVE = d.passive||[]; MT_ACTIVE = d.active||[]; MT_TRASH = d.trash||[];
+  MT_CLAYOUT = d.clayout||{}; MT_LINKS = d.links||[]; MT_CMEMBERS = d.cmembers||null; MT_CZONES = d.czones||[];
+  saveMTSystem(); renderMTSystem();
+  toast(`↩ "${s.name}" 불러옴`);
+  mtcOpenSnapshots();
+}
+function mtcDeleteSnapshot(id){
+  const list = mtcSnaps().filter(x=>x.id!==id);
+  _mtcSaveSnaps(list); mtcOpenSnapshots();
+}
+function mtcOpenSnapshots(){
+  const list = mtcSnaps();
+  let panel = document.getElementById('task-detail-panel');
+  if(!panel){ panel=document.createElement('div'); panel.id='task-detail-panel'; panel.className='ap-side-panel'; document.body.appendChild(panel); }
+  const rows = list.length ? list.map(s=>`
+    <div class="mtcs-row">
+      <div class="mtcs-i">
+        <div class="mtcs-nm">${_mtcEsc(s.name)}</div>
+        <div class="mtcs-meta">${s.at} · 카드 ${s.cards}장 · ${_mtcEsc(s.by||'')}</div>
+      </div>
+      <button class="mtcp-btn" onclick="mtcLoadSnapshot(${s.id})">↩ 불러오기</button>
+      <button class="mtcp-btn danger" style="flex:0 0 32px;padding:6px 0" onclick="mtcDeleteSnapshot(${s.id})">✕</button>
+    </div>`).join('')
+    : '<div style="font:11px ui-monospace,monospace;color:var(--tx3);padding:16px 2px">저장된 보드가 없습니다.</div>';
+  panel.innerHTML = `<div class="ap-panel-inner">
+    <div class="ap-panel-head">
+      <div class="ap-panel-head-l"><div>
+        <div class="ap-panel-name">💾 보드 저장 · 불러오기</div>
+        <div class="ap-panel-meta">${MT_SCOPE==='default'?'팀 보드':'내 보드'} · 이 기기에 최근 20개 보관</div>
+      </div></div>
+      <button class="ap-panel-close" onclick="closeTaskDetail()">✕</button>
+    </div>
+    <div class="ap-panel-body">
+      <div class="mtcp-row">
+        <input class="mtcp-in" id="mtc-snapname" placeholder="이름 (비우면 날짜·시각)"
+               onkeydown="if(event.key==='Enter')mtcSaveSnapshot(this.value)">
+        <button class="mtcp-btn" onclick="mtcSaveSnapshot(document.getElementById('mtc-snapname').value)">💾 지금 저장</button>
+      </div>
+      <div style="font:10px ui-monospace,monospace;color:var(--tx3);margin:4px 0 12px;line-height:1.6">
+        · 카드·연결·박스 배치까지 통째로 보관합니다<br>
+        · 불러오면 지금 보드를 덮어쓰고, 덮어쓰기 직전 상태는 자동 저장됩니다
+      </div>
+      ${rows}
+    </div>
+  </div>`;
+  requestAnimationFrame(()=>panel.classList.add('open'));
+  setTimeout(()=>panel.classList.add('open'), 60);
+}
+
 function _mtcDays(created, today){
   if(!created) return 0;
   const c = new Date(String(created).slice(0,10) + 'T00:00:00');
@@ -16932,6 +17008,10 @@ function mtCanvasHTML(ctx){
   .mtcm-av{width:24px;height:24px;border-radius:50%;font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none}
   .mtcm-nm{flex:1;text-align:left;font:12px ui-monospace,Consolas,'Malgun Gothic',monospace}
   .mtcm-ck{font-size:12px;color:var(--ac,#c2a04a);font-weight:800}
+  .mtcs-row{display:flex;align-items:center;gap:6px;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .mtcs-i{flex:1;min-width:0}
+  .mtcs-nm{font:11.5px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:var(--tx1);word-break:keep-all}
+  .mtcs-meta{font:9.5px ui-monospace,monospace;color:var(--tx3);margin-top:2px}
   .mtc-wslabel{position:absolute;left:42px;top:8px;font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.1em;color:rgba(235,235,245,.3);pointer-events:none}
   .mtc-toolbar{position:absolute;right:12px;top:12px;z-index:20;display:flex;gap:5px}
   .mtc-toolbar button{height:28px;border-radius:7px;background:rgba(20,20,20,.85);border:1px solid var(--br,#262625);color:var(--tx3);cursor:pointer;font:10.5px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:700;padding:0 10px}
@@ -16969,6 +17049,7 @@ function mtCanvasHTML(ctx){
       <button class="mtc-tb-zoom" onclick="mtcZoomBy(1/1.15)" title="축소">−</button>
       <button class="mtc-tb-zoom" onclick="mtcZoomReset()" title="100%로 되돌리기">⌂</button>
       <button class="mtc-tb-zoom" onclick="mtcZoomBy(1.15)" title="확대">＋</button>
+      <button onclick="mtcOpenSnapshots()" title="보드 저장 / 불러오기">💾 저장</button>
       <button onclick="mtcResetLayout()" title="영역 배치/크기 초기화">⟲ 배치</button>
       <button class="mtc-tb-kanban" onclick="mtSetBoardView('kanban')" title="칸반 뷰로 돌아가기">▦ 칸반</button>
     </div>
@@ -17001,19 +17082,34 @@ function _mtcAnchor(a, b){
   }
   return dy > 0 ? { x1:a.cx, y1:a.y+a.h, x2:b.cx, y2:b.y, h:false } : { x1:a.cx, y1:a.y, x2:b.cx, y2:b.y+b.h, h:false };
 }
-function _mtcDrawLinks(){
+function _mtcLinkPath(A, B){
+  const an = _mtcAnchor(A, B);
+  return an.h
+    ? `M${an.x1},${an.y1} C${(an.x1+an.x2)/2},${an.y1} ${(an.x1+an.x2)/2},${an.y2} ${an.x2},${an.y2}`
+    : `M${an.x1},${an.y1} C${an.x1},${(an.y1+an.y2)/2} ${an.x2},${(an.y1+an.y2)/2} ${an.x2},${an.y2}`;
+}
+// onlyEl이 주어지면 그 카드에 걸린 선의 좌표만 갱신 (드래그 중 재생성 비용 제거)
+function _mtcDrawLinks(onlyEl){
   const svg = document.getElementById('mtc-links'); if(!svg) return;
+  if(onlyEl){
+    const uid = onlyEl.dataset.uid;
+    svg.querySelectorAll('.mtc-link').forEach(g => {
+      const i = Number(g.dataset.i);
+      const lk = MT_LINKS[i]; if(!lk || (lk.a !== uid && lk.b !== uid)) return;
+      const A = _mtcNoteBox(lk.a), B = _mtcNoteBox(lk.b); if(!A || !B) return;
+      const d = _mtcLinkPath(A, B);
+      g.querySelectorAll('path').forEach(p => p.setAttribute('d', d));
+    });
+    return;
+  }
   svg.querySelectorAll('.mtc-link').forEach(el=>el.remove());
   MT_LINKS.forEach((lk, i) => {
     const A = _mtcNoteBox(lk.a), B = _mtcNoteBox(lk.b);
     if(!A || !B) return;
-    const an = _mtcAnchor(A, B);
-    // 부드러운 곡선 (흐름도 느낌)
-    const d = an.h
-      ? `M${an.x1},${an.y1} C${(an.x1+an.x2)/2},${an.y1} ${(an.x1+an.x2)/2},${an.y2} ${an.x2},${an.y2}`
-      : `M${an.x1},${an.y1} C${an.x1},${(an.y1+an.y2)/2} ${an.x2},${(an.y1+an.y2)/2} ${an.x2},${an.y2}`;
+    const d = _mtcLinkPath(A, B);
     const g = document.createElementNS('http://www.w3.org/2000/svg','g');
     g.setAttribute('class','mtc-link');
+    g.dataset.i = i;
     g.innerHTML = `<path d="${d}" class="mtc-link-hit"/><path d="${d}" class="mtc-link-line" marker-end="url(#mtc-arrow)"/>`;
     g.addEventListener('click', ev => { ev.stopPropagation(); mtcRemoveLink(i); });
     g.setAttribute('title','클릭하면 연결 삭제');
@@ -17317,47 +17413,71 @@ function mtcToggleSnap(){
 const MTC_SNAP_D = 7;    // 이 거리 안에 들어오면 달라붙음
 const MTC_GRID  = 20;    // 붙을 상대가 없을 때 쓰는 격자
 
-// 드래그 중인 박스와 다른 박스들의 모서리·중심을 비교해 스냅 위치와 가이드선을 계산
-function _mtcSnapPos(x, y, w, h, selfEl){
-  if(!mtcSnapOn) return { x, y, guides: [] };
+// 드래그 시작 때 한 번만 다른 박스들의 좌표를 재둔다 (매 프레임 측정하면 끊김)
+function _mtcBuildTargets(selfEl){
   const targets = [];
   document.querySelectorAll('.mtc-note,.mtc-zone,.mtc-member').forEach(el => {
-    if(el === selfEl || el.classList.contains('mtc-lifting')) return;
+    if(el === selfEl) return;
     const ex = parseFloat(el.style.left)||0, ey = parseFloat(el.style.top)||0;
-    targets.push({ x1:ex, y1:ey, x2:ex+el.offsetWidth, y2:ey+el.offsetHeight,
-                   cx:ex+el.offsetWidth/2, cy:ey+el.offsetHeight/2 });
+    const ew = el.offsetWidth, eh = el.offsetHeight;
+    const box = el.classList.contains('mtc-zone');     // 영역 = 안쪽 여백 기준
+    targets.push({ x1:ex, y1:ey, x2:ex+ew, y2:ey+eh, cx:ex+ew/2, cy:ey+eh/2, box });
   });
+  return targets;
+}
+const MTC_GAP = 12;   // 카드끼리 붙을 때 사이 간격
+const MTC_PAD = 14;   // 영역 안쪽 여백
+// 축별 스냅 후보 — 모서리를 맞출 땐 딱 맞추고, 옆에 붙일 땐 간격을 둔다
+function _mtcCandidates(t, axis){
+  const a1 = axis==='x' ? t.x1 : t.y1, a2 = axis==='x' ? t.x2 : t.y2, ac = axis==='x' ? t.cx : t.cy;
+  if(t.box){
+    // 영역: 안쪽 여백에 맞춰 정렬 (테두리에 딱 붙지 않게)
+    return [ {edge:'lead', at:a1+MTC_PAD}, {edge:'center', at:ac}, {edge:'trail', at:a2-MTC_PAD} ];
+  }
+  return [
+    {edge:'lead',   at:a1},              // 왼쪽/위 정렬
+    {edge:'center', at:ac},              // 가운데 정렬
+    {edge:'trail',  at:a2},              // 오른쪽/아래 정렬
+    {edge:'after',  at:a2+MTC_GAP},      // 상대 뒤에 간격 두고
+    {edge:'before', at:a1-MTC_GAP}       // 상대 앞에 간격 두고
+  ];
+}
+// 드래그 중인 박스와 다른 박스들의 모서리·중심을 비교해 스냅 위치와 가이드선을 계산
+function _mtcSnapPos(x, y, w, h, selfEl, cached){
+  if(!mtcSnapOn) return { x, y, guides: [] };
+  const targets = cached || _mtcBuildTargets(selfEl);
   const guides = [];
   let bestX = null, bestY = null;
-  // 세로 정렬 후보: 내 왼쪽/중앙/오른쪽 ↔ 상대 왼쪽/중앙/오른쪽
-  const mineX = [{ v:x, off:0 }, { v:x+w/2, off:w/2 }, { v:x+w, off:w }];
-  const mineY = [{ v:y, off:0 }, { v:y+h/2, off:h/2 }, { v:y+h, off:h }];
+  // 내 기준점 — 앞모서리 / 가운데 / 뒷모서리
+  const mineX = { lead:{v:x,off:0}, center:{v:x+w/2,off:w/2}, trail:{v:x+w,off:w}, after:{v:x,off:0}, before:{v:x+w,off:w} };
+  const mineY = { lead:{v:y,off:0}, center:{v:y+h/2,off:h/2}, trail:{v:y+h,off:h}, after:{v:y,off:0}, before:{v:y+h,off:h} };
   targets.forEach(t => {
-    [t.x1, t.cx, t.x2].forEach(tv => mineX.forEach(m => {
-      const d = Math.abs(m.v - tv);
-      if(d <= MTC_SNAP_D && (!bestX || d < bestX.d)) bestX = { d, x: tv - m.off, line: tv, t };
-    }));
-    [t.y1, t.cy, t.y2].forEach(tv => mineY.forEach(m => {
-      const d = Math.abs(m.v - tv);
-      if(d <= MTC_SNAP_D && (!bestY || d < bestY.d)) bestY = { d, y: tv - m.off, line: tv, t };
-    }));
+    _mtcCandidates(t,'x').forEach(c => {
+      const m = mineX[c.edge]; const d = Math.abs(m.v - c.at);
+      if(d <= MTC_SNAP_D && (!bestX || d < bestX.d)) bestX = { d, x: c.at - m.off, line: c.at, t };
+    });
+    _mtcCandidates(t,'y').forEach(c => {
+      const m = mineY[c.edge]; const d = Math.abs(m.v - c.at);
+      if(d <= MTC_SNAP_D && (!bestY || d < bestY.d)) bestY = { d, y: c.at - m.off, line: c.at, t };
+    });
   });
   let nx = x, ny = y;
   // 가이드선은 화면을 가로지르지 않고, 붙은 두 박스 사이 구간만
   // 가이드 길이는 내 카드 주변으로만 — 큰 영역에 붙어도 길게 뻗지 않게
   const OVER = 74;
+  // 붙을 상대가 있을 때만 위치를 보정한다. 격자 반올림은 하지 않음 — 드래그가 튀어서 끊겨 보임.
   if(bestX){
     nx = bestX.x;
     const lo = Math.max(Math.min(ny, bestX.t.y1), ny - OVER);
     const hi = Math.min(Math.max(ny+h, bestX.t.y2), ny + h + OVER);
     guides.push({ v:true, at: bestX.line, from: lo, to: hi, key:'x'+bestX.line });
-  } else nx = Math.round(x / MTC_GRID) * MTC_GRID;      // 붙을 게 없으면 격자에 살짝 정돈
+  }
   if(bestY){
     ny = bestY.y;
     const lo = Math.max(Math.min(nx, bestY.t.x1), nx - OVER);
     const hi = Math.min(Math.max(nx+w, bestY.t.x2), nx + w + OVER);
     guides.push({ v:false, at: bestY.line, from: lo, to: hi, key:'y'+bestY.line });
-  } else ny = Math.round(y / MTC_GRID) * MTC_GRID;
+  }
   return { x: nx, y: ny, guides };
 }
 let _mtcGuideSig = '';
@@ -17494,18 +17614,30 @@ function _mtcBoxMoveStart(e, el, key, vp){
     });
   }
 
-  const mv = ev => {
-    if(!window._mtcMoved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 4) return;
-    window._mtcMoved = true;
+  let targets = null, elW = 0, elH = 0, rafId = 0, lastEv = null;
+  const paint = () => {
+    rafId = 0;
+    const ev = lastEv; if(!ev) return;
     const dx = (ev.clientX - startX)/mtcView.s, dy = (ev.clientY - startY)/mtcView.s;
-    let rx = Math.max(0, Math.min(MTC_SURFACE.w - el.offsetWidth,  ox + dx));
-    let ry = Math.max(0, Math.min(MTC_SURFACE.h - el.offsetHeight, oy + dy));
-    const sn = _mtcSnapPos(rx, ry, el.offsetWidth, el.offsetHeight, el);   // 자석 정렬
+    let rx = Math.max(0, Math.min(MTC_SURFACE.w - elW,  ox + dx));
+    let ry = Math.max(0, Math.min(MTC_SURFACE.h - elH, oy + dy));
+    const sn = _mtcSnapPos(rx, ry, elW, elH, el, targets);   // 자석 정렬
     nx = sn.x; ny = sn.y; _mtcShowGuides(sn.guides, el);
     el.style.left = nx + 'px'; el.style.top = ny + 'px';
     const rdx = nx - ox, rdy = ny - oy;
     carried.forEach(c => { c.el.style.left = (c.x0+rdx)+'px'; c.el.style.top = (c.y0+rdy)+'px'; });
-    if(carried.length) _mtcDrawLinks();
+    if(carried.length) carried.forEach(c => _mtcDrawLinks(c.el));
+  };
+  const mv = ev => {
+    if(!window._mtcMoved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 4) return;
+    if(!window._mtcMoved){
+      window._mtcMoved = true;
+      elW = el.offsetWidth; elH = el.offsetHeight;
+      targets = _mtcBuildTargets(el);
+      carried.forEach(c => { targets = targets.filter(t => !(t.x1===c.x0 && t.y1===c.y0)); });  // 같이 움직이는 카드는 제외
+    }
+    lastEv = ev;
+    if(!rafId) rafId = requestAnimationFrame(paint);
   };
   const up = () => {
     window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
@@ -17587,20 +17719,34 @@ function _mtcNoteDown(e, note, vp){
     return hit;
   };
 
-  const mv = ev => {
-    if(!moved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 4) return;
-    if(!moved){ moved = true; window._mtcDragging = true; window._mtcMoved = true; note.classList.add('mtc-lifting'); mtcClosePop(true); }
+  // 프레임당 한 번만 그린다 — pointermove마다 레이아웃을 재면 끊겨 보임
+  let targets = null, noteW = 0, noteH = 0, rafId = 0, lastEv = null;
+  const paint = () => {
+    rafId = 0;
+    const ev = lastEv; if(!ev) return;
     let rx = Math.max(0, Math.min(MTC_SURFACE.w-170, ox + (ev.clientX-startX)/mtcView.s));
     let ry = Math.max(0, Math.min(MTC_SURFACE.h-100, oy + (ev.clientY-startY)/mtcView.s));
-    const sn = _mtcSnapPos(rx, ry, note.offsetWidth, note.offsetHeight, note);   // 자석 정렬
+    const sn = _mtcSnapPos(rx, ry, noteW, noteH, note, targets);   // 자석 정렬 (좌표는 캐시 사용)
     nx = sn.x; ny = sn.y;
-    _mtcShowGuides(sn.guides, note);
     note.style.left = nx+'px'; note.style.top = ny+'px';
-    _mtcDrawLinks();   // 선이 카드를 따라옴
+    _mtcShowGuides(sn.guides, note);
+    _mtcDrawLinks(note);   // 이 카드에 걸린 선만 다시 그림
     highlight(ev.clientX, ev.clientY);
+  };
+  const mv = ev => {
+    if(!moved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 4) return;
+    if(!moved){
+      moved = true; window._mtcDragging = true; window._mtcMoved = true;
+      note.classList.add('mtc-lifting'); mtcClosePop(true);
+      noteW = note.offsetWidth; noteH = note.offsetHeight;      // 드래그 중엔 크기 고정
+      targets = _mtcBuildTargets(note);                         // 상대 좌표는 한 번만 측정
+    }
+    lastEv = ev;
+    if(!rafId) rafId = requestAnimationFrame(paint);
   };
   const up = ev => {
     window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+    if(rafId){ cancelAnimationFrame(rafId); rafId = 0; }
     document.querySelectorAll('.mtc-zone.mtc-over,.mtc-member.mtc-over').forEach(el=>el.classList.remove('mtc-over'));
     _mtcClearGuides();
     document.querySelectorAll('.mtc-band.mtc-bhot').forEach(el=>el.classList.remove('mtc-bhot'));
