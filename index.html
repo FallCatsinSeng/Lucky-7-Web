@@ -16189,7 +16189,7 @@ function _mtcGroupDrag(e, note, vp){
 // 빈 보드를 드래그하면 사각형 범위 선택 (Shift를 누르면 기존 선택에 더한다)
 function _mtcMarqueeStart(e, vp){
   e.preventDefault();
-  const add = e.shiftKey;
+  const add = e.ctrlKey || e.metaKey;      // Ctrl(⌘)을 누른 채 그으면 기존 선택에 더한다
   if(!add) _mtcSelClear();
   window._mtcDragging = true;
   const surface = document.getElementById('mtc-surface');
@@ -16254,12 +16254,13 @@ function _mtcOpenDrawer(){
   if(d.classList.contains('open')) return d;
   const team = (window._mtcTeam || []).filter(t => String(t.id) !== String(currentUser?.id));
   const short = n => (n||'?').replace(/^Mr\./i,'').slice(0,2).toUpperCase();
-  d.innerHTML = `<div class="mtc-drawer-h">보낼 사람</div>` + (team.length
-    ? team.map(t => `<div class="mtc-drawer-row" data-mid="${_mtcEsc(String(t.id))}" data-mname="${_mtcEsc(t.name)}">
-        <span class="mtc-drawer-av" style="${avatarBg(t.name, short(t.name))}">${_mtcEsc(short(t.name))}</span>
-        <span class="mtc-drawer-nm">${_mtcEsc(t.name)}</span>
-        <span class="mtc-drawer-ar">→</span>
-      </div>`).join('')
+  d.innerHTML = `<div class="mtc-drawer-lip"></div>` + (team.length
+    ? `<div class="mtc-drawer-list">` + team.map(t => `
+        <div class="mtc-drawer-row" data-mid="${_mtcEsc(String(t.id))}" data-mname="${_mtcEsc(t.name)}">
+          <span class="mtc-drawer-bar"></span>
+          <span class="mtc-drawer-av" style="${avatarBg(t.name, short(t.name))}">${_mtcEsc(short(t.name))}</span>
+          <span class="mtc-drawer-nm">${_mtcEsc(t.name)}</span>
+        </div>`).join('') + `</div>`
     : `<div class="mtc-drawer-empty">팀 목록을 불러오지 못했어요</div>`);
   requestAnimationFrame(()=>d.classList.add('open'));
   setTimeout(()=>d.classList.add('open'), 30);   // 프레임이 늦어도 확실히 열리게
@@ -18164,30 +18165,43 @@ function mtCanvasHTML(ctx){
   .mtc-toolbar .mtc-tb-open.on::after{content:'';position:absolute;left:10px;right:10px;bottom:3px;height:1.5px;border-radius:1px;background:${MTC_C.teal}}
   .mtc-toolbar .mtc-tb-open{position:relative}
   /* [v812] 오른쪽 벽 멤버 서랍 */
-  #mtc-drawer{position:absolute;right:0;top:64px;bottom:64px;width:214px;z-index:960;overflow-y:auto;
-    background:rgba(18,18,17,.72);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
-    border-left:1px solid rgba(255,255,255,.09);border-radius:14px 0 0 14px;padding:10px 8px;
-    box-shadow:-18px 0 44px rgba(0,0,0,.5);
-    transform:translateX(100%);opacity:0;transition:transform .26s cubic-bezier(.2,.9,.25,1),opacity .2s}
-  #mtc-drawer.open{transform:none;opacity:1}
-  .mtc-drawer-h{font:9px 'Malgun Gothic',ui-monospace,monospace;font-weight:800;letter-spacing:.14em;
-    color:rgba(235,235,245,.36);padding:2px 8px 8px}
-  .mtc-drawer-row{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;cursor:pointer;
-    border:1px solid transparent;transition:background .14s,border-color .14s,transform .18s cubic-bezier(.2,.9,.25,1)}
-  .mtc-drawer-av{width:26px;height:26px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;
-    color:#fff;font:9px ui-monospace,monospace;font-weight:800}
-  .mtc-drawer-nm{flex:1;font:11.5px 'Malgun Gothic',ui-monospace,monospace;font-weight:600;color:rgba(235,235,245,.8);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .mtc-drawer-ar{font-size:11px;color:rgba(235,235,245,.25);transition:transform .18s,color .18s}
-  .mtc-drawer-row.hot{background:color-mix(in srgb,${MTC_C.teal} 20%,transparent);
-    border-color:color-mix(in srgb,${MTC_C.teal} 55%,transparent);transform:translateX(-6px)}
+  /* [v816] 벽에서 스며나오는 멤버 서랍 — 판이 아니라 벽의 결처럼 */
+  #mtc-drawer{position:absolute;right:0;top:0;bottom:0;width:206px;z-index:960;
+    display:flex;align-items:center;justify-content:flex-end;pointer-events:none;
+    background:linear-gradient(270deg, rgba(14,14,13,.9) 0%, rgba(14,14,13,.72) 46%, rgba(14,14,13,0) 100%);
+    backdrop-filter:blur(16px) saturate(1.15);-webkit-backdrop-filter:blur(16px) saturate(1.15);
+    -webkit-mask-image:linear-gradient(270deg,#000 60%,transparent 100%);
+            mask-image:linear-gradient(270deg,#000 60%,transparent 100%);
+    opacity:0;transition:opacity .22s ease}
+  #mtc-drawer.open{opacity:1}
+  .mtc-drawer-lip{position:absolute;right:0;top:12%;bottom:12%;width:1px;
+    background:linear-gradient(180deg,transparent,rgba(255,255,255,.22),transparent)}
+  .mtc-drawer-list{pointer-events:auto;width:100%;padding:8px 10px 8px 18px;max-height:100%;overflow-y:auto}
+  .mtc-drawer-list::-webkit-scrollbar{width:0}
+  .mtc-drawer-row{position:relative;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;
+    opacity:0;transform:translateX(14px);
+    animation:mtcDrawerIn .3s cubic-bezier(.2,.9,.25,1) forwards;
+    transition:background .16s,transform .2s cubic-bezier(.2,.9,.25,1)}
+  .mtc-drawer-row:nth-child(1){animation-delay:.01s} .mtc-drawer-row:nth-child(2){animation-delay:.04s}
+  .mtc-drawer-row:nth-child(3){animation-delay:.07s} .mtc-drawer-row:nth-child(4){animation-delay:.10s}
+  .mtc-drawer-row:nth-child(5){animation-delay:.13s} .mtc-drawer-row:nth-child(n+6){animation-delay:.16s}
+  @keyframes mtcDrawerIn{to{opacity:1;transform:none}}
+  .mtc-drawer-bar{position:absolute;left:0;top:50%;width:2px;height:0;border-radius:1px;background:${MTC_C.teal};
+    transform:translateY(-50%);transition:height .2s cubic-bezier(.2,.9,.25,1)}
+  .mtc-drawer-av{width:27px;height:27px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;
+    color:#fff;font:9px ui-monospace,monospace;font-weight:800;
+    box-shadow:0 0 0 1.5px rgba(0,0,0,.35);transition:transform .2s cubic-bezier(.2,.9,.25,1)}
+  .mtc-drawer-nm{flex:1;font:11.5px 'Malgun Gothic',ui-monospace,monospace;font-weight:600;color:rgba(235,235,245,.62);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .16s}
+  .mtc-drawer-row.hot{background:rgba(255,255,255,.06);transform:translateX(-8px)}
+  .mtc-drawer-row.hot .mtc-drawer-bar{height:26px}
   .mtc-drawer-row.hot .mtc-drawer-nm{color:#fff}
-  .mtc-drawer-row.hot .mtc-drawer-ar{color:#a8ded6;transform:translateX(3px)}
-  @keyframes mtcLanded{0%{transform:translateX(-6px) scale(1)}
-    35%{transform:translateX(-6px) scale(1.06);background:color-mix(in srgb,${MTC_C.teal} 42%,transparent)}
-    100%{transform:translateX(0) scale(1)}}
-  .mtc-drawer-row.landed{animation:mtcLanded .5s cubic-bezier(.2,1,.3,1)}
-  .mtc-drawer-empty{font:10px ui-monospace,monospace;color:rgba(235,235,245,.3);padding:10px}
+  .mtc-drawer-row.hot .mtc-drawer-av{transform:scale(1.1)}
+  @keyframes mtcLanded{0%{transform:translateX(-8px)}
+    30%{transform:translateX(-14px);background:color-mix(in srgb,${MTC_C.teal} 30%,transparent)}
+    100%{transform:translateX(0);background:transparent}}
+  .mtc-drawer-row.landed{animation:mtcLanded .52s cubic-bezier(.2,1,.3,1)}
+  .mtc-drawer-empty{pointer-events:auto;font:10px ui-monospace,monospace;color:rgba(235,235,245,.3);padding:12px 16px}
   .mtc-note.mtc-sending{border-color:${MTC_C.teal}!important;
     box-shadow:0 0 0 2px rgba(107,165,157,.45), 0 14px 34px rgba(0,0,0,.55)!important}
   /* 받은 카드 — 처음 볼 때 한 번 반응 */
@@ -18372,7 +18386,7 @@ function mtCanvasHTML(ctx){
   <div id="mtc-vp">
     <div class="mtc-quick">
       <input id="mtc-quick-in" placeholder="+ 입력 후 Enter → 인박스에 붙이기" onkeydown="if(event.key==='Enter')mtcQuickAdd(this)">
-      <span class="mtc-quick-hint">더블클릭 새 카드<span>·</span>던지면 버림<span>·</span>우클릭 메뉴</span>
+      <span class="mtc-quick-hint">더블클릭 새 카드<span>·</span>드래그로 여러 장 선택<span>·</span>Shift+드래그 화면 이동<span>·</span>오른쪽 벽으로 밀면 넘기기</span>
     </div>
     <div class="mtc-toolbar">
       ${personalMode ? `<button onclick="mtcOpenBoardPicker()" title="다른 멤버의 보드 보기"><em>🗂</em><i>${MT_VIEWING ? _mtcEsc(MT_VIEWING.name) : '내 보드'}</i></button>
@@ -18706,8 +18720,8 @@ function mtCanvasInit(){
     if(rzn){ _mtcNoteResize(e, rzn.closest('.mtc-note'), rzn.dataset.rz || 'se'); return; }
     const note = e.target.closest('.mtc-note');
     if(note){
-      // Shift 클릭 = 선택에 넣고 빼기
-      if(e.shiftKey && !window._mtcLinkMode){
+      // Ctrl(⌘) 클릭 = 선택에 넣고 빼기
+      if((e.ctrlKey || e.metaKey) && !window._mtcLinkMode){
         const uid = note.dataset.uid;
         MTC_SEL.has(uid) ? MTC_SEL.delete(uid) : MTC_SEL.add(uid);
         _mtcSelApply(); return;
@@ -18729,10 +18743,9 @@ function mtCanvasInit(){
       if(window._mtcLinkMode || window._mtcLinkFrom){ _mtcLinkTap('zone:'+zoneEl.dataset.zone); return; }
       _mtcBoxMoveStart(e, zoneEl, zoneEl.dataset.zone, vp); return;
     }
-    // [v813] 빈 보드 — 그냥 끌면 이동, Shift/Alt를 누르거나 이미 선택이 있으면 범위 선택
-    if(e.shiftKey || e.altKey || MTC_SEL.size){ _mtcMarqueeStart(e, vp); return; }
-    _mtcSelClear();
-    _mtcPanStart(e, vp);
+    // [v816] 빈 보드 — 그냥 끌면 범위 선택, Shift를 누른 채 끌면 화면 이동
+    if(e.shiftKey){ _mtcSelClear(); _mtcPanStart(e, vp); return; }
+    _mtcMarqueeStart(e, vp);
   });
 
   // [v783] 우클릭 메뉴 — 카드: 연결/편집/우선순위/담당/삭제 · 빈 보드: 새 노트
@@ -18808,10 +18821,6 @@ function mtcCtxNote(x, y, kind, id, uid){
       ? `<button onclick="mtcCloseCtx();mtcStampTemplate('${item.tpl}',${(item.pos?.x||100)+16},${(item.pos?.y||100)+34})">🧩 하나 더 찍기</button>
          ${item.detached ? '' : `<button onclick="mtcCloseCtx();mtcDetachInstance('${kind}',${id})">🔓 템플릿에서 분리</button>`}`
       : `<button onclick="mtcCloseCtx();mtcMakeTemplate('${kind}',${id})">🧩 템플릿으로 등록</button>`}
-    ${(window._mtcTeam||[]).length ? `
-    <div class="mtc-ctx-h">개인 보드로 보내기</div>
-    ${(window._mtcTeam||[]).filter(t=>String(t.id)!==String(currentUser?.id)).slice(0,6).map(t=>
-      `<button onclick="mtcCloseCtx();_mtcSendToMemberBoard('${kind}',${id},'${_mtcEsc(String(t.id))}','${_mtcEsc(t.name).replace(/'/g,"\\'")}')">📤 ${_mtcEsc(t.name)}</button>`).join('')}` : ''}
     ${priRow}
     ${moveRow}
     <div class="mtc-ctx-sep"></div>
@@ -19034,19 +19043,18 @@ function _mtcHitAt(clientX, clientY, hits){
   }
   return null;
 }
-function _mtcMarkOver(hit, prev, note, ny, shift){
+function _mtcMarkOver(hit, prev, note, ny){
   if(prev && prev.el){ prev.el.classList.remove('mtc-over','mtc-sendover'); prev.el.removeAttribute('data-drophint'); }
   document.querySelectorAll('.mtc-band.mtc-bhot').forEach(el=>el.classList.remove('mtc-bhot'));
   if(hit && hit.el){
     hit.el.classList.add('mtc-over');
     if(hit.key === 'active') _mtcMarkBand(hit, ny);
     // [v811] 인원 카드 위에서는 무슨 일이 일어날지 글로 알려준다
-    if(hit.type === 'member') _mtcMemberDropHint(hit, shift);
+    if(hit.type === 'member') _mtcMemberDropHint(hit);
   }
 }
-function _mtcMemberDropHint(hit, shift){
-  hit.el.classList.toggle('mtc-sendover', !!shift);
-  hit.el.setAttribute('data-drophint', shift ? `📤 ${hit.key}의 보드로 보내기` : `${hit.key} 담당으로  ·  Shift = 보드로 보내기`);
+function _mtcMemberDropHint(hit){
+  hit.el.setAttribute('data-drophint', `${hit.key} 담당으로`);
 }
 let _mtcBandKey = '';
 function _mtcMarkBand(hit, ny){
@@ -19577,8 +19585,8 @@ function _mtcNoteDown(e, note, vp){
       note.classList.toggle('mtc-linking-src', !!over);
     }
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);
-    if(hit !== prevHit){ _mtcMarkOver(hit, prevHit, note, ny, ev.shiftKey); prevHit = hit; }
-    else if(hit && hit.type === 'member') _mtcMemberDropHint(hit, ev.shiftKey);   // Shift를 누르는 순간 바뀌게
+    if(hit !== prevHit){ _mtcMarkOver(hit, prevHit, note, ny); prevHit = hit; }
+    else if(hit && hit.type === 'member') _mtcMemberDropHint(hit);   // Shift를 누르는 순간 바뀌게
     else if(hit && hit.key === 'active') _mtcMarkBand(hit, ny);
   };
   const mv = ev => {
@@ -19651,15 +19659,8 @@ function _mtcNoteDown(e, note, vp){
 
     const pos = { x: Math.round(nx), y: Math.round(ny) };
     const hit = _mtcHitAt(ev.clientX, ev.clientY, hits);   // 좌표 기반 판정
-    if(hit && hit.type === 'member'){
-      // Shift를 누른 채 놓으면 담당 지정이 아니라 그 사람 개인 보드로 보낸다
-      if(ev.shiftKey){
-        const t = (window._mtcTeam||[]).find(m => _mtSameOwner(m.name, hit.key));
-        if(t) { _mtcSendToMemberBoard(kind, id, t.id, t.name); return; }
-        toast('그 멤버의 계정을 찾지 못했어요', true);
-      }
-      _mtcAssign(kind, id, hit.key, pos); return;
-    }
+    // 인원 카드에 놓으면 담당 지정 (보드로 넘기는 건 오른쪽 벽 서랍으로)
+    if(hit && hit.type === 'member'){ _mtcAssign(kind, id, hit.key, pos); return; }
     if(hit && hit.type === 'zone'){ _mtcDropZone(kind, id, hit.key, null, pos); return; }
     _mtcDropFree(kind, id, pos.x, pos.y);   // 영역 밖 — 상태 그대로, 그 자리 고정
   };
