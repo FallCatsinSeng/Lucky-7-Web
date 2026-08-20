@@ -17062,8 +17062,11 @@ function mtCanvasHTML(ctx){
     font:11px ui-monospace,'Malgun Gothic',monospace;padding:5px 7px;outline:none;min-width:0}
   .mtcpop-in:focus{border-color:var(--pc)}
   .mtcpop-date{max-width:118px}
+  .mtcpop-memowrap{position:relative;margin-bottom:6px}
+  .mtcpop-memogrip{position:absolute;right:5px;bottom:7px;background:rgba(20,20,20,.85);border:1px solid var(--br);opacity:.6}
+  .mtcpop-memowrap:hover .mtcpop-memogrip{opacity:1;color:var(--pc)}
   .mtcpop-memo{width:100%;min-height:54px;resize:vertical;background:rgba(255,255,255,.035);border:1px solid var(--br);
-    border-radius:7px;color:var(--tx1);font:11px/1.5 ui-monospace,'Malgun Gothic',monospace;padding:6px 8px;outline:none;margin-bottom:6px}
+    border-radius:7px;color:var(--tx1);font:11px/1.5 ui-monospace,'Malgun Gothic',monospace;padding:6px 22px 6px 8px;outline:none;display:block}
   .mtcpop-memo:focus{border-color:var(--pc)}
   .mtcpop-steps{margin-bottom:6px}
   .mtcpop-steps-h{font:8.5px ui-monospace,monospace;font-weight:800;letter-spacing:.08em;color:var(--tx3);margin-bottom:3px;display:flex;justify-content:space-between}
@@ -17072,8 +17075,11 @@ function mtCanvasHTML(ctx){
   .mtcpop-step:hover{background:rgba(255,255,255,.045)}
   .mtcpop-step.done .mtcpop-steptx{text-decoration:line-through;opacity:.5}
   .mtcpop-steptx{flex:1;word-break:keep-all}
-  .mtcpop-grip{cursor:grab;color:var(--tx3);opacity:.45;font-size:10px;padding:0 1px;touch-action:none}
-  .mtcpop-step:hover .mtcpop-grip{opacity:.9;color:#7fc4ff}
+  .mtcpop-grip{cursor:grab;color:var(--tx3);opacity:.55;font-size:11px;padding:1px 3px;touch-action:none;user-select:none;border-radius:4px}
+  .mtcpop-step:hover .mtcpop-grip{opacity:1;color:var(--pc);background:rgba(255,255,255,.07)}
+  .mtcpop-stepx{background:none;border:none;color:var(--tx3);opacity:0;cursor:pointer;font-size:10px;padding:0 2px;flex:none}
+  .mtcpop-step:hover .mtcpop-stepx{opacity:.7}
+  .mtcpop-stepx:hover{opacity:1!important;color:#e88b84}
   .mtcpop-prog{height:3px;background:rgba(255,255,255,.07);border-radius:2px;margin-top:5px;overflow:hidden}
   .mtcpop-prog i{display:block;height:100%;background:var(--pc);transition:width .3s}
   .mtcpop-addstep{width:100%;margin-bottom:7px}
@@ -18374,16 +18380,20 @@ function _mtcShowPop(noteEl, pinned){
         ${(ctx.members||[]).map(n=>`<option value="${_mtcEsc(n)}"${_mtSameOwner(item.owner,n)?' selected':''}>${_mtcEsc(n)}</option>`).join('')}
       </select>
     </div>
-    <textarea class="mtcpop-memo" placeholder="메모 · 세부 내용…" onblur="mtcPopField('${kind}',${id},'memo',this.value)">${_mtcEsc(item.memo||'')}</textarea>
+    <div class="mtcpop-memowrap">
+      <textarea class="mtcpop-memo" placeholder="메모 · 세부 내용…" onblur="mtcPopField('${kind}',${id},'memo',this.value)">${_mtcEsc(item.memo||'')}</textarea>
+      ${(item.memo||'').trim() ? `<span class="mtcpop-grip mtcpop-memogrip" onpointerdown="_mtcMemoDragOut(event,${id})" title="보드로 끌어내면 메모가 카드가 되고 이 카드와 이어집니다">⠿</span>` : ''}
+    </div>
     ${steps.length?`<div class="mtcpop-steps">
-      <div class="mtcpop-steps-h">하위 항목 <span>밖으로 끌면 카드가 됩니다 ↗</span></div>
+      <div class="mtcpop-steps-h">세부 항목 <span>⠿ 잡고 보드로 빼면 카드 ↗</span></div>
       ${steps.map((s,i)=>`<div class="mtcpop-step ${s.done?'done':''}" data-step="${i}">
-        <span class="mtcpop-grip" onpointerdown="_mtcStepDragOut(event,'${kind}',${id},${i})" title="밖으로 끌어내기">⠿</span>
+        <span class="mtcpop-grip" onpointerdown="_mtcStepDragOut(event,'${kind}',${id},${i})" title="보드로 끌어내면 별도 카드가 되고 이 카드와 선으로 이어집니다">⠿</span>
         <input type="checkbox" ${s.done?'checked':''} onchange="mtcToggleStep(${id},${i});mtcRepop()">
-        <span class="mtcpop-steptx">${_mtcEsc(s.text)}</span></div>`).join('')}
+        <span class="mtcpop-steptx">${_mtcEsc(s.text)}</span>
+        <button class="mtcpop-stepx" onclick="mtcDelStep(${id},${i});mtcRepop()" title="삭제">✕</button></div>`).join('')}
       <div class="mtcpop-prog"><i style="width:${Math.round(doneN/steps.length*100)}%"></i></div>
     </div>`:''}
-    ${kind==='active'?`<input class="mtcpop-in mtcpop-addstep" placeholder="+ 하위 항목 (Enter)" onkeydown="if(event.key==='Enter'){mtcAddStep(${id},this);mtcRepop()}">`:''}
+    <input class="mtcpop-in mtcpop-addstep" placeholder="+ 세부 항목 적기 (Enter)" onkeydown="if(event.key==='Enter'){mtcAddStep(${id},this);mtcRepop()}">
     <div class="mtcpop-acts">
       <button onclick="mtcClosePop(true);_mtcLinkTap('${uid}')">🔗 연결</button>
       <button onclick="mtcClosePop(true);_mtcEditNote(${id})">✎ 글 수정</button>
@@ -18406,7 +18416,9 @@ function _mtcShowPop(noteEl, pinned){
 // [v787] 하위 항목을 팝업 밖으로 끌어내면 → 독립 서브카드가 되고 부모와 자동 연결
 function _mtcStepDragOut(e, kind, id, idx){
   e.preventDefault(); e.stopPropagation();
-  const { item } = _mtcFind(kind, id); if(!item || !item.steps || !item.steps[idx]) return;
+  const found = _mtcFindAny(id);                    // 카드 종류와 무관하게 찾기
+  const item = found.item; kind = found.kind || kind;
+  if(!item || !item.steps || !item.steps[idx]) return;
   const step = item.steps[idx];
   const parentUid = _mtcUid(item);
   _mtcPopPinned = true;
@@ -18428,7 +18440,7 @@ function _mtcStepDragOut(e, kind, id, idx){
     const vp = document.getElementById('mtc-vp');
     if(!vp || !_mtcInsideVp(ev.clientX, ev.clientY, vp)) return;   // 보드 밖이면 취소
     const p = _mtcToSurface(ev.clientX, ev.clientY, vp);
-    const cur = _mtcFind(kind, id).item; if(!cur) return;
+    const cur = _mtcFindAny(id).item; if(!cur || !cur.steps) return;
     cur.steps.splice(idx, 1);                                       // 부모에서 제거
     const nid = Date.now();
     const sub = { id:nid, text:step.text, created_at:isoDate(new Date()), owner:cur.owner,
@@ -18441,6 +18453,45 @@ function _mtcStepDragOut(e, kind, id, idx){
     saveMTSystem(); renderMTSystem();
     setTimeout(()=>{ window._mtcPopUid = null; }, 400);
     toast('↳ 서브카드로 분리 · 부모와 연결됨');
+    mtcRepop();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+}
+// [v796] 메모를 통째로 보드에 빼서 카드로 (부모와 자동 연결)
+function _mtcMemoDragOut(e, id){
+  e.preventDefault(); e.stopPropagation();
+  const { item } = _mtcFindAny(id); if(!item) return;
+  const text = (item.memo||'').trim(); if(!text) return;
+  const parentUid = _mtcUid(item);
+  _mtcPopPinned = true;
+  const ghost = document.createElement('div');
+  ghost.className = 'mtc-stepghost';
+  ghost.textContent = '↳ ' + (text.length > 40 ? text.slice(0,40)+'…' : text);
+  document.body.appendChild(ghost);
+  const move = ev => {
+    ghost.style.left = (ev.clientX + 12) + 'px';
+    ghost.style.top  = (ev.clientY + 8) + 'px';
+    const vp = document.getElementById('mtc-vp');
+    ghost.classList.toggle('ok', !!(vp && _mtcInsideVp(ev.clientX, ev.clientY, vp)));
+  };
+  const up = ev => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    ghost.remove();
+    const vp = document.getElementById('mtc-vp');
+    if(!vp || !_mtcInsideVp(ev.clientX, ev.clientY, vp)) return;
+    const p = _mtcToSurface(ev.clientX, ev.clientY, vp);
+    const cur = _mtcFindAny(id).item; if(!cur) return;
+    cur.memo = '';                                        // 부모 메모는 비움
+    const nid = Date.now();
+    const sub = { id:nid, text, created_at:isoDate(new Date()), owner:cur.owner, sub:true,
+                  pos:{ x: Math.max(0, Math.round(p.x-84)), y: Math.max(0, Math.round(p.y-13)) },
+                  size:{ w: MTC_SUB_W, h: text.length > 30 ? 60 : 26 } };
+    MT_INBOX.push(sub);
+    MT_LINKS.push({ a: parentUid, b: _mtcUid(sub) });
+    window._mtcPopUid = sub.uid;
+    saveMTSystem(); renderMTSystem();
+    setTimeout(()=>{ window._mtcPopUid = null; }, 400);
+    toast('↳ 메모를 카드로 분리 · 부모와 연결됨');
     mtcRepop();
   };
   window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
@@ -18541,21 +18592,30 @@ function mtcSetField(kind, id, field, val){
   saveMTSystem(); renderMTSystem();
   mtcOpenDetail(kind, id);
 }
+// [v796] 하위 항목은 카드 종류와 무관하게 (인박스·패시브에도 세부 사항을 적을 수 있게)
+function _mtcFindAny(id){
+  for(const k of ['active','inbox','passive']){
+    const f = _mtcFind(k, id);
+    if(f.item) return { ...f, kind:k };
+  }
+  return { arr:null, item:null, kind:null };
+}
 function mtcAddStep(id, inp){
-  const { item } = _mtcFind('active', id); if(!item) return;
+  const { item } = _mtcFindAny(id); if(!item) return;
   const t = (inp.value||'').trim(); if(!t) return;
   (item.steps = item.steps||[]).push({ text:t, done:false });
-  saveMTSystem(); renderMTSystem(); mtcOpenDetail('active', id);
+  inp.value = '';
+  saveMTSystem(); renderMTSystem();
 }
 function mtcToggleStep(id, i){
-  const { item } = _mtcFind('active', id); if(!item||!item.steps||!item.steps[i]) return;
+  const { item } = _mtcFindAny(id); if(!item||!item.steps||!item.steps[i]) return;
   item.steps[i].done = !item.steps[i].done;
-  saveMTSystem(); renderMTSystem(); mtcOpenDetail('active', id);
+  saveMTSystem(); renderMTSystem();
 }
 function mtcDelStep(id, i){
-  const { item } = _mtcFind('active', id); if(!item||!item.steps) return;
+  const { item } = _mtcFindAny(id); if(!item||!item.steps) return;
   item.steps.splice(i,1);
-  saveMTSystem(); renderMTSystem(); mtcOpenDetail('active', id);
+  saveMTSystem(); renderMTSystem();
 }
 function mtcOpenTrash(){
   let panel = document.getElementById('task-detail-panel');
