@@ -16873,7 +16873,8 @@ function mtCanvasHTML(ctx){
     // [v792] 카드를 키우면 이름이 좌상단으로 붙고, 아래가 업무 카드를 받는 공간이 된다
     // [v795] 기본(170x76)에서 조금만 키워도 바로 전환되게 문턱을 낮춤
     const big = mh >= 96 || mw >= 226;
-    const mfs = big ? Math.max(10, Math.min(14, 11 * Math.pow(mw/240, 0.28)))
+    // 커진 카드는 머리글만 얇게 — 카드 폭이 커져도 이름표가 같이 커지지 않게 고정에 가깝게
+    const mfs = big ? Math.max(11, Math.min(13, 11.5 * Math.pow(mw/240, 0.12)))
                     : Math.max(9, Math.min(16, 10.5 * Math.pow(mw/170, 0.4)));
     const held = allItems.filter(it => it.pos && it.pos.x+80>=mp.x && it.pos.x+80<=mp.x+mw && it.pos.y+14>=mp.y && it.pos.y+14<=mp.y+mh).length;
     return `<div class="mtc-member${big?' mtc-member-big':''}" data-member="${_mtcEsc(nm)}" style="left:${mp.x}px;top:${mp.y}px;width:${mw}px;height:${mh}px;--rc:${rc};font-size:${mfs.toFixed(2)}px">
@@ -17146,14 +17147,19 @@ function mtCanvasHTML(ctx){
     font:9px ui-monospace,'Malgun Gothic',monospace;font-weight:700;color:#c8867c;letter-spacing:.04em}
   .mtc-member-hd{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
   /* 크게 늘리면 이름이 좌상단으로 붙고 아래가 카드를 받는 공간이 된다 */
-  .mtc-member-big{align-items:flex-start;padding:8px 10px}
-  .mtc-member-big .mtc-member-hd{flex:none;width:100%;align-items:center;gap:7px;
-    padding-bottom:7px;border-bottom:1px solid color-mix(in srgb,var(--rc) 18%,rgba(255,255,255,.05))}
-  .mtc-member-big .mtc-member-av{width:1.9em;height:1.9em;font-size:.85em}
-  .mtc-member-big .mtc-member-rl{margin-top:2px}
+  /* 커진 카드의 머리글 — 한 줄로 얇게 (이름·역할·현황이 나란히) */
+  .mtc-member-big{align-items:flex-start;padding:7px 9px}
+  .mtc-member-big .mtc-member-hd{flex:none;width:100%;align-items:center;gap:6px;
+    padding-bottom:6px;border-bottom:1px solid color-mix(in srgb,var(--rc) 16%,rgba(255,255,255,.045))}
+  .mtc-member-big .mtc-member-av{width:1.5em;height:1.5em;font-size:.7em;box-shadow:0 0 0 1.5px color-mix(in srgb,var(--rc) 40%,transparent)}
+  .mtc-member-big .mtc-member-i{display:flex;align-items:center;gap:5px;min-width:0;flex:1}
+  .mtc-member-big .mtc-member-nm{font-size:.82em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .mtc-member-big .mtc-member-rl{margin-top:0;font-size:.56em;padding:1px 4px;flex:none}
+  .mtc-member-big .mtc-member-st{margin-top:0;font-size:.66em;flex:none;opacity:.75}
+  .mtc-member-big .mtc-member-cnt{font-size:.66em;padding:1px 5px}
   .mtc-member-cnt{margin-left:auto;font-size:.78em;font-family:ui-monospace,monospace;font-weight:800;
     color:color-mix(in srgb,var(--rc) 70%,#fff);background:rgba(255,255,255,.07);border-radius:5px;padding:1px 7px}
-  .mtc-member-drop{position:absolute;left:0;right:0;top:62%;transform:translateY(-50%);text-align:center;pointer-events:none;
+  .mtc-member-drop{position:absolute;left:0;right:0;top:58%;transform:translateY(-50%);text-align:center;pointer-events:none;
     font:9.5px ui-monospace,'Malgun Gothic',monospace;color:color-mix(in srgb,var(--rc) 36%,rgba(235,235,245,.22));padding:0 10px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mtc-member-av{width:2.85em;height:2.85em;border-radius:50%;font-size:1em;font-weight:800;display:inline-flex;align-items:center;justify-content:center;color:#fff;flex:none;box-shadow:0 0 0 2px color-mix(in srgb,var(--rc) 45%,transparent)}
@@ -18226,8 +18232,8 @@ function _mtcAssign(kind, id, name, pos){
     const mw = mp?.w || 200, mh = mp?.h || 88;
     if(mp && (mh >= 96 || mw >= 226)){
       const cw = (item.size && item.size.w) || (item.sub ? MTC_SUB_W : MTC_CARD_W);
-      pos = { x: Math.round(Math.max(mp.x+10, Math.min(Math.max(mp.x+10, mp.x+mw-cw-10), pos.x))),
-              y: Math.round(Math.max(mp.y+48, Math.min(Math.max(mp.y+48, mp.y+mh-32), pos.y))) };
+      pos = { x: Math.round(Math.max(mp.x+9, Math.min(Math.max(mp.x+9, mp.x+mw-cw-9), pos.x))),
+              y: Math.round(Math.max(mp.y+36, Math.min(Math.max(mp.y+36, mp.y+mh-30), pos.y))) };
     }
     item.pos = pos;
   }
