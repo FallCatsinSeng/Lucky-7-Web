@@ -15812,6 +15812,99 @@ async function mtcViewMemberBoard(id, name){
   try{ closeTaskDetail(); }catch(_){}
   toast(MT_VIEWING ? `👁 ${name}의 보드 — 보기 전용` : '내 보드로 돌아옴');
 }
+// ═══ [v815] 피그마 ③ 멀티플레이어 — 커서·잡고 있는 카드·접속자 ═══
+let _mtcRT = null, _mtcRTKey = '', _mtcPeers = new Map(), _mtcRTSend = 0;
+function _mtcMyColor(){
+  const s = String(currentUser?.id || currentUser?.name || 'me');
+  let h = 0; for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) % 360;
+  return `hsl(${h} 58% 62%)`;
+}
+function mtcRealtimeJoin(){
+  if(!sb || !sb.channel || !currentUser) return;
+  const key = 'mtc:' + MT_SCOPE;
+  if(_mtcRTKey === key && _mtcRT) return;      // 이미 같은 보드에 붙어 있음
+  mtcRealtimeLeave();
+  _mtcRTKey = key;
+  try{
+    _mtcRT = sb.channel(key, { config:{ broadcast:{ self:false } } });
+    _mtcRT.on('broadcast', { event:'cur' }, ({ payload }) => {
+      if(!payload || payload.id === String(currentUser.id)) return;
+      _mtcPeers.set(payload.id, { ...payload, at: performance.now() });
+      _mtcDrawPeers();
+    });
+    _mtcRT.on('broadcast', { event:'bye' }, ({ payload }) => {
+      if(payload) { _mtcPeers.delete(payload.id); _mtcDrawPeers(); }
+    });
+    _mtcRT.subscribe();
+  }catch(e){ console.warn('realtime join:', e && e.message); }
+  clearInterval(window._mtcPeerGC);
+  window._mtcPeerGC = setInterval(() => {   // 8초 넘게 조용하면 떠난 것으로 본다
+    const now = performance.now(); let changed = false;
+    _mtcPeers.forEach((p,k) => { if(now - p.at > 8000){ _mtcPeers.delete(k); changed = true; } });
+    if(changed) _mtcDrawPeers();
+  }, 2500);
+}
+function mtcRealtimeLeave(){
+  try{
+    if(_mtcRT){
+      _mtcRT.send({ type:'broadcast', event:'bye', payload:{ id:String(currentUser?.id||'') } });
+      sb.removeChannel(_mtcRT);
+    }
+  }catch(_){}
+  _mtcRT = null; _mtcRTKey = ''; _mtcPeers.clear();
+  clearInterval(window._mtcPeerGC);
+  document.getElementById('mtc-peers')?.remove();
+  document.getElementById('mtc-who')?.remove();
+}
+function _mtcRTBeat(sx, sy, holding){
+  if(!_mtcRT) return;
+  const now = performance.now();
+  if(now - _mtcRTSend < 60) return;            // 초당 ~16회로 제한
+  _mtcRTSend = now;
+  try{
+    _mtcRT.send({ type:'broadcast', event:'cur', payload:{
+      id: String(currentUser.id), name: currentUser.name || '?', color: _mtcMyColor(),
+      x: Math.round(sx), y: Math.round(sy), holding: holding || null
+    }});
+  }catch(_){}
+}
+function _mtcDrawPeers(){
+  const sf = document.getElementById('mtc-surface'); if(!sf) return;
+  let layer = document.getElementById('mtc-peers');
+  if(!layer){ layer = document.createElement('div'); layer.id = 'mtc-peers'; sf.appendChild(layer); }
+  const seen = new Set();
+  _mtcPeers.forEach((p, id) => {
+    seen.add(id);
+    let c = layer.querySelector(`[data-peer="${id}"]`);
+    if(!c){
+      c = document.createElement('div'); c.className = 'mtc-peer'; c.dataset.peer = id;
+      c.innerHTML = `<svg viewBox="0 0 12 18" width="14" height="20"><path d="M1,1 L1,15 L4.6,11.6 L7,17 L9,16 L6.7,10.9 L11,10.6 z"/></svg><span class="mtc-peer-nm"></span>`;
+      layer.appendChild(c);
+    }
+    c.style.transform = `translate3d(${p.x}px,${p.y}px,0)`;
+    c.style.setProperty('--pcol', p.color || '#8ab');
+    c.querySelector('.mtc-peer-nm').textContent = p.name;
+  });
+  layer.querySelectorAll('.mtc-peer').forEach(el => { if(!seen.has(el.dataset.peer)) el.remove(); });
+  // 남이 잡고 있는 카드에 그 사람 색 테두리
+  document.querySelectorAll('.mtc-note.mtc-heldby').forEach(n => { n.classList.remove('mtc-heldby'); n.style.removeProperty('--hold'); });
+  _mtcPeers.forEach(p => {
+    if(!p.holding) return;
+    const el = document.querySelector(`.mtc-note[data-uid="${p.holding}"]`);
+    if(el){ el.classList.add('mtc-heldby'); el.style.setProperty('--hold', p.color || '#8ab'); el.dataset.holder = p.name; }
+  });
+  _mtcWho();
+}
+function _mtcWho(){
+  const vp = document.getElementById('mtc-vp'); if(!vp) return;
+  let w = document.getElementById('mtc-who');
+  if(!_mtcPeers.size){ w?.remove(); return; }
+  if(!w){ w = document.createElement('div'); w.id = 'mtc-who'; vp.appendChild(w); }
+  const short = n => (n||'?').replace(/^Mr\./i,'').slice(0,2).toUpperCase();
+  w.innerHTML = [...(_mtcPeers.values())].map(p =>
+    `<span class="mtc-who-av" style="background:${p.color}" title="${_mtcEsc(p.name)} 접속 중">${_mtcEsc(short(p.name))}</span>`).join('');
+}
+
 // ═══ [v814] 피그마 ② 컴포넌트 = 템플릿 카드 ═══
 // 마스터 하나를 만들어 두고 찍어내면 인스턴스가 생긴다. 마스터를 고치면 인스턴스에 반영.
 function _mtcTpls(){ return Array.isArray(MT_TPLS) ? MT_TPLS : (MT_TPLS = []); }
@@ -18104,6 +18197,22 @@ function mtCanvasHTML(ctx){
   .mtc-note.mtc-got{animation:mtcGot .62s cubic-bezier(.2,1,.3,1);border-color:${MTC_C.teal}!important}
   .mtcn-from{font-size:.7em;font-family:ui-monospace,monospace;font-weight:800;color:#a8ded6;
     background:rgba(107,165,157,.18);border-radius:4px;padding:0 4px;flex:none}
+  /* [v815] 멀티플레이어 — 남의 커서·잡고 있는 카드·접속자 */
+  #mtc-peers{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:970}
+  .mtc-peer{position:absolute;left:0;top:0;display:flex;align-items:flex-start;gap:3px;
+    transition:transform .09s linear;will-change:transform}
+  .mtc-peer svg{fill:var(--pcol);stroke:rgba(0,0,0,.55);stroke-width:.9;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+  .mtc-peer-nm{margin-top:11px;background:var(--pcol);color:#141413;border-radius:5px;padding:1px 6px;
+    font:9.5px 'Malgun Gothic',ui-monospace,monospace;font-weight:800;white-space:nowrap;
+    box-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .mtc-note.mtc-heldby{border-color:var(--hold)!important;
+    box-shadow:0 0 0 2px color-mix(in srgb,var(--hold) 55%,transparent), 0 6px 20px rgba(0,0,0,.5)!important}
+  .mtc-note.mtc-heldby::before{content:attr(data-holder)' 잡는 중';position:absolute;left:0;top:-16px;
+    font:8.5px 'Malgun Gothic',ui-monospace,monospace;font-weight:800;color:var(--hold);white-space:nowrap}
+  #mtc-who{position:absolute;right:14px;top:52px;z-index:22;display:flex;gap:-4px}
+  .mtc-who-av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+    color:#141413;font:8.5px ui-monospace,monospace;font-weight:800;margin-left:-5px;
+    box-shadow:0 0 0 2px rgba(18,18,17,.9), 0 2px 6px rgba(0,0,0,.4)}
   /* [v814] 템플릿에서 찍어낸 카드 표시 */
   .mtcn-tpl{font-size:.8em;color:${MTC_C.lilac};opacity:.85;flex:none;font-weight:700}
   .mtcn-tpl.off{color:rgba(235,235,245,.28)}
@@ -18566,6 +18675,15 @@ function mtCanvasInit(){
   vp.addEventListener('mouseleave', () => { mtcPopLeave(); _mtcFocusLinks(null); });   // 보드 밖으로 나가면 바로
 
   document.body.classList.toggle('mtc-ro', _mtcRO());
+  mtcRealtimeJoin();                                  // [v815] 같은 보드를 보는 사람과 연결
+  if(_mtcPeers.size) _mtcDrawPeers();                 // 재렌더로 지워진 커서 레이어를 되살린다
+  if(!vp._mtcMoveBound){
+    vp._mtcMoveBound = true;
+    vp.addEventListener('pointermove', e => {          // 내 커서 위치를 알린다
+      const p = _mtcToSurface(e.clientX, e.clientY, vp);
+      _mtcRTBeat(p.x, p.y, window._mtcHoldUid || null);
+    });
+  }
   vp.addEventListener('pointerdown', e => {
     if(e.button !== 0) return;
     if(e.target.closest('input,button,textarea,select')) return;
@@ -19469,6 +19587,7 @@ function _mtcNoteDown(e, note, vp){
       moved = true; window._mtcDragging = true; window._mtcMoved = true;
       document.body.classList.add('mtc-dragging');
       note.classList.add('mtc-lifting'); mtcClosePop(true);
+      window._mtcHoldUid = note.dataset.uid;                    // 내가 잡고 있다고 알림
       noteW = note.offsetWidth; noteH = note.offsetHeight;      // 드래그 중엔 크기 고정
       targets = _mtcBuildTargets(note);                         // 상대 좌표는 한 번만 측정
       hits = _mtcBuildHitmap();                                 // 드롭 대상도 좌표로 판정 (elementFromPoint 제거)
@@ -19505,6 +19624,7 @@ function _mtcNoteDown(e, note, vp){
     document.querySelectorAll('.mtc-band.mtc-bhot').forEach(el=>el.classList.remove('mtc-bhot'));
     note.classList.remove('mtc-lifting');
     note.style.transform = '';
+    window._mtcHoldUid = null;
     document.body.classList.remove('mtc-dragging');
     window._mtcDragging = false; _mtcVpRect = null; _mtcBandKey = '';
     if(!moved){
@@ -34742,6 +34862,8 @@ function routeContent(){
     if(fc && fc.id !== activeChannelId) activeChannelId = fc.id;
   }
   const ch = findChannelById(activeChannelId);
+  // [v815] 보드를 벗어나면 실시간 연결을 끊는다 (남의 화면에 유령 커서가 남지 않게)
+  if(ch && ch.module !== 'tasks' && ch.module !== 'mytasks'){ try{ mtcRealtimeLeave(); }catch(_){} }
   const pcView = document.getElementById('ch-pc-status');
   const otherView = document.getElementById('ch-other');
   const rightSb = document.getElementById('sb-right');
