@@ -16439,14 +16439,29 @@ let mtcView = { x: 20, y: 20, s: 0, fitted:false };   // s=0 → init에서 화�
 window._mtcDragging = false; window._mtcPanning = false;
 let _mtcPanelKey = null;   // {kind,id} — 재렌더 후 패널 유지
 
+// 기본 배치 — 인박스가 제일 큼 (아이디어를 쏟아붓는 곳). 모든 존은 헤더 드래그로 이동, 우하단 핸들로 크기 조절.
 const MTC_ZONES = [
-  { key:'inbox',   label:'📥 인박스',        x:30,   y:190, w:330, h:780, hue:'#5fa3d9', hint:'떠오른 건 일단 여기' },
-  { key:'passive', label:'📦 책임',          x:390,  y:190, w:330, h:780, hue:'#b074ec', hint:'계속 신경 쓸 영역' },
-  { key:'active',  label:'⚡ 액티브',         x:750,  y:190, w:400, h:780, hue:'#c2a04a', hint:'우선순위 슬롯에 바로 놓기' },
-  { key:'done',    label:'✅ 완료',           x:1180, y:190, w:330, h:780, hue:'#3aa05a', hint:'끝낸 행동' },
-  { key:'trash',   label:'🗑 휴지통',         x:1540, y:190, w:250, h:180, hue:'#8a8a8a', hint:'놓으면 삭제 · 클릭해 복원' }
+  { key:'inbox',   label:'📥 인박스',        x:30,   y:180, w:620, h:790, hue:'#5fa3d9', hint:'떠오른 건 일단 여기' },
+  { key:'passive', label:'📦 책임',          x:680,  y:180, w:300, h:380, hue:'#b074ec', hint:'계속 신경 쓸 영역' },
+  { key:'active',  label:'⚡ 액티브',         x:680,  y:590, w:300, h:380, hue:'#c2a04a', hint:'우선순위 슬롯에 바로 놓기' },
+  { key:'done',    label:'✅ 완료',           x:1010, y:590, w:280, h:380, hue:'#3aa05a', hint:'끝낸 행동' },
+  { key:'trash',   label:'🗑 휴지통',         x:1010, y:180, w:280, h:170, hue:'#8a8a8a', hint:'놓으면 삭제 · 클릭해 복원' }
 ];
-const MTC_SURFACE = { w: 2350, h: 1050 };
+const MTC_SURFACE = { w: 2600, h: 1200 };
+
+// 존/인원 배치 저장 (기기별 — localStorage)
+let _mtcLayoutCache = null;
+function _mtcLayout(){
+  if(_mtcLayoutCache) return _mtcLayoutCache;
+  try{ _mtcLayoutCache = JSON.parse(localStorage.getItem('lucky7_mtc_layout')||'{}'); }catch(_){ _mtcLayoutCache = {}; }
+  return _mtcLayoutCache;
+}
+function _mtcRect(z){ const l = _mtcLayout()[z.key]; return l ? { ...z, ...l } : z; }
+function _mtcSetRect(key, r){
+  const l = _mtcLayout(); l[key] = { ...(l[key]||{}), ...r };
+  try{ localStorage.setItem('lucky7_mtc_layout', JSON.stringify(l)); }catch(_){}
+}
+function mtcResetLayout(){ _mtcLayoutCache = {}; try{ localStorage.removeItem('lucky7_mtc_layout'); }catch(_){} renderMTSystem(); toast('⟲ 배치 초기화됨'); }
 
 function _mtcDays(created, today){
   if(!created) return 0;
@@ -16512,19 +16527,21 @@ function mtCanvasHTML(ctx){
   };
   const counts = { inbox: inboxAll.length, passive: passives.length, active: actOpen.length, done: actDone.length, trash: MT_TRASH.length };
 
-  const zonesHTML = MTC_ZONES.map(z => `
+  const zonesHTML = MTC_ZONES.map(zd => { const z = _mtcRect(zd); return `
     <div class="mtc-zone" data-zone="${z.key}" style="left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;--zc:${z.hue}" ${z.key==='trash'?'onclick="if(!window._mtcMoved)mtcOpenTrash()"':''}>
-      <div class="mtc-zone-head"><span>${z.label}</span><span class="mtc-zone-cnt">${counts[z.key]??''}</span></div>
+      <div class="mtc-zone-head" title="드래그로 이동"><span>${z.label}</span><span class="mtc-zone-cnt">${counts[z.key]??''}</span></div>
       <div class="mtc-zone-body" data-zonebody="${z.key}">${zoneCards[z.key]}</div>
       <div class="mtc-zone-hint">${z.hint}</div>
-    </div>`).join('');
+      <div class="mtc-resize" data-resize="${z.key}" title="드래그로 크기 조절"></div>
+    </div>`; }).join('');
 
   // Work split — 인원 존 (카드를 끌어다 놓으면 담당 지정)
   const memberZones = members.map((m,i) => {
     const nm = m.name;
     const doing = MT_ACTIVE.filter(a=>_mtSameOwner(a.owner,nm)&&a.status==='doing').length;
     const todo  = MT_ACTIVE.filter(a=>_mtSameOwner(a.owner,nm)&&a.status==='todo').length;
-    return `<div class="mtc-member" data-member="${_mtcEsc(nm)}" style="left:${30+i*260}px;top:26px">
+    const mp = _mtcLayout()['m:'+nm] || { x: 30+i*260, y: 26 };
+    return `<div class="mtc-member" data-member="${_mtcEsc(nm)}" style="left:${mp.x}px;top:${mp.y}px">
       <span class="mtc-member-av" style="${avatarBg(nm, (m.short||nm.slice(0,2)).toUpperCase())}">${_mtcEsc((m.short||nm.slice(0,2)).toUpperCase())}</span>
       <div class="mtc-member-i">
         <div class="mtc-member-nm">${_mtcEsc(nm)}${nm===me?' (나)':''}</div>
@@ -16545,7 +16562,10 @@ function mtCanvasHTML(ctx){
   #mtc-surface{position:absolute;left:0;top:0;width:${MTC_SURFACE.w}px;height:${MTC_SURFACE.h}px;transform-origin:0 0}
   .mtc-zone{position:absolute;border-radius:10px;background:color-mix(in srgb,var(--zc) 4%,rgba(255,255,255,.01));border:1px solid color-mix(in srgb,var(--zc) 26%,var(--br,#262625));border-top:2.5px solid color-mix(in srgb,var(--zc) 70%,transparent);display:flex;flex-direction:column;overflow:hidden}
   .mtc-zone.mtc-over{background:color-mix(in srgb,var(--zc) 14%,rgba(255,255,255,.02));border-color:var(--zc);box-shadow:0 0 0 2px color-mix(in srgb,var(--zc) 45%,transparent)}
-  .mtc-zone-head{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;font:12px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;letter-spacing:.04em;color:color-mix(in srgb,var(--zc) 78%,#fff);background:color-mix(in srgb,var(--zc) 12%,transparent);border-bottom:1px solid color-mix(in srgb,var(--zc) 25%,transparent);flex:none}
+  .mtc-zone-head{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;font:12px ui-monospace,Consolas,'Malgun Gothic',monospace;font-weight:800;letter-spacing:.04em;color:color-mix(in srgb,var(--zc) 78%,#fff);background:color-mix(in srgb,var(--zc) 12%,transparent);border-bottom:1px solid color-mix(in srgb,var(--zc) 25%,transparent);flex:none;cursor:move}
+  .mtc-resize{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,color-mix(in srgb,var(--zc) 55%,transparent) 50%);border-radius:0 0 9px 0;opacity:.55}
+  .mtc-resize:hover{opacity:1}
+  .mtc-member{cursor:move}
   .mtc-zone-cnt{font-size:10px;background:rgba(255,255,255,.08);border-radius:6px;padding:0 6px;min-width:17px;text-align:center}
   .mtc-zone-body{flex:1;overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:3px}
   .mtc-zone-body::-webkit-scrollbar{width:5px}.mtc-zone-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}
@@ -16609,6 +16629,7 @@ function mtCanvasHTML(ctx){
         const meta = {admin:'👑 ADMIN', op:'⚙️ OP', player:'🎮 PLAYER'}[rr];
         return `<button class="mtc-tb-role ${mtRoleTab===rr?'on':''}" onclick="mtRoleTab='${rr}';mtMember=null;renderMTSystem()">${meta}</button>`;
       }).join('') : ''}
+      <button onclick="mtcResetLayout()" title="존 배치/크기 초기화">⟲ 배치</button>
       <button class="mtc-tb-kanban" onclick="mtSetBoardView('kanban')" title="칸반 뷰로 돌아가기">▦ 칸반</button>
     </div>
     <div id="mtc-surface">
@@ -16661,11 +16682,62 @@ function mtCanvasInit(){
     if(e.button !== 0) return;
     const card = e.target.closest('.mtc-card');
     if(card){ _mtcCardDown(e, card, vp); return; }
+    const rz = e.target.closest('.mtc-resize');
+    if(rz){ _mtcResizeStart(e, rz.closest('.mtc-zone'), rz.dataset.resize); return; }
+    const zhead = e.target.closest('.mtc-zone-head');
+    if(zhead){ _mtcBoxMoveStart(e, zhead.closest('.mtc-zone'), zhead.closest('.mtc-zone').dataset.zone); return; }
+    const memberEl = e.target.closest('.mtc-member');
+    if(memberEl){ _mtcBoxMoveStart(e, memberEl, 'm:'+memberEl.dataset.member); return; }
     // 빈 공간(서피스 자체 / 뷰포트) → 팬
     if(e.target.id === 'mtc-surface' || e.target === vp || e.target.classList.contains('mtc-zone-hint')){
       _mtcPanStart(e, vp);
     }
   });
+}
+
+// 존/인원 박스 이동 — 헤더(존) 또는 몸통(인원) 드래그
+function _mtcBoxMoveStart(e, el, key){
+  e.preventDefault();
+  window._mtcDragging = true; window._mtcMoved = false;
+  const startX = e.clientX, startY = e.clientY;
+  const ox = parseFloat(el.style.left)||0, oy = parseFloat(el.style.top)||0;
+  let nx = ox, ny = oy;
+  const mv = ev => {
+    if(!window._mtcMoved && Math.hypot(ev.clientX-startX, ev.clientY-startY) < 4) return;
+    window._mtcMoved = true;
+    nx = Math.max(0, Math.min(MTC_SURFACE.w - el.offsetWidth,  ox + (ev.clientX - startX)));
+    ny = Math.max(0, Math.min(MTC_SURFACE.h - el.offsetHeight, oy + (ev.clientY - startY)));
+    el.style.left = nx + 'px'; el.style.top = ny + 'px';
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+    window._mtcDragging = false;
+    if(window._mtcMoved) _mtcSetRect(key, { x: Math.round(nx), y: Math.round(ny) });
+    setTimeout(()=>{ window._mtcMoved = false; }, 60);
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+}
+
+// 존 크기 조절 — 우하단 핸들 드래그
+function _mtcResizeStart(e, el, key){
+  e.preventDefault();
+  window._mtcDragging = true; window._mtcMoved = false;
+  const startX = e.clientX, startY = e.clientY;
+  const ow = el.offsetWidth, oh = el.offsetHeight;
+  let nw = ow, nh = oh;
+  const mv = ev => {
+    window._mtcMoved = true;
+    nw = Math.max(200, Math.min(1400, ow + (ev.clientX - startX)));
+    nh = Math.max(130, Math.min(1100, oh + (ev.clientY - startY)));
+    el.style.width = nw + 'px'; el.style.height = nh + 'px';
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up);
+    window._mtcDragging = false;
+    if(window._mtcMoved) _mtcSetRect(key, { w: Math.round(nw), h: Math.round(nh) });
+    setTimeout(()=>{ window._mtcMoved = false; }, 60);
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
 }
 
 function _mtcPanStart(e, vp){
