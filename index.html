@@ -16239,7 +16239,14 @@ function _mtcAnnounceReceived(personalMode){
 }
 
 // ═══ [v812] 오른쪽 벽으로 밀면 열리는 멤버 서랍 ═══
-const MTC_EDGE = 96;   // 오른쪽 끝에서 이만큼 안으로 들어오면 서랍이 열린다
+const MTC_EDGE = 96;    // 오른쪽 끝에서 이만큼 안으로 들어오면 서랍이 열린다
+const MTC_EDGE_KEEP = 300;   // 한 번 열리면 이 범위 안에서는 계속 열려 있는다 (목록 훑을 때 닫히지 않게)
+// [v817] 업무를 넘길 수 있는 대상 — 플레이어/스태프는 제외
+const MTC_SENDABLE = ['ceo','admin','manager','hr','settlement','operator','op','leader'];
+function _mtcSendTargets(){
+  return (window._mtcTeam || []).filter(t =>
+    String(t.id) !== String(currentUser?.id) && MTC_SENDABLE.includes(t.role||''));
+}
 function _mtcDrawerEl(){
   let d = document.getElementById('mtc-drawer');
   if(!d){
@@ -16252,16 +16259,21 @@ function _mtcDrawerEl(){
 function _mtcOpenDrawer(){
   const d = _mtcDrawerEl();
   if(d.classList.contains('open')) return d;
-  const team = (window._mtcTeam || []).filter(t => String(t.id) !== String(currentUser?.id));
-  const short = n => (n||'?').replace(/^Mr\./i,'').slice(0,2).toUpperCase();
+  const ORDER = { ceo:0, admin:0, manager:1, hr:2, settlement:2, operator:2, op:2, leader:3 };
+  const RL = { ceo:'ADMIN', admin:'ADMIN', manager:'MANAGER', hr:'HR', settlement:'HR', operator:'OP', op:'OP', leader:'LEADER' };
+  const team = _mtcSendTargets().sort((a,b)=>(ORDER[a.role]??9)-(ORDER[b.role]??9) || a.name.localeCompare(b.name));
+  const short = t => (t.short || (t.name||'?').replace(/^Mr\./i,'').slice(0,2)).toUpperCase();
   d.innerHTML = `<div class="mtc-drawer-lip"></div>` + (team.length
     ? `<div class="mtc-drawer-list">` + team.map(t => `
         <div class="mtc-drawer-row" data-mid="${_mtcEsc(String(t.id))}" data-mname="${_mtcEsc(t.name)}">
           <span class="mtc-drawer-bar"></span>
-          <span class="mtc-drawer-av" style="${avatarBg(t.name, short(t.name))}">${_mtcEsc(short(t.name))}</span>
-          <span class="mtc-drawer-nm">${_mtcEsc(t.name)}</span>
+          <span class="mtc-drawer-av" style="${avatarBg(t.name, short(t))}">${_mtcEsc(short(t))}</span>
+          <span class="mtc-drawer-i">
+            <span class="mtc-drawer-nm">${_mtcEsc(t.name)}</span>
+            <span class="mtc-drawer-rl">${RL[t.role]||''}</span>
+          </span>
         </div>`).join('') + `</div>`
-    : `<div class="mtc-drawer-empty">팀 목록을 불러오지 못했어요</div>`);
+    : `<div class="mtc-drawer-empty">넘길 수 있는 상대가 없어요<br><span>관리·리더만 표시됩니다</span></div>`);
   requestAnimationFrame(()=>d.classList.add('open'));
   setTimeout(()=>d.classList.add('open'), 30);   // 프레임이 늦어도 확실히 열리게
   return d;
@@ -16276,10 +16288,16 @@ function _mtcCloseDrawer(){
 function _mtcDrawerRowAt(cx, cy){
   const d = document.getElementById('mtc-drawer');
   if(!d || !d.classList.contains('open')) return null;
-  let hit = null;
+  const db = d.getBoundingClientRect();
+  // 가로는 서랍 전체 폭에서 판정하고, 세로는 줄 사이 빈틈도 가장 가까운 줄로 붙인다 (겨냥이 쉬워지게)
+  if(cx < db.left - 40) return null;
+  let hit = null, best = 1e9;
   d.querySelectorAll('.mtc-drawer-row').forEach(r => {
     const b = r.getBoundingClientRect();
-    if(cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom) hit = r;
+    const mid = b.top + b.height/2;
+    const dy = Math.abs(cy - mid);
+    if(cy >= b.top - 5 && cy <= b.bottom + 5){ if(dy < best){ best = dy; hit = r; } }
+    else if(dy < best && dy < 26){ best = dy; hit = r; }
   });
   return hit;
 }
@@ -17701,7 +17719,7 @@ function mtCanvasHTML(ctx){
     ? [{ name: me, short: (findTeam(me)?.short) || me.slice(0,2).toUpperCase() }]
     : mtcMembers().map(nm => { const t = findTeam(nm); return { name: t?.name || nm, short: t?.short || nm.replace(/^Mr\./i,'').slice(0,2).toUpperCase() }; });
   window._mtcCtx = { members: members.map(m=>m.name), me, viewingMember, personalMode, today };
-  window._mtcTeam = (team||[]).map(t=>({ id:t.id, name:t.name }));   // 개인 보드로 보낼 때 계정 id가 필요
+  window._mtcTeam = (team||[]).map(t=>({ id:t.id, name:t.name, short:t.short, role:(t.db_role||t.role||'').toLowerCase() }));
 
   // 팀 보드는 모든 카드를 보여줌 — 담당자가 보드 멤버가 아니어도 숨기지 않는다
   // (숨기면 카드가 사라진 것처럼 보여서 위험. 인원 카드는 배정 대상일 뿐)
@@ -18166,19 +18184,19 @@ function mtCanvasHTML(ctx){
   .mtc-toolbar .mtc-tb-open{position:relative}
   /* [v812] 오른쪽 벽 멤버 서랍 */
   /* [v816] 벽에서 스며나오는 멤버 서랍 — 판이 아니라 벽의 결처럼 */
-  #mtc-drawer{position:absolute;right:0;top:0;bottom:0;width:206px;z-index:960;
+  #mtc-drawer{position:absolute;right:0;top:0;bottom:0;width:214px;z-index:960;
     display:flex;align-items:center;justify-content:flex-end;pointer-events:none;
-    background:linear-gradient(270deg, rgba(14,14,13,.9) 0%, rgba(14,14,13,.72) 46%, rgba(14,14,13,0) 100%);
-    backdrop-filter:blur(16px) saturate(1.15);-webkit-backdrop-filter:blur(16px) saturate(1.15);
-    -webkit-mask-image:linear-gradient(270deg,#000 60%,transparent 100%);
-            mask-image:linear-gradient(270deg,#000 60%,transparent 100%);
+    background:linear-gradient(270deg, rgba(10,10,10,.97) 0%, rgba(12,12,11,.92) 52%, rgba(14,14,13,0) 100%);
+    backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+    -webkit-mask-image:linear-gradient(270deg,#000 74%,transparent 100%);
+            mask-image:linear-gradient(270deg,#000 74%,transparent 100%);
     opacity:0;transition:opacity .22s ease}
   #mtc-drawer.open{opacity:1}
-  .mtc-drawer-lip{position:absolute;right:0;top:12%;bottom:12%;width:1px;
-    background:linear-gradient(180deg,transparent,rgba(255,255,255,.22),transparent)}
-  .mtc-drawer-list{pointer-events:auto;width:100%;padding:8px 10px 8px 18px;max-height:100%;overflow-y:auto}
+  .mtc-drawer-lip{position:absolute;right:0;top:8%;bottom:8%;width:1.5px;
+    background:linear-gradient(180deg,transparent,rgba(255,255,255,.4),transparent)}
+  .mtc-drawer-list{pointer-events:auto;width:100%;padding:8px 9px 8px 16px;max-height:100%;overflow-y:auto}
   .mtc-drawer-list::-webkit-scrollbar{width:0}
-  .mtc-drawer-row{position:relative;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;
+  .mtc-drawer-row{position:relative;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;cursor:pointer;
     opacity:0;transform:translateX(14px);
     animation:mtcDrawerIn .3s cubic-bezier(.2,.9,.25,1) forwards;
     transition:background .16s,transform .2s cubic-bezier(.2,.9,.25,1)}
@@ -18188,20 +18206,25 @@ function mtCanvasHTML(ctx){
   @keyframes mtcDrawerIn{to{opacity:1;transform:none}}
   .mtc-drawer-bar{position:absolute;left:0;top:50%;width:2px;height:0;border-radius:1px;background:${MTC_C.teal};
     transform:translateY(-50%);transition:height .2s cubic-bezier(.2,.9,.25,1)}
-  .mtc-drawer-av{width:27px;height:27px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;
-    color:#fff;font:9px ui-monospace,monospace;font-weight:800;
-    box-shadow:0 0 0 1.5px rgba(0,0,0,.35);transition:transform .2s cubic-bezier(.2,.9,.25,1)}
-  .mtc-drawer-nm{flex:1;font:11.5px 'Malgun Gothic',ui-monospace,monospace;font-weight:600;color:rgba(235,235,245,.62);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .16s}
-  .mtc-drawer-row.hot{background:rgba(255,255,255,.06);transform:translateX(-8px)}
-  .mtc-drawer-row.hot .mtc-drawer-bar{height:26px}
+  .mtc-drawer-av{width:28px;height:28px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;
+    color:#fff;font:9.5px ui-monospace,monospace;font-weight:800;
+    box-shadow:0 0 0 1.5px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.4);transition:transform .2s cubic-bezier(.2,.9,.25,1)}
+  .mtc-drawer-i{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .mtc-drawer-nm{font:12px 'Malgun Gothic',ui-monospace,monospace;font-weight:700;color:rgba(255,255,255,.88);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .16s;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .mtc-drawer-rl{font:8px ui-monospace,monospace;font-weight:800;letter-spacing:.1em;color:rgba(235,235,245,.42)}
+  .mtc-drawer-row.hot{background:rgba(255,255,255,.1);transform:translateX(-8px)}
+  .mtc-drawer-row.hot .mtc-drawer-bar{height:28px}
   .mtc-drawer-row.hot .mtc-drawer-nm{color:#fff}
-  .mtc-drawer-row.hot .mtc-drawer-av{transform:scale(1.1)}
+  .mtc-drawer-row.hot .mtc-drawer-rl{color:#a8ded6}
+  .mtc-drawer-row.hot .mtc-drawer-av{transform:scale(1.12)}
   @keyframes mtcLanded{0%{transform:translateX(-8px)}
     30%{transform:translateX(-14px);background:color-mix(in srgb,${MTC_C.teal} 30%,transparent)}
     100%{transform:translateX(0);background:transparent}}
   .mtc-drawer-row.landed{animation:mtcLanded .52s cubic-bezier(.2,1,.3,1)}
-  .mtc-drawer-empty{pointer-events:auto;font:10px ui-monospace,monospace;color:rgba(235,235,245,.3);padding:12px 16px}
+  .mtc-drawer-empty{pointer-events:auto;font:10.5px 'Malgun Gothic',ui-monospace,monospace;color:rgba(235,235,245,.62);
+    padding:12px 16px;line-height:1.7}
+  .mtc-drawer-empty span{color:rgba(235,235,245,.36);font-size:9.5px}
   .mtc-note.mtc-sending{border-color:${MTC_C.teal}!important;
     box-shadow:0 0 0 2px rgba(107,165,157,.45), 0 14px 34px rgba(0,0,0,.55)!important}
   /* 받은 카드 — 처음 볼 때 한 번 반응 */
@@ -18306,7 +18329,7 @@ function mtCanvasHTML(ctx){
     border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:3px;
     box-shadow:0 8px 26px rgba(0,0,0,.42)}
   .mtc-toolbar button{height:26px;border-radius:6px;background:transparent;border:none;
-    color:rgba(235,235,245,.58);cursor:pointer;font:11px 'Malgun Gothic',ui-monospace,Consolas,sans-serif;font-weight:600;
+    color:rgba(235,235,245,.78);cursor:pointer;font:11px 'Malgun Gothic',ui-monospace,Consolas,sans-serif;font-weight:600;
     letter-spacing:.02em;padding:0 10px;display:inline-flex;align-items:center;gap:5px;
     transition:color .14s,background .14s}
   .mtc-toolbar button i{font-style:normal}
@@ -18315,7 +18338,7 @@ function mtCanvasHTML(ctx){
     filter:grayscale(.75);transition:opacity .14s,filter .14s}
   .mtc-toolbar button:hover em{opacity:1;filter:none}
   .mtc-toolbar button.on em{opacity:1;filter:none}
-  .mtc-toolbar button b{font-size:9.5px;font-weight:700;color:rgba(235,235,245,.36);background:none;padding:0}
+  .mtc-toolbar button b{font-size:9.5px;font-weight:700;color:rgba(235,235,245,.55);background:none;padding:0}
   .mtc-toolbar button:hover{color:rgba(255,255,255,.96);background:rgba(255,255,255,.055)}
   .mtc-toolbar button:hover b{color:rgba(255,255,255,.6)}
   .mtc-tb-sep{width:1px;height:14px;background:rgba(255,255,255,.07);margin:0 5px;flex:none}
@@ -18366,10 +18389,10 @@ function mtCanvasHTML(ctx){
     transition:background .14s}
   .mtc-quick input::placeholder{color:rgba(235,235,245,.34)}
   .mtc-quick input:focus{background:rgba(255,255,255,.055)}
-  .mtc-quick-hint{font:10px 'Malgun Gothic',ui-monospace,monospace;color:rgba(235,235,245,.3);white-space:nowrap;
-    padding:0 11px 0 5px;border-left:1px solid rgba(255,255,255,.07);margin-left:3px}
-  .mtc-quick-hint b{font-weight:600;color:rgba(235,235,245,.3)}
-  .mtc-quick-hint span{opacity:.35;margin:0 6px}
+  .mtc-quick-hint{font:10px 'Malgun Gothic',ui-monospace,monospace;color:rgba(235,235,245,.5);white-space:nowrap;
+    padding:0 11px 0 5px;border-left:1px solid rgba(255,255,255,.09);margin-left:3px}
+  .mtc-quick-hint b{font-weight:700;color:rgba(235,235,245,.5)}
+  .mtc-quick-hint span{opacity:.4;margin:0 6px}
   .mtcp-row{display:flex;gap:6px;align-items:center;margin:8px 0}
   .mtcp-lbl{font:10px ui-monospace,monospace;font-weight:800;letter-spacing:.06em;color:var(--tx3);width:52px;flex:none}
   .mtcp-in{flex:1;background:rgba(255,255,255,.03);border:1px solid var(--br);border-radius:7px;color:var(--tx1);font:12px 'Malgun Gothic',sans-serif;padding:7px 9px;outline:none}
@@ -19608,8 +19631,11 @@ function _mtcNoteDown(e, note, vp){
     const now = _outsideVp(ev);
     if(now !== outside){ outside = now; note.classList.toggle('mtc-toss', outside); }
     // [v812] 오른쪽 벽에 닿으면 멤버 서랍이 열린다
+    // [v817] 한 번 열리면 훨씬 넓은 범위에서 유지 — 목록을 위아래로 훑어도 닫히지 않게
     const r = _mtcVpRect || vp.getBoundingClientRect();
-    if(!outside && ev.clientX > r.right - MTC_EDGE){
+    const opened = !!document.getElementById('mtc-drawer');
+    const zone = opened ? MTC_EDGE_KEEP : MTC_EDGE;
+    if(!outside && ev.clientX > r.right - zone){
       _mtcOpenDrawer();
       const row = _mtcDrawerRowAt(ev.clientX, ev.clientY);
       if(row !== drawerRow){
@@ -19617,7 +19643,7 @@ function _mtcNoteDown(e, note, vp){
         drawerRow = row; row?.classList.add('hot');
         note.classList.toggle('mtc-sending', !!row);
       }
-    } else if(document.getElementById('mtc-drawer')){
+    } else if(opened){
       _mtcCloseDrawer(); drawerRow = null; note.classList.remove('mtc-sending');
     }
     lastEv = ev;
