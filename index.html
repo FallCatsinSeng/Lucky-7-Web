@@ -17873,16 +17873,27 @@ function mtCanvasHTML(ctx){
   .mtc-blank-keys span{font:9.5px 'Malgun Gothic',ui-monospace,monospace;color:rgba(235,235,245,.34);
     background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:5px 9px}
   .mtc-blank-keys b{color:rgba(255,255,255,.62);font-weight:700}
-  #mtc-vp{position:relative;height:100vh;min-height:420px;border:none;border-radius:0;overflow:hidden;background:
-    radial-gradient(circle,rgba(255,255,255,.04) 1px,transparent 1px) 0 0/28px 28px,var(--bg-c,#161615);cursor:grab;touch-action:none;user-select:none}
+  /* [v819] 보드 바탕 — 위에서 빛이 드는 종이 느낌. 잔점 격자 + 굵은 격자 + 가장자리 어둠 */
+  #mtc-vp{position:relative;height:100vh;min-height:420px;border:none;border-radius:0;overflow:hidden;
+    cursor:grab;touch-action:none;user-select:none;
+    background:
+      radial-gradient(circle, rgba(255,255,255,.045) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px) 0 0/140px 140px,
+      linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px) 0 0/140px 140px,
+      radial-gradient(120% 78% at 50% -12%, rgba(255,255,255,.075), transparent 62%),
+      radial-gradient(90% 60% at 50% 108%, rgba(0,0,0,.42), transparent 60%),
+      linear-gradient(180deg, #1b1b1a 0%, #161615 46%, #121211 100%)}
+  /* 가장자리를 살짝 눌러 화면이 안으로 모이게 */
+  #mtc-vp::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(130% 105% at 50% 45%, transparent 52%, rgba(0,0,0,.42) 100%)}
   #mtc-vp.mtc-grabbing{cursor:grabbing}
-  #mtc-surface{position:absolute;left:0;top:0;width:${MTC_SURFACE.w}px;height:${MTC_SURFACE.h}px;transform-origin:0 0}
+  #mtc-surface{position:absolute;left:0;top:0;width:${MTC_SURFACE.w}px;height:${MTC_SURFACE.h}px;transform-origin:0 0;z-index:2}
   /* 영역 — 구분감 강화: 상단 컬러 바 + 헤더 띠 + 은은한 광 */
   /* 영역 — 색은 얇은 상단선과 라벨에만. 면은 거의 중립으로 두어 차분하게. */
   .mtc-zone{position:absolute;border-radius:13px;cursor:move;
-    background:linear-gradient(180deg,color-mix(in srgb,var(--zc) 5.5%,rgba(255,255,255,.012)) 0,rgba(255,255,255,.008) 40px,rgba(255,255,255,.006) 100%);
-    border:1px solid color-mix(in srgb,var(--zc) 20%,rgba(255,255,255,.06));
-    box-shadow:inset 0 2px 0 0 color-mix(in srgb,var(--zc) 62%,transparent), 0 1px 14px rgba(0,0,0,.28);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--zc) 8%,rgba(255,255,255,.02)) 0,rgba(255,255,255,.016) 40px,rgba(255,255,255,.012) 100%);
+    border:1px solid color-mix(in srgb,var(--zc) 26%,rgba(255,255,255,.08));
+    box-shadow:inset 0 2px 0 0 color-mix(in srgb,var(--zc) 68%,transparent), 0 4px 22px rgba(0,0,0,.34);
     transition:box-shadow .18s cubic-bezier(.2,.8,.2,1),border-color .18s,background .18s}
   .mtc-zone.mtc-over{border-color:color-mix(in srgb,var(--zc) 55%,transparent);
     background:linear-gradient(180deg,color-mix(in srgb,var(--zc) 13%,transparent) 0,color-mix(in srgb,var(--zc) 5%,transparent) 100%);
@@ -18008,7 +18019,7 @@ function mtCanvasHTML(ctx){
   .mtcn-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:keep-all;white-space:pre-wrap}
   .mtcn-text:focus{outline:none;background:rgba(255,255,255,.05);border-radius:4px;box-shadow:0 0 0 3px rgba(255,255,255,.05)}
   .mtc-zone-empty{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;pointer-events:none;
-    font:10.5px ui-monospace,'Malgun Gothic',monospace;color:color-mix(in srgb,var(--zc) 30%,rgba(235,235,245,.2))}
+    font:10.5px ui-monospace,'Malgun Gothic',monospace;color:color-mix(in srgb,var(--zc) 42%,rgba(235,235,245,.34))}
   /* 액티브 영역 우선순위 구간 — 위에 놓을수록 1번 */
   .mtc-bands{position:absolute;left:0;right:0;top:34px;bottom:0;display:flex;flex-direction:column;pointer-events:none}
   .mtc-band{flex:1;position:relative;border-bottom:1px dashed rgba(255,255,255,.055);transition:background .18s}
