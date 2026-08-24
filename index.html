@@ -26710,7 +26710,7 @@ async function analyzeScreenshot(file, screen) {
   if (!file) return;
   var toggle = document.getElementById('sr-ocr-toggle-' + screen);
   if (toggle && !toggle.checked) return;
-  _srToast('🔍 Membaca gambar dengan Deep Learning AI...');
+  _srToast('🔍 Membaca gambar dengan Auto OCR...');
   var prev = document.getElementById('sr-prevshot-' + screen);
   var parent = prev ? prev.parentElement : null;
   var loaderSpan = null;
@@ -26749,7 +26749,7 @@ async function analyzeScreenshot(file, screen) {
     
     var text = result.ParsedResults[0].ParsedText || '';
     console.log('====================================');
-    console.log('[OCR] FULL RAW TEXT (ENGINE 3 DEEP LEARNING):');
+    console.log('[OCR] FULL RAW TEXT (ENGINE 3):');
     console.log('====================================');
     console.log(text);
     console.log('====================================');
@@ -28183,7 +28183,7 @@ function _srBuildHTML(){
   +  _srExpRow('Start')
   +  '<div class="sr-row"><label class="sr-lab">Start Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
-  +  '<div class="sr-row" style="margin-bottom:12px;background:rgba(255,184,77,0.1);padding:10px;border-radius:6px;border:1px solid rgba(255,184,77,0.3);"><label class="sr-lab" style="display:flex;align-items:center;cursor:pointer;margin-bottom:0;"><input type="checkbox" id="sr-ocr-toggle-checkin" checked style="width:16px;height:16px;margin-right:8px;cursor:pointer;"> Enable Auto OCR (Deep Learning AI)</label><div style="font-size:12px;color:#ffb84d;margin-top:6px;line-height:1.4;">⚠ <b>CAUTION:</b> OCR Adena detection has a high probability of errors. Please ALWAYS double check the Adena amount manually!</div></div>'
+  +  '<div class="sr-row" style="margin-bottom:12px;background:rgba(255,184,77,0.1);padding:10px;border-radius:6px;border:1px solid rgba(255,184,77,0.3);"><label class="sr-lab" style="display:flex;align-items:center;cursor:pointer;margin-bottom:0;"><input type="checkbox" id="sr-ocr-toggle-checkin" checked style="width:16px;height:16px;margin-right:8px;cursor:pointer;"> Enable Auto OCR</label><div style="font-size:12px;color:#ffb84d;margin-top:6px;line-height:1.4;">⚠ <b>CAUTION:</b> OCR Adena detection has a high probability of errors. Please ALWAYS double check the Adena amount manually!</div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Screenshot</label><div class="sr-drop" id="sr-drop-checkin" onclick="document.getElementById(\'sr-file-checkin\').click()"><input type="file" id="sr-file-checkin" accept="image/*" style="display:none" onchange="_srFile(event,\'checkin\')"><span class="idle">🖼 Tap to upload — or paste (Ctrl+V)</span><span class="done">✓ screenshot attached</span><div class="sr-shot-prev" id="sr-prevshot-checkin"></div></div></div>'
   +  '<button class="sr-btn sr-btn-primary" onclick="_srCheckIn()">▶ Check in — start shift</button>'
   +  '<p class="sr-foot">PC, map &amp; name stay set for the shift · screenshots come with each update</p>'
@@ -28199,7 +28199,7 @@ function _srBuildHTML(){
   +  _srExpRow('','live','update')
   +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
-  +  '<div class="sr-row" style="margin-bottom:12px;background:rgba(255,184,77,0.1);padding:10px;border-radius:6px;border:1px solid rgba(255,184,77,0.3);"><label class="sr-lab" style="display:flex;align-items:center;cursor:pointer;margin-bottom:0;"><input type="checkbox" id="sr-ocr-toggle-update" checked style="width:16px;height:16px;margin-right:8px;cursor:pointer;"> Enable Auto OCR (Deep Learning AI)</label><div style="font-size:12px;color:#ffb84d;margin-top:6px;line-height:1.4;">⚠ <b>CAUTION:</b> OCR Adena detection has a high probability of errors. Please ALWAYS double check the Adena amount manually!</div></div>'
+  +  '<div class="sr-row" style="margin-bottom:12px;background:rgba(255,184,77,0.1);padding:10px;border-radius:6px;border:1px solid rgba(255,184,77,0.3);"><label class="sr-lab" style="display:flex;align-items:center;cursor:pointer;margin-bottom:0;"><input type="checkbox" id="sr-ocr-toggle-update" checked style="width:16px;height:16px;margin-right:8px;cursor:pointer;"> Enable Auto OCR</label><div style="font-size:12px;color:#ffb84d;margin-top:6px;line-height:1.4;">⚠ <b>CAUTION:</b> OCR Adena detection has a high probability of errors. Please ALWAYS double check the Adena amount manually!</div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" id="sr-drop-update" onclick="document.getElementById(\'sr-file-update\').click()"><input type="file" id="sr-file-update" accept="image/*" style="display:none" onchange="_srFile(event,\'update\')"><span class="idle">🖼 Tap to upload — or paste (Ctrl+V)</span><span class="done">✓ screenshot attached</span><div class="sr-shot-prev" id="sr-prevshot-update"></div></div></div>'
   +  '<div class="sr-endbar" id="sr-endbar" style="display:none;">🚩 Shift ends at <b id="sr-endh">19:00</b> — submitting checks you out</div>'
   +  '<button class="sr-btn sr-btn-primary" onclick="_srSubmitUpdate()"><span id="sr-up-btn-t">Submit hour</span></button>'
@@ -28215,7 +28215,7 @@ function _srBuildHTML(){
   +  _srExpRow('','live','checkout')
   +  '<div class="sr-row"><label class="sr-lab">Adena</label><input class="sr-inp" data-sr-adena value="" inputmode="numeric" placeholder="0"></div>'
   +  '<div class="sr-row"><label class="sr-lab">Note <span style="color:var(--tx3,#6c6b66);font-weight:400;">· optional</span></label><input class="sr-inp" data-sr-note value="" placeholder="—"></div>'
-  +  '<div class="sr-row" style="margin-bottom:12px;background:rgba(255,184,77,0.1);padding:10px;border-radius:6px;border:1px solid rgba(255,184,77,0.3);"><label class="sr-lab" style="display:flex;align-items:center;cursor:pointer;margin-bottom:0;"><input type="checkbox" id="sr-ocr-toggle-checkout" checked style="width:16px;height:16px;margin-right:8px;cursor:pointer;"> Enable Auto OCR (Deep Learning AI)</label><div style="font-size:12px;color:#ffb84d;margin-top:6px;line-height:1.4;">⚠ <b>CAUTION:</b> OCR Adena detection has a high probability of errors. Please ALWAYS double check the Adena amount manually!</div></div>'
+  +  '<div class="sr-row" style="margin-bottom:12px;background:rgba(255,184,77,0.1);padding:10px;border-radius:6px;border:1px solid rgba(255,184,77,0.3);"><label class="sr-lab" style="display:flex;align-items:center;cursor:pointer;margin-bottom:0;"><input type="checkbox" id="sr-ocr-toggle-checkout" checked style="width:16px;height:16px;margin-right:8px;cursor:pointer;"> Enable Auto OCR</label><div style="font-size:12px;color:#ffb84d;margin-top:6px;line-height:1.4;">⚠ <b>CAUTION:</b> OCR Adena detection has a high probability of errors. Please ALWAYS double check the Adena amount manually!</div></div>'
   +  '<div class="sr-row"><label class="sr-lab">Screenshot <span class="sr-req">· required</span></label><div class="sr-drop" id="sr-drop-checkout" onclick="document.getElementById(\'sr-file-checkout\').click()"><input type="file" id="sr-file-checkout" accept="image/*" style="display:none" onchange="_srFile(event,\'checkout\')"><span class="idle">🖼 Tap to upload — or paste (Ctrl+V)</span><span class="done">✓ screenshot attached</span><div class="sr-shot-prev" id="sr-prevshot-checkout"></div></div></div>'
   +  '<button class="sr-btn sr-btn-primary" onclick="_srReviewCheckout()">🏁 Check out — end shift</button>'
   +  '<p class="sr-foot">Ends the shift and posts the final record</p>'
