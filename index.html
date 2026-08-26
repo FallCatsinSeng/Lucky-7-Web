@@ -11581,7 +11581,6 @@ body:has(#kb-race) #sb-right{display:none!important}
         <div class="pcx-view-tabs fade-in" style="animation-delay:85ms">
           <button class="pcx-tab on" id="pcx-tab-board" onclick="setPCHubView('board')">PC 보드</button>
           <button class="pcx-tab" id="pcx-tab-clock" onclick="setPCHubView('clock')">PC 타임라인</button>
-          <span class="pcx-tab-hint">기존 보드는 그대로, 24H 운영 시계만 별도 보기</span>
         </div>
 
         <div id="pc-timeline-panel" class="pcx-panel fade-in" style="display:none;animation-delay:100ms">
@@ -12093,7 +12092,7 @@ async function _dbUpsert(table, id, data, onConflict){
 // We DON'T auto-reload (every client reloading at once would hammer Supabase on boot). Instead we peek at
 // the deployed file's BUILD line — a tiny STATIC GitHub fetch, never a Supabase query — and if it's newer,
 // show a one-click Refresh. Reloads stay spread out and user-initiated.
-var _APP_BUILD = 'v973';   // keep in lockstep with the BUILD comment at the top of this file
+var _APP_BUILD = 'v974';   // keep in lockstep with the BUILD comment at the top of this file
 var _verBannerShown = false;
 async function _checkVersion(){
   if(_verBannerShown || !location || !location.href) return;
