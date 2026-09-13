@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARASAKA Corp</title>
-<!-- BUILD: v1566 | 새 비밀번호 화면은 언제나 영어 -->
+<!-- BUILD: v1567 | 끊긴 옛 로그인은 새 비밀번호 화면 대신 로그인 화면으로 (Auth session missing 방지) -->
 <!-- v745 기록은 git 이력(v1302 이전 커밋)에 있다 — 100KB 변경사 주석을 배포에서 제거 -->
 <!-- [v677] a <link href> cannot read a CSS variable, so the favicon carries its own copy.
      64px: a browser tab draws it at 16-32px, so this is 2x-DPR sharp at 11KB. -->
@@ -53582,6 +53582,8 @@ async function checkSession(){
         // user_profiles에서 정보 로드
         const {data:profile} = await sb.from('user_profiles').select('*').eq('id', session.user.id).maybeSingle();
         _pwForced = !!(profile && profile.pw_reset_required);   /* [v1565] */
+        /* [v1567] 서버에서 끊긴 옛 로그인이면 새 비밀번호 화면 대신 로그인 화면으로 ("Auth session missing" 방지) */
+        if(_pwForced){ try{ const {data:{user:_vu}, error:_ve} = await sb.auth.getUser(); if(_ve || !_vu){ _pwForced=false; try{ await sb.auth.signOut(); }catch(_){} try{ sessionStorage.removeItem(SESSION_KEY); }catch(_){} return false; } }catch(_){ _pwForced=false; return false; } }
         currentUser = {
           id: session.user.id,
           email: session.user.email,
@@ -53747,6 +53749,15 @@ async function submitNewPassword(){
   if(btn){ btn.disabled = true; btn.textContent = ko?'변경 중…':'Changing…'; }
   try{
     const { error } = await sb.auth.updateUser({ password: p1 });
+    if(error && /session missing/i.test(error.message||'')){   /* [v1567] 옛 로그인이 끊긴 것 — 다시 로그인하면 된다 */
+      try{ await sb.auth.signOut(); }catch(_){}
+      try{ sessionStorage.removeItem(SESSION_KEY); }catch(_){}
+      _pwForced = false;
+      const scr = document.getElementById('reset-pw-screen'); if(scr) scr.remove();
+      showAuthScreen();
+      showAuthMsg('Your old login expired. Please log in again, then set your new password.');
+      return;
+    }
     if(error){
       if(msg){ msg.style.color='var(--re,#e0a83a)'; msg.textContent = (ko?'실패: ':'Failed: ') + error.message; }
       if(btn){ btn.disabled = false; btn.textContent = ko?'비밀번호 변경':'Change password'; }
