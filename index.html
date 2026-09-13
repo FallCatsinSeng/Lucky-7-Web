@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARASAKA Corp</title>
-<!-- BUILD: v1564 | 리포트 서버 주소 교체 - 옛 주소는 이제 안 열린다 -->
+<!-- BUILD: v1565 | 비밀번호 강제 변경 - 표시가 켜진 사람은 다음 로그인 때 8자 이상 새 비밀번호를 정해야 들어간다 -->
 <!-- v745 기록은 git 이력(v1302 이전 커밋)에 있다 — 100KB 변경사 주석을 배포에서 제거 -->
 <!-- [v677] a <link href> cannot read a CSS variable, so the favicon carries its own copy.
      64px: a browser tab draws it at 16-32px, so this is 2x-DPR sharp at 11KB. -->
@@ -53568,6 +53568,7 @@ function renderPlayerPCView(){
 // ═══════════════════════════════════════════════════
 const SESSION_KEY = 'lucky7_session';
 let currentUser = null;
+let _pwForced = false;   /* [v1565] 다음 로그인 때 새 비밀번호를 정해야 들어가짐 */
 
 // 초대코드 풀 — 미사용 코드 + 사용 이력
 const INVITE_CODES = [];
@@ -53580,6 +53581,7 @@ async function checkSession(){
       if(session && session.user){
         // user_profiles에서 정보 로드
         const {data:profile} = await sb.from('user_profiles').select('*').eq('id', session.user.id).maybeSingle();
+        _pwForced = !!(profile && profile.pw_reset_required);   /* [v1565] */
         currentUser = {
           id: session.user.id,
           email: session.user.email,
@@ -53720,8 +53722,8 @@ function showResetPasswordScreen(){
   scr.innerHTML = `<div style="max-width:360px;width:100%">
     <div style="width:44px;height:44px;border:1.5px solid var(--ac,#c2a04a);border-radius:11px;display:flex;align-items:center;justify-content:center;background:var(--ar-logo) center/64% no-repeat;margin-bottom:20px" role="img" aria-label="ARASAKA Corp"></div>
     <div style="font-size:20px;font-weight:800;color:var(--tx,#eee);margin-bottom:6px">${ko?'새 비밀번호 설정':'Set a new password'}</div>
-    <div style="font-size:12.5px;color:var(--tx3,#888);margin-bottom:22px">${ko?'새 비밀번호를 입력하고 확인해주세요.':'Choose a new password for your account.'}</div>
-    <input id="rp-pass1" type="password" placeholder="${ko?'새 비밀번호 (6자 이상)':'New password (6+ characters)'}" style="width:100%;box-sizing:border-box;background:var(--bg-h,#16161a);border:1px solid var(--br,#333);border-radius:8px;color:var(--tx,#eee);font-family:inherit;font-size:14px;padding:11px 13px;margin-bottom:10px">
+    <div style="font-size:12.5px;color:var(--tx3,#888);margin-bottom:22px">${_pwForced ? (ko?'보안 점검으로 모든 직원이 새 비밀번호를 정합니다. 8자 이상, 전에 쓰던 것과 다르게 정해 주세요.':'Security check: everyone sets a new password. 8+ characters, different from before.') : (ko?'새 비밀번호를 입력하고 확인해주세요.':'Choose a new password for your account.')}</div>
+    <input id="rp-pass1" type="password" placeholder="${ko?'새 비밀번호 (8자 이상)':'New password (8+ characters)'}" style="width:100%;box-sizing:border-box;background:var(--bg-h,#16161a);border:1px solid var(--br,#333);border-radius:8px;color:var(--tx,#eee);font-family:inherit;font-size:14px;padding:11px 13px;margin-bottom:10px">
     <input id="rp-pass2" type="password" placeholder="${ko?'새 비밀번호 확인':'Confirm new password'}" style="width:100%;box-sizing:border-box;background:var(--bg-h,#16161a);border:1px solid var(--br,#333);border-radius:8px;color:var(--tx,#eee);font-family:inherit;font-size:14px;padding:11px 13px;margin-bottom:8px" onkeydown="if(event.key==='Enter')submitNewPassword()">
     <div id="rp-msg" style="font-size:12px;min-height:16px;margin-bottom:10px"></div>
     <button id="rp-btn" onclick="submitNewPassword()" style="width:100%;background:var(--ac,#c2a04a);border:0;color:#1a1408;border-radius:9px;padding:12px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:800">${ko?'비밀번호 변경':'Change password'}</button>
@@ -53733,8 +53735,8 @@ async function submitNewPassword(){
   const p2 = ((document.getElementById('rp-pass2')||{}).value) || '';
   const msg = document.getElementById('rp-msg');
   const btn = document.getElementById('rp-btn');
-  if(p1.length < 6){
-    if(msg){ msg.style.color='var(--re,#e0a83a)'; msg.textContent = ko?'비밀번호는 6자 이상이어야 해요':'Password must be at least 6 characters'; }
+  if(p1.length < 8){   /* [v1565] 8자 이상 */
+    if(msg){ msg.style.color='var(--re,#e0a83a)'; msg.textContent = ko?'비밀번호는 8자 이상이어야 해요':'Password must be at least 8 characters'; }
     return;
   }
   if(p1 !== p2){
@@ -53750,6 +53752,8 @@ async function submitNewPassword(){
       if(btn){ btn.disabled = false; btn.textContent = ko?'비밀번호 변경':'Change password'; }
       return;
     }
+    /* [v1565] 강제 변경이었으면 표시를 끈다 — 다음 로그인부터 바로 들어감 */
+    if(_pwForced){ try{ const {data:{user:_u}} = await sb.auth.getUser(); if(_u) await sb.from('user_profiles').update({pw_reset_required:false}).eq('id', _u.id); }catch(_){} _pwForced = false; }
     // success — sign out of the temporary recovery session so there's no ambiguity, then send
     // them to the normal login screen to sign in fresh with the new password.
     try{ await sb.auth.signOut(); }catch(_){}
@@ -53813,6 +53817,7 @@ async function signIn(){
       } else {
         // 성공
         const {data:profile} = await sb.from('user_profiles').select('*').eq('id', data.user.id).maybeSingle();
+        _pwForced = !!(profile && profile.pw_reset_required);   /* [v1565] */
         currentUser = {
           id: data.user.id,
           email: data.user.email,
@@ -54204,6 +54209,7 @@ async function pollOffRequests(){
 }
 
 function finishSignIn(){
+  if(_pwForced){ try{ showResetPasswordScreen(); }catch(_){} return; }   /* [v1565] 새 비밀번호부터 */
   showAppScreen();
   try{ logAction('auth', 'logged in', currentUser ? (currentUser.role||'') : ''); }catch(_){}
   updateSidebarUser();
@@ -67625,6 +67631,7 @@ function showBootDiag(b){
   const hasSession = await checkSession();
   if(hasSession){
     showAppScreen();
+    if(_pwForced){ try{ showResetPasswordScreen(); }catch(_){} return; }   /* [v1565] 새 비밀번호부터 */
     currentUserRole = currentUser.sessionRole || 'admin';
     updateSidebarUser();
     startPresence();
