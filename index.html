@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARASAKA Corp</title>
-<!-- BUILD: v1562 | 30분 넘은 기록 사본은 먼저 안 그림 - 새 기록을 2.5초 기다렸다 한 번에, 숫자가 뒤늦게 바뀌지 않게 -->
+<!-- BUILD: v1563 | 새로고침마다 뜨던 PC 현황 못 읽음 알림 - 불러오기 전 첫 그리기의 자동 저장이었다, 10초 안에 읽히면 말 안 함 -->
 <!-- v745 기록은 git 이력(v1302 이전 커밋)에 있다 — 100KB 변경사 주석을 배포에서 제거 -->
 <!-- [v677] a <link href> cannot read a CSS variable, so the favicon carries its own copy.
      64px: a browser tab draws it at 16-32px, so this is 2x-DPR sharp at 11KB. -->
@@ -57673,7 +57673,7 @@ const MAX_CLIENTS_PER_PC = 3;
 // [v281] CRITICAL: never mark _pcLoaded on a FAILED load. If the load errors/throws,
 // PCS stays [] and we must keep saves BLOCKED — otherwise a render-time save would
 // overwrite the real pc_state row in Supabase with an empty array (data-loss spiral).
-let _pcLoaded = false, _pcSaveTimer = null;
+let _pcLoaded = false, _pcSaveTimer = null, _pcStateLoadFailed = false;   /* [v1563] 불러오기가 진짜로 실패했나 */
 async function loadPCState(){
   if(!sb){ _pcLoaded = true; return; }   // dev/no-backend: allow local-only edits
   try{
@@ -57681,6 +57681,7 @@ async function loadPCState(){
     if(error){
       console.warn('pc_state load failed:', error.message);
       toast('PC load error: ' + error.message + ' — saves paused to protect data', true);
+      _pcStateLoadFailed = true;
       return;   // do NOT set _pcLoaded → saves blocked until a clean load
     }
     if(data && Array.isArray(data.data)){ PCS = data.data; try{ normalizePCs(); }catch(_){} }
@@ -57691,9 +57692,11 @@ async function loadPCState(){
        부팅 로드가 이미 최신을 손에 쥔 지금, 기준선과 CAS 버전을 여기서 심는다. */
     try{ if(data){ _pullSig['pc_state'] = JSON.stringify(data.data); if(data.ver != null) _casVer['pc_state:default'] = data.ver; } }catch(_){}
     _pcLoaded = true;   // success — including a legit empty / no-row result
+    _pcStateLoadFailed = false;
   }catch(e){
     console.warn('pc_state load error:', e && e.message);
     toast('PC load error: ' + (e&&e.message) + ' — saves paused to protect data', true);
+    _pcStateLoadFailed = true;
     return;   // network throw → not loaded → saves blocked
   }
 }
@@ -57732,9 +57735,20 @@ function _pcSaveBlocked(msg){
 }
 function savePCState(allowEmpty){
   try{ pauseSync(); }catch(_){}
-  if(!_pcLoaded){ _pcSaveBlocked(_uiLang()==='ko'
+  if(!_pcLoaded){
+    /* ═══ [v1563] 새로고침할 때마다 뜨던 '아직 다 못 읽었습니다' ═══════════════════════
+       사장님 "PC 현황 로드하지 못했다고 계속 나오는데 새로고침 할때마다 이것도 수정해"
+       부팅은 routeContent() 로 마지막 화면(PC 현황)을 먼저 그리고 그 다음 줄에서 loadPCState() 를 부른다.
+       render() 끝의 자동 저장이 불러오기 전에 한 번 돌아 v1504 의 알림이 떴다 — 사람이 바꾼 것도,
+       실제로 못 읽은 것도 아니다(9/13 18:52 서버 기록: pc_state 전부 200).
+       그래서 말하기를 10초 미룬다. 그사이 불러오기가 끝나면 말할 것이 없다. 불러오기가 진짜로
+       실패했거나 10초가 지나도 못 읽었을 때만 말한다. 저장을 막는 것은 예전 그대로다. */
+    var _pcBlkMsg = _uiLang()==='ko'
       ? 'PC 현황을 아직 다 못 읽었습니다 — 지금 바꾼 것은 저장되지 않습니다. 새로고침해 주세요'
-      : 'PC status is still loading — changes are NOT being saved. Please refresh'); return; }
+      : 'PC status is still loading — changes are NOT being saved. Please refresh';
+    if(_pcStateLoadFailed) _pcSaveBlocked(_pcBlkMsg);
+    else if(!window._pcBlkDeferT) window._pcBlkDeferT = setTimeout(function(){ window._pcBlkDeferT = 0; if(!_pcLoaded) _pcSaveBlocked(_pcBlkMsg); }, 10000);
+    return; }
   if(!sb){ _pcSaveBlocked(_uiLang()==='ko'
       ? '서버에 연결되지 않았습니다 — 지금 바꾼 것은 저장되지 않습니다'
       : 'Not connected — changes are NOT being saved'); return; }
