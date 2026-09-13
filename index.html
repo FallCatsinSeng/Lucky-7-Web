@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARASAKA Corp</title>
-<!-- BUILD: v1563 | 새로고침마다 뜨던 PC 현황 못 읽음 알림 - 불러오기 전 첫 그리기의 자동 저장이었다, 10초 안에 읽히면 말 안 함 -->
+<!-- BUILD: v1564 | 리포트 서버 주소 교체 - 옛 주소는 이제 안 열린다 -->
 <!-- v745 기록은 git 이력(v1302 이전 커밋)에 있다 — 100KB 변경사 주석을 배포에서 제거 -->
 <!-- [v677] a <link href> cannot read a CSS variable, so the favicon carries its own copy.
      64px: a browser tab draws it at 16-32px, so this is 2x-DPR sharp at 11KB. -->
@@ -36879,7 +36879,7 @@ async function _srConfirm(){
   else if(cb){ cb.disabled=false; cb.textContent=old; }
 }
 // ───────── shift report: save to payroll + post Discord card ─────────
-var _SR_SERVER='https://buju-report-production.up.railway.app';   // report server (Railway). If the host ever moves, change ONLY this line.
+var _SR_SERVER='https://arasaka-rp-x9k2.up.railway.app';   // report server (Railway). If the host ever moves, change ONLY this line.
 var _srCalcCache = {};   // [v407] short-term cache for _srGetCalc; key -> {ts, data}. Cuts repeated Supabase egress from multi-fetch per submit/load.
 var _srBusy=false;
 var _srLastMap='';   // [v316] last map the booster picked — kept across form re-renders so it can't snap back to default
