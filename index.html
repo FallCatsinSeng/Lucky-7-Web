@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARASAKA Corp</title>
-<!-- BUILD: v1565 | 비밀번호 강제 변경 - 표시가 켜진 사람은 다음 로그인 때 8자 이상 새 비밀번호를 정해야 들어간다 -->
+<!-- BUILD: v1566 | 새 비밀번호 화면은 언제나 영어 -->
 <!-- v745 기록은 git 이력(v1302 이전 커밋)에 있다 — 100KB 변경사 주석을 배포에서 제거 -->
 <!-- [v677] a <link href> cannot read a CSS variable, so the favicon carries its own copy.
      64px: a browser tab draws it at 16-32px, so this is 2x-DPR sharp at 11KB. -->
@@ -53715,7 +53715,7 @@ async function sendPasswordReset(){
 function showResetPasswordScreen(){
   const authEl = document.getElementById('auth-screen'); if(authEl) authEl.style.display = 'none';
   const appEl = document.getElementById('app-screen'); if(appEl) appEl.style.display = 'none';
-  const ko = _uiLang()==='ko';
+  const ko = false;   /* [v1566] 사장님 "영어로 설정해줘" — 새 비밀번호 화면은 언제나 영어 */
   let scr = document.getElementById('reset-pw-screen');
   if(!scr){ scr = document.createElement('div'); scr.id = 'reset-pw-screen'; document.body.appendChild(scr); }
   scr.style.cssText = 'position:fixed;inset:0;z-index:6000;background:var(--bg,#0b0b0e);display:flex;align-items:center;justify-content:center;padding:20px';
@@ -53730,7 +53730,7 @@ function showResetPasswordScreen(){
   </div>`;
 }
 async function submitNewPassword(){
-  const ko = _uiLang()==='ko';
+  const ko = false;   /* [v1566] 영어 고정 */
   const p1 = ((document.getElementById('rp-pass1')||{}).value) || '';
   const p2 = ((document.getElementById('rp-pass2')||{}).value) || '';
   const msg = document.getElementById('rp-msg');
