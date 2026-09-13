@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARASAKA Corp</title>
-<!-- BUILD: v1561 | 기록 통계 빠르게 - 사본을 메모리와 IndexedDB 로, 같은 기록이면 다시 안 그림, 문의 보드 실패 시 1초 반복 막음 -->
+<!-- BUILD: v1562 | 30분 넘은 기록 사본은 먼저 안 그림 - 새 기록을 2.5초 기다렸다 한 번에, 숫자가 뒤늦게 바뀌지 않게 -->
 <!-- v745 기록은 git 이력(v1302 이전 커밋)에 있다 — 100KB 변경사 주석을 배포에서 제거 -->
 <!-- [v677] a <link href> cannot read a CSS variable, so the favicon carries its own copy.
      64px: a browser tab draws it at 16-32px, so this is 2x-DPR sharp at 11KB. -->
@@ -42286,7 +42286,7 @@ function _rcSetCache(reports,clients,sig){
   var R=reports||[], cl=clients||[];
   /* 같은 기록을 또 넣으면 그대로 둔다 — 셈(_rcRec)과 IndexedDB 저장(6MB)을 다시 하지 않게. 받은 시각만 새로 */
   if(_rcMem){
-    if(sig && _rcMem.sig===sig){ _rcMem.t=Date.now(); return; }
+    if(sig && _rcMem.sig===sig){ _rcMem.t=Date.now(); if(!(_rcMem._pt > Date.now()-600000)){ _rcMem._pt=Date.now(); _rcPersistSoon(); } return; }   /* [v1562] 받은 시각은 10분에 한 번 저장 — 새로고침 뒤 사본 나이를 맞게 */
     if(!sig && R===_rcMem.reports){ try{ if(JSON.stringify(cl)===JSON.stringify(_rcMem.clients)){ _rcMem.t=Date.now(); return; } }catch(_){ } }
   }
   /* 기준표 편집기가 넘기는 목록은 편집 중에 바뀔 수 있다 — 지문 없이 들어오면 떼어 둔다(30장 · 16KB) */
@@ -43532,6 +43532,8 @@ async function renderRecords(silent){
      새로 받은 기록이 같은 지문이면 다시 셈 · 다시 그리기 · 사본 저장을 통째로 건너뛴다. */
   var _setsKey=function(){ try{ return JSON.stringify([_trainingKeys(),_hiddenKeys()]); }catch(_){ return ''; } };
   var _stamp=function(el,h,sig){ if(!el) return; el.__srHtml=h; el.__srSig=sig||null; el.__srSets=_setsKey(); };
+  var _staleCz=null, _staleT=0, _freshDone=false;   /* [v1562] 오래된 사본 · 늦으면 그리는 시계 · 새 기록이 그려졌나 */
+  var _paintCz=function(cz){ try{ var _h0=_srRecCardHTML((cz===_rcGetCache() && _rcRec()) || _srRecCompute(cz.reports,cz.clients)); otherView.innerHTML='<div id="sr-app" class="sr-app-wide">'+_h0+'</div>'; _stamp(otherView.querySelector('#sr-app.sr-app-wide'),_h0,cz.sig); try{ if(typeof _mcAutoOpen==='function') _mcAutoOpen(); }catch(_){} return true; }catch(_){ return false; } };
   if(!silent && window._srRecMode!=='clock'){
     var _cz=_rcGetCache();
     if(!_cz){
@@ -43539,7 +43541,17 @@ async function renderRecords(silent){
       try{ _cz=await _rcCacheReady(); }catch(_){ _cz=null; }
       if(_ep !== (window._chEpoch||0)) return;   /* [v859] 기다리는 사이 다른 화면으로 갔다 */
     }
-    if(_cz){ try{ var _h0=_srRecCardHTML((_cz===_rcGetCache() && _rcRec()) || _srRecCompute(_cz.reports,_cz.clients)); otherView.innerHTML='<div id="sr-app" class="sr-app-wide">'+_h0+'</div>'; _stamp(otherView.querySelector('#sr-app.sr-app-wide'),_h0,_cz.sig); _painted=true; try{ if(typeof _mcAutoOpen==='function') _mcAutoOpen(); }catch(_){} }catch(_){ } }
+    /* ═══ [v1562] 30분 넘은 사본은 먼저 그리지 않는다 ═══════════════════════════
+       사장님 "클라이언트 카드안에 정보가 좀 로딩이 걸리는데" 의 남은 반쪽 — 사본을 먼저 그리면
+       그 사이 들어온 리포트만큼 카드 숫자가 1~2초 뒤 바뀐다. 사본이 오래될수록 많이 바뀐다
+       (사장님 웨일에는 10MB 한도에 걸려 며칠 묵은 사본이 있었다). 그래서 30분 안의 사본만 바로 그리고,
+       그보다 오래됐으면 새 기록을 2.5초까지 기다렸다가 한 번에 그린다. 회선이 느려 그래도 안 오면
+       그때 사본으로 그린다 — 빈 화면으로 오래 두지 않는다. */
+    if(_cz && (Date.now()-Number(_cz.t||0)) < 30*60000){ _painted=_paintCz(_cz); }
+    else if(_cz){
+      _staleCz=_cz;
+      _staleT=setTimeout(function(){ if(_freshDone || _ep !== (window._chEpoch||0)) return; _paintCz(_staleCz); }, 2500);
+    }
   }
   var _bg = silent || _painted;   // after a cache paint, the fresh fetch refreshes in place (keep scroll/filter)
   // [v310] silent/bg = keep scroll + current filter, no loading flash, no error wipe
@@ -43571,10 +43583,11 @@ async function renderRecords(silent){
     var clients=Array.isArray(byKey.clients)?byKey.clients:[];
     try{ await _tsP; }catch(_){ }
     try{ await _hsP; }catch(_){ }
+    _freshDone=true; clearTimeout(_staleT);   /* [v1562] 새 기록이 왔다 — 늦은 사본 그리기는 없던 일로 */
     var app=otherView.querySelector('#sr-app.sr-app-wide');
     if(_bg && app && window._srRecAll && app.__srSig && app.__srSig===_sig && app.__srSets===_setsKey()){
       /* 화면에 그린 자료와 서버 기록이 글자 하나 다르지 않다 — 셈(0.2초+) · 그리기 · 사본 저장을 건너뛴다 */
-      try{ var _m=_rcGetCache(); if(_m && _m.sig===_sig) _m.t=Date.now(); else _rcSetCache(reports,clients,_sig); }catch(_){ }
+      try{ _rcSetCache(reports,clients,_sig); }catch(_){ }   /* 같은 지문이면 받은 시각만 새로 */
       return;
     }
     _rcSetCache(reports,clients,_sig);
@@ -43588,6 +43601,8 @@ async function renderRecords(silent){
   }catch(e){
     if(_bg) return;   // background/refresh failed — keep the current view, don't flash an error
     if(_ep !== (window._chEpoch||0)) return;   /* [v859] */
+    _freshDone=true; clearTimeout(_staleT);
+    if(_staleCz && _paintCz(_staleCz)) return;   /* [v1562] 못 받았으면 낡은 사본이라도 보여 준다 */
     otherView.innerHTML='<div id="sr-app" class="sr-app-wide"><div class="sr-card"><div class="sr-head"><h2>기록 · 통계</h2></div><div class="sr-empty">지금은 기록을 불러올 수 없어요.</div></div></div>';
   }finally{
     window._srRecInflight=Math.max(0,(window._srRecInflight||1)-1);
