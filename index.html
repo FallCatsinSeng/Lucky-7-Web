@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARASAKA Corp</title>
-<!-- BUILD: v1567 | 끊긴 옛 로그인은 새 비밀번호 화면 대신 로그인 화면으로 (Auth session missing 방지) -->
+<!-- BUILD: v1568 | 새 집으로 이사 - 회사 DB와 리포트 DB 주소·공개 열쇠 교체 -->
 <!-- v745 기록은 git 이력(v1302 이전 커밋)에 있다 — 100KB 변경사 주석을 배포에서 제거 -->
 <!-- [v677] a <link href> cannot read a CSS variable, so the favicon carries its own copy.
      64px: a browser tab draws it at 16-32px, so this is 2x-DPR sharp at 11KB. -->
@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link rel="preconnect" href="https://hunoeabrcvkrcixawksh.supabase.co" crossorigin>
+<link rel="preconnect" href="https://izxgtszlmlyubugmwrby.supabase.co" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
 <link rel="preload" as="script" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin>
 <!--
@@ -16194,11 +16194,11 @@ setTimeout(function(){ if(window.hideBootSplash) window.hideBootSplash(); }, 250
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ═══════════════════════════════════════════════════
-// SUPABASE 클라이언트 — Lucky7 backend (hunoeabrcvkrcixawksh.supabase.co)
+// SUPABASE 클라이언트 — Lucky7 backend (izxgtszlmlyubugmwrby.supabase.co)
 // 인증 / 출퇴근 / 직원 / 채용 / 시프트 / 업무 등 모든 데이터 영속
 // ═══════════════════════════════════════════════════
-const SUPABASE_URL = 'https://hunoeabrcvkrcixawksh.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_1Hzyrlgp9-ThK-gudn7SIA_IBjh836_';
+const SUPABASE_URL = 'https://izxgtszlmlyubugmwrby.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nHzVMz4XKQ6c-4jMco38ow_hAVDeiMH';
 // [v517] "Remember me" — dynamic auth-session storage. Remember ON (default) keeps the Supabase
 // session in localStorage (survives closing the browser); OFF keeps it in sessionStorage (cleared
 // when the browser/tab session ends) so a shared machine doesn't stay logged in. getItem checks BOTH
@@ -36906,7 +36906,7 @@ function _srCalcClient(clients,name){ var cn=String(name||'').trim(); return (cl
 // a Supabase Edge Function ('calc-data', same three endpoints, service-role writes) the moment the primary
 // fails, so reports keep saving even with Railway fully down. Discord cards (/api/report) still need Railway —
 // the app already degrades gracefully there ("Saved — Discord card didn't post").
-var _SR_FALLBACK='https://ohnasvgwzmknzujtqrzt.supabase.co/functions/v1';
+var _SR_FALLBACK='https://owflrfaxtqjlzwnrtvum.supabase.co/functions/v1';
 function _srFallbackUrl(url){ try{ var s=String(url||''); var m=s.indexOf('/api/calc-data'); if(m<0) return null; return _SR_FALLBACK+'/calc-data'+s.slice(m+14); }catch(_){ return null; } }
 function _srTimeoutFetch(url, opts, ms){
   var ac=new AbortController(); var t=setTimeout(function(){ ac.abort(); }, ms);
@@ -38519,8 +38519,8 @@ async function renderShiftAdmin(silent){
   var _srKeepTop = silent ? (otherView.scrollTop||0) : 0;
   var _srKeepWin = silent ? (window.scrollY||document.documentElement.scrollTop||0) : 0;
   _srInjectCSS();
-  var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
-  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+  var REPORT_URL='https://owflrfaxtqjlzwnrtvum.supabase.co';
+  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93ZmxyZmF4dHFqbHp3bnJ0dnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjQyODUsImV4cCI6MjEwNDkwMDI4NX0.tiCDFUMYImuksRslxvnirtg6F1YM6RUIQ3xBlbHhxJI';
   var normName=function(n){ return String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0]||''; };
   // [v291] A single hourly report can't realistically span more than ~20 levels. A bigger
   // jump means the LV field is bad data (e.g. "400" typed for "40"), which would otherwise
@@ -42530,8 +42530,8 @@ async function _kbFetchAll(table, sel){
   return out;
 }
 async function _kbLoadRealData(){
-  var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
-  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+  var REPORT_URL='https://owflrfaxtqjlzwnrtvum.supabase.co';
+  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93ZmxyZmF4dHFqbHp3bnJ0dnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjQyODUsImV4cCI6MjEwNDkwMDI4NX0.tiCDFUMYImuksRslxvnirtg6F1YM6RUIQ3xBlbHhxJI';
   try{
     var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
     var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr,cache:'no-store'});
@@ -43385,8 +43385,8 @@ async function _raceIndividualRender(container){
   if(!container) return;
   _rcInjectCSS();
   if(!container.querySelector('#rc-app')) container.innerHTML='<div id="rc-app"><div class="rc-loading">\u27F3 Loading race\u2026</div></div>';
-  var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
-  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+  var REPORT_URL='https://owflrfaxtqjlzwnrtvum.supabase.co';
+  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93ZmxyZmF4dHFqbHp3bnJ0dnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjQyODUsImV4cCI6MjEwNDkwMDI4NX0.tiCDFUMYImuksRslxvnirtg6F1YM6RUIQ3xBlbHhxJI';
   var reports=[], clients=[];
   try{
     var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
@@ -43416,8 +43416,8 @@ async function renderRace(silent){
   if(!silent){ var _cz=_rcGetCache(); if(_cz){ try{ var _cr=_srRecCompute(_cz.reports,_cz.clients); otherView.innerHTML=_raceCardHTML(_cr.daily||[], _cr.sessions||[]); silent=true; }catch(_){ } } }
   var _keepTop = silent ? (otherView.scrollTop||0) : 0;
   if(!silent && !otherView.querySelector('.race-wrap')) otherView.innerHTML='<div class="race-wrap"><div class="race-head"><div class="race-title">🏁 레이스</div></div><div class="race-empty">⟳ 불러오는 중…</div></div>';
-  var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
-  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+  var REPORT_URL='https://owflrfaxtqjlzwnrtvum.supabase.co';
+  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93ZmxyZmF4dHFqbHp3bnJ0dnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjQyODUsImV4cCI6MjEwNDkwMDI4NX0.tiCDFUMYImuksRslxvnirtg6F1YM6RUIQ3xBlbHhxJI';
   try{
     var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
     var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr,cache:'no-store'});
@@ -43567,8 +43567,8 @@ async function renderRecords(silent){
     try{ if(typeof syncClientStateFromCloud==='function' && typeof _clientSynced!=='undefined' && !_clientSynced) Promise.resolve().then(syncClientStateFromCloud).then(function(){ try{ _srRecReRenderSoon(); }catch(_){ } }).catch(function(){}); }catch(_){}
     if(typeof syncExpFromCloud==='function'){ if(typeof _expSynced!=='undefined') _expSynced=true; Promise.resolve().then(syncExpFromCloud).catch(function(){}); }   // [v325] master map list for the editor's picker
   }
-  var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
-  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+  var REPORT_URL='https://owflrfaxtqjlzwnrtvum.supabase.co';
+  var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93ZmxyZmF4dHFqbHp3bnJ0dnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjQyODUsImV4cCI6MjEwNDkwMDI4NX0.tiCDFUMYImuksRslxvnirtg6F1YM6RUIQ3xBlbHhxJI';
   window._srRecInflight=(window._srRecInflight||0)+1;   /* [v1561] 받는 동안 뒤에서 오는 다시 그리기는 기다렸다가 같이 */
   try{
     var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
@@ -52247,8 +52247,8 @@ async function renderMyPerformance(){
 
   // ===== live data from the report system (calc) — mirrors calc.html math =====
   // Reads the calc's data directly from the REPORT Supabase project (no server.js, no CORS).
-  const REPORT_SUPABASE_URL = 'https://ohnasvgwzmknzujtqrzt.supabase.co';
-  const REPORT_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+  const REPORT_SUPABASE_URL = 'https://owflrfaxtqjlzwnrtvum.supabase.co';
+  const REPORT_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93ZmxyZmF4dHFqbHp3bnJ0dnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjQyODUsImV4cCI6MjEwNDkwMDI4NX0.tiCDFUMYImuksRslxvnirtg6F1YM6RUIQ3xBlbHhxJI';
   const normName = (n) => String(n||'').toLowerCase().replace(/^\s*(mr|ms|mrs)(\.|\s)\s*/,'').trim().split(/\s+/)[0] || '';
   const toMin = (hhmm) => { const s=String(hhmm==null?'':hhmm).trim(); const m=s.match(/^(\d{1,2}):(\d{2})$/); if(!m) return NaN; const h=Number(m[1]), mn=Number(m[2]); if(h<0||h>24||mn<0||mn>59) return NaN; return h*60+mn; };
   const ovMin = (s,e,bs,be) => Math.max(0, Math.min(e,be)-Math.max(s,bs));
@@ -64795,8 +64795,8 @@ async function renderPCHubTimeline(silent){
   if(window._pcTimelineLoading) return;
   window._pcTimelineLoading = true;
   try{
-    var REPORT_URL='https://ohnasvgwzmknzujtqrzt.supabase.co';
-    var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9obmFzdmd3em1rbnp1anRxcnp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzg0NzIsImV4cCI6MjA5NDMxNDQ3Mn0.yTUmqCP5SIzi3fTYXVTg-WGyWB9DwmYYfzMWM1EB9V0';
+    var REPORT_URL='https://owflrfaxtqjlzwnrtvum.supabase.co';
+    var REPORT_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93ZmxyZmF4dHFqbHp3bnJ0dnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjQyODUsImV4cCI6MjEwNDkwMDI4NX0.tiCDFUMYImuksRslxvnirtg6F1YM6RUIQ3xBlbHhxJI';
     var hdr={ apikey:REPORT_ANON, Authorization:'Bearer '+REPORT_ANON };
     var res=await fetch(REPORT_URL+'/rest/v1/calc_data?key=in.(reports,clients)&select=*',{headers:hdr,cache:'no-store'});
     if(!res.ok) throw new Error('calc_data ' + res.status);   /* [v1561] 오류 응답으로 사본을 비우지 않는다 */
@@ -70903,7 +70903,7 @@ _kbOnReady(()=>{const b=document.getElementById('langBtn'); if(b)b.onclick=()=>{
    stale-while-revalidate: 캐시를 즉시 그리고, 백그라운드로 갱신해 다음 새로고침에 반영. */
 const DATA_SOURCE={
   mode:'embedded',                                          // 'embedded' | 'supabase'
-  supabaseUrl:'https://ohnasvgwzmknzujtqrzt.supabase.co',   // Tokyo reports project
+  supabaseUrl:'https://owflrfaxtqjlzwnrtvum.supabase.co',   // Tokyo reports project
   anonKey:'',                                               // ← anon key (공개 가능, RLS 전제)
   table:'players_today',                                    // ← 뷰/테이블 이름
   maxAgeMs:6*60*60*1000                                     // 캐시 유효시간 6h
